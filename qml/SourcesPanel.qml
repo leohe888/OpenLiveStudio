@@ -1,0 +1,133 @@
+import QtQuick
+import QtQuick.Controls.Basic
+import QtQuick.Layouts
+
+Rectangle {
+    objectName: "sourcesPanel"
+    implicitWidth: 238
+    implicitHeight: 320
+    color: "#1d1d1d"
+
+    // Presentation only. The C++ source model and operations arrive later.
+    component SourceButton: ToolButton {
+        width: 30
+        height: 30
+        display: AbstractButton.IconOnly
+        icon.width: 16
+        icon.height: 16
+        icon.color: enabled ? "#d6d6d6" : "#666666"
+        enabled: false
+        Accessible.name: text
+        ToolTip.text: text
+        background: Item {}
+    }
+
+    ColumnLayout {
+        anchors.fill: parent
+        spacing: 0
+
+        Item {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+
+            ListView {
+                id: sourceList
+                objectName: "sourceList"
+                anchors.fill: parent
+                clip: true
+                model: null
+                currentIndex: -1
+
+                delegate: Item {
+                    required property string sourceName
+                    width: sourceList.width
+                    height: 32
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 8
+                        spacing: 2
+
+                        Label {
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            text: sourceName
+                            elide: Text.ElideRight
+                            color: "#d6d6d6"
+                        }
+                        SourceButton {
+                            objectName: "sourceVisibilityButton"
+                            text: qsTr("来源显隐")
+                            icon.source: "qrc:/assets/icons/eye.svg"
+                        }
+                        SourceButton {
+                            objectName: "sourceLockButton"
+                            text: qsTr("来源锁定")
+                            icon.source: "qrc:/assets/icons/lock.svg"
+                        }
+                    }
+                }
+            }
+
+            Label {
+                objectName: "emptySourcesLabel"
+                anchors.centerIn: parent
+                text: qsTr("暂无来源")
+                color: "#8c8c8c"
+                visible: sourceList.count === 0
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: 1
+            color: "#2e2e2e"
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: 32
+            color: "#232323"
+
+            RowLayout {
+                objectName: "sourceActions"
+                anchors.fill: parent
+                spacing: 2
+
+                Repeater {
+                    model: [
+                        { name: "addSourceButton", icon: "plus", label: qsTr("添加来源") },
+                        { name: "removeSourceButton", icon: "minus", label: qsTr("移除来源") },
+                        { name: "moveSourceUpButton", icon: "arrow-up", label: qsTr("来源上移") },
+                        { name: "moveSourceDownButton", icon: "arrow-down", label: qsTr("来源下移") }
+                    ]
+                    delegate: SourceButton {
+                        required property var modelData
+                        objectName: modelData.name
+                        text: modelData.label
+                        icon.source: "qrc:/assets/icons/" + modelData.icon + ".svg"
+                        Layout.preferredWidth: 30
+                    }
+                }
+                Rectangle {
+                    implicitWidth: 1
+                    implicitHeight: 18
+                    color: "#444444"
+                }
+                SourceButton {
+                    objectName: "sourceFiltersButton"
+                    text: qsTr("来源滤镜")
+                    icon.source: "qrc:/assets/icons/sliders-horizontal.svg"
+                    Layout.preferredWidth: 30
+                }
+                Item { Layout.fillWidth: true }
+                SourceButton {
+                    objectName: "sourcePropertiesButton"
+                    text: qsTr("来源属性")
+                    icon.source: "qrc:/assets/icons/settings.svg"
+                    Layout.preferredWidth: 30
+                }
+            }
+        }
+    }
+}

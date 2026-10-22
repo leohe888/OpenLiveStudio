@@ -4,12 +4,14 @@
 #include <QImageReader>
 #include <QLabel>
 #include <QMenuBar>
+#include <QQmlComponent>
 #include <QQmlError>
 #include <QQuickItem>
 #include <QQuickWidget>
 #include <QStatusBar>
 #include <QToolBar>
 #include <QtTest/QTest>
+#include <memory>
 
 class MainWindowTest : public QObject
 {
@@ -20,12 +22,14 @@ private slots:
     void hasWindowShell();
     void keepsOutputStatusVisibleWhenResized();
     void loadsScenePanelWithEmptyState();
+    void loadsSourcePanelWithEmptyState();
     void embedsScenePanelInLeftDock();
     void sceneDockCanFloatRedockAndClose();
     void sceneDockShowsLoadErrorAndRecovers();
-    void sceneIconsCanBeDecoded_data();
-    void sceneIconsCanBeDecoded();
-    void sceneIconsRenderInDisabledAndEnabledStates();
+    void panelIconsCanBeDecoded_data();
+    void panelIconsCanBeDecoded();
+    void panelIconsRenderInDisabledAndEnabledStates_data();
+    void panelIconsRenderInDisabledAndEnabledStates();
 };
 
 void MainWindowTest::canShowAndClose()
@@ -125,6 +129,47 @@ void MainWindowTest::loadsScenePanelWithEmptyState()
     QVERIFY(emptyLabel->isVisible());
 }
 
+void MainWindowTest::loadsSourcePanelWithEmptyState()
+{
+    QQuickWidget panel;
+    panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
+    panel.resize(238, 320);
+    panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml")));
+    QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
+    panel.show();
+    auto *root = panel.rootObject();
+    QVERIFY(root);
+    auto *list = root->findChild<QObject *>(QStringLiteral("sourceList"));
+    auto *emptyLabel = root->findChild<QQuickItem *>(QStringLiteral("emptySourcesLabel"));
+    auto *actions = root->findChild<QQuickItem *>(QStringLiteral("sourceActions"));
+    QVERIFY(list);
+    QVERIFY(emptyLabel);
+    QVERIFY(actions);
+    QCOMPARE(list->property("count").toInt(), 0);
+    QCOMPARE(list->property("currentIndex").toInt(), -1);
+    QTRY_VERIFY(emptyLabel->isVisible());
+
+    for (const auto &size : {QSize(238, 320), QSize(220, 180), QSize(400, 500)}) {
+        panel.resize(size);
+        QTRY_COMPARE(root->size(), QSizeF(size));
+        int buttons = 0;
+        QRectF previousButton;
+        for (auto *item : actions->childItems()) {
+            if (!item->objectName().endsWith(QStringLiteral("Button")))
+                continue;
+            QVERIFY(item->isVisible());
+            QVERIFY(!item->isEnabled());
+            const QRectF rect = item->mapRectToScene(item->boundingRect());
+            QVERIFY(root->boundingRect().contains(rect));
+            QVERIFY(!rect.intersects(previousButton));
+            previousButton = rect;
+            ++buttons;
+        }
+        QCOMPARE(buttons, 6);
+        QVERIFY(emptyLabel->isVisible());
+    }
+}
+
 void MainWindowTest::embedsScenePanelInLeftDock()
 {
     MainWindow window;
@@ -186,15 +231,16 @@ void MainWindowTest::sceneDockShowsLoadErrorAndRecovers()
     QVERIFY(!errorLabel->isVisible());
 }
 
-void MainWindowTest::sceneIconsCanBeDecoded_data()
+void MainWindowTest::panelIconsCanBeDecoded_data()
 {
     QTest::addColumn<QString>("resourcePath");
-    for (const auto *name : {"plus", "minus", "arrow-up", "arrow-down"}) {
+    for (const auto *name : {"plus", "minus", "arrow-up", "arrow-down",
+                             "eye", "lock", "sliders-horizontal", "settings"}) {
         QTest::newRow(name) << QStringLiteral(":/assets/icons/%1.svg").arg(QLatin1String(name));
     }
 }
 
-void MainWindowTest::sceneIconsCanBeDecoded()
+void MainWindowTest::panelIconsCanBeDecoded()
 {
     QFETCH(QString, resourcePath);
     QImageReader reader(resourcePath);
@@ -204,16 +250,50 @@ void MainWindowTest::sceneIconsCanBeDecoded()
     QVERIFY(image.hasAlphaChannel());
 }
 
-void MainWindowTest::sceneIconsRenderInDisabledAndEnabledStates()
+void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates_data()
 {
+    QTest::addColumn<QString>("panelName");
+    QTest::addColumn<int>("expectedButtons");
+    QTest::newRow("scenes") << QStringLiteral("ScenesPanel") << 4;
+    QTest::newRow("sources") << QStringLiteral("SourcesPanel") << 8;
+}
+
+void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
+{
+    QFETCH(QString, panelName);
+    QFETCH(int, expectedButtons);
     QQuickWidget panel;
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(238, 260);
-    panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ScenesPanel.qml")));
+    panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(panelName)));
     QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
     panel.show();
-    auto *actions = panel.rootObject()->findChild<QQuickItem *>(QStringLiteral("sceneActions"));
-    QVERIFY(actions);
+    // Test-only data instantiates the source row; production keeps a null model.
+    std::unique_ptr<QObject> sourceModel;
+    if (panelName == QStringLiteral("SourcesPanel")) {
+        QQmlComponent component(panel.engine());
+        component.setData("import QtQml.Models\nListModel { ListElement { "
+                          "sourceName: 'A long source name for layout verification' } }", QUrl());
+        sourceModel.reset(component.create());
+        QVERIFY2(sourceModel, qPrintable(component.errorString()));
+        auto *list = panel.rootObject()->findChild<QObject *>(QStringLiteral("sourceList"));
+        QVERIFY(list);
+        QVERIFY(list->setProperty("model", QVariant::fromValue(sourceModel.get())));
+        QTRY_COMPARE(list->property("count").toInt(), 1);
+        auto *emptyLabel = panel.rootObject()->findChild<QQuickItem *>(QStringLiteral("emptySourcesLabel"));
+        QVERIFY(emptyLabel);
+        QTRY_VERIFY(!emptyLabel->isVisible());
+    }
+    QList<QQuickItem *> buttons;
+    const auto collectButtons = [&buttons](auto &&self, QQuickItem *parent) -> void {
+        for (auto *item : parent->childItems()) {
+            if (item->objectName().endsWith(QStringLiteral("Button")))
+                buttons.append(item);
+            self(self, item);
+        }
+    };
+    collectButtons(collectButtons, panel.rootObject());
+    QCOMPARE(buttons.size(), expectedButtons);
 
     const auto captureButton = [&panel](QQuickItem *button) {
         const QImage frame = panel.grabFramebuffer();
@@ -236,21 +316,19 @@ void MainWindowTest::sceneIconsRenderInDisabledAndEnabledStates()
     };
 
     int checkedButtons = 0;
-    for (auto *button : actions->childItems()) {
-        if (!button->objectName().endsWith(QStringLiteral("Button")))
-            continue;
+    for (auto *button : buttons) {
         QVERIFY(!button->isEnabled());
         QTRY_VERIFY(hasIconPixels(captureButton(button)));
         const QImage disabledImage = captureButton(button);
 
-        // Exercise presentation only; scene operations remain unconnected.
+        // Exercise presentation only; business operations remain unconnected.
         button->setEnabled(true);
         QTRY_VERIFY(captureButton(button) != disabledImage);
         QVERIFY(hasIconPixels(captureButton(button)));
         button->setEnabled(false);
         ++checkedButtons;
     }
-    QCOMPARE(checkedButtons, 4);
+    QCOMPARE(checkedButtons, expectedButtons);
 }
 
 QTEST_MAIN(MainWindowTest)

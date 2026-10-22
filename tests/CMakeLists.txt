@@ -16,6 +16,7 @@ qt_add_resources(tst_mainwindow "test_ui"
     PREFIX "/OpenLiveStudio/Ui"
     BASE "${PROJECT_SOURCE_DIR}"
     FILES "${PROJECT_SOURCE_DIR}/qml/ScenesPanel.qml"
+          "${PROJECT_SOURCE_DIR}/qml/SourcesPanel.qml"
 )
 
 qt_add_resources(tst_mainwindow "test_icons"
