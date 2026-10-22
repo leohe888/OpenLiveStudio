@@ -11,6 +11,7 @@ Rectangle {
 
     component ControlButton: Button {
         implicitHeight: 32
+        Layout.maximumHeight: 32
         enabled: false
         display: AbstractButton.TextBesideIcon
         icon.width: 16
@@ -32,7 +33,7 @@ Rectangle {
         clip: true
         // Keep viewport sizing independent of the layout it sizes.
         contentWidth: Math.max(root.width, 180)
-        contentHeight: Math.max(root.height, 124)
+        contentHeight: Math.max(root.height, 130)
 
         ColumnLayout {
             id: controls
@@ -48,7 +49,6 @@ Rectangle {
                 objectName: "recordButton"
                 Layout.minimumWidth: 110
                 Layout.fillWidth: true
-                Layout.fillHeight: true
                 Layout.minimumHeight: 32
                 text: qsTr("开始录制")
                 icon.source: "qrc:/assets/icons/circle.svg"
@@ -57,7 +57,6 @@ Rectangle {
                 objectName: "streamButton"
                 Layout.minimumWidth: 110
                 Layout.fillWidth: true
-                Layout.fillHeight: true
                 Layout.minimumHeight: 32
                 text: qsTr("开始直播")
                 icon.source: "qrc:/assets/icons/radio.svg"
@@ -66,9 +65,12 @@ Rectangle {
                 objectName: "settingsButton"
                 Layout.minimumWidth: 110
                 Layout.fillWidth: true
-                Layout.fillHeight: true
                 Layout.minimumHeight: 32
                 text: qsTr("设置")
+            }
+            Item {
+                objectName: "controlsSpacer"
+                Layout.fillHeight: true
             }
         }
     }

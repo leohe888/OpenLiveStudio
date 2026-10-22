@@ -243,12 +243,20 @@ void MainWindowTest::loadsMixerPanelWithUnavailableChannels()
         QVERIFY(!status->property("text").toString().isEmpty());
         QCOMPARE(displayValue->property("text").toString(), QString::fromUtf8("—"));
     }
+    QList<QRectF> originalChannels;
+    for (auto *channel : channelItems)
+        originalChannels.append(channel->mapRectToScene(channel->boundingRect()));
     for (const auto &size : {QSize(160, 140), QSize(238, 178), QSize(400, 500)}) {
         panel.resize(size);
         QTRY_COMPARE(root->size(), QSizeF(size));
         QVERIFY(scroll->property("contentWidth").toReal() >= scroll->width());
         QVERIFY(!channelItems[0]->mapRectToScene(channelItems[0]->boundingRect()).intersects(
             channelItems[1]->mapRectToScene(channelItems[1]->boundingRect())));
+        for (int i = 0; i < channelItems.size(); ++i) {
+            const QRectF rect = channelItems[i]->mapRectToScene(channelItems[i]->boundingRect());
+            QCOMPARE(rect.left(), originalChannels[i].left());
+            QCOMPARE(rect.width(), originalChannels[i].width());
+        }
         if (size == QSize(238, 178))
             QVERIFY(scroll->property("contentHeight").toReal() <= scroll->height());
     }
@@ -321,8 +329,10 @@ void MainWindowTest::loadsControlsPanelWithVerticalButtons()
     QVERIFY(root);
     auto *scroll = root->findChild<QQuickItem *>(QStringLiteral("controlsScrollView"));
     auto *actions = root->findChild<QQuickItem *>(QStringLiteral("controlActions"));
+    auto *spacer = root->findChild<QQuickItem *>(QStringLiteral("controlsSpacer"));
     QVERIFY(scroll);
     QVERIFY(actions);
+    QVERIFY(spacer);
     QVERIFY(!root->findChild<QObject *>(QStringLiteral("exitButton")));
     QVERIFY(!root->findChild<QObject *>(QStringLiteral("recordDuration")));
     QVERIFY(!root->findChild<QObject *>(QStringLiteral("streamDuration")));
@@ -352,6 +362,7 @@ void MainWindowTest::loadsControlsPanelWithVerticalButtons()
         for (auto *button : buttons) {
             const QRectF rect = button->mapRectToScene(button->boundingRect());
             QVERIFY(root->boundingRect().contains(rect));
+            QCOMPARE(rect.height(), qreal(32));
             if (!previous.isNull()) {
                 QVERIFY(previous.bottom() < rect.top());
                 QCOMPARE(rect.left(), previous.left());
@@ -359,6 +370,10 @@ void MainWindowTest::loadsControlsPanelWithVerticalButtons()
                 QVERIFY(qAbs(rect.height() - previous.height()) <= 1);
             }
             previous = rect;
+        }
+        if (size.height() > 130) {
+            QVERIFY(spacer->height() > 0);
+            QVERIFY(spacer->mapRectToScene(spacer->boundingRect()).top() > previous.bottom());
         }
     }
     panel.resize(180, 80);

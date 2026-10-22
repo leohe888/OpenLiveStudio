@@ -35,7 +35,7 @@ Rectangle {
             objectName: "mixerChannels"
             x: 8
             y: 6
-            width: scroll.contentWidth - 16
+            width: implicitWidth
             spacing: 12
 
             Repeater {
@@ -49,8 +49,9 @@ Rectangle {
                     id: channel
                     required property var modelData
                     objectName: modelData.key + "Channel"
-                    Layout.fillWidth: true
                     Layout.minimumWidth: 72
+                    Layout.preferredWidth: 72
+                    Layout.maximumWidth: 72
                     spacing: 4
 
                     Row {
