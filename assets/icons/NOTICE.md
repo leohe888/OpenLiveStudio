@@ -1,6 +1,6 @@
 # Lucide icon notices
 
-These SVG files are unmodified copies from the [official Lucide repository](https://github.com/lucide-icons/lucide). Only icons needed by the scene, source and mixer panels have been imported. The mixer speaker icon is imported for its upcoming UI integration.
+These SVG files are unmodified copies from the [official Lucide repository](https://github.com/lucide-icons/lucide). Only icons used by the scene, source and mixer panels have been imported. All are bundled through Qt resources for use by the application and tests.
 
 - Upstream commit: [20aef31db93fe4d9f398dbb15b120d99c48eef95](https://github.com/lucide-icons/lucide/tree/20aef31db93fe4d9f398dbb15b120d99c48eef95).
 - Imported on: 2026-10-22.
