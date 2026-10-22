@@ -97,21 +97,29 @@ svg{display:block}
 /* ---------- 主体 ---------- */
 .body{
   flex:1 1 auto;min-height:0;display:grid;
-  grid-template-columns:238px minmax(0,1fr) 236px;
-  grid-template-rows:minmax(0,1fr);
+  grid-template-columns:238px minmax(0,1fr);
+  grid-template-rows:minmax(0,1fr) 198px;
   gap:3px;padding:3px;background:#0b0b0b;
 }
 .col{display:flex;flex-direction:column;gap:3px;min-height:0}
 .col > .preview-wrap{flex:1 1 auto}
+/* 左列纵向贯穿两行，底部停靠条只占预览下方的第二个格子 */
+.col-left{grid-row:1 / span 2}
+
+/* 底部停靠条：混音器 / 场景转场 / 控制，顺序固定，从左到右 */
+.bottom-docks{display:flex;gap:3px;min-height:0}
+.bottom-docks .dock.mixer{flex:1 1 auto;min-width:0}
+.bottom-docks .dock.trans{flex:0 0 224px}
+.bottom-docks .dock.controls{flex:0 0 286px}
 
 /* ---------- 面板显隐 / 全屏预览 ---------- */
 .dock.dock-hidden{display:none}
-.body.no-left{grid-template-columns:minmax(0,1fr) 236px}
-.body.no-right{grid-template-columns:238px minmax(0,1fr)}
-.body.no-left.no-right{grid-template-columns:minmax(0,1fr)}
-.win.pv-full .titlebar,.win.pv-full .menubar,.win.pv-full .controls,.win.pv-full .statusbar,
-.win.pv-full .col-left,.win.pv-full .col-right{display:none}
-.win.pv-full .body{grid-template-columns:minmax(0,1fr);gap:0;padding:0}
+.bottom-docks.dock-hidden{display:none}
+.body.no-left{grid-template-columns:minmax(0,1fr)}
+.body.no-bottom{grid-template-rows:minmax(0,1fr)}
+.win.pv-full .titlebar,.win.pv-full .menubar,.win.pv-full .bottom-docks,.win.pv-full .statusbar,
+.win.pv-full .col-left{display:none}
+.win.pv-full .body{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:0;padding:0}
 .win.pv-full .preview-wrap{border:0}
 .pv-exit{
   position:fixed;right:14px;bottom:14px;z-index:80;display:none;
@@ -121,8 +129,6 @@ svg{display:block}
 .win.pv-full .pv-exit{display:block}
 .col-left .dock.scenes{flex:0 0 34%}
 .col-left .dock.sources{flex:1 1 auto}
-.col-right .dock.mixer{flex:1 1 auto}
-.col-right .dock.trans{flex:0 0 auto}
 
 /* ---------- dock ---------- */
 .dock{
@@ -211,8 +217,8 @@ svg{display:block}
 }
 
 /* ---------- 混音器 ---------- */
-.mixer-cols{display:flex;gap:2px;padding:6px 4px;align-items:flex-start;justify-content:space-around}
-.mcol{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px}
+.mixer-cols{display:flex;gap:2px;padding:6px 4px;align-items:flex-start;justify-content:space-around;overflow-x:auto}
+.mcol{flex:1 1 0;min-width:72px;display:flex;flex-direction:column;align-items:center;gap:4px}
 .mcol .mtop{display:flex;gap:2px;align-items:center;height:18px}
 .mcol .mtop button{width:16px;height:16px;display:grid;place-items:center;color:#a5a5a5;border-radius:2px}
 .mcol .mtop button:hover{background:#3a3a3a;color:#fff}
@@ -242,12 +248,13 @@ svg{display:block}
 .mdb{font:500 9.5px var(--mono);color:#767676}
 
 /* ---------- 转场 ---------- */
-.trans-b{padding:7px 8px;display:flex;flex-direction:column;gap:7px}
+.trans-b{padding:7px 8px;display:flex;flex-direction:column;gap:7px;height:100%}
 .trans-row{display:flex;gap:5px}
 .trans-row select{flex:1}
 .dur{display:flex;align-items:center;gap:4px;font-size:11px;color:#9d9d9d}
 .dur input{width:62px;text-align:right}
 .trans-btn{
+  margin-top:auto;
   height:26px;background:#2d2d2d;border:1px solid #3c3c3c;border-radius:3px;font-size:11.5px;color:#d6d6d6;
   display:flex;align-items:center;justify-content:center;gap:6px;
 }
@@ -263,25 +270,22 @@ select{cursor:pointer}
 select:hover,input:hover{border-color:#4a4a4a}
 select:focus,input:focus{border-color:#4b84c4}
 
-/* ---------- 底部控制条 ---------- */
-.controls{
-  flex:0 0 auto;height:42px;display:flex;align-items:center;gap:6px;padding:0 8px;
-  background:#1a1a1a;border-top:1px solid #0a0a0a;
-}
+/* ---------- 控制面板（停靠窗口） ---------- */
+.ctrl-body{flex:1 1 auto;min-height:0;padding:8px 7px 7px;display:flex;flex-direction:column;gap:7px;overflow:auto}
+/* 三个按钮纵向等分整个面板高度，避免下方留空 */
+.ctrl-grid{flex:1 1 auto;display:grid;grid-template-columns:1fr;grid-auto-rows:1fr;gap:6px;min-height:0}
 .cbtn{
-  height:28px;display:flex;align-items:center;gap:7px;padding:0 12px;
+  min-height:28px;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 7px;
   background:var(--btn);border:1px solid #2b2b2b;border-radius:3px;font-size:11.5px;color:#dcdcdc;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 .cbtn:hover{background:var(--btn-hover)}
 .cbtn:active{background:var(--btn-active)}
-.cbtn svg{width:14px;height:14px}
+.cbtn svg{width:13px;height:13px;flex:0 0 auto}
 .cbtn .dot{width:9px;height:9px;border-radius:50%;background:#c9453f;flex:0 0 auto}
 .cbtn.active{border-color:#7a2f2b;background:#3a2422;color:#f0b3ad}
 .cbtn.active .dot{border-radius:1px}
 .cbtn.live.active{border-color:#2f6b33;background:#1e3120;color:#a8dfa6}
-.controls .spacer{flex:1 1 auto}
-.controls .divider{width:1px;height:22px;background:#2e2e2e;margin:0 2px}
-.rec-time{font:500 11.5px var(--mono);color:#b5625c;min-width:66px;text-align:right}
 
 /* ---------- 状态栏 ---------- */
 .statusbar{
@@ -400,19 +404,20 @@ html[data-theme="light"] .mcol .mtop button:hover{background:#cfcfcf;color:#000}
 html[data-theme="light"] .mname{color:#444}
 html[data-theme="light"] .mcol.muted .mname{color:var(--text-dim)}
 html[data-theme="light"] .mdb{color:#777}
+html[data-theme="light"] .meter{background:#e9e9e9;border-color:#b0b0b0}
+html[data-theme="light"] .fader input::-webkit-slider-runnable-track{background:#c9c9c9;border-color:#8f8f8f}
+html[data-theme="light"] .fader input::-webkit-slider-thumb{background:linear-gradient(#fff,#cfcfcf);border-color:#7d7d7d}
 html[data-theme="light"] .dur{color:#555}
 html[data-theme="light"] .trans-btn{background:#e8e8e8;border-color:#b8b8b8;color:#333}
 html[data-theme="light"] .trans-btn:hover{background:#dcdcdc;border-color:var(--text-dim)}
 html[data-theme="light"] .trans-btn:active{background:#cfcfcf}
 html[data-theme="light"] select,html[data-theme="light"] input[type=text],html[data-theme="light"] input[type=number]{background:#fff;border-color:#b0b0b0;color:#222}
 html[data-theme="light"] select:hover,html[data-theme="light"] input:hover{border-color:#8a8a8a}
-html[data-theme="light"] .controls{background:#e6e6e6;border-top-color:#b0b0b0}
 html[data-theme="light"] .cbtn{background:#e2e2e2;border-color:#b8b8b8;color:#333}
 html[data-theme="light"] .cbtn:hover{background:#d5d5d5}
 html[data-theme="light"] .cbtn:active{background:#ccc}
 html[data-theme="light"] .cbtn.active{background:#f6dcd8;border-color:#c48b84;color:#8a2b23}
 html[data-theme="light"] .cbtn.live.active{background:#dcecdb;border-color:#84ad83;color:#2c5c2c}
-html[data-theme="light"] .controls .divider{background:#bdbdbd}
 html[data-theme="light"] .statusbar{background:#ececec;border-top-color:#b0b0b0;color:#666}
 html[data-theme="light"] .statusbar b{color:#444}
 html[data-theme="light"] .statusbar .dot.off{background:#b0b0b0}
@@ -503,6 +508,7 @@ try {
         <div class="mi" data-dock="sources">来源 <span class="k">✓</span></div>
         <div class="mi" data-dock="mixer">混音器 <span class="k">✓</span></div>
         <div class="mi" data-dock="trans">场景转场 <span class="k">✓</span></div>
+        <div class="mi" data-dock="controls">控制 <span class="k">✓</span></div>
         <div class="msep"></div>
         <div class="mi" data-act="reset-layout">重置布局</div>
       </div>
@@ -562,8 +568,8 @@ try {
       </div>
     </div>
 
-    <!-- 右列 -->
-    <div class="col col-right" data-page-node-id="j4kYelSyqTcWUdN3iFZJu2">
+    <!-- 底部停靠条：混音器 → 场景转场 → 控制 -->
+    <div class="bottom-docks" id="bottomDocks">
       <section class="dock mixer" data-page-node-id="53RC1JEuScWZLkcajSiht5">
         <div class="dock-h" data-page-node-id="yfRUSQe5RTIu8oXlrMBD23"><span class="t" data-page-node-id="179FaFME9ciz4r8fsLH1YQ">混音器</span>
           <button class="hb" title="浮动窗口" data-page-node-id="2pHHCVJv3REAWWlFFsDvn1"><svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" data-page-node-id="VPu7C0rlbu9VuuFjlpxwmc"><rect x=".5" y=".5" width="6" height="6" data-page-node-id="bVG6AvMUaCpP7EsE646I1W"/><path d="M3.5 3.5h6v6h-6z" data-page-node-id="knWovlLTDQAh2OVWNkB9tj"/></svg></button>
@@ -596,21 +602,23 @@ try {
           </button>
         </div>
       </section>
-    </div>
-  </div>
 
-  <!-- 控制条 -->
-  <div class="controls" data-page-node-id="PySPMdQ2GB0VJ6vmGKOrjN">
-    <button class="cbtn" id="recBtn" data-page-node-id="x0c11vRbfjQRsztjuhpHyi"><span class="dot" data-page-node-id="0jykjB16x6VqtVeDhayQ3Q"></span><span id="recLabel" data-page-node-id="v1f6yQRMKfqdfU7Z9oHBgB">开始录制</span></button>
-    <button class="cbtn live" id="liveBtn" data-page-node-id="uxW8nrTnypJniMolAqzP7a">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" data-page-node-id="CTEbfnD4NZdgbrLEzfZPTV"><path d="M4.5 9a9 9 0 0 1 0 6M8 6.5a13 13 0 0 1 0 11M19.5 9a9 9 0 0 0 0 6M16 6.5a13 13 0 0 0 0 11" data-page-node-id="SvuzUYsUdRCAg72UGOHUmU"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none" data-page-node-id="6VlFOBemH2GddxITNDu1Ao"/></svg>
-      <span id="liveLabel" data-page-node-id="7odmst3tDvZyeRgCTLXDum">开始直播</span>
-    </button>
-    <div class="spacer" data-page-node-id="F7G5nEIrCVUdHsyGFUTxM2"></div>
-    <div class="rec-time" id="recTime" data-page-node-id="MeB9sPa7eW6r2AYKHKFAbA">00:00:00</div>
-    <div class="divider" data-page-node-id="xsDPCyBO8NcK3SdJouFWQr"></div>
-    <button class="cbtn" id="settingsBtn" data-page-node-id="1GFgaCFALYBwEIdSB9FfVj">设置</button>
-    <button class="cbtn" id="exitBtn" data-page-node-id="fTWWK6l213oHs6sElz8934">退出</button>
+      <section class="dock controls" id="ctrlDock">
+        <div class="dock-h"><span class="t">控制</span>
+          <button class="hb" title="关闭"><svg width="8" height="8" viewBox="0 0 10 10" stroke="currentColor" stroke-width="1.2"><path d="M1 1l8 8M9 1L1 9"/></svg></button>
+        </div>
+        <div class="ctrl-body">
+          <div class="ctrl-grid">
+            <button class="cbtn" id="recBtn"><span class="dot"></span><span id="recLabel">开始录制</span></button>
+            <button class="cbtn live" id="liveBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4.5 9a9 9 0 0 1 0 6M8 6.5a13 13 0 0 1 0 11M19.5 9a9 9 0 0 0 0 6M16 6.5a13 13 0 0 0 0 11"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/></svg>
+              <span id="liveLabel">开始直播</span>
+            </button>
+            <button class="cbtn" id="settingsBtn">设置</button>
+          </div>
+        </div>
+      </section>
+    </div>
   </div>
 
   <!-- 状态栏 -->
@@ -1310,7 +1318,6 @@ function updateOutputUI() {
   $('#sbLive').textContent = state.liveOn ? '直播中' : '未开始';
   $('#sbRecT').textContent = state.recOn ? fmtHMS(state.recT) : '--:--:--';
   $('#sbLiveT').textContent = state.liveOn ? fmtHMS(state.liveT) : '--:--:--';
-  $('#recTime').textContent = fmtHMS(state.recOn ? state.recT : state.liveT);
   const active = state.recOn || state.liveOn;
   $('#sbDot').className = 'dot' + (active ? ' rec' : '');
   $('#sbRate').textContent = active ? Math.round(4200 + rnd(-90, 90)) + ' kb/s' : '0 kb/s';
@@ -1344,8 +1351,6 @@ $('#settingsBtn').addEventListener('click', () => {
     <div class="fld"><span>基础画布</span><select><option>1920×1080</option><option>2560×1440</option></select></div>
     <div class="fld"><span>输出帧率</span><select><option>30</option><option>60</option></select></div>`, () => msg('设置已保存（原型）'));
 });
-
-$('#exitBtn').addEventListener('click', () => msg('原型：退出由 OBS 主窗口处理'));
 
 /* ---------- 转场 ---------- */
 $('#transGo').addEventListener('click', () => {
@@ -1428,14 +1433,14 @@ function toggleDock(key, force) {
 
 function syncCols() {
   const left = document.querySelector('.col-left');
-  const right = document.querySelector('.col-right');
+  const bar = $('#bottomDocks');
   const hasL = !!left.querySelector('.dock:not(.dock-hidden)');
-  const hasR = !!right.querySelector('.dock:not(.dock-hidden)');
+  const hasB = !!bar.querySelector('.dock:not(.dock-hidden)');
   left.style.display = hasL ? '' : 'none';
-  right.style.display = hasR ? '' : 'none';
+  bar.classList.toggle('dock-hidden', !hasB);
   const body = document.querySelector('.body');
   body.classList.toggle('no-left', !hasL);
-  body.classList.toggle('no-right', !hasR);
+  body.classList.toggle('no-bottom', !hasB);
   fitCanvas();
 }
 
@@ -1448,17 +1453,17 @@ function setFullPreview(on) {
 }
 
 function resetLayout() {
-  ['scenes', 'sources', 'mixer', 'trans'].forEach(k => toggleDock(k, true));
+  ['scenes', 'sources', 'mixer', 'trans', 'controls'].forEach(k => toggleDock(k, true));
   if (isFullPreview()) setFullPreview(false);
   msg('布局已重置');
 }
 
-// dock 标题栏的 × 只负责隐藏，恢复走状态栏
+// dock 标题栏的 × 只负责隐藏，恢复走菜单
 $$('.dock').forEach(d => {
   const btn = d.querySelector('.dock-h .hb:last-child');
   if (!btn) return;
   btn.addEventListener('click', () => {
-    const key = ['scenes', 'sources', 'mixer', 'trans'].find(k => d.classList.contains(k));
+    const key = ['scenes', 'sources', 'mixer', 'trans', 'controls'].find(k => d.classList.contains(k));
     if (key) toggleDock(key, false);
   });
 });
