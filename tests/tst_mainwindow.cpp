@@ -26,6 +26,7 @@ private slots:
     void loadsMixerPanelWithUnavailableChannels();
     void embedsScenePanelInLeftDock();
     void embedsSourcePanelBelowSceneDock();
+    void embedsMixerPanelInRightDock();
     void panelDockCanFloatRedockAndClose_data();
     void panelDockCanFloatRedockAndClose();
     void panelDockShowsLoadErrorAndRecovers_data();
@@ -289,39 +290,74 @@ void MainWindowTest::embedsSourcePanelBelowSceneDock()
     }
 }
 
+void MainWindowTest::embedsMixerPanelInRightDock()
+{
+    MainWindow window;
+    window.show();
+    auto *dock = window.findChild<QDockWidget *>(QStringLiteral("mixerDock"));
+    auto *view = window.findChild<QQuickWidget *>(QStringLiteral("mixerQuickWidget"));
+    auto *errorLabel = window.findChild<QLabel *>(QStringLiteral("mixerLoadError"));
+    QVERIFY(dock);
+    QVERIFY(view);
+    QVERIFY(errorLabel);
+    QCOMPARE(window.dockWidgetArea(dock), Qt::RightDockWidgetArea);
+    QVERIFY(dock->isAncestorOf(view));
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    QVERIFY(view->rootObject());
+    QCOMPARE(view->rootObject()->objectName(), QStringLiteral("mixerPanel"));
+
+    for (const auto &size : {QSize(1280, 800), window.minimumSize(), QSize(1280, 800)}) {
+        window.resize(size);
+        QTRY_VERIFY(dock->isVisible());
+        QVERIFY(view->isVisible());
+        QVERIFY(!errorLabel->isVisible());
+        QTRY_COMPARE(view->rootObject()->size(), QSizeF(view->size()));
+        QTRY_VERIFY(dock->geometry().left() > window.centralWidget()->geometry().right());
+        QVERIFY(window.centralWidget()->width() > 0);
+        QVERIFY(window.rect().contains(dock->geometry()));
+    }
+}
+
 void MainWindowTest::panelDockCanFloatRedockAndClose_data()
 {
     QTest::addColumn<QString>("panelId");
-    QTest::newRow("scenes") << QStringLiteral("scenes");
-    QTest::newRow("sources") << QStringLiteral("sources");
+    QTest::addColumn<Qt::DockWidgetArea>("dockArea");
+    QTest::addColumn<QString>("qmlName");
+    QTest::newRow("scenes") << QStringLiteral("scenes")
+        << Qt::LeftDockWidgetArea << QStringLiteral("ScenesPanel");
+    QTest::newRow("sources") << QStringLiteral("sources")
+        << Qt::LeftDockWidgetArea << QStringLiteral("SourcesPanel");
+    QTest::newRow("mixer") << QStringLiteral("mixer")
+        << Qt::RightDockWidgetArea << QStringLiteral("MixerPanel");
 }
 
 void MainWindowTest::panelDockCanFloatRedockAndClose()
 {
     QFETCH(QString, panelId);
+    QFETCH(Qt::DockWidgetArea, dockArea);
     MainWindow window;
     window.show();
     auto *dock = window.findChild<QDockWidget *>(panelId + QStringLiteral("Dock"));
     auto *view = window.findChild<QQuickWidget *>(panelId + QStringLiteral("QuickWidget"));
-    const QString otherId = panelId == QStringLiteral("scenes")
-        ? QStringLiteral("sources") : QStringLiteral("scenes");
-    auto *otherView = window.findChild<QQuickWidget *>(otherId + QStringLiteral("QuickWidget"));
     QVERIFY(dock);
     QVERIFY(view);
-    QVERIFY(otherView);
 
     dock->setFloating(true);
     QTRY_VERIFY(dock->isFloating());
     QVERIFY(view->isVisible());
     dock->setFloating(false);
     QTRY_VERIFY(!dock->isFloating());
-    QCOMPARE(window.dockWidgetArea(dock), Qt::LeftDockWidgetArea);
+    QCOMPARE(window.dockWidgetArea(dock), dockArea);
     QTRY_COMPARE(view->status(), QQuickWidget::Ready);
 
     QVERIFY(dock->close());
     QTRY_VERIFY(!dock->isVisible());
-    QVERIFY(otherView->isVisible());
-    QCOMPARE(otherView->status(), QQuickWidget::Ready);
+    for (auto *otherView : window.findChildren<QQuickWidget *>()) {
+        if (otherView == view)
+            continue;
+        QVERIFY(otherView->isVisible());
+        QCOMPARE(otherView->status(), QQuickWidget::Ready);
+    }
     dock->show();
     QTRY_VERIFY(dock->isVisible());
     QVERIFY(view->isVisible());
@@ -335,27 +371,25 @@ void MainWindowTest::panelDockShowsLoadErrorAndRecovers_data()
 void MainWindowTest::panelDockShowsLoadErrorAndRecovers()
 {
     QFETCH(QString, panelId);
+    QFETCH(QString, qmlName);
     MainWindow window;
     window.show();
     auto *view = window.findChild<QQuickWidget *>(panelId + QStringLiteral("QuickWidget"));
     auto *errorLabel = window.findChild<QLabel *>(panelId + QStringLiteral("LoadError"));
-    const QString otherId = panelId == QStringLiteral("scenes")
-        ? QStringLiteral("sources") : QStringLiteral("scenes");
-    auto *otherView = window.findChild<QQuickWidget *>(otherId + QStringLiteral("QuickWidget"));
     QVERIFY(view);
     QVERIFY(errorLabel);
-    QVERIFY(otherView);
 
     view->setSource(QUrl(QStringLiteral("qrc:/missing-%1-panel.qml").arg(panelId)));
     QTRY_COMPARE(view->status(), QQuickWidget::Error);
     QTRY_VERIFY(errorLabel->isVisible());
     QVERIFY(!view->isVisible());
     QVERIFY(!errorLabel->toolTip().isEmpty());
-    QVERIFY(otherView->isVisible());
-    QCOMPARE(otherView->status(), QQuickWidget::Ready);
-
-    const QString qmlName = panelId == QStringLiteral("scenes")
-        ? QStringLiteral("ScenesPanel") : QStringLiteral("SourcesPanel");
+    for (auto *otherView : window.findChildren<QQuickWidget *>()) {
+        if (otherView == view)
+            continue;
+        QVERIFY(otherView->isVisible());
+        QCOMPARE(otherView->status(), QQuickWidget::Ready);
+    }
     view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(qmlName)));
     QTRY_COMPARE(view->status(), QQuickWidget::Ready);
     QTRY_VERIFY(view->isVisible());

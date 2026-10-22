@@ -26,6 +26,7 @@ MainWindow::MainWindow(QWidget *parent)
     setupStatusBar();
     setupScenesDock();
     setupSourcesDock();
+    setupMixerDock();
     updateStatusLayout();
 }
 
@@ -185,6 +186,55 @@ void MainWindow::setupSourcesDock()
     }
     resizeDocks({dock}, {238}, Qt::Horizontal);
     view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml")));
+}
+
+void MainWindow::setupMixerDock()
+{
+    auto *dock = new QDockWidget(tr("混音器"), this);
+    dock->setObjectName(QStringLiteral("mixerDock"));
+    dock->setMinimumWidth(200);
+
+    auto *pages = new QStackedWidget(dock);
+    auto *view = new QQuickWidget(pages);
+    view->setObjectName(QStringLiteral("mixerQuickWidget"));
+    view->setResizeMode(QQuickWidget::SizeRootObjectToView);
+    view->setClearColor(QColor(QStringLiteral("#1d1d1d")));
+    pages->addWidget(view);
+
+    auto *errorLabel = new QLabel(tr("混音器面板加载失败，请查看日志。"), pages);
+    errorLabel->setObjectName(QStringLiteral("mixerLoadError"));
+    errorLabel->setAlignment(Qt::AlignCenter);
+    errorLabel->setWordWrap(true);
+    pages->addWidget(errorLabel);
+
+    const auto showError = [this, pages, errorLabel](const QString &details) {
+        qWarning().noquote() << tr("混音器面板加载失败：") << details;
+        errorLabel->setToolTip(details);
+        pages->setCurrentWidget(errorLabel);
+        statusBar()->showMessage(tr("混音器面板加载失败，请查看日志。"));
+    };
+    connect(view, &QQuickWidget::statusChanged, this,
+            [this, view, pages, errorLabel, showError](QQuickWidget::Status status) {
+        if (status == QQuickWidget::Error) {
+            QStringList errors;
+            for (const auto &error : view->errors())
+                errors.append(error.toString());
+            showError(errors.join('\n'));
+        } else if (status == QQuickWidget::Ready) {
+            if (pages->currentWidget() == errorLabel)
+                statusBar()->showMessage(tr("混音器面板已加载"), 3000);
+            pages->setCurrentWidget(view);
+        }
+    });
+    connect(view, &QQuickWidget::sceneGraphError, this,
+            [showError](QQuickWindow::SceneGraphError, const QString &message) {
+        showError(message);
+    });
+
+    dock->setWidget(pages);
+    addDockWidget(Qt::RightDockWidgetArea, dock);
+    resizeDocks({dock}, {238}, Qt::Horizontal);
+    view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/MixerPanel.qml")));
 }
 
 void MainWindow::resizeEvent(QResizeEvent *event)
