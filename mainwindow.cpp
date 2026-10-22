@@ -7,7 +7,6 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QQmlError>
-#include <QQuickItem>
 #include <QQuickWidget>
 #include <QResizeEvent>
 #include <QStatusBar>
@@ -337,7 +336,7 @@ void MainWindow::setupControlsDock()
     auto *view = new QQuickWidget(pages);
     view->setObjectName(QStringLiteral("controlsQuickWidget"));
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
-    view->setMinimumHeight(64);
+    view->setMinimumHeight(124);
     view->setClearColor(QColor(QStringLiteral("#232323")));
     pages->addWidget(view);
 
@@ -361,10 +360,6 @@ void MainWindow::setupControlsDock()
                 errors.append(error.toString());
             showError(errors.join('\n'));
         } else if (status == QQuickWidget::Ready) {
-            // Reconnect each new QML root after a reload. Let QWidget::close()
-            // follow the normal close-event path rather than quitting directly.
-            connect(view->rootObject(), SIGNAL(exitRequested()), this, SLOT(close()),
-                    Qt::UniqueConnection);
             if (pages->currentWidget() == errorLabel)
                 statusBar()->showMessage(tr("控制面板已加载"), 3000);
             pages->setCurrentWidget(view);

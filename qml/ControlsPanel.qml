@@ -5,10 +5,9 @@ import QtQuick.Layouts
 Rectangle {
     id: root
     objectName: "controlsPanel"
-    implicitWidth: 640
-    implicitHeight: 64
+    implicitWidth: 286
+    implicitHeight: 174
     color: "#232323"
-    signal exitRequested()
 
     component ControlButton: Button {
         implicitHeight: 32
@@ -32,60 +31,44 @@ Rectangle {
         anchors.fill: parent
         clip: true
         // Keep viewport sizing independent of the layout it sizes.
-        contentWidth: Math.max(availableWidth, root.implicitWidth)
-        contentHeight: controls.implicitHeight + 16
+        contentWidth: Math.max(root.width, 180)
+        contentHeight: Math.max(root.height, 124)
 
-        RowLayout {
+        ColumnLayout {
             id: controls
             objectName: "controlActions"
             x: 8
             y: 8
             width: scroll.contentWidth - 16
-            spacing: 8
+            height: scroll.contentHeight - 16
+            spacing: 6
 
             // Independent entries; output state will be supplied by C++ later.
             ControlButton {
                 objectName: "recordButton"
                 Layout.minimumWidth: 110
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumHeight: 32
                 text: qsTr("开始录制")
                 icon.source: "qrc:/assets/icons/circle.svg"
             }
             ControlButton {
                 objectName: "streamButton"
                 Layout.minimumWidth: 110
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumHeight: 32
                 text: qsTr("开始直播")
                 icon.source: "qrc:/assets/icons/radio.svg"
             }
-            Item { Layout.fillWidth: true }
-            Label {
-                objectName: "recordDuration"
-                text: "REC —"
-                color: "#8c8c8c"
-                Accessible.name: qsTr("录制时长未接入")
-            }
-            Label {
-                objectName: "streamDuration"
-                text: "LIVE —"
-                color: "#8c8c8c"
-                Accessible.name: qsTr("直播时长未接入")
-            }
-            Rectangle {
-                implicitWidth: 1
-                implicitHeight: 20
-                color: "#444444"
-            }
             ControlButton {
                 objectName: "settingsButton"
-                Layout.minimumWidth: 64
+                Layout.minimumWidth: 110
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumHeight: 32
                 text: qsTr("设置")
-            }
-            ControlButton {
-                objectName: "exitButton"
-                Layout.minimumWidth: 64
-                text: qsTr("退出")
-                enabled: true
-                Accessible.name: text
-                onClicked: root.exitRequested()
             }
         }
     }

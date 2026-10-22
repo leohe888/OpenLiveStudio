@@ -1,6 +1,5 @@
 #include "mainwindow.h"
 
-#include <QCloseEvent>
 #include <QAction>
 #include <QDockWidget>
 #include <QImageReader>
@@ -32,13 +31,12 @@ private slots:
     void loadsSourcePanelWithEmptyState();
     void loadsMixerPanelWithUnavailableChannels();
     void loadsTransitionsPanelWithDisabledControls();
-    void loadsControlsPanelAndEmitsExitRequest();
+    void loadsControlsPanelWithVerticalButtons();
     void embedsScenePanelInLeftDock();
     void embedsSourcePanelBelowSceneDock();
     void embedsMixerPanelInRightDock();
     void embedsTransitionsPanelBelowMixerDock();
     void embedsControlsPanelAcrossBottom();
-    void controlsExitUsesWindowCloseEventAfterReload();
     void panelDockCanFloatRedockAndClose_data();
     void panelDockCanFloatRedockAndClose();
     void viewMenuCanRestoreAllHiddenDocks();
@@ -307,24 +305,25 @@ void MainWindowTest::loadsTransitionsPanelWithDisabledControls()
     }
 }
 
-void MainWindowTest::loadsControlsPanelAndEmitsExitRequest()
+void MainWindowTest::loadsControlsPanelWithVerticalButtons()
 {
     QQuickWidget panel;
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
-    panel.resize(640, 64);
+    panel.resize(286, 174);
     panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ControlsPanel.qml")));
     QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
     panel.show();
     auto *root = panel.rootObject();
     QVERIFY(root);
-    QSignalSpy exitRequested(root, SIGNAL(exitRequested()));
-    QVERIFY(exitRequested.isValid());
     auto *scroll = root->findChild<QQuickItem *>(QStringLiteral("controlsScrollView"));
     auto *actions = root->findChild<QQuickItem *>(QStringLiteral("controlActions"));
-    auto *exitButton = root->findChild<QQuickItem *>(QStringLiteral("exitButton"));
     QVERIFY(scroll);
     QVERIFY(actions);
-    QVERIFY(exitButton);
+    QVERIFY(!root->findChild<QObject *>(QStringLiteral("exitButton")));
+    QVERIFY(!root->findChild<QObject *>(QStringLiteral("recordDuration")));
+    QVERIFY(!root->findChild<QObject *>(QStringLiteral("streamDuration")));
+    QCOMPARE(root->metaObject()->indexOfSignal("exitRequested()"), -1);
+    QList<QQuickItem *> buttons;
     for (const auto *name : {"recordButton", "streamButton", "settingsButton"}) {
         auto *button = root->findChild<QQuickItem *>(QLatin1String(name));
         QVERIFY(button);
@@ -338,43 +337,35 @@ void MainWindowTest::loadsControlsPanelAndEmitsExitRequest()
         QTest::keyClick(&panel, Qt::Key_Tab);
         QVERIFY(!button->hasActiveFocus());
         QCOMPARE(clicked.count(), 0);
+        buttons.append(button);
     }
-    QCOMPARE(exitRequested.count(), 0);
-    QVERIFY(exitButton->isEnabled());
-    QTest::mouseClick(&panel, Qt::LeftButton, Qt::NoModifier,
-        exitButton->mapToScene(exitButton->boundingRect().center()).toPoint());
-    QTRY_COMPARE(exitRequested.count(), 1);
-    QVERIFY(panel.isVisible()); // Only the host may decide how to close.
-    for (const auto *name : {"recordDuration", "streamDuration"}) {
-        auto *label = root->findChild<QObject *>(QLatin1String(name));
-        QVERIFY(label);
-        QVERIFY(label->property("text").toString().endsWith(QString::fromUtf8("—")));
-    }
-    for (const auto &size : {QSize(320, 64), QSize(960, 128), QSize(640, 64)}) {
+    QCOMPARE(buttons.size(), 3);
+    for (const auto &size : {QSize(180, 124), QSize(286, 174), QSize(400, 320)}) {
         panel.resize(size);
         QTRY_COMPARE(root->size(), QSizeF(size));
         QVERIFY(scroll->property("contentWidth").toReal() >= scroll->width());
         QRectF previous;
-        for (auto *item : actions->childItems()) {
-            if (item->objectName().isEmpty())
-                continue;
-            const QRectF rect = item->mapRectToScene(item->boundingRect());
-            QVERIFY(!rect.intersects(previous));
-            QVERIFY(rect.bottom() <= root->height());
+        for (auto *button : buttons) {
+            const QRectF rect = button->mapRectToScene(button->boundingRect());
+            QVERIFY(root->boundingRect().contains(rect));
+            if (!previous.isNull()) {
+                QVERIFY(previous.bottom() < rect.top());
+                QCOMPARE(rect.left(), previous.left());
+                QCOMPARE(rect.width(), previous.width());
+                QVERIFY(qAbs(rect.height() - previous.height()) <= 1);
+            }
             previous = rect;
         }
     }
-    panel.resize(320, 64);
-    QTRY_VERIFY(scroll->property("contentWidth").toReal() > scroll->width());
+    panel.resize(180, 80);
+    QTRY_VERIFY(scroll->property("contentHeight").toReal() > scroll->height());
     auto *flickable = scroll->property("contentItem").value<QQuickItem *>();
     QVERIFY(flickable);
-    QVERIFY(flickable->setProperty("contentX",
-        flickable->property("contentWidth").toReal() - flickable->width()));
+    QVERIFY(flickable->setProperty("contentY",
+        flickable->property("contentHeight").toReal() - flickable->height()));
     QTRY_VERIFY(root->boundingRect().contains(
-        exitButton->mapRectToScene(exitButton->boundingRect())));
-    QTest::mouseClick(&panel, Qt::LeftButton, Qt::NoModifier,
-        exitButton->mapToScene(exitButton->boundingRect().center()).toPoint());
-    QTRY_COMPARE(exitRequested.count(), 2);
+        buttons.last()->mapRectToScene(buttons.last()->boundingRect())));
+    QVERIFY(panel.isVisible());
 }
 
 void MainWindowTest::embedsScenePanelInLeftDock()
@@ -526,58 +517,14 @@ void MainWindowTest::embedsControlsPanelAcrossBottom()
             QVERIFY(dock->geometry().left() <= otherDock->geometry().left());
             QVERIFY(dock->geometry().right() >= otherDock->geometry().right());
         }
-        for (const auto *name : {"recordButton", "streamButton", "settingsButton", "exitButton"}) {
+        for (const auto *name : {"recordButton", "streamButton", "settingsButton"}) {
             auto *button = view->rootObject()->findChild<QQuickItem *>(QLatin1String(name));
             QVERIFY(button);
-            QCOMPARE(button->isEnabled(), QByteArray(name) == "exitButton");
+            QVERIFY(!button->isEnabled());
             QVERIFY(view->rootObject()->boundingRect().contains(
                 button->mapRectToScene(button->boundingRect())));
         }
     }
-}
-
-void MainWindowTest::controlsExitUsesWindowCloseEventAfterReload()
-{
-    class CloseTrackingWindow : public MainWindow {
-    public:
-        bool allowClose = false;
-        int closeRequests = 0;
-    protected:
-        void closeEvent(QCloseEvent *event) override {
-            ++closeRequests;
-            if (allowClose)
-                MainWindow::closeEvent(event);
-            else
-                event->ignore();
-        }
-    } window;
-    window.show();
-    auto *view = window.findChild<QQuickWidget *>(QStringLiteral("controlsQuickWidget"));
-    QVERIFY(view);
-    const auto clickExit = [view] {
-        auto *button = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("exitButton"));
-        QVERIFY(button);
-        QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
-            button->mapToScene(button->boundingRect().center()).toPoint());
-    };
-    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-    auto *resetAction = window.findChild<QAction *>(QStringLiteral("resetLayoutAction"));
-    QVERIFY(resetAction);
-    resetAction->trigger();
-    clickExit();
-    QTRY_COMPARE(window.closeRequests, 1);
-    QVERIFY(window.isVisible());
-
-    view->setSource(QUrl(QStringLiteral("qrc:/missing-controls-panel.qml")));
-    QTRY_COMPARE(view->status(), QQuickWidget::Error);
-    view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ControlsPanel.qml")));
-    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-    QTRY_VERIFY(view->isVisible());
-    window.allowClose = true;
-    resetAction->trigger();
-    clickExit();
-    QTRY_COMPARE(window.closeRequests, 2);
-    QTRY_VERIFY(!window.isVisible());
 }
 
 void MainWindowTest::panelDockCanFloatRedockAndClose_data()
@@ -826,7 +773,7 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(238, 260);
     if (panelName == QStringLiteral("ControlsPanel"))
-        panel.resize(640, 64);
+        panel.resize(286, 174);
     panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(panelName)));
     QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
     panel.show();
