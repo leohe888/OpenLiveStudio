@@ -1,11 +1,11 @@
 # Lucide icon notices
 
-These SVG files are unmodified copies from the [official Lucide repository](https://github.com/lucide-icons/lucide). Only icons used by the scene, source and mixer panels have been imported. All are bundled through Qt resources for use by the application and tests.
+These SVG files are unmodified copies from the [official Lucide repository](https://github.com/lucide-icons/lucide). Only icons needed by the scene, source, mixer and transition panels have been imported. Scene, source and mixer icons are bundled through Qt resources for use by the application and tests; the transition arrow is imported for its upcoming UI integration.
 
 - Upstream commit: [20aef31db93fe4d9f398dbb15b120d99c48eef95](https://github.com/lucide-icons/lucide/tree/20aef31db93fe4d9f398dbb15b120d99c48eef95).
 - Imported on: 2026-10-22.
 - Modifications: none; original SVG bytes, dimensions and strokes are preserved.
-- License: the complete upstream LICENSE is reproduced below, including the ISC and Feather-derived MIT notices. The imported names `plus`, `minus`, `arrow-up`, `arrow-down` and `lock` occur in the upstream Feather-derived list; `eye`, `sliders-horizontal`, `settings` and `volume-2` do not occur in that list.
+- License: the complete upstream LICENSE is reproduced below, including the ISC and Feather-derived MIT notices. The imported names `plus`, `minus`, `arrow-up`, `arrow-down`, `arrow-right` and `lock` occur in the upstream Feather-derived list; `eye`, `sliders-horizontal`, `settings` and `volume-2` do not occur in that list.
 
 | Local file | Intended use | Pinned source | SHA-256 |
 | --- | --- | --- | --- |
@@ -18,6 +18,7 @@ These SVG files are unmodified copies from the [official Lucide repository](http
 | [sliders-horizontal.svg](sliders-horizontal.svg) | Source filters | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/sliders-horizontal.svg) | `e43a00e5eb684e6cbb61083bed2528d7a3fa5f265693eb2b5f314cd432aa65f4` |
 | [settings.svg](settings.svg) | Source or audio properties | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/settings.svg) | `0ae27fd0f81999229e3127ac96c5b32edfea448e291d509e76212b917551d66b` |
 | [volume-2.svg](volume-2.svg) | Mixer mute action | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/volume-2.svg) | `fb404f9c128a0579de67b399177631e5edb3502fdc247ceb30e8b15754b46071` |
+| [arrow-right.svg](arrow-right.svg) | Execute transition | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/arrow-right.svg) | `288397fdb73bb4f783cf9eabb726ff47357df1d4e3f1201dd748090579f108b9` |
 
 ## Upstream LICENSE (verbatim)
 
