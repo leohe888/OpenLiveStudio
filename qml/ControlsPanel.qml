@@ -31,8 +31,9 @@ Rectangle {
         objectName: "controlsScrollView"
         anchors.fill: parent
         clip: true
-        contentWidth: Math.max(availableWidth, controls.implicitWidth + 16)
-        contentHeight: Math.max(availableHeight, controls.implicitHeight + 16)
+        // Keep viewport sizing independent of the layout it sizes.
+        contentWidth: Math.max(availableWidth, root.implicitWidth)
+        contentHeight: controls.implicitHeight + 16
 
         RowLayout {
             id: controls

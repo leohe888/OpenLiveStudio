@@ -9,6 +9,7 @@
 #include <QQmlError>
 #include <QQuickItem>
 #include <QQuickWidget>
+#include <QRegularExpression>
 #include <QSignalSpy>
 #include <QStatusBar>
 #include <QToolBar>
@@ -20,6 +21,7 @@ class MainWindowTest : public QObject
     Q_OBJECT
 
 private slots:
+    void init();
     void canShowAndClose();
     void hasWindowShell();
     void keepsOutputStatusVisibleWhenResized();
@@ -43,6 +45,12 @@ private slots:
     void panelIconsRenderInDisabledAndEnabledStates_data();
     void panelIconsRenderInDisabledAndEnabledStates();
 };
+
+void MainWindowTest::init()
+{
+    // A ready QML root can still have unstable layout bindings.
+    QTest::failOnWarning(QRegularExpression(QStringLiteral("Binding loop detected")));
+}
 
 void MainWindowTest::canShowAndClose()
 {
@@ -336,7 +344,7 @@ void MainWindowTest::loadsControlsPanelAndEmitsExitRequest()
         QVERIFY(label);
         QVERIFY(label->property("text").toString().endsWith(QString::fromUtf8("—")));
     }
-    for (const auto &size : {QSize(320, 64), QSize(960, 64), QSize(640, 64)}) {
+    for (const auto &size : {QSize(320, 64), QSize(960, 128), QSize(640, 64)}) {
         panel.resize(size);
         QTRY_COMPARE(root->size(), QSizeF(size));
         QVERIFY(scroll->property("contentWidth").toReal() >= scroll->width());
