@@ -26,6 +26,7 @@ private slots:
     void loadsSourcePanelWithEmptyState();
     void loadsMixerPanelWithUnavailableChannels();
     void loadsTransitionsPanelWithDisabledControls();
+    void loadsControlsPanelAndEmitsExitRequest();
     void embedsScenePanelInLeftDock();
     void embedsSourcePanelBelowSceneDock();
     void embedsMixerPanelInRightDock();
@@ -289,6 +290,76 @@ void MainWindowTest::loadsTransitionsPanelWithDisabledControls()
     }
 }
 
+void MainWindowTest::loadsControlsPanelAndEmitsExitRequest()
+{
+    QQuickWidget panel;
+    panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
+    panel.resize(640, 64);
+    panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ControlsPanel.qml")));
+    QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
+    panel.show();
+    auto *root = panel.rootObject();
+    QVERIFY(root);
+    QSignalSpy exitRequested(root, SIGNAL(exitRequested()));
+    QVERIFY(exitRequested.isValid());
+    auto *scroll = root->findChild<QQuickItem *>(QStringLiteral("controlsScrollView"));
+    auto *actions = root->findChild<QQuickItem *>(QStringLiteral("controlActions"));
+    auto *exitButton = root->findChild<QQuickItem *>(QStringLiteral("exitButton"));
+    QVERIFY(scroll);
+    QVERIFY(actions);
+    QVERIFY(exitButton);
+    for (const auto *name : {"recordButton", "streamButton", "settingsButton"}) {
+        auto *button = root->findChild<QQuickItem *>(QLatin1String(name));
+        QVERIFY(button);
+        QVERIFY(!button->isEnabled());
+        QVERIFY(!button->property("checkable").toBool());
+        QVERIFY(!button->property("autoExclusive").toBool());
+        QSignalSpy clicked(button, SIGNAL(clicked()));
+        QVERIFY(clicked.isValid());
+        QTest::mouseClick(&panel, Qt::LeftButton, Qt::NoModifier,
+            button->mapToScene(button->boundingRect().center()).toPoint());
+        QTest::keyClick(&panel, Qt::Key_Tab);
+        QVERIFY(!button->hasActiveFocus());
+        QCOMPARE(clicked.count(), 0);
+    }
+    QCOMPARE(exitRequested.count(), 0);
+    QVERIFY(exitButton->isEnabled());
+    QTest::mouseClick(&panel, Qt::LeftButton, Qt::NoModifier,
+        exitButton->mapToScene(exitButton->boundingRect().center()).toPoint());
+    QTRY_COMPARE(exitRequested.count(), 1);
+    QVERIFY(panel.isVisible()); // Only the host may decide how to close.
+    for (const auto *name : {"recordDuration", "streamDuration"}) {
+        auto *label = root->findChild<QObject *>(QLatin1String(name));
+        QVERIFY(label);
+        QVERIFY(label->property("text").toString().endsWith(QString::fromUtf8("—")));
+    }
+    for (const auto &size : {QSize(320, 64), QSize(960, 64), QSize(640, 64)}) {
+        panel.resize(size);
+        QTRY_COMPARE(root->size(), QSizeF(size));
+        QVERIFY(scroll->property("contentWidth").toReal() >= scroll->width());
+        QRectF previous;
+        for (auto *item : actions->childItems()) {
+            if (item->objectName().isEmpty())
+                continue;
+            const QRectF rect = item->mapRectToScene(item->boundingRect());
+            QVERIFY(!rect.intersects(previous));
+            QVERIFY(rect.bottom() <= root->height());
+            previous = rect;
+        }
+    }
+    panel.resize(320, 64);
+    QTRY_VERIFY(scroll->property("contentWidth").toReal() > scroll->width());
+    auto *flickable = scroll->property("contentItem").value<QQuickItem *>();
+    QVERIFY(flickable);
+    QVERIFY(flickable->setProperty("contentX",
+        flickable->property("contentWidth").toReal() - flickable->width()));
+    QTRY_VERIFY(root->boundingRect().contains(
+        exitButton->mapRectToScene(exitButton->boundingRect())));
+    QTest::mouseClick(&panel, Qt::LeftButton, Qt::NoModifier,
+        exitButton->mapToScene(exitButton->boundingRect().center()).toPoint());
+    QTRY_COMPARE(exitRequested.count(), 2);
+}
+
 void MainWindowTest::embedsScenePanelInLeftDock()
 {
     MainWindow window;
@@ -493,7 +564,8 @@ void MainWindowTest::panelIconsCanBeDecoded_data()
 {
     QTest::addColumn<QString>("resourcePath");
     for (const auto *name : {"plus", "minus", "arrow-up", "arrow-down",
-                             "eye", "lock", "sliders-horizontal", "settings", "volume-2", "arrow-right"}) {
+                             "eye", "lock", "sliders-horizontal", "settings", "volume-2", "arrow-right",
+                             "circle", "radio"}) {
         QTest::newRow(name) << QStringLiteral(":/assets/icons/%1.svg").arg(QLatin1String(name));
     }
 }
@@ -516,6 +588,7 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates_data()
     QTest::newRow("sources") << QStringLiteral("SourcesPanel") << 8;
     QTest::newRow("mixer") << QStringLiteral("MixerPanel") << 4;
     QTest::newRow("transitions") << QStringLiteral("TransitionsPanel") << 1;
+    QTest::newRow("controls") << QStringLiteral("ControlsPanel") << 2;
 }
 
 void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
@@ -525,6 +598,8 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
     QQuickWidget panel;
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(238, 260);
+    if (panelName == QStringLiteral("ControlsPanel"))
+        panel.resize(640, 64);
     panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(panelName)));
     QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
     panel.show();
@@ -553,6 +628,12 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
         }
     };
     collectButtons(collectButtons, panel.rootObject());
+    if (panelName == QStringLiteral("ControlsPanel")) {
+        buttons.removeIf([](QQuickItem *button) {
+            return button->objectName() != QStringLiteral("recordButton")
+                && button->objectName() != QStringLiteral("streamButton");
+        });
+    }
     QCOMPARE(buttons.size(), expectedButtons);
 
     const auto captureButton = [&panel](QQuickItem *button) {
@@ -577,10 +658,12 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
 
     int checkedButtons = 0;
     for (auto *button : buttons) {
-        // Isolate the transition arrow so text cannot satisfy the icon check.
+        // Isolate icons from button text and borders for rendering checks.
+        const bool isolateIcon = panelName == QStringLiteral("TransitionsPanel")
+            || panelName == QStringLiteral("ControlsPanel");
         const QVariant originalDisplay = button->property("display");
         auto *background = button->property("background").value<QQuickItem *>();
-        if (panelName == QStringLiteral("TransitionsPanel")) {
+        if (isolateIcon) {
             button->setProperty("display", 0); // AbstractButton.IconOnly
             QVERIFY(background);
             background->setVisible(false);
@@ -595,7 +678,7 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
         QVERIFY(hasIconPixels(captureButton(button)));
         button->setEnabled(false);
         button->setProperty("display", originalDisplay);
-        if (panelName == QStringLiteral("TransitionsPanel"))
+        if (isolateIcon)
             background->setVisible(true);
         ++checkedButtons;
     }
