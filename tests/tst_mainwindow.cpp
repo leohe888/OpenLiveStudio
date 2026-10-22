@@ -24,8 +24,11 @@ private slots:
     void loadsScenePanelWithEmptyState();
     void loadsSourcePanelWithEmptyState();
     void embedsScenePanelInLeftDock();
-    void sceneDockCanFloatRedockAndClose();
-    void sceneDockShowsLoadErrorAndRecovers();
+    void embedsSourcePanelBelowSceneDock();
+    void panelDockCanFloatRedockAndClose_data();
+    void panelDockCanFloatRedockAndClose();
+    void panelDockShowsLoadErrorAndRecovers_data();
+    void panelDockShowsLoadErrorAndRecovers();
     void panelIconsCanBeDecoded_data();
     void panelIconsCanBeDecoded();
     void panelIconsRenderInDisabledAndEnabledStates_data();
@@ -186,14 +189,64 @@ void MainWindowTest::embedsScenePanelInLeftDock()
     QVERIFY(view->isVisible());
 }
 
-void MainWindowTest::sceneDockCanFloatRedockAndClose()
+void MainWindowTest::embedsSourcePanelBelowSceneDock()
 {
     MainWindow window;
     window.show();
-    auto *dock = window.findChild<QDockWidget *>(QStringLiteral("scenesDock"));
-    auto *view = window.findChild<QQuickWidget *>(QStringLiteral("scenesQuickWidget"));
+    auto *scenesDock = window.findChild<QDockWidget *>(QStringLiteral("scenesDock"));
+    auto *dock = window.findChild<QDockWidget *>(QStringLiteral("sourcesDock"));
+    auto *view = window.findChild<QQuickWidget *>(QStringLiteral("sourcesQuickWidget"));
+    QVERIFY(scenesDock);
     QVERIFY(dock);
     QVERIFY(view);
+    QCOMPARE(window.dockWidgetArea(dock), Qt::LeftDockWidgetArea);
+    QVERIFY(dock->isAncestorOf(view));
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    QVERIFY(view->rootObject());
+    auto *list = view->rootObject()->findChild<QObject *>(QStringLiteral("sourceList"));
+    QVERIFY(list);
+    QCOMPARE(list->property("count").toInt(), 0);
+
+    for (const auto &size : {QSize(1280, 800), window.minimumSize(), QSize(1280, 800)}) {
+        window.resize(size);
+        QTRY_VERIFY(dock->isVisible());
+        QVERIFY(view->isVisible());
+        QVERIFY(scenesDock->isVisible());
+        QTRY_VERIFY(scenesDock->geometry().bottom() < dock->geometry().top());
+        QVERIFY(!dock->geometry().intersects(window.centralWidget()->geometry()));
+        QTRY_COMPARE(view->rootObject()->size(), QSizeF(view->size()));
+        auto *actions = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("sourceActions"));
+        QVERIFY(actions);
+        for (auto *button : actions->childItems()) {
+            if (!button->objectName().endsWith(QStringLiteral("Button")))
+                continue;
+            QVERIFY(!button->isEnabled());
+            QVERIFY(view->rootObject()->boundingRect().contains(
+                button->mapRectToScene(button->boundingRect())));
+        }
+    }
+}
+
+void MainWindowTest::panelDockCanFloatRedockAndClose_data()
+{
+    QTest::addColumn<QString>("panelId");
+    QTest::newRow("scenes") << QStringLiteral("scenes");
+    QTest::newRow("sources") << QStringLiteral("sources");
+}
+
+void MainWindowTest::panelDockCanFloatRedockAndClose()
+{
+    QFETCH(QString, panelId);
+    MainWindow window;
+    window.show();
+    auto *dock = window.findChild<QDockWidget *>(panelId + QStringLiteral("Dock"));
+    auto *view = window.findChild<QQuickWidget *>(panelId + QStringLiteral("QuickWidget"));
+    const QString otherId = panelId == QStringLiteral("scenes")
+        ? QStringLiteral("sources") : QStringLiteral("scenes");
+    auto *otherView = window.findChild<QQuickWidget *>(otherId + QStringLiteral("QuickWidget"));
+    QVERIFY(dock);
+    QVERIFY(view);
+    QVERIFY(otherView);
 
     dock->setFloating(true);
     QTRY_VERIFY(dock->isFloating());
@@ -205,27 +258,43 @@ void MainWindowTest::sceneDockCanFloatRedockAndClose()
 
     QVERIFY(dock->close());
     QTRY_VERIFY(!dock->isVisible());
+    QVERIFY(otherView->isVisible());
+    QCOMPARE(otherView->status(), QQuickWidget::Ready);
     dock->show();
     QTRY_VERIFY(dock->isVisible());
     QVERIFY(view->isVisible());
 }
 
-void MainWindowTest::sceneDockShowsLoadErrorAndRecovers()
+void MainWindowTest::panelDockShowsLoadErrorAndRecovers_data()
 {
+    panelDockCanFloatRedockAndClose_data();
+}
+
+void MainWindowTest::panelDockShowsLoadErrorAndRecovers()
+{
+    QFETCH(QString, panelId);
     MainWindow window;
     window.show();
-    auto *view = window.findChild<QQuickWidget *>(QStringLiteral("scenesQuickWidget"));
-    auto *errorLabel = window.findChild<QLabel *>(QStringLiteral("scenesLoadError"));
+    auto *view = window.findChild<QQuickWidget *>(panelId + QStringLiteral("QuickWidget"));
+    auto *errorLabel = window.findChild<QLabel *>(panelId + QStringLiteral("LoadError"));
+    const QString otherId = panelId == QStringLiteral("scenes")
+        ? QStringLiteral("sources") : QStringLiteral("scenes");
+    auto *otherView = window.findChild<QQuickWidget *>(otherId + QStringLiteral("QuickWidget"));
     QVERIFY(view);
     QVERIFY(errorLabel);
+    QVERIFY(otherView);
 
-    view->setSource(QUrl(QStringLiteral("qrc:/missing-scenes-panel.qml")));
+    view->setSource(QUrl(QStringLiteral("qrc:/missing-%1-panel.qml").arg(panelId)));
     QTRY_COMPARE(view->status(), QQuickWidget::Error);
     QTRY_VERIFY(errorLabel->isVisible());
     QVERIFY(!view->isVisible());
     QVERIFY(!errorLabel->toolTip().isEmpty());
+    QVERIFY(otherView->isVisible());
+    QCOMPARE(otherView->status(), QQuickWidget::Ready);
 
-    view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ScenesPanel.qml")));
+    const QString qmlName = panelId == QStringLiteral("scenes")
+        ? QStringLiteral("ScenesPanel") : QStringLiteral("SourcesPanel");
+    view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(qmlName)));
     QTRY_COMPARE(view->status(), QQuickWidget::Ready);
     QTRY_VERIFY(view->isVisible());
     QVERIFY(!errorLabel->isVisible());
