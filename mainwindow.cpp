@@ -7,6 +7,7 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QQmlError>
+#include <QQuickItem>
 #include <QQuickWidget>
 #include <QResizeEvent>
 #include <QStatusBar>
@@ -28,6 +29,7 @@ MainWindow::MainWindow(QWidget *parent)
     setupSourcesDock();
     setupMixerDock();
     setupTransitionsDock();
+    setupControlsDock();
     updateStatusLayout();
 }
 
@@ -290,6 +292,62 @@ void MainWindow::setupTransitionsDock()
     }
     resizeDocks({dock}, {238}, Qt::Horizontal);
     view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/TransitionsPanel.qml")));
+}
+
+void MainWindow::setupControlsDock()
+{
+    auto *dock = new QDockWidget(tr("控制"), this);
+    dock->setObjectName(QStringLiteral("controlsDock"));
+    dock->setMinimumWidth(200);
+
+    auto *pages = new QStackedWidget(dock);
+    auto *view = new QQuickWidget(pages);
+    view->setObjectName(QStringLiteral("controlsQuickWidget"));
+    view->setResizeMode(QQuickWidget::SizeRootObjectToView);
+    view->setMinimumHeight(64);
+    view->setClearColor(QColor(QStringLiteral("#232323")));
+    pages->addWidget(view);
+
+    auto *errorLabel = new QLabel(tr("控制面板加载失败，请查看日志。"), pages);
+    errorLabel->setObjectName(QStringLiteral("controlsLoadError"));
+    errorLabel->setAlignment(Qt::AlignCenter);
+    errorLabel->setWordWrap(true);
+    pages->addWidget(errorLabel);
+
+    const auto showError = [this, pages, errorLabel](const QString &details) {
+        qWarning().noquote() << tr("控制面板加载失败：") << details;
+        errorLabel->setToolTip(details);
+        pages->setCurrentWidget(errorLabel);
+        statusBar()->showMessage(tr("控制面板加载失败，请查看日志。"));
+    };
+    connect(view, &QQuickWidget::statusChanged, this,
+            [this, view, pages, errorLabel, showError](QQuickWidget::Status status) {
+        if (status == QQuickWidget::Error) {
+            QStringList errors;
+            for (const auto &error : view->errors())
+                errors.append(error.toString());
+            showError(errors.join('\n'));
+        } else if (status == QQuickWidget::Ready) {
+            // Reconnect each new QML root after a reload. Let QWidget::close()
+            // follow the normal close-event path rather than quitting directly.
+            connect(view->rootObject(), SIGNAL(exitRequested()), this, SLOT(close()),
+                    Qt::UniqueConnection);
+            if (pages->currentWidget() == errorLabel)
+                statusBar()->showMessage(tr("控制面板已加载"), 3000);
+            pages->setCurrentWidget(view);
+        }
+    });
+    connect(view, &QQuickWidget::sceneGraphError, this,
+            [showError](QQuickWindow::SceneGraphError, const QString &message) {
+        showError(message);
+    });
+
+    dock->setWidget(pages);
+    setCorner(Qt::BottomLeftCorner, Qt::BottomDockWidgetArea);
+    setCorner(Qt::BottomRightCorner, Qt::BottomDockWidgetArea);
+    addDockWidget(Qt::BottomDockWidgetArea, dock);
+    resizeDocks({dock}, {84}, Qt::Vertical);
+    view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ControlsPanel.qml")));
 }
 
 void MainWindow::resizeEvent(QResizeEvent *event)

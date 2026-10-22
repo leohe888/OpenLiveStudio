@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 
+#include <QCloseEvent>
 #include <QDockWidget>
 #include <QImageReader>
 #include <QLabel>
@@ -31,6 +32,8 @@ private slots:
     void embedsSourcePanelBelowSceneDock();
     void embedsMixerPanelInRightDock();
     void embedsTransitionsPanelBelowMixerDock();
+    void embedsControlsPanelAcrossBottom();
+    void controlsExitUsesWindowCloseEventAfterReload();
     void panelDockCanFloatRedockAndClose_data();
     void panelDockCanFloatRedockAndClose();
     void panelDockShowsLoadErrorAndRecovers_data();
@@ -480,6 +483,85 @@ void MainWindowTest::embedsTransitionsPanelBelowMixerDock()
     }
 }
 
+void MainWindowTest::embedsControlsPanelAcrossBottom()
+{
+    MainWindow window;
+    window.show();
+    auto *dock = window.findChild<QDockWidget *>(QStringLiteral("controlsDock"));
+    auto *view = window.findChild<QQuickWidget *>(QStringLiteral("controlsQuickWidget"));
+    QVERIFY(dock);
+    QVERIFY(view);
+    QCOMPARE(window.dockWidgetArea(dock), Qt::BottomDockWidgetArea);
+    QVERIFY(dock->isAncestorOf(view));
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    QVERIFY(view->rootObject());
+    QCOMPARE(view->rootObject()->objectName(), QStringLiteral("controlsPanel"));
+
+    for (const auto &size : {QSize(1280, 800), window.minimumSize(), QSize(1280, 800)}) {
+        window.resize(size);
+        QTRY_VERIFY(view->isVisible());
+        QTRY_COMPARE(view->rootObject()->size(), QSizeF(view->size()));
+        const QRect barRect(window.statusBar()->mapTo(&window, QPoint()), window.statusBar()->size());
+        QVERIFY(dock->geometry().bottom() < barRect.top());
+        QVERIFY(window.centralWidget()->geometry().bottom() < dock->geometry().top());
+        for (auto *otherDock : window.findChildren<QDockWidget *>()) {
+            if (otherDock == dock)
+                continue;
+            QVERIFY(otherDock->isVisible());
+            QVERIFY(otherDock->geometry().bottom() < dock->geometry().top());
+            QVERIFY(dock->geometry().left() <= otherDock->geometry().left());
+            QVERIFY(dock->geometry().right() >= otherDock->geometry().right());
+        }
+        for (const auto *name : {"recordButton", "streamButton", "settingsButton", "exitButton"}) {
+            auto *button = view->rootObject()->findChild<QQuickItem *>(QLatin1String(name));
+            QVERIFY(button);
+            QCOMPARE(button->isEnabled(), QByteArray(name) == "exitButton");
+            QVERIFY(view->rootObject()->boundingRect().contains(
+                button->mapRectToScene(button->boundingRect())));
+        }
+    }
+}
+
+void MainWindowTest::controlsExitUsesWindowCloseEventAfterReload()
+{
+    class CloseTrackingWindow : public MainWindow {
+    public:
+        bool allowClose = false;
+        int closeRequests = 0;
+    protected:
+        void closeEvent(QCloseEvent *event) override {
+            ++closeRequests;
+            if (allowClose)
+                MainWindow::closeEvent(event);
+            else
+                event->ignore();
+        }
+    } window;
+    window.show();
+    auto *view = window.findChild<QQuickWidget *>(QStringLiteral("controlsQuickWidget"));
+    QVERIFY(view);
+    const auto clickExit = [view] {
+        auto *button = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("exitButton"));
+        QVERIFY(button);
+        QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
+            button->mapToScene(button->boundingRect().center()).toPoint());
+    };
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    clickExit();
+    QTRY_COMPARE(window.closeRequests, 1);
+    QVERIFY(window.isVisible());
+
+    view->setSource(QUrl(QStringLiteral("qrc:/missing-controls-panel.qml")));
+    QTRY_COMPARE(view->status(), QQuickWidget::Error);
+    view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ControlsPanel.qml")));
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    QTRY_VERIFY(view->isVisible());
+    window.allowClose = true;
+    clickExit();
+    QTRY_COMPARE(window.closeRequests, 2);
+    QTRY_VERIFY(!window.isVisible());
+}
+
 void MainWindowTest::panelDockCanFloatRedockAndClose_data()
 {
     QTest::addColumn<QString>("panelId");
@@ -493,6 +575,8 @@ void MainWindowTest::panelDockCanFloatRedockAndClose_data()
         << Qt::RightDockWidgetArea << QStringLiteral("MixerPanel");
     QTest::newRow("transitions") << QStringLiteral("transitions")
         << Qt::RightDockWidgetArea << QStringLiteral("TransitionsPanel");
+    QTest::newRow("controls") << QStringLiteral("controls")
+        << Qt::BottomDockWidgetArea << QStringLiteral("ControlsPanel");
 }
 
 void MainWindowTest::panelDockCanFloatRedockAndClose()
