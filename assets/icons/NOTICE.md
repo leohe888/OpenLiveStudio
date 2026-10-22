@@ -1,18 +1,22 @@
 # Lucide icon notices
 
-These SVG files are unmodified copies from the [official Lucide repository](https://github.com/lucide-icons/lucide). Only icons needed by the scene panel have been imported.
+These SVG files are unmodified copies from the [official Lucide repository](https://github.com/lucide-icons/lucide). Only icons needed by the scene and source panels have been imported. The source panel icons are imported for its upcoming UI integration.
 
 - Upstream commit: [20aef31db93fe4d9f398dbb15b120d99c48eef95](https://github.com/lucide-icons/lucide/tree/20aef31db93fe4d9f398dbb15b120d99c48eef95).
 - Imported on: 2026-10-22.
 - Modifications: none; original SVG bytes, dimensions and strokes are preserved.
-- License: the complete upstream LICENSE is reproduced below, including the ISC and Feather-derived MIT notices. All four imported icon names occur in the upstream Feather-derived list.
+- License: the complete upstream LICENSE is reproduced below, including the ISC and Feather-derived MIT notices. The imported names `plus`, `minus`, `arrow-up`, `arrow-down` and `lock` occur in the upstream Feather-derived list; `eye`, `sliders-horizontal` and `settings` do not occur in that list.
 
 | Local file | Intended use | Pinned source | SHA-256 |
 | --- | --- | --- | --- |
-| [plus.svg](plus.svg) | Add scene | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/plus.svg) | `7f6af73bf1ff6c4bca3f18351c8d1bdec6749c0c2530c4de5da85d520c21df17` |
-| [minus.svg](minus.svg) | Remove scene | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/minus.svg) | `a0c743ab6dbf545d8a6e19ef3874f48ede686ce68d25e231bd81f540d97b1f19` |
-| [arrow-up.svg](arrow-up.svg) | Move scene up | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/arrow-up.svg) | `8c22c25874c80bb062bef985d207d8f1d4a4d7847237d0a8cf720a3235968518` |
-| [arrow-down.svg](arrow-down.svg) | Move scene down | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/arrow-down.svg) | `2b641c7a59d39450edfed72067fcc9940a1a316a737346af23b4b9103c0689f2` |
+| [plus.svg](plus.svg) | Add scene or source | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/plus.svg) | `7f6af73bf1ff6c4bca3f18351c8d1bdec6749c0c2530c4de5da85d520c21df17` |
+| [minus.svg](minus.svg) | Remove scene or source | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/minus.svg) | `a0c743ab6dbf545d8a6e19ef3874f48ede686ce68d25e231bd81f540d97b1f19` |
+| [arrow-up.svg](arrow-up.svg) | Move scene or source up | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/arrow-up.svg) | `8c22c25874c80bb062bef985d207d8f1d4a4d7847237d0a8cf720a3235968518` |
+| [arrow-down.svg](arrow-down.svg) | Move scene or source down | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/arrow-down.svg) | `2b641c7a59d39450edfed72067fcc9940a1a316a737346af23b4b9103c0689f2` |
+| [eye.svg](eye.svg) | Source visibility | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/eye.svg) | `5bf90197dd7629cad64a2e48d1186a71559deb6121207d10e3dc5b19ebaffdcf` |
+| [lock.svg](lock.svg) | Source lock | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/lock.svg) | `d2cfe60cac8deaef36442b5c8218c1e61abe18222784b2a370ea090d13fca840` |
+| [sliders-horizontal.svg](sliders-horizontal.svg) | Source filters | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/sliders-horizontal.svg) | `e43a00e5eb684e6cbb61083bed2528d7a3fa5f265693eb2b5f314cd432aa65f4` |
+| [settings.svg](settings.svg) | Source properties | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/settings.svg) | `0ae27fd0f81999229e3127ac96c5b32edfea448e291d509e76212b917551d66b` |
 
 ## Upstream LICENSE (verbatim)
 
