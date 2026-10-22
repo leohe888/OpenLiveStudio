@@ -21,6 +21,7 @@ qt_add_qml_module(OpenLiveStudio
     VERSION 1.0
     RESOURCE_PREFIX "/"
     QML_FILES qml/ScenesPanel.qml qml/SourcesPanel.qml qml/MixerPanel.qml
+              qml/TransitionsPanel.qml
 )
 
 set(OPENLIVE_STUDIO_ICON_FILES
@@ -33,6 +34,7 @@ set(OPENLIVE_STUDIO_ICON_FILES
     "${PROJECT_SOURCE_DIR}/assets/icons/sliders-horizontal.svg"
     "${PROJECT_SOURCE_DIR}/assets/icons/settings.svg"
     "${PROJECT_SOURCE_DIR}/assets/icons/volume-2.svg"
+    "${PROJECT_SOURCE_DIR}/assets/icons/arrow-right.svg"
 )
 qt_add_resources(OpenLiveStudio "icons"
     PREFIX "/"

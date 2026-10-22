@@ -8,6 +8,7 @@
 #include <QQmlError>
 #include <QQuickItem>
 #include <QQuickWidget>
+#include <QSignalSpy>
 #include <QStatusBar>
 #include <QToolBar>
 #include <QtTest/QTest>
@@ -24,6 +25,7 @@ private slots:
     void loadsScenePanelWithEmptyState();
     void loadsSourcePanelWithEmptyState();
     void loadsMixerPanelWithUnavailableChannels();
+    void loadsTransitionsPanelWithDisabledControls();
     void embedsScenePanelInLeftDock();
     void embedsSourcePanelBelowSceneDock();
     void embedsMixerPanelInRightDock();
@@ -236,6 +238,56 @@ void MainWindowTest::loadsMixerPanelWithUnavailableChannels()
     QTRY_VERIFY(scroll->property("contentHeight").toReal() > scroll->height());
 }
 
+void MainWindowTest::loadsTransitionsPanelWithDisabledControls()
+{
+    QQuickWidget panel;
+    panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
+    panel.resize(238, 124);
+    panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/TransitionsPanel.qml")));
+    QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
+    panel.show();
+    auto *root = panel.rootObject();
+    QVERIFY(root);
+    auto *effect = root->findChild<QQuickItem *>(QStringLiteral("transitionEffect"));
+    auto *duration = root->findChild<QQuickItem *>(QStringLiteral("transitionDuration"));
+    auto *button = root->findChild<QQuickItem *>(QStringLiteral("executeTransitionButton"));
+    QVERIFY(effect);
+    QVERIFY(duration);
+    QVERIFY(button);
+    QCOMPARE(effect->property("count").toInt(), 4);
+    QCOMPARE(effect->property("currentIndex").toInt(), -1);
+    QCOMPARE(duration->property("value").toInt(), 300);
+    QSignalSpy clicked(button, SIGNAL(clicked()));
+    QVERIFY(clicked.isValid());
+    for (auto *control : {effect, duration, button}) {
+        QVERIFY(!control->isEnabled());
+        const QPoint center = control->mapToScene(control->boundingRect().center()).toPoint();
+        QTest::mouseClick(&panel, Qt::LeftButton, Qt::NoModifier, center);
+        QTest::keyClick(&panel, Qt::Key_Tab);
+        QTest::keyClick(&panel, Qt::Key_Up);
+        QTest::keyClick(&panel, Qt::Key_Space);
+        QVERIFY(!control->hasActiveFocus());
+    }
+    QCOMPARE(clicked.count(), 0);
+    QCOMPARE(effect->property("currentIndex").toInt(), -1);
+    QCOMPARE(duration->property("value").toInt(), 300);
+    auto *popup = effect->property("popup").value<QObject *>();
+    QVERIFY(popup);
+    QVERIFY(!popup->property("visible").toBool());
+
+    for (const auto &size : {QSize(180, 124), QSize(400, 240), QSize(238, 124)}) {
+        panel.resize(size);
+        QTRY_COMPARE(root->size(), QSizeF(size));
+        QRectF previous;
+        for (auto *control : {effect, duration, button}) {
+            const QRectF rect = control->mapRectToScene(control->boundingRect());
+            QVERIFY(root->boundingRect().contains(rect));
+            QVERIFY(!rect.intersects(previous));
+            previous = rect;
+        }
+    }
+}
+
 void MainWindowTest::embedsScenePanelInLeftDock()
 {
     MainWindow window;
@@ -400,7 +452,7 @@ void MainWindowTest::panelIconsCanBeDecoded_data()
 {
     QTest::addColumn<QString>("resourcePath");
     for (const auto *name : {"plus", "minus", "arrow-up", "arrow-down",
-                             "eye", "lock", "sliders-horizontal", "settings", "volume-2"}) {
+                             "eye", "lock", "sliders-horizontal", "settings", "volume-2", "arrow-right"}) {
         QTest::newRow(name) << QStringLiteral(":/assets/icons/%1.svg").arg(QLatin1String(name));
     }
 }
@@ -422,6 +474,7 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates_data()
     QTest::newRow("scenes") << QStringLiteral("ScenesPanel") << 4;
     QTest::newRow("sources") << QStringLiteral("SourcesPanel") << 8;
     QTest::newRow("mixer") << QStringLiteral("MixerPanel") << 4;
+    QTest::newRow("transitions") << QStringLiteral("TransitionsPanel") << 1;
 }
 
 void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
@@ -483,6 +536,14 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
 
     int checkedButtons = 0;
     for (auto *button : buttons) {
+        // Isolate the transition arrow so text cannot satisfy the icon check.
+        const QVariant originalDisplay = button->property("display");
+        auto *background = button->property("background").value<QQuickItem *>();
+        if (panelName == QStringLiteral("TransitionsPanel")) {
+            button->setProperty("display", 0); // AbstractButton.IconOnly
+            QVERIFY(background);
+            background->setVisible(false);
+        }
         QVERIFY(!button->isEnabled());
         QTRY_VERIFY(hasIconPixels(captureButton(button)));
         const QImage disabledImage = captureButton(button);
@@ -492,6 +553,9 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
         QTRY_VERIFY(captureButton(button) != disabledImage);
         QVERIFY(hasIconPixels(captureButton(button)));
         button->setEnabled(false);
+        button->setProperty("display", originalDisplay);
+        if (panelName == QStringLiteral("TransitionsPanel"))
+            background->setVisible(true);
         ++checkedButtons;
     }
     QCOMPARE(checkedButtons, expectedButtons);
