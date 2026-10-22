@@ -32,10 +32,20 @@ To omit test targets, reconfigure with `-DBUILD_TESTING=OFF`.
 
 ## Current coverage
 
-`ui.mainwindow` is a smoke test that creates, shows and closes the existing main
-window. It verifies the test pipeline, not the planned recording features or
-the appearance of the UI. It runs with Qt's `offscreen` platform plugin and
-has a 15-second timeout. Its command supplies this kit's Qt DLL and plugin paths.
+`ui.mainwindow` covers window lifecycle and structure, output status visibility
+on resize, scene and source QML loading and empty states, source panel resizing,
+and the default vertical arrangement of the two docks. Both docks are checked
+for floating, redocking, closing, load failure and recovery, including isolation
+from the other panel. Icon checks cover decoding all eight SVG resources and
+rendering the panel buttons in enabled and disabled states. Source row checks
+use test-only model data; the application still has no scene or source backend.
+
+After source dock integration, Qt Test reported 23 passes and CTest reported
+one passing test. These checks use Qt's `offscreen` platform plugin and the
+software Qt Quick backend. The CTest command supplies Qt DLL, plugin and QML
+import paths and has a 15-second timeout. Default and minimum window size
+screenshots were also inspected with software rendering. Real GPU rendering,
+media processing and device behavior remain unverified.
 
 ```powershell
 ctest --test-dir $buildDir -L smoke --output-on-failure
