@@ -1,11 +1,11 @@
 # Lucide icon notices
 
-These SVG files are unmodified copies from the [official Lucide repository](https://github.com/lucide-icons/lucide). Only icons needed by the scene and source panels have been imported. The source panel icons are imported for its upcoming UI integration.
+These SVG files are unmodified copies from the [official Lucide repository](https://github.com/lucide-icons/lucide). Only icons needed by the scene, source and mixer panels have been imported. The mixer speaker icon is imported for its upcoming UI integration.
 
 - Upstream commit: [20aef31db93fe4d9f398dbb15b120d99c48eef95](https://github.com/lucide-icons/lucide/tree/20aef31db93fe4d9f398dbb15b120d99c48eef95).
 - Imported on: 2026-10-22.
 - Modifications: none; original SVG bytes, dimensions and strokes are preserved.
-- License: the complete upstream LICENSE is reproduced below, including the ISC and Feather-derived MIT notices. The imported names `plus`, `minus`, `arrow-up`, `arrow-down` and `lock` occur in the upstream Feather-derived list; `eye`, `sliders-horizontal` and `settings` do not occur in that list.
+- License: the complete upstream LICENSE is reproduced below, including the ISC and Feather-derived MIT notices. The imported names `plus`, `minus`, `arrow-up`, `arrow-down` and `lock` occur in the upstream Feather-derived list; `eye`, `sliders-horizontal`, `settings` and `volume-2` do not occur in that list.
 
 | Local file | Intended use | Pinned source | SHA-256 |
 | --- | --- | --- | --- |
@@ -16,7 +16,8 @@ These SVG files are unmodified copies from the [official Lucide repository](http
 | [eye.svg](eye.svg) | Source visibility | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/eye.svg) | `5bf90197dd7629cad64a2e48d1186a71559deb6121207d10e3dc5b19ebaffdcf` |
 | [lock.svg](lock.svg) | Source lock | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/lock.svg) | `d2cfe60cac8deaef36442b5c8218c1e61abe18222784b2a370ea090d13fca840` |
 | [sliders-horizontal.svg](sliders-horizontal.svg) | Source filters | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/sliders-horizontal.svg) | `e43a00e5eb684e6cbb61083bed2528d7a3fa5f265693eb2b5f314cd432aa65f4` |
-| [settings.svg](settings.svg) | Source properties | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/settings.svg) | `0ae27fd0f81999229e3127ac96c5b32edfea448e291d509e76212b917551d66b` |
+| [settings.svg](settings.svg) | Source or audio properties | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/settings.svg) | `0ae27fd0f81999229e3127ac96c5b32edfea448e291d509e76212b917551d66b` |
+| [volume-2.svg](volume-2.svg) | Mixer mute action | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/volume-2.svg) | `fb404f9c128a0579de67b399177631e5edb3502fdc247ceb30e8b15754b46071` |
 
 ## Upstream LICENSE (verbatim)
 
