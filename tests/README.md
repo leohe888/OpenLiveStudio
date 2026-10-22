@@ -38,22 +38,35 @@ and mixer QML loading with two unavailable channel slots. Transition panel
 checks cover loading, unselected effects, the prototype duration default,
 disabled controls ignoring mouse and keyboard input, and resizing. Layout
 checks cover the vertically arranged scene and source docks on the left and
-the mixer and transition docks on the right. All four docks are checked
+the mixer and transition docks on the right, and the controls dock spanning the
+bottom above the status bar. All five docks are checked
 for floating, redocking, closing, load failure and recovery, including isolation
-from the other panels. Icon checks cover decoding all ten SVG resources and
+from the other panels. Icon checks cover decoding all twelve SVG resources and
 rendering the panel buttons in enabled and disabled states. Source row checks
 use test-only model data. Mixer checks also cover disabled sliders ignoring
 clicks and scrollable content at small sizes. The application still has no
 scene, source, audio or transition backend; mixer meters remain empty and
-unconnected controls disabled. The transition arrow rendering check isolates
-the icon from the button text and border.
+unconnected controls disabled. Rendering checks isolate the transition,
+recording and streaming icons from button text and borders.
 
-After transition dock integration, Qt Test reported 35 passes and CTest reported
+Controls panel checks cover disabled recording, streaming and settings entries,
+separate duration placeholders, exit requests, and reaching the exit button by
+scrolling a narrow panel. Integration checks verify that exit uses the normal
+window close event, honors rejection, and remains connected after a QML reload.
+Recording, streaming, timers and the settings dialog remain unimplemented.
+
+After controls dock integration, Qt Test reported 43 passes and CTest reported
 one passing test. These checks use Qt's `offscreen` platform plugin and the
 software Qt Quick backend. The CTest command supplies Qt DLL, plugin and QML
 import paths and has a 15-second timeout. Default and minimum window size
 screenshots were also inspected with software rendering. Real GPU rendering,
 media processing and device behavior remain unverified.
+
+Known issue: the current controls QML emits a `contentHeight` binding-loop
+warning during loading or resizing. The suite passes despite this warning;
+these results do not establish a warning-free UI. A candidate correction was
+checked only in an ignored build-directory copy and has not been applied to
+the project source.
 
 ```powershell
 ctest --test-dir $buildDir -L smoke --output-on-failure
