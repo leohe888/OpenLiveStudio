@@ -50,31 +50,15 @@ svg{display:block}
 }
 .titlebar .app-ic{width:16px;height:16px;border-radius:3px;background:linear-gradient(135deg,#2b6ef2,#7c4dff);display:grid;place-items:center;margin-right:auto}
 .titlebar .app-ic svg{width:10px;height:10px}
-/* 绝对定位 + 左右等宽留白，标题才会相对窗口居中；否则会被右侧的主题键和窗口按钮挤偏 */
+/* 绝对定位 + 左右等宽留白，标题才会相对窗口居中；否则会被右侧窗口按钮挤偏 */
 .titlebar .t{
-  position:absolute;left:0;right:0;top:0;height:30px;line-height:30px;padding:0 170px;box-sizing:border-box;
+  position:absolute;left:0;right:0;top:0;height:30px;line-height:30px;padding:0 140px;box-sizing:border-box;
   text-align:center;font-size:11.5px;color:#a9a9a9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   pointer-events:none;
 }
 .wbtn{width:44px;height:30px;display:grid;place-items:center;color:#c9c9c9}
 .wbtn:hover{background:#2a2a2a}
 .wbtn.close:hover{background:#c42b1c;color:#fff}
-
-/* ---------- 标题栏主题按钮 ---------- */
-/* 图标反映“当前解析出的外观”，菜单项反映“模式”，所以跟随系统时也能靠图标看出实际是深是浅 */
-.theme-wrap{position:relative;flex:0 0 auto;display:flex;align-items:center}
-.tbtn{width:30px;height:30px;display:grid;place-items:center;color:#cfcfcf}
-.tbtn:hover{background:#2a2a2a;color:#fff}
-.tbtn .ic-sun{display:none}
-.theme-pop{
-  position:absolute;top:30px;right:0;min-width:136px;background:#242424;border:1px solid #3a3a3a;
-  box-shadow:0 8px 24px rgba(0,0,0,.6);padding:3px;display:none;z-index:60;
-}
-.theme-pop.open{display:block}
-.theme-pop .ti{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:5px 9px;font-size:11.5px;color:#d2d2d2;white-space:nowrap;cursor:default}
-.theme-pop .ti:hover{background:var(--sel);color:#fff}
-.theme-pop .ti .k{color:#7d7d7d;font-size:10.5px}
-.theme-pop .ti:hover .k{color:#cfe0ee}
 
 /* ---------- 菜单栏 ---------- */
 .menubar{
@@ -361,101 +345,6 @@ input[type=range].h::-webkit-slider-thumb{
 .fprops{padding:10px 12px;display:flex;flex-direction:column;gap:10px}
 .fprops .empty{color:#777;font-size:11px;padding-top:8px}
 
-/* ---------- 浅色主题（只覆盖界面配色，画面预览区恒为黑色） ---------- */
-html[data-theme="light"] body,html[data-theme="light"] .body{background:#cfcfcf}
-html[data-theme="light"] .win{background:#f0f0f0}
-html[data-theme="light"] .titlebar{background:#e8e8e8;border-bottom-color:#b0b0b0}
-html[data-theme="light"] .titlebar .t{color:#4a4a4a}
-html[data-theme="light"] .wbtn{color:#444}
-html[data-theme="light"] .wbtn:hover{background:#d5d5d5}
-html[data-theme="light"] .tbtn{color:#4a4a4a}
-html[data-theme="light"] .tbtn:hover{background:#d5d5d5;color:#000}
-html[data-theme="light"] .tbtn .ic-sun{display:block}
-html[data-theme="light"] .tbtn .ic-moon{display:none}
-html[data-theme="light"] .theme-pop{background:#fbfbfb;border-color:#b0b0b0;box-shadow:0 8px 24px rgba(0,0,0,.18)}
-html[data-theme="light"] .theme-pop .ti{color:#333}
-html[data-theme="light"] .theme-pop .ti .k{color:#888}
-html[data-theme="light"] .theme-pop .ti:hover .k{color:#dbe7f3}
-html[data-theme="light"] .menubar{background:#ececec;border-bottom-color:#b8b8b8}
-html[data-theme="light"] .menu{color:#333}
-html[data-theme="light"] .menu:hover,html[data-theme="light"] .menu.open{background:#d5d5d5;color:#000}
-html[data-theme="light"] .menu-pop{background:#fbfbfb;border-color:#b0b0b0;box-shadow:0 8px 24px rgba(0,0,0,.18)}
-html[data-theme="light"] .menu-pop .mi{color:#333}
-html[data-theme="light"] .msep{background:#d5d5d5}
-html[data-theme="light"] .menu-pop .mi .k{color:#888}
-html[data-theme="light"] .menu-pop .mi:hover .k{color:#dbe7f3}
-html[data-theme="light"] .dock{background:#f7f7f7;border-color:#b0b0b0}
-html[data-theme="light"] .dock-h{background:#e6e6e6;border-bottom-color:#cfcfcf;color:#444}
-html[data-theme="light"] .dock-h .hb{color:#666}
-html[data-theme="light"] .dock-h .hb:hover{background:#cfcfcf;color:#000}
-html[data-theme="light"] .dock-f{background:#ececec;border-top-color:#cfcfcf}
-html[data-theme="light"] .dock-f button{color:#555}
-html[data-theme="light"] .dock-f button:hover{background:#dadada;color:#000}
-html[data-theme="light"] .dock-f button:active{background:#cfcfcf}
-html[data-theme="light"] .dock-f .sep{background:#bdbdbd}
-html[data-theme="light"] .row{color:#2b2b2b}
-html[data-theme="light"] .row:hover{background:#e4e4e4}
-html[data-theme="light"] .row .mini{color:#555}
-html[data-theme="light"] .row .mini:hover{background:rgba(0,0,0,.1)}
-html[data-theme="light"] .preview-wrap{border-color:#b0b0b0}
-html[data-theme="light"] .preview-hint{color:#8a8a8a}
-html[data-theme="light"] .mcol .mtop button{color:#666}
-html[data-theme="light"] .mcol .mtop button:hover{background:#cfcfcf;color:#000}
-html[data-theme="light"] .mname{color:#444}
-html[data-theme="light"] .mcol.muted .mname{color:var(--text-dim)}
-html[data-theme="light"] .mdb{color:#777}
-html[data-theme="light"] .meter{background:#e9e9e9;border-color:#b0b0b0}
-html[data-theme="light"] .fader input::-webkit-slider-runnable-track{background:#c9c9c9;border-color:#8f8f8f}
-html[data-theme="light"] .fader input::-webkit-slider-thumb{background:linear-gradient(#fff,#cfcfcf);border-color:#7d7d7d}
-html[data-theme="light"] .dur{color:#555}
-html[data-theme="light"] .trans-btn{background:#e8e8e8;border-color:#b8b8b8;color:#333}
-html[data-theme="light"] .trans-btn:hover{background:#dcdcdc;border-color:var(--text-dim)}
-html[data-theme="light"] .trans-btn:active{background:#cfcfcf}
-html[data-theme="light"] select,html[data-theme="light"] input[type=text],html[data-theme="light"] input[type=number]{background:#fff;border-color:#b0b0b0;color:#222}
-html[data-theme="light"] select:hover,html[data-theme="light"] input:hover{border-color:#8a8a8a}
-html[data-theme="light"] .cbtn{background:#e2e2e2;border-color:#b8b8b8;color:#333}
-html[data-theme="light"] .cbtn:hover{background:#d5d5d5}
-html[data-theme="light"] .cbtn:active{background:#ccc}
-html[data-theme="light"] .cbtn.active{background:#f6dcd8;border-color:#c48b84;color:#8a2b23}
-html[data-theme="light"] .cbtn.live.active{background:#dcecdb;border-color:#84ad83;color:#2c5c2c}
-html[data-theme="light"] .statusbar{background:#ececec;border-top-color:#b0b0b0;color:#666}
-html[data-theme="light"] .statusbar b{color:#444}
-html[data-theme="light"] .statusbar .dot.off{background:#b0b0b0}
-html[data-theme="light"] .dlg{background:#fbfbfb;border-color:#b0b0b0;box-shadow:0 18px 48px rgba(0,0,0,.28)}
-html[data-theme="light"] .dlg-h{background:#ececec;border-bottom-color:#d0d0d0;color:#333}
-html[data-theme="light"] .dlg-h .x{color:#777}
-html[data-theme="light"] .dlg-f{background:#f2f2f2;border-top-color:#d0d0d0}
-html[data-theme="light"] .btn{background:#e8e8e8;border-color:#b8b8b8;color:#333}
-html[data-theme="light"] .btn:hover{background:#dcdcdc}
-html[data-theme="light"] .btn:active{background:#cfcfcf}
-html[data-theme="light"] .fld,html[data-theme="light"] .chk{color:#333}
-html[data-theme="light"] .fld .hint{color:#777}
-html[data-theme="light"] .mini-fld{color:#666}
-html[data-theme="light"] .grp-title{color:#777}
-html[data-theme="light"] .dlg-sep{background:#ccc}
-html[data-theme="light"] .slider-row .sl-top{color:#444}
-html[data-theme="light"] .slider-row .sl-top output{color:#222}
-html[data-theme="light"] input[type=range].h{background:#dcdcdc;border-color:#b0b0b0}
-html[data-theme="light"] .flist{background:#f2f2f2;border-right-color:#ccc}
-html[data-theme="light"] .flist .fitem{color:#2b2b2b}
-html[data-theme="light"] .flist .fitem:hover{background:#e4e4e4}
-html[data-theme="light"] .flist .fitem .tick{border-color:#999}
-html[data-theme="light"] .fprops .empty{color:#888}
-html[data-theme="light"] ::-webkit-scrollbar-track{background:#ececec}
-html[data-theme="light"] ::-webkit-scrollbar-thumb{background:#bdbdbd;border-color:#ececec}
-html[data-theme="light"] ::-webkit-scrollbar-thumb:hover{background:#a8a8a8}
-/* 选中态与强调色：浅色下必须压过上面的通用规则，否则文字变深、底色被覆盖 */
-html[data-theme="light"] .row.sel,
-html[data-theme="light"] .row.sel .mini,
-html[data-theme="light"] .theme-pop .ti:hover,
-html[data-theme="light"] .menu-pop .mi:hover,
-html[data-theme="light"] .flist .fitem.sel{color:#fff}
-html[data-theme="light"] .row.sel:hover,
-html[data-theme="light"] .flist .fitem.sel:hover{background:var(--sel-hover)}
-html[data-theme="light"] .btn.primary{background:#2b5c8c;border-color:#376d9f;color:#fff}
-html[data-theme="light"] .btn.primary:hover{background:#33689b}
-html[data-theme="light"] .mcol .mtop button.on{color:#c98a1e}
-
 /* 提示 */
 .toast{
   position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:#2a2a2a;border:1px solid #4a4a4a;
@@ -464,14 +353,6 @@ html[data-theme="light"] .mcol .mtop button.on{color:#c98a1e}
 }
 .toast.on{opacity:1;transform:translateX(-50%) translateY(-4px)}
 </style>
-<script>
-/* 首屏前定主题，避免深色闪一下 */
-try {
-  var t0 = localStorage.getItem('ols-theme') || 'dark';
-  if (t0 === 'system') t0 = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  document.documentElement.dataset.theme = t0;
-} catch (e) {}
-</script>
 </head>
 <body data-page-node-id="iLVBYPBW2yKjDXTfE94cpE">
 <div class="win" data-page-node-id="n9dG1jvPCgY3TLeOH30ZYG">
@@ -482,17 +363,6 @@ try {
       <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" data-page-node-id="fDuAoaZVzASKITYxtAneM3"><circle cx="12" cy="12" r="8" data-page-node-id="q4W9gSN8qH84pDFpc5Zwff"/></svg>
     </div>
     <div class="t" data-page-node-id="CJ0dnGbB060zh4D4m2EzNe">OBS Studio 30.1.2 — OpenLiveStudio（原型）</div>
-    <div class="theme-wrap" id="themeWrap">
-      <button class="tbtn" id="themeBtn" title="主题">
-        <svg class="ic-moon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 13.4A8.6 8.6 0 1 1 10.6 3.5a6.8 6.8 0 0 0 9.9 9.9z"/></svg>
-        <svg class="ic-sun" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4.1"/><path d="M12 2.6v2.3M12 19.1v2.3M2.6 12h2.3M19.1 12h2.3M5.4 5.4l1.6 1.6M17 17l1.6 1.6M18.6 5.4L17 7M7 17l-1.6 1.6"/></svg>
-      </button>
-      <div class="theme-pop" id="themePop">
-        <div class="ti" data-theme="dark"><span>深色</span><span class="k">✓</span></div>
-        <div class="ti" data-theme="light"><span>浅色</span><span class="k"></span></div>
-        <div class="ti" data-theme="system"><span>跟随系统</span><span class="k"></span></div>
-      </div>
-    </div>
     <button class="wbtn" title="最小化" data-page-node-id="60abYME2QAExGd5VdUrcuv"><svg width="10" height="10" viewBox="0 0 10 10" data-page-node-id="MVEN3Xn36J17liDFOfR0Uu"><rect y="4.5" width="10" height="1" fill="currentColor" data-page-node-id="YlhFh7x3TavUQ9Mh43I1MD"/></svg></button>
     <button class="wbtn" title="最大化" data-page-node-id="UBgRfH0fZaRaATKjtzVtnE"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" data-page-node-id="Ps9u4MnL8PoFwBiNdJzk93"><rect x=".5" y=".5" width="9" height="9" data-page-node-id="UuLRMNk4YU6ZxpDonhY7hl"/></svg></button>
     <button class="wbtn close" title="关闭" data-page-node-id="1NgJiqHzinOrsD6SMVF975"><svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" stroke-width="1.2" data-page-node-id="EcVRtIS3ds1aeKXFwD2hEu"><path d="M1 1l8 8M9 1L1 9" data-page-node-id="aeC1NPT4cRv4qytC2BGSKh"/></svg></button>
@@ -1368,29 +1238,10 @@ function flash() {
   });
 }
 
-/* ---------- 标题栏主题 ---------- */
-const themeBtn = $('#themeBtn');
-const themePop = $('#themePop');
-
-themeBtn.addEventListener('click', e => {
-  e.stopPropagation();
-  $$('.menu').forEach(x => x.classList.remove('open'));  // 两个弹层互斥
-  themePop.classList.toggle('open');
-});
-document.addEventListener('click', () => themePop.classList.remove('open'));
-
-$$('.ti', themePop).forEach(ti => {
-  ti.addEventListener('click', () => {
-    setTheme(ti.dataset.theme);
-    themePop.classList.remove('open');
-  });
-});
-
 /* ---------- 菜单栏 ---------- */
 $$('.menu').forEach(m => {
   m.addEventListener('click', e => {
     e.stopPropagation();
-    themePop.classList.remove('open');
     const wasOpen = m.classList.contains('open');
     $$('.menu').forEach(x => x.classList.remove('open'));
     if (!wasOpen) m.classList.add('open');
@@ -1467,39 +1318,6 @@ $$('.dock').forEach(d => {
     if (key) toggleDock(key, false);
   });
 });
-
-/* ---------- 主题 ---------- */
-let themeMode = 'dark';
-try { themeMode = localStorage.getItem('ols-theme') || 'dark'; } catch (e) {}
-
-const THEME_NAME = { dark: '深色', light: '浅色', system: '跟随系统' };
-
-function applyTheme() {
-  const resolved = themeMode === 'system'
-    ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-    : themeMode;
-  document.documentElement.dataset.theme = resolved;
-  // 勾选标记跟着“模式”走，图标（CSS）跟着“实际外观”走
-  $$('.ti', themePop).forEach(ti => {
-    const k = ti.querySelector('.k');
-    if (k) k.textContent = ti.dataset.theme === themeMode ? '✓' : '';
-  });
-  themeBtn.title = '主题：' + (THEME_NAME[themeMode] || themeMode)
-    + (themeMode === 'system' ? `（当前${resolved === 'light' ? '浅色' : '深色'}）` : '');
-}
-
-function setTheme(mode) {
-  themeMode = mode;
-  try { localStorage.setItem('ols-theme', mode); } catch (e) {}
-  applyTheme();
-  msg('主题：' + (THEME_NAME[mode] || mode));
-}
-
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-  if (themeMode === 'system') applyTheme();
-});
-
-applyTheme();
 
 function removeSelected() {
   const s = state.selected ? findSource(state.selected) : null;
