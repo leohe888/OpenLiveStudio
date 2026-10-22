@@ -4,6 +4,7 @@
 #include <QMainWindow>
 
 class QLabel;
+class QMenu;
 class QResizeEvent;
 
 class MainWindow : public QMainWindow
@@ -26,9 +27,11 @@ private:
     void setupMixerDock();
     void setupTransitionsDock();
     void setupControlsDock();
+    void setupDockViewActions();
     void updateStatusLayout();
 
     QLabel *m_outputStatus = nullptr;
     QLabel *m_outputMetrics = nullptr;
+    QMenu *m_viewMenu = nullptr;
 };
 #endif // MAINWINDOW_H

@@ -30,6 +30,7 @@ MainWindow::MainWindow(QWidget *parent)
     setupMixerDock();
     setupTransitionsDock();
     setupControlsDock();
+    setupDockViewActions();
     updateStatusLayout();
 }
 
@@ -37,15 +38,10 @@ MainWindow::~MainWindow() = default;
 
 void MainWindow::setupMenusAndToolBar()
 {
-    auto *viewMenu = menuBar()->addMenu(tr("视图"));
-    viewMenu->addAction(tr("全屏预览"))->setEnabled(false);
-    viewMenu->addSeparator();
-    for (const auto &name : {tr("场景"), tr("来源"), tr("混音器"),
-                             tr("场景转场"), tr("控制")}) {
-        viewMenu->addAction(name)->setEnabled(false);
-    }
-    viewMenu->addSeparator();
-    viewMenu->addAction(tr("重置布局"))->setEnabled(false);
+    m_viewMenu = menuBar()->addMenu(tr("视图"));
+    m_viewMenu->setObjectName(QStringLiteral("viewMenu"));
+    m_viewMenu->addAction(tr("全屏预览"))->setEnabled(false);
+    m_viewMenu->addSeparator();
 
     auto *helpMenu = menuBar()->addMenu(tr("帮助"));
     helpMenu->addAction(tr("关于 OpenLive Studio…"))->setEnabled(false);
@@ -54,6 +50,23 @@ void MainWindow::setupMenusAndToolBar()
     toolBar->setObjectName(QStringLiteral("mainToolBar"));
     toolBar->setMovable(false);
     toolBar->setMinimumHeight(24);
+}
+
+void MainWindow::setupDockViewActions()
+{
+    for (const auto *name : {"scenesDock", "sourcesDock", "mixerDock",
+                             "transitionsDock", "controlsDock"}) {
+        auto *dock = findChild<QDockWidget *>(QLatin1String(name));
+        Q_ASSERT(dock);
+        // The dock owns this action and keeps its checked state in sync.
+        auto *action = dock->toggleViewAction();
+        action->setObjectName(dock->objectName() + QStringLiteral("ViewAction"));
+        m_viewMenu->addAction(action);
+    }
+    m_viewMenu->addSeparator();
+    auto *resetAction = m_viewMenu->addAction(tr("重置布局"));
+    resetAction->setObjectName(QStringLiteral("resetLayoutAction"));
+    resetAction->setEnabled(false);
 }
 
 void MainWindow::setupPreview()

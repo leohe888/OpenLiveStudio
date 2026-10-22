@@ -1,10 +1,13 @@
 #include "mainwindow.h"
 
 #include <QCloseEvent>
+#include <QAction>
 #include <QDockWidget>
 #include <QImageReader>
 #include <QLabel>
 #include <QMenuBar>
+#include <QMenu>
+#include <QPointer>
 #include <QQmlComponent>
 #include <QQmlError>
 #include <QQuickItem>
@@ -38,6 +41,7 @@ private slots:
     void controlsExitUsesWindowCloseEventAfterReload();
     void panelDockCanFloatRedockAndClose_data();
     void panelDockCanFloatRedockAndClose();
+    void viewMenuCanRestoreAllHiddenDocks();
     void panelDockShowsLoadErrorAndRecovers_data();
     void panelDockShowsLoadErrorAndRecovers();
     void panelIconsCanBeDecoded_data();
@@ -598,9 +602,32 @@ void MainWindowTest::panelDockCanFloatRedockAndClose()
     QVERIFY(dock);
     QVERIFY(view);
 
+    auto *viewMenu = window.findChild<QMenu *>(QStringLiteral("viewMenu"));
+    auto *action = dock->toggleViewAction();
+    QVERIFY(viewMenu);
+    QVERIFY(viewMenu->actions().contains(action));
+    QVERIFY(action->isEnabled());
+    QVERIFY(action->isCheckable());
+    QTRY_VERIFY(action->isChecked());
+    const QPointer<QQuickItem> originalRoot = view->rootObject();
+    QVERIFY(originalRoot);
+    action->trigger();
+    QTRY_VERIFY(!dock->isVisible());
+    QVERIFY(!action->isChecked());
+    action->trigger();
+    QTRY_VERIFY(dock->isVisible());
+    QVERIFY(action->isChecked());
+
     dock->setFloating(true);
     QTRY_VERIFY(dock->isFloating());
     QVERIFY(view->isVisible());
+    QTRY_VERIFY(action->isChecked());
+    QVERIFY(dock->close());
+    QTRY_VERIFY(!action->isChecked());
+    action->trigger();
+    QTRY_VERIFY(dock->isVisible());
+    QVERIFY(action->isChecked());
+    QVERIFY(dock->isFloating());
     dock->setFloating(false);
     QTRY_VERIFY(!dock->isFloating());
     QCOMPARE(window.dockWidgetArea(dock), dockArea);
@@ -608,15 +635,42 @@ void MainWindowTest::panelDockCanFloatRedockAndClose()
 
     QVERIFY(dock->close());
     QTRY_VERIFY(!dock->isVisible());
+    QVERIFY(!action->isChecked());
     for (auto *otherView : window.findChildren<QQuickWidget *>()) {
         if (otherView == view)
             continue;
         QVERIFY(otherView->isVisible());
         QCOMPARE(otherView->status(), QQuickWidget::Ready);
     }
-    dock->show();
+    action->trigger();
     QTRY_VERIFY(dock->isVisible());
     QVERIFY(view->isVisible());
+    QVERIFY(action->isChecked());
+    QCOMPARE(view->rootObject(), originalRoot.data());
+}
+
+void MainWindowTest::viewMenuCanRestoreAllHiddenDocks()
+{
+    MainWindow window;
+    window.show();
+    auto *viewMenu = window.findChild<QMenu *>(QStringLiteral("viewMenu"));
+    QVERIFY(viewMenu);
+    const auto docks = window.findChildren<QDockWidget *>();
+    QCOMPARE(docks.size(), 5);
+    for (auto *dock : docks) {
+        QVERIFY(dock->close());
+        QTRY_VERIFY(!dock->isVisible());
+        QVERIFY(!dock->toggleViewAction()->isChecked());
+    }
+    QVERIFY(window.menuBar()->isVisible());
+    for (auto *dock : docks) {
+        auto *action = dock->toggleViewAction();
+        QVERIFY(viewMenu->actions().contains(action));
+        QVERIFY(action->isEnabled());
+        action->trigger();
+        QTRY_VERIFY(dock->isVisible());
+        QVERIFY(action->isChecked());
+    }
 }
 
 void MainWindowTest::panelDockShowsLoadErrorAndRecovers_data()
