@@ -1,0 +1,1455 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="gjSpRM0OJI23OnHrhQ8flk">
+<head data-page-node-id="mPtCWsEfVIGSGCeNSEvovE">
+<meta charset="UTF-8" data-page-node-id="GNL8nP5IlQm8noe5BaTAhH">
+<meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="ixdCNa9kE8Tfm3LfNvJGwh">
+<title>OBS Studio 30.1 — OpenLiveStudio 场景集合</title>
+<style>
+:root{
+  --bg:#131313;
+  --menubar:#1b1b1b;
+  --panel:#1d1d1d;
+  --panel-2:#232323;
+  --head:#262626;
+  --line:#2e2e2e;
+  --line-hard:#0d0d0d;
+  --text:#d6d6d6;
+  --text-dim:#8c8c8c;
+  --btn:#333333;
+  --btn-hover:#3f3f3f;
+  --btn-active:#2a2a2a;
+  --sel:#2d5b86;
+  --sel-hover:#356894;
+  --red:#d04a4a;
+  --green:#3f9f4a;
+  --blue:#2b7fd4;
+  --font:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:#0b0b0b;color:var(--text);
+  font:12px/1.45 var(--font);overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+  user-select:none;
+}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:default}
+svg{display:block}
+::-webkit-scrollbar{width:11px;height:11px}
+::-webkit-scrollbar-track{background:#141414}
+::-webkit-scrollbar-thumb{background:#3a3a3a;border:2px solid #141414;border-radius:6px}
+::-webkit-scrollbar-thumb:hover{background:#4a4a4a}
+
+.win{height:100vh;display:flex;flex-direction:column;background:var(--bg)}
+
+/* ---------- 标题栏 ---------- */
+.titlebar{
+  flex:0 0 auto;height:30px;display:flex;align-items:center;gap:8px;padding-left:9px;
+  background:#0f0f0f;border-bottom:1px solid #000;
+}
+.titlebar .app-ic{width:16px;height:16px;border-radius:3px;background:linear-gradient(135deg,#2b6ef2,#7c4dff);display:grid;place-items:center}
+.titlebar .app-ic svg{width:10px;height:10px}
+.titlebar .t{flex:1;text-align:center;font-size:11.5px;color:#a9a9a9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wbtn{width:44px;height:30px;display:grid;place-items:center;color:#c9c9c9}
+.wbtn:hover{background:#2a2a2a}
+.wbtn.close:hover{background:#c42b1c;color:#fff}
+
+/* ---------- 菜单栏 ---------- */
+.menubar{
+  flex:0 0 auto;height:26px;display:flex;align-items:stretch;background:var(--menubar);
+  border-bottom:1px solid #0a0a0a;position:relative;z-index:40;
+}
+.menu{position:relative;display:flex;align-items:center;padding:0 9px;font-size:11.5px;color:#cfcfcf}
+.menu:hover,.menu.open{background:#343434;color:#fff}
+.menu-pop{
+  position:absolute;top:26px;left:0;min-width:190px;background:#242424;border:1px solid #3a3a3a;
+  box-shadow:0 8px 24px rgba(0,0,0,.6);padding:3px;display:none;
+}
+.menu.open .menu-pop{display:block}
+.menu-pop .mi{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:5px 10px;font-size:11.5px;color:#d2d2d2;white-space:nowrap;min-width:150px}
+.menu-pop .mi:hover{background:var(--sel);color:#fff}
+.menu-pop .mi.disabled{color:#666}
+.menu-pop .mi.disabled:hover{background:transparent;color:#666}
+.menu-pop .msep{height:1px;background:#3a3a3a;margin:4px 2px}
+.menu-pop .mi .k{color:#7d7d7d;font-size:10.5px}
+.menu-pop .mi:hover .k{color:#cfe0ee}
+
+/* ---------- 主体 ---------- */
+.body{
+  flex:1 1 auto;min-height:0;display:grid;
+  grid-template-columns:238px minmax(0,1fr) 236px;
+  grid-template-rows:minmax(0,1fr);
+  gap:3px;padding:3px;background:#0b0b0b;
+}
+.col{display:flex;flex-direction:column;gap:3px;min-height:0}
+.col > .preview-wrap{flex:1 1 auto}
+
+/* ---------- 面板显隐 / 全屏预览 ---------- */
+.dock.dock-hidden{display:none}
+.body.no-left{grid-template-columns:minmax(0,1fr) 236px}
+.body.no-right{grid-template-columns:238px minmax(0,1fr)}
+.body.no-left.no-right{grid-template-columns:minmax(0,1fr)}
+.win.pv-full .titlebar,.win.pv-full .menubar,.win.pv-full .controls,.win.pv-full .statusbar,
+.win.pv-full .col-left,.win.pv-full .col-right{display:none}
+.win.pv-full .body{grid-template-columns:minmax(0,1fr);gap:0;padding:0}
+.win.pv-full .preview-wrap{border:0}
+.pv-exit{
+  position:fixed;right:14px;bottom:14px;z-index:80;display:none;
+  padding:5px 10px;border-radius:3px;background:rgba(0,0,0,.62);
+  border:1px solid rgba(255,255,255,.14);color:#d8d8d8;font-size:11px;
+}
+.win.pv-full .pv-exit{display:block}
+.col-left .dock.scenes{flex:0 0 34%}
+.col-left .dock.sources{flex:1 1 auto}
+.col-right .dock.mixer{flex:1 1 auto}
+.col-right .dock.trans{flex:0 0 auto}
+
+/* ---------- dock ---------- */
+.dock{
+  display:flex;flex-direction:column;min-height:0;background:var(--panel);
+  border:1px solid #0a0a0a;overflow:hidden;
+}
+.dock-h{
+  flex:0 0 auto;height:24px;display:flex;align-items:center;gap:4px;padding:0 3px 0 8px;
+  background:var(--head);border-bottom:1px solid #131313;font-size:11px;color:#b6b6b6;
+}
+.dock-h .t{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dock-h .hb{width:16px;height:16px;display:grid;place-items:center;color:#9a9a9a;border-radius:2px;opacity:.55}
+.dock-h:hover .hb{opacity:1}
+.dock-h .hb:hover{background:#3a3a3a;color:#fff}
+.dock-b{flex:1 1 auto;min-height:0;overflow:auto;padding:2px}
+.dock-f{
+  flex:0 0 auto;height:26px;display:flex;align-items:center;gap:1px;padding:0 3px;
+  background:#191919;border-top:1px solid #0a0a0a;
+}
+.dock-f button{width:22px;height:20px;display:grid;place-items:center;color:#b0b0b0;border-radius:2px}
+.dock-f button:hover{background:#353535;color:#fff}
+.dock-f button:active{background:#242424}
+.dock-f .sep{width:1px;height:13px;background:#333;margin:0 3px}
+.dock-f .push{margin-left:auto}
+
+/* 列表行 */
+.row{
+  display:flex;align-items:center;gap:6px;height:25px;padding:0 4px 0 5px;border-radius:2px;
+  font-size:11.5px;color:#cdcdcd;cursor:default;
+}
+.row:hover{background:#2b2b2b}
+.row.sel{background:var(--sel);color:#fff}
+.row.sel:hover{background:var(--sel-hover)}
+.row .ic{width:14px;height:14px;flex:0 0 auto;opacity:.8}
+.row .nm{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .mini{
+  width:16px;height:16px;flex:0 0 auto;display:grid;place-items:center;color:#cfcfcf;opacity:.5;border-radius:2px;
+}
+.row.sel .mini{color:#fff;opacity:.8}
+.row .mini:hover{opacity:1;background:rgba(255,255,255,.14)}
+.row.hidden .nm{opacity:.4}
+.row.hidden .ic{opacity:.32}
+.row .sub{display:none}
+
+/* ---------- 预览 ---------- */
+.preview-wrap{position:relative;background:#000;border:1px solid #0a0a0a;min-height:0;display:flex;flex-direction:column}
+.preview{
+  flex:1 1 auto;min-height:0;display:grid;place-items:center;background:#000;position:relative;overflow:hidden;
+}
+.canvas{position:relative;background:#000;overflow:hidden;box-shadow:0 0 0 1px #232323}
+.src-box{position:absolute;overflow:hidden;cursor:move}
+.src-box .inner{width:100%;height:100%;transform-origin:center}
+.src-box svg,.src-box canvas{width:100%;height:100%;display:block}
+.src-box.locked{cursor:not-allowed}
+.src-box.hidden{display:none}
+
+/* 休息画面 */
+.brb-wrap{display:grid;place-items:center;background:radial-gradient(circle at 50% 42%,#1f2b3f 0%,#131a26 55%,#0a0e15 100%);text-align:center}
+.brb{display:flex;flex-direction:column;align-items:center;gap:10px}
+.brb-mark{width:54px;height:54px;border-radius:50%;border:1px solid rgba(255,255,255,.22);display:grid;place-items:center;margin-bottom:4px}
+.brb-mark svg{width:26px;height:26px}
+.brb b{font-size:46px;font-weight:600;color:#e9f1fb;letter-spacing:.06em}
+.brb span{font-size:15px;color:rgba(200,215,235,.55);letter-spacing:.08em}
+
+/* 选中框 */
+.selbox{position:absolute;border:2px solid #d04545;pointer-events:none;display:none;z-index:60}
+.selbox.on{display:block}
+.selbox .h{
+  position:absolute;width:8px;height:8px;background:#d04545;border:1px solid #fff;
+  pointer-events:auto;box-shadow:0 0 0 1px rgba(0,0,0,.4);
+}
+.selbox .h[data-dir="nw"]{left:-5px;top:-5px;cursor:nwse-resize}
+.selbox .h[data-dir="n"]{left:50%;top:-5px;margin-left:-4px;cursor:ns-resize}
+.selbox .h[data-dir="ne"]{right:-5px;top:-5px;cursor:nesw-resize}
+.selbox .h[data-dir="e"]{right:-5px;top:50%;margin-top:-4px;cursor:ew-resize}
+.selbox .h[data-dir="se"]{right:-5px;bottom:-5px;cursor:nwse-resize}
+.selbox .h[data-dir="s"]{left:50%;bottom:-5px;margin-left:-4px;cursor:ns-resize}
+.selbox .h[data-dir="sw"]{left:-5px;bottom:-5px;cursor:nesw-resize}
+.selbox .h[data-dir="w"]{left:-5px;top:50%;margin-top:-4px;cursor:ew-resize}
+
+.preview-hint{
+  position:absolute;left:8px;bottom:6px;font-size:10.5px;color:#5c5c5c;pointer-events:none;
+}
+.trans-flash{
+  position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;
+}
+
+/* ---------- 混音器 ---------- */
+.mixer-cols{display:flex;gap:2px;padding:6px 4px;align-items:flex-start;justify-content:space-around}
+.mcol{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px}
+.mcol .mtop{display:flex;gap:2px;align-items:center;height:18px}
+.mcol .mtop button{width:16px;height:16px;display:grid;place-items:center;color:#a5a5a5;border-radius:2px}
+.mcol .mtop button:hover{background:#3a3a3a;color:#fff}
+.mcol .mtop button.on{color:#e8b04b}
+.mbody{display:flex;gap:3px;height:92px}
+.meter{width:6px;height:92px;background:#0c0c0c;border:1px solid #000;position:relative;overflow:hidden}
+.meter i{
+  position:absolute;left:0;right:0;top:0;bottom:0;
+  background:linear-gradient(to top,#1f7a33 0%,#35a648 62%,#c9c93a 84%,#d04a4a 96%);
+  clip-path:inset(calc(100% - var(--lvl,0%)) 0 0 0);
+  transition:clip-path .11s linear;
+}
+.fader{height:92px;width:26px;display:grid;place-items:center}
+.fader input{
+  width:86px;transform:rotate(-90deg);appearance:none;-webkit-appearance:none;
+  height:16px;background:transparent;outline:none;
+}
+.fader input::-webkit-slider-runnable-track{height:4px;background:#111;border:1px solid #3a3a3a;border-radius:2px}
+.fader input::-webkit-slider-thumb{
+  -webkit-appearance:none;width:14px;height:16px;margin-top:-7px;border-radius:2px;
+  background:linear-gradient(#d8d8d8,#a8a8a8);border:1px solid #555;
+}
+.mname{font-size:10px;color:#b9b9b9;text-align:center;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%}
+.mcol.muted .mname{color:#787878}
+.mcol.muted .meter{opacity:.25}
+.mcol.muted .fader{opacity:.6}
+.mdb{font:500 9.5px var(--mono);color:#767676}
+
+/* ---------- 转场 ---------- */
+.trans-b{padding:7px 8px;display:flex;flex-direction:column;gap:7px}
+.trans-row{display:flex;gap:5px}
+.trans-row select{flex:1}
+.dur{display:flex;align-items:center;gap:4px;font-size:11px;color:#9d9d9d}
+.dur input{width:62px;text-align:right}
+.trans-btn{
+  height:26px;background:#2d2d2d;border:1px solid #3c3c3c;border-radius:3px;font-size:11.5px;color:#d6d6d6;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.trans-btn:hover{background:#3a3a3a;border-color:#4a4a4a}
+.trans-btn:active{background:#242424}
+
+/* ---------- 表单控件 ---------- */
+select,input[type=text],input[type=number]{
+  background:#171717;border:1px solid #3a3a3a;color:#d8d8d8;border-radius:2px;
+  padding:4px 6px;font:inherit;font-size:11.5px;outline:none;min-width:0;
+}
+select{cursor:pointer}
+select:hover,input:hover{border-color:#4a4a4a}
+select:focus,input:focus{border-color:#4b84c4}
+
+/* ---------- 底部控制条 ---------- */
+.controls{
+  flex:0 0 auto;height:42px;display:flex;align-items:center;gap:6px;padding:0 8px;
+  background:#1a1a1a;border-top:1px solid #0a0a0a;
+}
+.cbtn{
+  height:28px;display:flex;align-items:center;gap:7px;padding:0 12px;
+  background:var(--btn);border:1px solid #2b2b2b;border-radius:3px;font-size:11.5px;color:#dcdcdc;
+}
+.cbtn:hover{background:var(--btn-hover)}
+.cbtn:active{background:var(--btn-active)}
+.cbtn svg{width:14px;height:14px}
+.cbtn .dot{width:9px;height:9px;border-radius:50%;background:#c9453f;flex:0 0 auto}
+.cbtn.active{border-color:#7a2f2b;background:#3a2422;color:#f0b3ad}
+.cbtn.active .dot{border-radius:1px}
+.cbtn.live.active{border-color:#2f6b33;background:#1e3120;color:#a8dfa6}
+.controls .spacer{flex:1 1 auto}
+.controls .divider{width:1px;height:22px;background:#2e2e2e;margin:0 2px}
+.rec-time{font:500 11.5px var(--mono);color:#b5625c;min-width:66px;text-align:right}
+
+/* ---------- 状态栏 ---------- */
+.statusbar{
+  flex:0 0 auto;height:24px;display:flex;align-items:center;gap:16px;padding:0 9px;
+  background:#141414;border-top:1px solid #0a0a0a;font-size:10.5px;color:#7f7f7f;
+  white-space:nowrap;overflow:hidden;
+}
+.statusbar b{color:#a8a8a8;font-weight:500;font-family:var(--mono);font-size:10.5px}
+.statusbar .dot{width:6px;height:6px;border-radius:50%;background:#3f9f4a;flex:0 0 auto}
+.statusbar .dot.rec{background:var(--red);animation:blink 1.05s steps(1) infinite}
+.statusbar .dot.off{background:#4a4a4a}
+.statusbar .sp{flex:1}
+@keyframes blink{50%{opacity:.2}}
+
+/* ---------- 对话框 ---------- */
+.overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;place-items:center;z-index:120;
+}
+.overlay.on{display:grid}
+.dlg{
+  width:440px;max-width:92vw;max-height:86vh;display:flex;flex-direction:column;
+  background:#232323;border:1px solid #454545;border-radius:3px;
+  box-shadow:0 18px 48px rgba(0,0,0,.7);
+}
+.dlg-h{
+  height:28px;display:flex;align-items:center;padding:0 8px;background:#2d2d2d;
+  border-bottom:1px solid #111;font-size:11.5px;color:#dcdcdc;
+}
+.dlg-h .x{margin-left:auto;width:18px;height:18px;display:grid;place-items:center;color:#aaa;border-radius:2px}
+.dlg-h .x:hover{background:#c42b1c;color:#fff}
+.dlg-b{padding:12px 14px;display:flex;flex-direction:column;gap:9px;overflow:auto;min-height:0}
+.dlg-f{
+  display:flex;justify-content:flex-end;gap:6px;padding:9px 12px;background:#1e1e1e;border-top:1px solid #111;
+}
+.btn{
+  min-width:74px;height:26px;background:#333;border:1px solid #2b2b2b;border-radius:3px;
+  font-size:11.5px;color:#dcdcdc;display:inline-flex;align-items:center;justify-content:center;
+}
+.btn:hover{background:#3f3f3f}
+.btn:active{background:#2a2a2a}
+.btn.primary{background:#2b5c8c;border-color:#376d9f;color:#fff}
+.btn.primary:hover{background:#33689b}
+.fld{display:grid;grid-template-columns:104px minmax(0,1fr);align-items:center;gap:8px;font-size:11.5px;color:#c4c4c4}
+.fld.top{align-items:start}
+.fld .hint{font-size:10.5px;color:#7a7a7a;margin-top:3px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mini-fld{display:grid;grid-template-columns:16px minmax(0,1fr);align-items:center;gap:5px;font-size:10.5px;color:#8d8d8d}
+.mini-fld input{width:100%}
+.grp-title{font-size:10.5px;color:#8a8a8a;letter-spacing:.06em;text-transform:uppercase;margin-top:2px}
+.chk{display:flex;align-items:center;gap:6px;font-size:11.5px;color:#c4c4c4}
+.chk input{accent-color:#2b7fd4;width:13px;height:13px}
+.dlg-sep{height:1px;background:#333;margin:3px 0}
+
+.slider-row{display:flex;flex-direction:column;gap:4px}
+.slider-row .sl-top{display:flex;justify-content:space-between;font-size:11px;color:#b4b4b4}
+.slider-row .sl-top output{font-family:var(--mono);color:#ddd}
+input[type=range].h{
+  -webkit-appearance:none;appearance:none;width:100%;height:4px;background:#111;border:1px solid #3a3a3a;border-radius:2px;outline:none;
+}
+input[type=range].h::-webkit-slider-thumb{
+  -webkit-appearance:none;width:12px;height:14px;border-radius:2px;background:linear-gradient(#dcdcdc,#a8a8a8);border:1px solid #555;
+}
+
+/* 滤镜对话框 */
+.filter-dlg{width:560px}
+.filter-body{display:grid;grid-template-columns:170px minmax(0,1fr);gap:0;min-height:230px}
+.flist{border-right:1px solid #333;padding:4px;display:flex;flex-direction:column;gap:2px;background:#1c1c1c}
+.flist .fitem{display:flex;align-items:center;gap:6px;height:24px;padding:0 6px;border-radius:2px;font-size:11.5px;color:#cdcdcd}
+.flist .fitem:hover{background:#2b2b2b}
+.flist .fitem.sel{background:var(--sel);color:#fff}
+.flist .fitem .tick{width:12px;height:12px;border:1px solid #666;border-radius:2px;display:grid;place-items:center;font-size:9px;color:#8fce8f}
+.flist .fitem .tick.on{background:#2b7fd4;border-color:#2b7fd4;color:#fff}
+.fprops{padding:10px 12px;display:flex;flex-direction:column;gap:10px}
+.fprops .empty{color:#777;font-size:11px;padding-top:8px}
+
+/* 提示 */
+.toast{
+  position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:#2a2a2a;border:1px solid #4a4a4a;
+  color:#ddd;font-size:11.5px;padding:7px 14px;border-radius:3px;box-shadow:0 8px 24px rgba(0,0,0,.6);
+  z-index:200;opacity:0;transition:opacity .18s,transform .18s;pointer-events:none;white-space:nowrap;
+}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(-4px)}
+</style>
+</head>
+<body data-page-node-id="iLVBYPBW2yKjDXTfE94cpE">
+<div class="win" data-page-node-id="n9dG1jvPCgY3TLeOH30ZYG">
+
+  <!-- 标题栏 -->
+  <div class="titlebar" data-page-node-id="HIeX4GlGIXorFJpFoAsaUw">
+    <div class="app-ic" data-page-node-id="iwj2FvJ5WovXMeTj4Hq3Tv">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" data-page-node-id="fDuAoaZVzASKITYxtAneM3"><circle cx="12" cy="12" r="8" data-page-node-id="q4W9gSN8qH84pDFpc5Zwff"/></svg>
+    </div>
+    <div class="t" data-page-node-id="CJ0dnGbB060zh4D4m2EzNe">OBS Studio 30.1.2 — OpenLiveStudio（原型）</div>
+    <button class="wbtn" title="最小化" data-page-node-id="60abYME2QAExGd5VdUrcuv"><svg width="10" height="10" viewBox="0 0 10 10" data-page-node-id="MVEN3Xn36J17liDFOfR0Uu"><rect y="4.5" width="10" height="1" fill="currentColor" data-page-node-id="YlhFh7x3TavUQ9Mh43I1MD"/></svg></button>
+    <button class="wbtn" title="最大化" data-page-node-id="UBgRfH0fZaRaATKjtzVtnE"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" data-page-node-id="Ps9u4MnL8PoFwBiNdJzk93"><rect x=".5" y=".5" width="9" height="9" data-page-node-id="UuLRMNk4YU6ZxpDonhY7hl"/></svg></button>
+    <button class="wbtn close" title="关闭" data-page-node-id="1NgJiqHzinOrsD6SMVF975"><svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" stroke-width="1.2" data-page-node-id="EcVRtIS3ds1aeKXFwD2hEu"><path d="M1 1l8 8M9 1L1 9" data-page-node-id="aeC1NPT4cRv4qytC2BGSKh"/></svg></button>
+  </div>
+
+  <!-- 菜单栏 -->
+  <div class="menubar" id="menubar">
+    <div class="menu" data-menu>视图
+      <div class="menu-pop">
+        <div class="mi" data-act="fullscreen">全屏预览 <span class="k">F11</span></div>
+        <div class="msep"></div>
+        <div class="mi" data-dock="scenes">场景 <span class="k">✓</span></div>
+        <div class="mi" data-dock="sources">来源 <span class="k">✓</span></div>
+        <div class="mi" data-dock="mixer">混音器 <span class="k">✓</span></div>
+        <div class="mi" data-dock="trans">场景转场 <span class="k">✓</span></div>
+        <div class="msep"></div>
+        <div class="mi" data-act="reset-layout">重置布局</div>
+      </div>
+    </div>
+    <div class="menu" data-menu>帮助
+      <div class="menu-pop">
+        <div class="mi" data-act="about">关于 OpenLiveStudio…</div>
+      </div>
+    </div>
+  </div>
+  <!-- 主体 -->
+  <div class="body" data-page-node-id="wUejKQt3BIfHc0hHkInCa0">
+
+    <!-- 左列 -->
+    <div class="col col-left" data-page-node-id="LnUoOiZUxfCbQ4AY8QlE6H">
+      <section class="dock scenes" data-page-node-id="wuV3nLBSaYpi0DKa5eFpwG">
+        <div class="dock-h" data-page-node-id="eSKAotb41V216vIB5bzITD"><span class="t" data-page-node-id="lgAI0wm97BLGOJgFRvX231">场景</span>
+          <button class="hb" title="浮动窗口" data-page-node-id="O6xoMPGzWDHQAS7s2Yqwao"><svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" data-page-node-id="pXX31FQEnuh0mHADTfEgKL"><rect x=".5" y=".5" width="6" height="6" data-page-node-id="bgCEP2WUBQtgw4lEsOjBKY"/><path d="M3.5 3.5h6v6h-6z" data-page-node-id="jjfGS95il15hVERuHfdMuh"/></svg></button>
+          <button class="hb" title="关闭" data-page-node-id="FSiKUVOJC70LV0ZUxYUlCl"><svg width="8" height="8" viewBox="0 0 10 10" stroke="currentColor" stroke-width="1.2" data-page-node-id="tc9yjC0tLbm8MzJN0HyjUi"><path d="M1 1l8 8M9 1L1 9" data-page-node-id="ULsv4jWiuE2sd4CIxoP4kn"/></svg></button>
+        </div>
+        <div class="dock-b" id="sceneList" data-page-node-id="iIFUuhTBe8Tbhg6cNLAgw1"></div>
+        <div class="dock-f" data-page-node-id="HE8k0DyBgxZjHPoUZ9d3yF">
+          <button title="添加场景" data-act="scene-add" data-page-node-id="FF862TArDD3JBqnILQOuDw"><svg width="12" height="12" viewBox="0 0 12 12" stroke="currentColor" stroke-width="1.4" data-page-node-id="8zkxu3NOZua64I4nZNczlD"><path d="M6 1v10M1 6h10" data-page-node-id="zSlPn0MuMDGxgzbrY3By26"/></svg></button>
+          <button title="移除场景" data-page-node-id="IIXQ9mnxs2BnW7nOvg0yso"><svg width="12" height="12" viewBox="0 0 12 12" stroke="currentColor" stroke-width="1.4" data-page-node-id="EKpUB9qDl01mFh5UMBYWKI"><path d="M1 6h10" data-page-node-id="Hz6Y7lKP0zRvEiUzbFuEbm"/></svg></button>
+          <button title="场景上移" data-page-node-id="kMZLSnb5oS5HVEjy2EZYhy"><svg width="12" height="12" viewBox="0 0 12 12" stroke="currentColor" stroke-width="1.4" fill="none" data-page-node-id="rZ7ztXAuSXtiDHHnywNg11"><path d="M6 10V2M2.5 5.5L6 2l3.5 3.5" data-page-node-id="PhQk7AOVjpcTL4vTHfgtS8"/></svg></button>
+          <button title="场景下移" data-page-node-id="JzvZne9xE1vDszN72H9uCl"><svg width="12" height="12" viewBox="0 0 12 12" stroke="currentColor" stroke-width="1.4" fill="none" data-page-node-id="nFctG990SEvogQEbo0tLN0"><path d="M6 2v8M2.5 6.5L6 10l3.5-3.5" data-page-node-id="dkgADKkUvAcUGtIM6Y1dKl"/></svg></button>
+        </div>
+      </section>
+
+      <section class="dock sources" data-page-node-id="hrsNYovxCgl5EdxFKaeOLW">
+        <div class="dock-h" data-page-node-id="YY2NT2xIa8brE7M2iHmqLQ"><span class="t" data-page-node-id="JB1DSS1zhtCVbcDFwwDEBm">来源</span>
+          <button class="hb" title="浮动窗口" data-page-node-id="bebn3Swua4R2HknCLYRG8Y"><svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" data-page-node-id="NclwPVESD05ZDYeibviB19"><rect x=".5" y=".5" width="6" height="6" data-page-node-id="a3IdbG7VbBIYDuIiTSfJvq"/><path d="M3.5 3.5h6v6h-6z" data-page-node-id="IB8NPANSNnZAmSpCOBFyNJ"/></svg></button>
+          <button class="hb" title="关闭" data-page-node-id="MDgDx7vaqxRnSX3Vt7JElC"><svg width="8" height="8" viewBox="0 0 10 10" stroke="currentColor" stroke-width="1.2" data-page-node-id="g9bWsTKPuDOBLWEUzh9hAx"><path d="M1 1l8 8M9 1L1 9" data-page-node-id="qfkvFcQGXy7xog45FLkURH"/></svg></button>
+        </div>
+        <div class="dock-b" id="sourceList" data-page-node-id="PpgqiRZaQlymdwrqQnuCiM"></div>
+        <div class="dock-f" data-page-node-id="dhYgV9nZytRks70visKuvH">
+          <button title="添加来源" data-act="src-add" data-page-node-id="XQ9dWMg3ul3mi9guTXFGeF"><svg width="12" height="12" viewBox="0 0 12 12" stroke="currentColor" stroke-width="1.4" data-page-node-id="TtI3VIV1JgybKP0QGnOHGG"><path d="M6 1v10M1 6h10" data-page-node-id="0m4R05AoNBTGNLF5HezePF"/></svg></button>
+          <button title="移除来源" data-act="src-del" data-page-node-id="RXF18D4RAfdzKpe6EOdrFC"><svg width="12" height="12" viewBox="0 0 12 12" stroke="currentColor" stroke-width="1.4" data-page-node-id="Ft1dnHVWFHoFHvHCJ9glLL"><path d="M1 6h10" data-page-node-id="N03BHyrANUrlnS14SXMYmR"/></svg></button>
+          <button title="来源上移" data-act="src-up" data-page-node-id="Ik2ag4KjPE3X5kOtyz0Jp4"><svg width="12" height="12" viewBox="0 0 12 12" stroke="currentColor" stroke-width="1.4" fill="none" data-page-node-id="LdiLjpyDFKWnlIUIjXUn6C"><path d="M6 10V2M2.5 5.5L6 2l3.5 3.5" data-page-node-id="yrestu2MrKvFLDZnuBL4IX"/></svg></button>
+          <button title="来源下移" data-act="src-down" data-page-node-id="CTI5xJ8vI3MxS2qltVwR9D"><svg width="12" height="12" viewBox="0 0 12 12" stroke="currentColor" stroke-width="1.4" fill="none" data-page-node-id="ZCx0sPqnxyCvnocEkZfXb3"><path d="M6 2v8M2.5 6.5L6 10l3.5-3.5" data-page-node-id="GDLjd8509w62sLI8y8epvM"/></svg></button>
+          <span class="sep" data-page-node-id="SK9voyJEaXZV4isHRrdTzI"></span>
+          <button title="滤镜" data-act="filters" data-page-node-id="Eb81QP6pC6YfNhZjtQa20t"><svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" data-page-node-id="yGFcATYwpsxReLBJh1DcR1"><path d="M1 3h12M1 7h12M1 11h12" data-page-node-id="99UdlYvENXhYb86tBqZuGH"/><circle cx="4" cy="3" r="1.6" fill="#1d1d1d" data-page-node-id="1OYjUu20fladaDImpNDc0u"/><circle cx="9" cy="7" r="1.6" fill="#1d1d1d" data-page-node-id="0F0r4J4svtsD31lkF9FfvU"/><circle cx="5.5" cy="11" r="1.6" fill="#1d1d1d" data-page-node-id="JSrSxGjsCe4l48nIwBMxr0"/></svg></button>
+          <button class="push" title="属性" data-act="props" data-page-node-id="ODcMRoTp9l7HmEh1V4RJBa"><svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" data-page-node-id="e6lCoFm9ZhqF1zw6MxHIWH"><circle cx="7" cy="7" r="2.2" data-page-node-id="92wFe1dkLhf3RFhqcdlUEL"/><path d="M7 1v2M7 11v2M1 7h2M11 7h2M2.8 2.8l1.4 1.4M9.8 9.8l1.4 1.4M11.2 2.8L9.8 4.2M4.2 9.8L2.8 11.2" data-page-node-id="1vRuBCgAiflKOeYNOxMR50"/></svg></button>
+        </div>
+      </section>
+    </div>
+
+    <!-- 预览 -->
+    <div class="col" data-page-node-id="DhBtbdb839Bpf5qsGQD8rg">
+      <div class="preview-wrap" data-page-node-id="f0hbbZitHL89K4rlCwfku7">
+        <div class="preview" id="preview" data-page-node-id="QKL2aRa7R2phHnEvqqDRZy">
+          <div class="canvas" id="canvas" data-page-node-id="P5JkKW6cnAvBord9fraHS7"></div>
+          <div class="trans-flash" id="flash" data-page-node-id="RHrRy0itmz7fmoceCHCEVw"></div>
+          <div class="preview-hint" id="previewHint" data-page-node-id="8HbtEDsPnYYmJ6SAeRCYfP">1920×1080 · 16:9 · 输出 30 fps</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右列 -->
+    <div class="col col-right" data-page-node-id="j4kYelSyqTcWUdN3iFZJu2">
+      <section class="dock mixer" data-page-node-id="53RC1JEuScWZLkcajSiht5">
+        <div class="dock-h" data-page-node-id="yfRUSQe5RTIu8oXlrMBD23"><span class="t" data-page-node-id="179FaFME9ciz4r8fsLH1YQ">混音器</span>
+          <button class="hb" title="浮动窗口" data-page-node-id="2pHHCVJv3REAWWlFFsDvn1"><svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" data-page-node-id="VPu7C0rlbu9VuuFjlpxwmc"><rect x=".5" y=".5" width="6" height="6" data-page-node-id="bVG6AvMUaCpP7EsE646I1W"/><path d="M3.5 3.5h6v6h-6z" data-page-node-id="knWovlLTDQAh2OVWNkB9tj"/></svg></button>
+          <button class="hb" title="关闭" data-page-node-id="fSpt57XcRSpI3xD6YnPsxt"><svg width="8" height="8" viewBox="0 0 10 10" stroke="currentColor" stroke-width="1.2" data-page-node-id="QcGpjZZnoHzCJWFdN9OhxL"><path d="M1 1l8 8M9 1L1 9" data-page-node-id="4FDUwZZRBxZZab8UidEg7p"/></svg></button>
+        </div>
+        <div class="dock-b" id="mixer" data-page-node-id="fpuZEPE8chPbUIdZrCarna"></div>
+      </section>
+
+      <section class="dock trans" data-page-node-id="7PmhB6O7EcLaeIzF5KURXk">
+        <div class="dock-h" data-page-node-id="Dvw2cC2aDgS8Ang7m9uLVu"><span class="t" data-page-node-id="S4vJXFwTr7ERBUCszGpbYO">场景转场</span>
+          <button class="hb" title="关闭" data-page-node-id="eTSB4WdLvA76AofPWdqXEJ"><svg width="8" height="8" viewBox="0 0 10 10" stroke="currentColor" stroke-width="1.2" data-page-node-id="9CZ5rorw8HmxT8TgN6A5RT"><path d="M1 1l8 8M9 1L1 9" data-page-node-id="KW8yo8gDVym0g0LTIXEQp1"/></svg></button>
+        </div>
+        <div class="trans-b" data-page-node-id="K1BoQTGIJPYjSIR5QFhizu">
+          <div class="trans-row" data-page-node-id="2uXun6KqHYoB4egnsOD1W0">
+            <select id="transSel" data-page-node-id="xjCf29bZ73bN4Y6c7o4eXX">
+              <option data-page-node-id="atpSbwlZTzdVuzcJi6FjRB">淡入淡出</option>
+              <option data-page-node-id="TPjooNEEqyiHXLhzAgMYtC">剪切</option>
+              <option data-page-node-id="i2gYgTwalvM5pJFUZtRcCX">滑动</option>
+              <option data-page-node-id="ZakvFa8IiCzMKMcSHRCARz">擦除</option>
+            </select>
+          </div>
+          <div class="dur" data-page-node-id="Fh6FdB3Bx4qXPspAC89Y5L">
+            <span data-page-node-id="wWXxzFNes1BUbTgDAZt6bk">时长</span>
+            <input type="number" id="transDur" value="300" min="0" max="20000" step="50" data-page-node-id="SmAUAvLLji0feRYCfuwZ5t">
+            <span data-page-node-id="b28gZFpmSEYbvq4dZWBMkZ">ms</span>
+          </div>
+          <button class="trans-btn" id="transGo" data-page-node-id="xP13794Fmj33I086JPU4p5">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" data-page-node-id="qdzjZEcRL8ZgmNIaeB6BwC"><path d="M1 6h8M6.5 2.5L10 6l-3.5 3.5" data-page-node-id="jg9AILhPP8IJUhs2bfceW8"/></svg>
+            转场
+          </button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- 控制条 -->
+  <div class="controls" data-page-node-id="PySPMdQ2GB0VJ6vmGKOrjN">
+    <button class="cbtn" id="recBtn" data-page-node-id="x0c11vRbfjQRsztjuhpHyi"><span class="dot" data-page-node-id="0jykjB16x6VqtVeDhayQ3Q"></span><span id="recLabel" data-page-node-id="v1f6yQRMKfqdfU7Z9oHBgB">开始录制</span></button>
+    <button class="cbtn live" id="liveBtn" data-page-node-id="uxW8nrTnypJniMolAqzP7a">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" data-page-node-id="CTEbfnD4NZdgbrLEzfZPTV"><path d="M4.5 9a9 9 0 0 1 0 6M8 6.5a13 13 0 0 1 0 11M19.5 9a9 9 0 0 0 0 6M16 6.5a13 13 0 0 0 0 11" data-page-node-id="SvuzUYsUdRCAg72UGOHUmU"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none" data-page-node-id="6VlFOBemH2GddxITNDu1Ao"/></svg>
+      <span id="liveLabel" data-page-node-id="7odmst3tDvZyeRgCTLXDum">开始直播</span>
+    </button>
+    <div class="spacer" data-page-node-id="F7G5nEIrCVUdHsyGFUTxM2"></div>
+    <div class="rec-time" id="recTime" data-page-node-id="MeB9sPa7eW6r2AYKHKFAbA">00:00:00</div>
+    <div class="divider" data-page-node-id="xsDPCyBO8NcK3SdJouFWQr"></div>
+    <button class="cbtn" id="settingsBtn" data-page-node-id="1GFgaCFALYBwEIdSB9FfVj">设置</button>
+    <button class="cbtn" id="exitBtn" data-page-node-id="fTWWK6l213oHs6sElz8934">退出</button>
+  </div>
+
+  <!-- 状态栏 -->
+  <div class="statusbar" data-page-node-id="xwqAHoyoblkiDYtgRINVzQ">
+    <span class="dot" id="sbDot" data-page-node-id="DhLi7pn5JqiqM9jezWSwMq"></span>
+    <span id="sbMsg" data-page-node-id="OopRq8llwU0d5RKFjpUVJ4">就绪</span>
+    <span data-page-node-id="6Dxs0pRWbBOQioyH5XHuph">REC <b id="sbRec" data-page-node-id="dhozbcj2D2jzwpnKtaVEYT">未开始</b> · 时长 <b id="sbRecT" data-page-node-id="L5dILeCYlAF6kvlDAhg3pT">--:--:--</b></span>
+    <span data-page-node-id="aM94bDnETlFy6wl2wml4Jn">LIVE <b id="sbLive" data-page-node-id="49nLAHZddHH7817rFDg4o0">未开始</b> · 时长 <b id="sbLiveT" data-page-node-id="bTGmO7XDqnJubeEqjxw4Fy">--:--:--</b></span>
+    <span data-page-node-id="w86XkWdX7L5WXf1mHz1Lja">输出帧率 <b id="sbFps" data-page-node-id="lsjKc5Y7YdzKn1GxGPcnRZ">30.00</b></span>
+    <span data-page-node-id="gZzhKz7VwFXdP7JPW7yGP7">推流丢帧 <b id="sbDrop" data-page-node-id="pW6keC8EHp5SpyEkfnk4n2">0 (0.0%)</b></span>
+    <span data-page-node-id="2i08MQImzD5eDkyyR2hdMC">发送码率 <b id="sbRate" data-page-node-id="k6hsAzSNDGENnlHWG8pB28">0 kb/s</b></span>
+    <span class="sp" data-page-node-id="RsIHLai8WzAP9pGc9yg2uz"></span>
+    <span data-page-node-id="wAmBAGtM37uowfk1xBYCoM">CPU <b id="sbCpu" data-page-node-id="3IywtWWAO0DYpRGMR1EkEp">1.2%</b></span>
+    <span data-page-node-id="MCBr52gWgMMaGnVJXWsUup">内存 <b data-page-node-id="3JbBls9fNFoKcB4cCAQfjA">412 MB</b></span>
+  </div>
+  <div class="pv-exit" id="pvExit">全屏预览 · 按 F11 或 Esc 退出</div>
+</div>
+
+<div class="overlay" id="overlay" data-page-node-id="gBjIDMBBHwafYlCsgTb3Kj">
+  <div class="dlg" id="dlg" data-page-node-id="y7PymGFE0MAz0DOZCu5hW3">
+    <div class="dlg-h" data-page-node-id="Qu1n5wReb9CELwZIuA32zc"><span id="dlgTitle" data-page-node-id="HoBCZ33yNSUJ1AD35HAKAD">对话框</span><button class="x" id="dlgX" data-page-node-id="OIKJdT3BnmF9935npDo7vx">✕</button></div>
+    <div class="dlg-b" id="dlgBody" data-page-node-id="ZgbWzaoqe6h8Prerqsb860"></div>
+    <div class="dlg-f" data-page-node-id="UnaT91j71VONtBIvxaoZtU">
+      <button class="btn primary" id="dlgOk" data-page-node-id="haEhdeMhQGjbBBJpxkP4Te">确定</button>
+      <button class="btn" id="dlgCancel" data-page-node-id="gjNt4anj0a1QGjVgNjXub8">取消</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" data-page-node-id="QEEMRGeDn8NgafhahtHS43"></div>
+
+<script>
+/* ============================================================
+   OBS 风格原型：多源场景合成 + 录制/直播控制
+   预览中的源可拖动/缩放，属性/滤镜/变换走 OBS 式对话框
+   ============================================================ */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const pad = n => String(n).padStart(2, '0');
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const rnd = (a, b) => a + Math.random() * (b - a);
+
+const LOGICAL_W = 1920, LOGICAL_H = 1080;
+
+/* ---------- 图标 ---------- */
+const IC = {
+  camera: '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="2" y="6" width="13" height="12" rx="2"/><path d="M15 10.5L22 7v10l-7-3.5z"/></svg>',
+  desktop: '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="2" y="3.5" width="20" height="13" rx="1.5"/><path d="M8 20.5h8M12 16.5v4"/></svg>',
+  image: '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><circle cx="8" cy="9.5" r="1.7"/><path d="M3 17l5.5-5 4 3.5 3-2.5 5.5 4"/></svg>',
+  text: '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 5h16M12 5v14M8.5 19h7"/></svg>',
+  eye: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M1.8 12S5.5 5.2 12 5.2 22.2 12 22.2 12 18.5 18.8 12 18.8 1.8 12 1.8 12z"/><circle cx="12" cy="12" r="3.1"/></svg>',
+  eyeOff: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 3l18 18"/><path d="M10.6 6.1A9.8 9.8 0 0 1 12 6c6.5 0 10.2 6 10.2 6a17 17 0 0 1-3.6 4.1M6.4 7.9A17 17 0 0 0 1.8 12s3.7 6 10.2 6a9.6 9.6 0 0 0 3.7-.7"/></svg>',
+  lock: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg>',
+  unlock: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7.8a4 4 0 0 1 7.4-2"/></svg>',
+  scene: '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 9.5h19"/></svg>',
+  mute: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 9.5h4l5-4v13l-5-4H4z"/><path d="M17 9l4 6M21 9l-4 6"/></svg>',
+  sound: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 9.5h4l5-4v13l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>',
+  gear: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4M5.2 5.2l2.8 2.8M16 16l2.8 2.8M18.8 5.2L16 8M8 16l-2.8 2.8"/></svg>'
+};
+
+/* ---------- 场景 / 来源数据 ---------- */
+const cameraFilter = { on: true, brightness: 100, contrast: 100, saturation: 100 };
+
+const scenes = [
+  {
+    name: '主场景',
+    sources: [
+      { id: 'logo', name: 'Logo', type: 'image', x: 64, y: 52, w: 470, h: 112, visible: true, locked: false },
+      { id: 'camera', name: '摄像头', type: 'camera', x: 1296, y: 702, w: 576, h: 324, visible: true, locked: false, device: 'USB Camera (示例)' },
+      { id: 'desktop', name: '桌面', type: 'desktop', x: 0, y: 0, w: 1920, h: 1080, visible: true, locked: false }
+    ]
+  },
+  {
+    name: '休息画面',
+    sources: [
+      { id: 'brbLogo', name: 'Logo', type: 'image', x: 64, y: 52, w: 470, h: 112, visible: true, locked: false },
+      { id: 'brb', name: '稍等片刻', type: 'text', x: 0, y: 0, w: 1920, h: 1080, visible: true, locked: false }
+    ]
+  }
+];
+
+const audioSources = [
+  { name: '桌面音频', vol: 78, mute: false, lvl: 0.35 },
+  { name: '麦克风阵列', vol: 64, mute: false, lvl: 0.55 },
+  { name: '辅助音频', vol: 42, mute: true, lvl: 0 }
+];
+
+const state = {
+  scene: 0,
+  selected: 'camera',
+  recOn: false, liveOn: false,
+  recT: 0, liveT: 0,
+  fps: 30, drop: 0, totalFrames: 0
+};
+
+function curScene() { return scenes[state.scene]; }
+function findSource(id) { return curScene().sources.find(s => s.id === id); }
+
+/* ---------- 预览内容 ---------- */
+const DESKTOP_SVG = `
+<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22304b"/><stop offset=".5" stop-color="#182538"/><stop offset="1" stop-color="#0b1220"/>
+    </linearGradient>
+    <linearGradient id="win" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#252527"/><stop offset="1" stop-color="#1d1d1f"/>
+    </linearGradient>
+    <linearGradient id="bar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2e2e31"/><stop offset="1" stop-color="#27272a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#wall)"/>
+  <circle cx="1560" cy="170" r="430" fill="#2f5f9e" opacity=".16"/>
+  <circle cx="260" cy="930" r="380" fill="#8a5a2a" opacity=".13"/>
+
+  <!-- 任务栏 -->
+  <rect x="0" y="1014" width="1920" height="66" fill="#080c12" opacity=".94"/>
+  <g fill="#c9d4e2" opacity=".8">
+    <rect x="34" y="1032" width="12" height="12" rx="2"/><rect x="52" y="1032" width="12" height="12" rx="2"/>
+    <rect x="34" y="1050" width="12" height="12" rx="2"/><rect x="52" y="1050" width="12" height="12" rx="2"/>
+  </g>
+  <g fill="#7f93ab" opacity=".55">
+    <rect x="700" y="1036" width="26" height="26" rx="5"/><rect x="742" y="1036" width="26" height="26" rx="5"/>
+    <rect x="784" y="1036" width="26" height="26" rx="5"/><rect x="826" y="1036" width="26" height="26" rx="5"/>
+  </g>
+  <text x="1760" y="1042" font-family="Segoe UI" font-size="17" fill="#93a4b8">10:38</text>
+  <text x="1760" y="1064" font-family="Segoe UI" font-size="13" fill="#6d7f94">2026/10/22</text>
+
+  <!-- 主窗口 -->
+  <g>
+    <rect x="150" y="104" width="1180" height="740" rx="10" fill="url(#win)" stroke="#3a3a3f"/>
+    <path d="M150 114a10 10 0 0 1 10-10h1160a10 10 0 0 1 10 10v34H150z" fill="url(#bar)"/>
+    <circle cx="180" cy="126" r="6.5" fill="#ff5f57"/><circle cx="202" cy="126" r="6.5" fill="#febc2e"/><circle cx="224" cy="126" r="6.5" fill="#28c840"/>
+    <text x="700" y="132" font-family="Segoe UI" font-size="15" fill="#9fa4ab">mainwindow.cpp — OpenLiveStudio</text>
+
+    <!-- 侧栏 -->
+    <rect x="150" y="148" width="248" height="696" fill="#212124"/>
+    <text x="172" y="180" font-family="Segoe UI" font-size="12" fill="#7c828b" letter-spacing="1">资源管理器</text>
+    <g font-family="Segoe UI" font-size="14" fill="#b9bec7">
+      <text x="176" y="214">▾ src</text>
+      <text x="196" y="242">app</text>
+      <text x="196" y="270">capture</text>
+      <text x="196" y="298">core</text>
+      <text x="196" y="326">gl</text>
+      <text x="196" y="354">filters</text>
+      <text x="196" y="382">encode</text>
+      <text x="196" y="410">mux</text>
+      <text x="196" y="438">ui</text>
+      <text x="176" y="472">▾ shaders</text>
+      <text x="196" y="500">yuv.frag</text>
+      <text x="196" y="528">gaussian.frag</text>
+      <text x="176" y="562">CMakeLists.txt</text>
+    </g>
+    <rect x="166" y="238" width="216" height="26" rx="3" fill="#2d5b86" opacity=".55"/>
+
+    <!-- 代码区 -->
+    <g font-family="Consolas, monospace" font-size="19">
+      <text x="430" y="196" fill="#6b7c8f">1</text><text x="470" y="196" fill="#c586c0">void</text><text x="522" y="196" fill="#dcdcaa">VideoCapture::open</text><text x="790" y="196" fill="#d4d4d4">()</text>
+      <text x="430" y="226" fill="#6b7c8f">2</text><text x="470" y="226" fill="#d4d4d4">{</text>
+      <text x="430" y="256" fill="#6b7c8f">3</text><text x="494" y="256" fill="#569cd6">avdevice_register_all</text><text x="700" y="256" fill="#d4d4d4">();</text>
+      <text x="430" y="286" fill="#6b7c8f">4</text><text x="494" y="286" fill="#569cd6">auto</text><text x="546" y="286" fill="#d4d4d4">fmt = av_find_input_format(</text><text x="900" y="286" fill="#ce9178">"dshow"</text><text x="972" y="286" fill="#d4d4d4">);</text>
+      <text x="430" y="316" fill="#6b7c8f">5</text><text x="494" y="316" fill="#d4d4d4">opts[</text><text x="560" y="316" fill="#ce9178">"video_size"</text><text x="690" y="316" fill="#d4d4d4">] = </text><text x="730" y="316" fill="#ce9178">"1920x1080"</text><text x="872" y="316" fill="#d4d4d4">;</text>
+      <text x="430" y="346" fill="#6b7c8f">6</text><text x="494" y="346" fill="#d4d4d4">opts[</text><text x="560" y="346" fill="#ce9178">"framerate"</text><text x="678" y="346" fill="#d4d4d4">] = </text><text x="718" y="346" fill="#ce9178">"30"</text><text x="758" y="346" fill="#d4d4d4">;</text>
+      <text x="430" y="376" fill="#6b7c8f">7</text><text x="494" y="376" fill="#4ec9b0">AVFormatContext</text><text x="700" y="376" fill="#d4d4d4">* ctx = nullptr;</text>
+      <text x="430" y="406" fill="#6b7c8f">8</text><text x="470" y="406" fill="#d4d4d4">}</text>
+      <text x="430" y="440" fill="#6b7c8f">9</text>
+      <text x="430" y="470" fill="#6b7c8f">10</text><text x="470" y="470" fill="#6a9955">// 时间戳：设备 PTS 优先，缺失则取墙钟</text>
+      <text x="430" y="500" fill="#6b7c8f">11</text><text x="470" y="500" fill="#c586c0">auto</text><text x="518" y="500" fill="#4ec9b0">pts</text><text x="552" y="500" fill="#d4d4d4">= frame-&gt;pts &gt; 0 ? frame-&gt;pts : av_gettime_relative();</text>
+    </g>
+    <rect x="430" y="512" width="286" height="3" fill="#3a6ea5"/>
+  </g>
+
+  <!-- 浮动窗口 -->
+  <g>
+    <rect x="780" y="520" width="700" height="390" rx="8" fill="#161618" stroke="#3d3d42"/>
+    <rect x="780" y="520" width="700" height="30" rx="8" fill="#2a2a2e"/>
+    <circle cx="802" cy="535" r="5" fill="#ff5f57"/><circle cx="820" cy="535" r="5" fill="#febc2e"/><circle cx="838" cy="535" r="5" fill="#28c840"/>
+    <text x="860" y="540" font-family="Segoe UI" font-size="12" fill="#9096a0">OBS — 预览</text>
+    <rect x="800" y="570" width="660" height="300" fill="#000"/>
+    <rect x="800" y="570" width="660" height="300" fill="url(#wall)" opacity=".5"/>
+    <rect x="1354" y="776" width="90" height="50" fill="#2b3a4d" opacity=".9"/>
+    <text x="1070" y="734" font-family="Segoe UI" font-size="13" fill="#7f8ea3">1920×1080</text>
+  </g>
+</svg>`;
+
+const LOGO_SVG = `
+<svg viewBox="0 0 470 112" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <circle cx="46" cy="56" r="33" fill="none" stroke="#ffffff" stroke-width="9"/>
+    <circle cx="46" cy="56" r="12" fill="#ffffff"/>
+  </g>
+  <text x="100" y="72" font-family="Segoe UI, sans-serif" font-size="45" font-weight="700" fill="#ffffff" letter-spacing="0.5">OpenLive</text>
+  <text x="318" y="72" font-family="Segoe UI, sans-serif" font-size="45" font-weight="300" fill="#ffffff" opacity=".78">Studio</text>
+</svg>`;
+
+const BRB_HTML = `
+<div class="brb">
+  <div class="brb-mark">
+    <svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+  </div>
+  <b>马上回来</b>
+  <span>直播即将继续，请稍候</span>
+</div>`;
+
+/* ---------- 渲染：场景列表 ---------- */
+function renderScenes() {
+  const box = $('#sceneList');
+  box.innerHTML = scenes.map((s, i) => `
+    <div class="row ${i === state.scene ? 'sel' : ''}" data-scene="${i}">
+      <span class="nm" style="padding-left:2px">${s.name}</span>
+    </div>`).join('');
+  $$('.row', box).forEach(r => {
+    r.addEventListener('click', () => switchScene(+r.dataset.scene));
+  });
+}
+
+function switchScene(i) {
+  if (i === state.scene) return;
+  state.scene = i;
+  state.selected = null;
+  renderScenes();
+  renderPreview();
+  renderSources();
+  flash();
+  msg(`已切换场景：${scenes[i].name}`);
+}
+
+/* ---------- 渲染：来源列表 ---------- */
+function renderSources() {
+  const box = $('#sourceList');
+  box.innerHTML = curScene().sources.map(s => {
+    const icon = s.type === 'camera' ? IC.camera : s.type === 'desktop' ? IC.desktop : s.type === 'image' ? IC.image : IC.text;
+    return `<div class="row ${s.id === state.selected ? 'sel' : ''} ${s.visible ? '' : 'hidden'}" data-id="${s.id}">
+      ${icon}
+      <span class="nm">${s.name}</span>
+      <button class="mini" data-eye title="${s.visible ? '隐藏' : '显示'}">${s.visible ? IC.eye : IC.eyeOff}</button>
+      <button class="mini" data-lock title="${s.locked ? '解锁' : '锁定'}">${s.locked ? IC.lock : IC.unlock}</button>
+    </div>`;
+  }).join('');
+
+  $$('.row', box).forEach(row => {
+    const id = row.dataset.id;
+    row.addEventListener('mousedown', e => {
+      if (e.target.closest('[data-eye],[data-lock]')) return;
+      selectSource(id);
+    });
+    row.addEventListener('dblclick', () => openProps(id));
+    row.querySelector('[data-eye]').addEventListener('click', e => {
+      e.stopPropagation();
+      const s = findSource(id);
+      s.visible = !s.visible;
+      renderSources(); renderPreview();
+      msg(`${s.name} ${s.visible ? '已显示' : '已隐藏'}`);
+    });
+    row.querySelector('[data-lock]').addEventListener('click', e => {
+      e.stopPropagation();
+      const s = findSource(id);
+      s.locked = !s.locked;
+      renderSources(); renderPreview();
+      msg(`${s.name} ${s.locked ? '已锁定' : '已解锁'}`);
+    });
+  });
+}
+
+function selectSource(id) {
+  state.selected = id;
+  renderSources();
+  updateSelBox();
+}
+
+/* ---------- 渲染：预览 ---------- */
+function srcContent(s) {
+  if (s.type === 'desktop') return `<div class="inner">${DESKTOP_SVG}</div>`;
+  if (s.type === 'camera') return `<div class="inner"><canvas width="640" height="360"></canvas></div>`;
+  if (s.type === 'image') return `<div class="inner">${s.id === 'brbLogo' ? LOGO_SVG.replace('OpenLive', 'OpenLive') : LOGO_SVG}</div>`;
+  return `<div class="inner brb-wrap">${BRB_HTML}</div>`;
+}
+
+function renderPreview() {
+  const canvas = $('#canvas');
+  const list = curScene().sources.slice().reverse(); // 列表顶部在最上层
+  canvas.innerHTML = list.map(s => `
+    <div class="src-box ${s.visible ? '' : 'hidden'} ${s.locked ? 'locked' : ''}" data-id="${s.id}"
+         style="left:${s.x / LOGICAL_W * 100}%;top:${s.y / LOGICAL_H * 100}%;width:${s.w / LOGICAL_W * 100}%;height:${s.h / LOGICAL_H * 100}%;z-index:${list.indexOf(s) + 1}">
+      ${srcContent(s)}
+    </div>`).join('') + `<div class="selbox" id="selbox">
+      ${['nw','n','ne','e','se','s','sw','w'].map(d => `<span class="h" data-dir="${d}"></span>`).join('')}
+    </div>`;
+
+  // 摄像头画布
+  const cam = canvas.querySelector('.src-box[data-id="camera"] canvas');
+  if (cam) camCtx = cam.getContext('2d'); else camCtx = null;
+
+  // 滤镜
+  curScene().sources.forEach(s => applyFilter(s.id));
+
+  // 事件
+  $$('.src-box', canvas).forEach(box => {
+    box.addEventListener('pointerdown', e => startDrag(e, box.dataset.id, 'move'));
+  });
+  const sb = $('#selbox');
+  $$('.h', sb).forEach(h => h.addEventListener('pointerdown', e => startDrag(e, state.selected, 'resize', h.dataset.dir)));
+
+  updateSelBox();
+}
+
+function applyFilter(id) {
+  const s = findSource(id);
+  if (!s) return;
+  const el = document.querySelector(`.src-box[data-id="${id}"] .inner`);
+  if (!el) return;
+  if (s.type === 'camera') {
+    el.style.filter = cameraFilter.on
+      ? `brightness(${cameraFilter.brightness}%) contrast(${cameraFilter.contrast}%) saturate(${cameraFilter.saturation}%)`
+      : 'none';
+  }
+}
+
+function rectToPct(el, s) {
+  el.style.left = (s.x / LOGICAL_W * 100) + '%';
+  el.style.top = (s.y / LOGICAL_H * 100) + '%';
+  el.style.width = (s.w / LOGICAL_W * 100) + '%';
+  el.style.height = (s.h / LOGICAL_H * 100) + '%';
+}
+
+function updateSelBox() {
+  const sb = $('#selbox');
+  const s = state.selected ? findSource(state.selected) : null;
+  if (!s || !s.visible) { sb.classList.remove('on'); return; }
+  const box = document.querySelector(`.src-box[data-id="${s.id}"]`);
+  if (!box) { sb.classList.remove('on'); return; }
+  sb.classList.add('on');
+  sb.style.left = box.style.left;
+  sb.style.top = box.style.top;
+  sb.style.width = box.style.width;
+  sb.style.height = box.style.height;
+}
+
+/* ---------- 拖动 / 缩放 ---------- */
+let drag = null;
+function startDrag(e, id, mode, dir) {
+  const s = findSource(id);
+  if (!s || !s.visible) return;
+  if (id !== state.selected) selectSource(id);
+  if (s.locked && mode === 'move') return;
+  e.preventDefault();
+  e.stopPropagation();
+
+  const canvasRect = $('#canvas').getBoundingClientRect();
+  drag = {
+    mode, dir, id,
+    startX: e.clientX, startY: e.clientY,
+    o: { x: s.x, y: s.y, w: s.w, h: s.h },
+    scaleX: LOGICAL_W / canvasRect.width,
+    scaleY: LOGICAL_H / canvasRect.height
+  };
+  document.body.style.cursor = mode === 'move' ? 'move' : (dir.length === 2 ? 'nwse-resize' : (dir === 'n' || dir === 's' ? 'ns-resize' : 'ew-resize'));
+  window.addEventListener('pointermove', onDragMove);
+  window.addEventListener('pointerup', endDrag, { once: true });
+}
+
+function onDragMove(e) {
+  if (!drag) return;
+  const s = findSource(drag.id);
+  const dx = (e.clientX - drag.startX) * drag.scaleX;
+  const dy = (e.clientY - drag.startY) * drag.scaleY;
+  const o = drag.o;
+
+  if (drag.mode === 'move') {
+    s.x = Math.round(clamp(o.x + dx, -o.w + 40, LOGICAL_W - 40));
+    s.y = Math.round(clamp(o.y + dy, -o.h + 40, LOGICAL_H - 40));
+  } else {
+    const d = drag.dir;
+    if (d.length === 2) {                       // 角点：等比缩放
+      const k = Math.max(0.08, 1 + (dx / o.w + dy / o.h) / 2);
+      const w = Math.max(40, o.w * k), h = Math.max(40, o.h * k);
+      if (d.includes('e')) s.w = Math.round(w); else { s.x = Math.round(o.x + o.w - w); s.w = Math.round(w); }
+      if (d.includes('s')) s.h = Math.round(h); else { s.y = Math.round(o.y + o.h - h); s.h = Math.round(h); }
+    } else if (d === 'e') { s.w = Math.round(Math.max(40, o.w + dx)); }
+    else if (d === 'w') { const w = Math.max(40, o.w - dx); s.x = Math.round(o.x + o.w - w); s.w = Math.round(w); }
+    else if (d === 's') { s.h = Math.round(Math.max(40, o.h + dy)); }
+    else if (d === 'n') { const h = Math.max(40, o.h - dy); s.y = Math.round(o.y + o.h - h); s.h = Math.round(h); }
+  }
+  const box = document.querySelector(`.src-box[data-id="${s.id}"]`);
+  if (box) rectToPct(box, s);
+  updateSelBox();
+}
+
+function endDrag() {
+  if (!drag) return;
+  drag = null;
+  document.body.style.cursor = '';
+  window.removeEventListener('pointermove', onDragMove);
+  const s = state.selected ? findSource(state.selected) : null;
+  if (s) msg(`${s.name}：X ${s.x} · Y ${s.y} · ${s.w}×${s.h}`);
+}
+
+/* ---------- 混音器 ---------- */
+function renderMixer() {
+  const box = $('#mixer');
+  box.innerHTML = `<div class="mixer-cols">${audioSources.map((a, i) => `
+    <div class="mcol ${a.mute ? 'muted' : ''}" data-i="${i}">
+      <div class="mtop">
+        <button class="${a.mute ? 'on' : ''}" data-mute title="${a.mute ? '取消静音' : '静音'}">${a.mute ? IC.mute : IC.sound}</button>
+        <button data-gear title="音频属性">${IC.gear}</button>
+      </div>
+      <div class="mbody">
+        <div class="meter"><i data-meter="0"></i></div>
+        <div class="meter"><i data-meter="1"></i></div>
+        <div class="fader"><input type="range" min="0" max="100" value="${a.vol}"></div>
+      </div>
+      <div class="mdb" data-db>${dbText(a.vol)}</div>
+      <div class="mname">${a.name}</div>
+    </div>`).join('')}</div>`;
+
+  $$('.mcol', box).forEach(col => {
+    const i = +col.dataset.i;
+    const a = audioSources[i];
+    col.querySelector('[data-mute]').addEventListener('click', () => {
+      a.mute = !a.mute;
+      renderMixer();
+      msg(`${a.name} ${a.mute ? '已静音' : '已取消静音'}`);
+    });
+    col.querySelector('[data-gear]').addEventListener('click', () => msg('音频属性（原型未实现）'));
+    col.querySelector('input').addEventListener('input', e => {
+      a.vol = +e.target.value;
+      col.querySelector('[data-db]').textContent = dbText(a.vol);
+    });
+  });
+}
+
+function dbText(v) {
+  if (v <= 0) return '-∞ dB';
+  return (20 * Math.log10(v / 100)).toFixed(1) + ' dB';
+}
+
+let meterTimer = null;
+function tickMeters() {
+  $$('.mcol').forEach((col, i) => {
+    const a = audioSources[i];
+    if (!a) return;
+    const base = a.mute ? 0 : (a.vol / 100) * (state.liveOn || state.recOn ? 0.95 : 0.7);
+    a.lvl = clamp(a.lvl * 0.55 + (base * rnd(0.55, 1.0)) * 0.45, 0, 1);
+    $$('[data-meter]', col).forEach((m, ch) => {
+      const jitter = ch === 0 ? rnd(-0.03, 0.05) : rnd(-0.05, 0.03);
+      m.style.setProperty('--lvl', (clamp(a.lvl + jitter, 0, 1) * 100).toFixed(0) + '%');
+    });
+  });
+}
+
+/* ---------- 摄像头画面 ---------- */
+let camCtx = null;
+function drawCam(t) {
+  if (!camCtx) return;
+  const g = camCtx, W = 640, H = 360;
+  g.setTransform(1, 0, 0, 1, 0, 0);
+
+  const bg = g.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#2b2937');
+  bg.addColorStop(0.55, '#1d1b26');
+  bg.addColorStop(1, '#121019');
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+
+  // 墙上的画框
+  g.fillStyle = 'rgba(255,255,255,.04)';
+  g.fillRect(52, 34, 130, 96);
+  g.strokeStyle = 'rgba(255,255,255,.09)';
+  g.lineWidth = 2; g.strokeRect(52, 34, 130, 96);
+  g.fillStyle = 'rgba(120,170,255,.10)';
+  g.beginPath(); g.moveTo(64, 120); g.lineTo(100, 78); g.lineTo(132, 104); g.lineTo(160, 86); g.lineTo(170, 120); g.closePath(); g.fill();
+
+  // 台灯暖光
+  const lamp = g.createRadialGradient(540, 60, 0, 540, 60, 250);
+  lamp.addColorStop(0, 'rgba(255,186,120,.30)');
+  lamp.addColorStop(1, 'rgba(255,186,120,0)');
+  g.fillStyle = lamp; g.fillRect(0, 0, W, H);
+
+  const sway = Math.sin(t / 1700) * 3.5;
+
+  // 肩膀
+  g.beginPath();
+  g.ellipse(320 + sway, 372, 168, 100, 0, Math.PI, 0);
+  g.fillStyle = '#2f3746';
+  g.fill();
+  // 衣领
+  g.beginPath();
+  g.moveTo(285 + sway, 300); g.lineTo(320 + sway, 344); g.lineTo(355 + sway, 300);
+  g.strokeStyle = 'rgba(255,255,255,.10)'; g.lineWidth = 3; g.stroke();
+
+  // 脖子
+  g.fillStyle = '#b98a6c';
+  g.fillRect(302 + sway, 250, 36, 50);
+
+  // 头
+  g.beginPath();
+  g.ellipse(320 + sway, 196, 61, 72, 0, 0, Math.PI * 2);
+  g.fillStyle = '#c99a78';
+  g.fill();
+
+  // 头发
+  g.beginPath();
+  g.ellipse(320 + sway, 168, 64, 58, 0, Math.PI * 1.02, Math.PI * 1.98);
+  g.fillStyle = '#221b18';
+  g.fill();
+
+  // 五官（极简）
+  g.fillStyle = 'rgba(40,28,22,.75)';
+  g.beginPath(); g.ellipse(300 + sway, 194, 5, 3.4, 0, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.ellipse(340 + sway, 194, 5, 3.4, 0, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = 'rgba(40,28,22,.55)'; g.lineWidth = 2.4; g.beginPath();
+  g.arc(320 + sway, 224, 16, 0.25, Math.PI - 0.25); g.stroke();
+
+  // 面部受光
+  const face = g.createRadialGradient(292 + sway, 176, 4, 292 + sway, 176, 80);
+  face.addColorStop(0, 'rgba(255,225,190,.20)');
+  face.addColorStop(1, 'rgba(255,225,190,0)');
+  g.fillStyle = face; g.fillRect(0, 0, W, H);
+
+  // 暗角 + 扫描感
+  const vig = g.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, H * 0.95);
+  vig.addColorStop(0, 'rgba(0,0,0,0)');
+  vig.addColorStop(1, 'rgba(0,0,0,.55)');
+  g.fillStyle = vig; g.fillRect(0, 0, W, H);
+
+  // 轻微噪点
+  g.fillStyle = 'rgba(255,255,255,.022)';
+  for (let i = 0; i < 5; i++) g.fillRect(Math.random() * W, Math.random() * H, 2, 2);
+}
+
+/* ---------- 对话框 ---------- */
+let dlgOk = null;
+function openDialog(title, bodyHTML, onOk, wide) {
+  $('#dlgTitle').textContent = title;
+  $('#dlgBody').innerHTML = bodyHTML;
+  $('#dlg').classList.toggle('filter-dlg', !!wide);
+  dlgOk = onOk;
+  // 无确认动作的对话框（如滤镜）只留「关闭」，与 OBS 一致
+  $('#dlgOk').style.display = onOk ? '' : 'none';
+  $('#dlgCancel').textContent = onOk ? '取消' : '关闭';
+  $('#overlay').classList.add('on');
+}
+function closeDialog() {
+  $('#overlay').classList.remove('on');
+  dlgOk = null;
+}
+$('#dlgX').addEventListener('click', closeDialog);
+$('#dlgCancel').addEventListener('click', closeDialog);
+$('#dlgOk').addEventListener('click', () => { if (dlgOk) dlgOk(); closeDialog(); });
+$('#overlay').addEventListener('mousedown', e => { if (e.target.id === 'overlay') closeDialog(); });
+
+function openProps(id) {
+  const s = findSource(id);
+  if (!s) return;
+  let body = '';
+  if (s.type === 'camera') {
+    body = `
+      <div class="fld"><span>设备</span><select id="pDev">
+        <option>USB Camera (示例)</option><option>Integrated Camera</option><option>HD Pro Webcam C920</option>
+      </select></div>
+      <div class="grid2">
+        <div class="fld" style="grid-template-columns:44px 1fr"><span>分辨率</span><select><option>1920×1080</option><option>1280×720</option></select></div>
+        <div class="fld" style="grid-template-columns:44px 1fr"><span>帧率</span><select><option>30</option><option>60</option></select></div>
+      </div>
+      <div class="fld"><span>视频格式</span><select><option>MJPEG</option><option>YUY2</option><option>NV12</option></select></div>
+      <div class="dlg-sep"></div>
+      <div class="fld"><span>音频设备</span><select><option>麦克风阵列 (Realtek)</option><option>禁用</option></select></div>
+      <div class="fld"><span>使用自定义音频</span><span class="chk"><input type="checkbox"> 启用</span></div>`;
+  } else if (s.type === 'desktop') {
+    body = `
+      <div class="fld"><span>采集方式</span><select><option>显示器采集</option><option>窗口采集</option></select></div>
+      <div class="fld"><span>显示器</span><select><option>DISPLAY1: 1920×1080 @ 60Hz</option><option>DISPLAY2: 2560×1440</option></select></div>
+      <div class="fld"><span>采集光标</span><span class="chk"><input type="checkbox" checked> 包含光标</span></div>
+      <div class="fld"><span>兼容性</span><span class="chk"><input type="checkbox"> 使用 WGC 采集</span></div>`;
+  } else if (s.type === 'image') {
+    body = `
+      <div class="fld"><span>图像文件</span><input type="text" value="D:/Assets/logo.svg"></div>
+      <div class="fld"><span></span><span class="hint">支持 PNG / SVG / JPG，带透明通道</span></div>
+      <div class="fld"><span>保持宽高比</span><span class="chk"><input type="checkbox" checked> 启用</span></div>`;
+  } else {
+    body = `
+      <div class="fld top"><span>文本</span><textarea rows="4" style="background:#171717;border:1px solid #3a3a3a;color:#ddd;border-radius:2px;padding:5px 6px;font:inherit;font-size:11.5px;resize:vertical">马上回来</textarea></div>
+      <div class="grid2">
+        <div class="fld" style="grid-template-columns:56px 1fr"><span>字体</span><select><option>Segoe UI</option></select></div>
+        <div class="fld" style="grid-template-columns:44px 1fr"><span>字号</span><input type="number" value="96"></div>
+      </div>`;
+  }
+
+  openDialog(`属性 — ${s.name}`, body, () => {
+    const dev = $('#pDev');
+    if (dev) s.device = dev.value;
+    msg(`${s.name} 属性已更新`);
+  });
+}
+
+function openTransform() {
+  const s = state.selected ? findSource(state.selected) : null;
+  if (!s) { msg('请先选择一个来源'); return; }
+  const body = `
+    <div class="fld"><span>位置</span>
+      <div class="grid2">
+        <label class="mini-fld"><span>X</span><input type="number" id="tX" value="${s.x}"></label>
+        <label class="mini-fld"><span>Y</span><input type="number" id="tY" value="${s.y}"></label>
+      </div>
+    </div>
+    <div class="fld"><span>大小</span>
+      <div class="grid2">
+        <label class="mini-fld"><span>宽</span><input type="number" id="tW" value="${s.w}"></label>
+        <label class="mini-fld"><span>高</span><input type="number" id="tH" value="${s.h}"></label>
+      </div>
+    </div>
+    <div class="fld"><span></span>
+      <div style="display:flex;gap:6px">
+        <button class="btn" id="tFit">适应画布</button>
+        <button class="btn" id="tCorner">右下角</button>
+      </div>
+    </div>
+    <div class="fld"><span></span><span class="hint">单位：像素（合成画布 1920×1080）</span></div>`;
+
+  openDialog(`变换 — ${s.name}`, body, () => {
+    s.x = +$('#tX').value; s.y = +$('#tY').value;
+    s.w = Math.max(40, +$('#tW').value); s.h = Math.max(40, +$('#tH').value);
+    const box = document.querySelector(`.src-box[data-id="${s.id}"]`);
+    if (box) rectToPct(box, s);
+    updateSelBox();
+    msg(`${s.name} 变换已应用`);
+  });
+
+  const apply = (x, y, w, h) => { $('#tX').value = x; $('#tY').value = y; $('#tW').value = w; $('#tH').value = h; };
+  $('#tFit').addEventListener('click', () => apply(0, 0, 1920, 1080));
+  $('#tCorner').addEventListener('click', () => apply(1296, 702, 576, 324));
+}
+
+function openFilters() {
+  const s = state.selected ? findSource(state.selected) : null;
+  if (!s) { msg('请先选择一个来源'); return; }
+  if (s.type !== 'camera') {
+    openDialog(`滤镜 — ${s.name}`, `<div style="font-size:11.5px;color:#9a9a9a;line-height:1.7">
+      该来源暂无可用的效果滤镜。<br>原型中仅「摄像头」内置「调色」滤镜用于演示参数实时生效。</div>`, null);
+    return;
+  }
+  const body = `
+    <div class="filter-body">
+      <div class="flist">
+        <div class="fitem sel"><span class="tick ${cameraFilter.on ? 'on' : ''}" id="fTick">${cameraFilter.on ? '✓' : ''}</span>调色</div>
+        <div class="fitem" style="opacity:.45">色度键</div>
+        <div class="fitem" style="opacity:.45">锐化</div>
+        <div class="fitem" style="opacity:.45">暗角</div>
+      </div>
+      <div class="fprops" id="fProps">
+        <div class="chk"><input type="checkbox" id="fOn" ${cameraFilter.on ? 'checked' : ''}> 启用滤镜</div>
+        <div class="slider-row">
+          <div class="sl-top"><span>亮度</span><output id="oB">${cameraFilter.brightness}%</output></div>
+          <input type="range" class="h" id="fB" min="0" max="200" value="${cameraFilter.brightness}">
+        </div>
+        <div class="slider-row">
+          <div class="sl-top"><span>对比度</span><output id="oC">${cameraFilter.contrast}%</output></div>
+          <input type="range" class="h" id="fC" min="0" max="200" value="${cameraFilter.contrast}">
+        </div>
+        <div class="slider-row">
+          <div class="sl-top"><span>饱和度</span><output id="oS">${cameraFilter.saturation}%</output></div>
+          <input type="range" class="h" id="fS" min="0" max="200" value="${cameraFilter.saturation}">
+        </div>
+        <div class="hint" style="font-size:10.5px;color:#7d7d7d">滤镜只作用于当前来源，预览实时生效。</div>
+      </div>
+    </div>`;
+
+  openDialog(`滤镜 — ${s.name}`, body, null, true);
+
+  const sync = () => {
+    cameraFilter.on = $('#fOn').checked;
+    cameraFilter.brightness = +$('#fB').value;
+    cameraFilter.contrast = +$('#fC').value;
+    cameraFilter.saturation = +$('#fS').value;
+    $('#oB').textContent = cameraFilter.brightness + '%';
+    $('#oC').textContent = cameraFilter.contrast + '%';
+    $('#oS').textContent = cameraFilter.saturation + '%';
+    $('#fTick').classList.toggle('on', cameraFilter.on);
+    $('#fTick').textContent = cameraFilter.on ? '✓' : '';
+    applyFilter('camera');
+  };
+  ['fOn', 'fB', 'fC', 'fS'].forEach(id => $('#' + id).addEventListener('input', sync));
+}
+
+/* ---------- 录制 / 直播 ---------- */
+function fmtHMS(sec) {
+  sec = Math.floor(sec);
+  return `${pad(Math.floor(sec / 3600))}:${pad(Math.floor(sec / 60) % 60)}:${pad(sec % 60)}`;
+}
+
+function updateOutputUI() {
+  $('#recBtn').classList.toggle('active', state.recOn);
+  $('#recLabel').textContent = state.recOn ? '停止录制' : '开始录制';
+  $('#liveBtn').classList.toggle('active', state.liveOn);
+  $('#liveLabel').textContent = state.liveOn ? '停止直播' : '开始直播';
+  $('#sbRec').textContent = state.recOn ? '录制中' : '未开始';
+  $('#sbLive').textContent = state.liveOn ? '直播中' : '未开始';
+  $('#sbRecT').textContent = state.recOn ? fmtHMS(state.recT) : '--:--:--';
+  $('#sbLiveT').textContent = state.liveOn ? fmtHMS(state.liveT) : '--:--:--';
+  $('#recTime').textContent = fmtHMS(state.recOn ? state.recT : state.liveT);
+  const active = state.recOn || state.liveOn;
+  $('#sbDot').className = 'dot' + (active ? ' rec' : '');
+  $('#sbRate').textContent = active ? Math.round(4200 + rnd(-90, 90)) + ' kb/s' : '0 kb/s';
+  $('#sbDrop').textContent = active ? `0 (0.0%)` : '0 (0.0%)';
+  $('#sbFps').textContent = active ? '30.00' : '30.00';
+}
+
+$('#recBtn').addEventListener('click', () => {
+  state.recOn = !state.recOn;
+  if (state.recOn) { state.recT = 0; msg('开始录制 → D:/Videos/OpenLiveStudio'); }
+  else msg(`录制已停止 · 时长 ${fmtHMS(state.recT)}`);
+  updateOutputUI();
+});
+
+$('#liveBtn').addEventListener('click', () => {
+  state.liveOn = !state.liveOn;
+  if (state.liveOn) { state.liveT = 0; msg('开始直播 → rtmp://localhost:1935/live'); }
+  else msg(`直播已停止 · 时长 ${fmtHMS(state.liveT)}`);
+  updateOutputUI();
+});
+
+$('#settingsBtn').addEventListener('click', () => {
+  openDialog('设置', `
+    <div class="fld"><span>输出模式</span><select><option>简单</option><option>高级</option></select></div>
+    <div class="fld"><span>录像路径</span><input type="text" value="D:/Videos/OpenLiveStudio"></div>
+    <div class="fld"><span>录像格式</span><select><option>mp4</option><option>mkv</option><option>flv</option></select></div>
+    <div class="fld"><span>编码器</span><select><option>x264（软编）</option><option>NVENC</option><option>QSV</option><option>AMF</option></select></div>
+    <div class="fld"><span>码率控制</span><select><option>CRF 20</option><option>CBR 6000 kbps</option></select></div>
+    <div class="fld"><span>推流地址</span><input type="text" value="rtmp://localhost:1935/live"></div>
+    <div class="fld"><span>推流密钥</span><input type="text" value="••••••••••"></div>
+    <div class="fld"><span>基础画布</span><select><option>1920×1080</option><option>2560×1440</option></select></div>
+    <div class="fld"><span>输出帧率</span><select><option>30</option><option>60</option></select></div>`, () => msg('设置已保存（原型）'));
+});
+
+$('#exitBtn').addEventListener('click', () => msg('原型：退出由 OBS 主窗口处理'));
+
+/* ---------- 转场 ---------- */
+$('#transGo').addEventListener('click', () => {
+  const next = (state.scene + 1) % scenes.length;
+  flash();
+  setTimeout(() => switchScene(next), 60);
+});
+function flash() {
+  const f = $('#flash');
+  f.style.transition = 'none';
+  f.style.opacity = '0.85';
+  requestAnimationFrame(() => {
+    f.style.transition = 'opacity .28s ease-out';
+    f.style.opacity = '0';
+  });
+}
+
+/* ---------- 菜单 ---------- */
+$$('.menu').forEach(m => {
+  m.addEventListener('click', e => {
+    e.stopPropagation();
+    const wasOpen = m.classList.contains('open');
+    $$('.menu').forEach(x => x.classList.remove('open'));
+    if (!wasOpen) m.classList.add('open');
+  });
+});
+document.addEventListener('click', () => $$('.menu').forEach(x => x.classList.remove('open')));
+$$('.mi').forEach(mi => {
+  mi.addEventListener('click', e => {
+    e.stopPropagation();
+    if (mi.dataset.dock) { toggleDock(mi.dataset.dock); return; }  // 保持菜单展开，方便连续勾选
+    $$('.menu').forEach(x => x.classList.remove('open'));
+    if (mi.classList.contains('disabled')) return;
+    switch (mi.dataset.act) {
+      case 'fullscreen': return setFullPreview(!isFullPreview());
+      case 'reset-layout': return resetLayout();
+      case 'about':
+        return openDialog('关于 OpenLiveStudio', `
+          <div style="line-height:1.9">
+            <div style="font-size:12.5px;color:#e6e6e6">OpenLiveStudio 0.1（交互原型）</div>
+            <div style="color:#9a9a9a">Qt 5.15 · FFmpeg · OpenGL 摄像头录制与推流</div>
+            <div style="color:#9a9a9a;margin-top:6px">界面对照 OBS Studio 30，指标与设备为模拟数据</div>
+          </div>`);
+    }
+  });
+});
+
+/* ---------- 面板显隐 / 全屏预览 ---------- */
+const dockOf = key => document.querySelector('.dock.' + key);
+
+function toggleDock(key, force) {
+  const d = dockOf(key);
+  if (!d) return;
+  const show = force === undefined ? d.classList.contains('dock-hidden') : force;
+  d.classList.toggle('dock-hidden', !show);
+  const mark = document.querySelector(`.mi[data-dock="${key}"] .k`);
+  if (mark) mark.textContent = show ? '✓' : '';
+  syncCols();
+}
+
+function syncCols() {
+  const left = document.querySelector('.col-left');
+  const right = document.querySelector('.col-right');
+  const hasL = !!left.querySelector('.dock:not(.dock-hidden)');
+  const hasR = !!right.querySelector('.dock:not(.dock-hidden)');
+  left.style.display = hasL ? '' : 'none';
+  right.style.display = hasR ? '' : 'none';
+  const body = document.querySelector('.body');
+  body.classList.toggle('no-left', !hasL);
+  body.classList.toggle('no-right', !hasR);
+  fitCanvas();
+}
+
+function isFullPreview() { return document.querySelector('.win').classList.contains('pv-full'); }
+
+function setFullPreview(on) {
+  document.querySelector('.win').classList.toggle('pv-full', on);
+  setTimeout(fitCanvas, 60);  // 等布局切完再量尺寸
+  msg(on ? '全屏预览 · F11 / Esc 退出' : '已退出全屏预览');
+}
+
+function resetLayout() {
+  ['scenes', 'sources', 'mixer', 'trans'].forEach(k => toggleDock(k, true));
+  if (isFullPreview()) setFullPreview(false);
+  msg('布局已重置');
+}
+
+// dock 标题栏的 × 与菜单勾选保持同一个状态源
+$$('.dock').forEach(d => {
+  const btn = d.querySelector('.dock-h .hb:last-child');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const key = ['scenes', 'sources', 'mixer', 'trans'].find(k => d.classList.contains(k));
+    if (key) toggleDock(key, false);
+  });
+});
+
+function removeSelected() {
+  const s = state.selected ? findSource(state.selected) : null;
+  if (!s) return msg('请先选择一个来源');
+  const sc = curScene();
+  sc.sources = sc.sources.filter(x => x.id !== s.id);
+  state.selected = null;
+  renderSources(); renderPreview();
+  msg(`已移除来源：${s.name}`);
+}
+
+/* ---------- 来源 dock 按钮 ---------- */
+$('[data-act="props"]').addEventListener('click', () => state.selected ? openProps(state.selected) : msg('请先选择一个来源'));
+$('[data-act="filters"]').addEventListener('click', openFilters);
+$('[data-act="src-del"]').addEventListener('click', removeSelected);
+$('[data-act="src-up"]').addEventListener('click', () => moveSource(-1));
+$('[data-act="src-down"]').addEventListener('click', () => moveSource(1));
+function moveSource(dir) {
+  const sc = curScene();
+  const i = sc.sources.findIndex(s => s.id === state.selected);
+  if (i < 0) return msg('请先选择一个来源');
+  const j = i + dir;
+  if (j < 0 || j >= sc.sources.length) return;
+  [sc.sources[i], sc.sources[j]] = [sc.sources[j], sc.sources[i]];
+  renderSources(); renderPreview();
+  msg('来源层级已调整');
+}
+$('[data-act="scene-add"]').addEventListener('click', () => {
+  scenes.push({ name: '场景 ' + (scenes.length + 1), sources: [] });
+  renderScenes();
+  switchScene(scenes.length - 1);
+  msg('已添加场景');
+});
+$('[data-act="src-add"]').addEventListener('click', () => {
+  const names = ['摄像头', '桌面', 'Logo', '文本'];
+  openDialog('添加来源', `
+    <div class="fld"><span>来源类型</span><select id="newType">
+      <option value="camera">视频采集设备</option>
+      <option value="desktop">显示器采集</option>
+      <option value="image">图像</option>
+      <option value="text">文本</option>
+    </select></div>
+    <div class="fld"><span>名称</span><input type="text" id="newName" value="摄像头 2"></div>`, () => {
+    const type = $('#newType').value;
+    const id = 'src' + Date.now();
+    curScene().sources.unshift({
+      id, name: $('#newName').value || '新来源', type,
+      x: 120, y: 120, w: type === 'desktop' ? 1920 : 576, h: type === 'desktop' ? 1080 : 324,
+      visible: true, locked: false
+    });
+    state.selected = id;
+    renderSources(); renderPreview();
+    msg('已添加来源');
+  });
+  $('#newType').addEventListener('change', e => {
+    $('#newName').value = { camera: '摄像头 2', desktop: '桌面 2', image: 'Logo 2', text: '文本 2' }[e.target.value];
+  });
+});
+
+/* ---------- 状态栏提示 ---------- */
+let msgTimer = null;
+function msg(t) {
+  const el = $('#sbMsg');
+  el.textContent = t;
+  clearTimeout(msgTimer);
+  msgTimer = setTimeout(() => { el.textContent = '就绪'; }, 4200);
+}
+
+/* ---------- 画布尺寸 ---------- */
+function fitCanvas() {
+  const p = $('#preview').getBoundingClientRect();
+  const c = $('#canvas');
+  const pad = 12;
+  let w = p.width - pad * 2, h = p.height - pad * 2;
+  if (w <= 0 || h <= 0) return;
+  if (w / h > 16 / 9) w = h * 16 / 9; else h = w * 9 / 16;
+  c.style.width = Math.round(w) + 'px';
+  c.style.height = Math.round(h) + 'px';
+}
+
+/* ---------- 启动 ---------- */
+renderScenes();
+renderSources();
+renderPreview();
+renderMixer();
+fitCanvas();
+updateOutputUI();
+msg('提示：拖动预览中的红框可移动来源，拖角点等比缩放；双击来源打开属性，Ctrl+E 打开变换');
+window.addEventListener('resize', fitCanvas);
+new ResizeObserver(fitCanvas).observe($('#preview'));
+
+/* 时间循环 */
+let lastT = performance.now();
+function loop(now) {
+  const dt = (now - lastT) / 1000;
+  lastT = now;
+  if (state.recOn) state.recT += dt;
+  if (state.liveOn) state.liveT += dt;
+  drawCam(now);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+setInterval(() => {
+  tickMeters();
+  if (state.recOn || state.liveOn) {
+    updateOutputUI();
+    const cpu = (1.2 + Math.random() * 1.6).toFixed(1);
+    $('#sbCpu').textContent = cpu + '%';
+  }
+}, 120);
+
+/* 键盘 */
+window.addEventListener('keydown', e => {
+  if (e.key === 'F11') { e.preventDefault(); return setFullPreview(!isFullPreview()); }
+  if (e.key === 'Escape' && isFullPreview()) { e.preventDefault(); return setFullPreview(false); }
+  if (e.target instanceof Element && e.target.matches('input,select,textarea')) return;
+  if (e.key === 'Delete' && state.selected) { removeSelected(); }
+  if (e.ctrlKey && e.key.toLowerCase() === 'e') { e.preventDefault(); openTransform(); }
+  const dirs = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+  if (dirs[e.key] && state.selected) {
+    const s = findSource(state.selected);
+    if (!s || s.locked) return;
+    e.preventDefault();
+    const step = e.shiftKey ? 10 : 1;
+    s.x += dirs[e.key][0] * step;
+    s.y += dirs[e.key][1] * step;
+    const box = document.querySelector(`.src-box[data-id="${s.id}"]`);
+    if (box) rectToPct(box, s);
+    updateSelBox();
+  }
+});
+
+/* 双击预览空白处取消选中 */
+$('#preview').addEventListener('pointerdown', e => {
+  if (e.target.id === 'preview' || e.target.id === 'canvas') {
+    state.selected = null;
+    renderSources();
+    updateSelBox();
+  }
+});
+</script>
+</body>
+</html>
