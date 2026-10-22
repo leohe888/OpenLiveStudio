@@ -44,7 +44,7 @@
 
 ## 5. 实施阶段
 
-具体小步骤见 [分步实施与 Review 路线](implementation-roadmap.md)。
+具体小步骤见 [分步实施与 Review 路线](openlive-studio-roadmap.md)。
 
 | 阶段 | 目标 | 阶段结束时能展示什么 |
 | --- | --- | --- |
