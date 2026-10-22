@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 
 #include <QDockWidget>
+#include <QImageReader>
 #include <QLabel>
 #include <QMenuBar>
 #include <QQmlError>
@@ -22,6 +23,9 @@ private slots:
     void embedsScenePanelInLeftDock();
     void sceneDockCanFloatRedockAndClose();
     void sceneDockShowsLoadErrorAndRecovers();
+    void sceneIconsCanBeDecoded_data();
+    void sceneIconsCanBeDecoded();
+    void sceneIconsRenderInDisabledAndEnabledStates();
 };
 
 void MainWindowTest::canShowAndClose()
@@ -180,6 +184,73 @@ void MainWindowTest::sceneDockShowsLoadErrorAndRecovers()
     QTRY_COMPARE(view->status(), QQuickWidget::Ready);
     QTRY_VERIFY(view->isVisible());
     QVERIFY(!errorLabel->isVisible());
+}
+
+void MainWindowTest::sceneIconsCanBeDecoded_data()
+{
+    QTest::addColumn<QString>("resourcePath");
+    for (const auto *name : {"plus", "minus", "arrow-up", "arrow-down"}) {
+        QTest::newRow(name) << QStringLiteral(":/assets/icons/%1.svg").arg(QLatin1String(name));
+    }
+}
+
+void MainWindowTest::sceneIconsCanBeDecoded()
+{
+    QFETCH(QString, resourcePath);
+    QImageReader reader(resourcePath);
+    const QImage image = reader.read();
+    QVERIFY2(!image.isNull(), qPrintable(reader.errorString()));
+    QCOMPARE(image.size(), QSize(24, 24));
+    QVERIFY(image.hasAlphaChannel());
+}
+
+void MainWindowTest::sceneIconsRenderInDisabledAndEnabledStates()
+{
+    QQuickWidget panel;
+    panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
+    panel.resize(238, 260);
+    panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ScenesPanel.qml")));
+    QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
+    panel.show();
+    auto *actions = panel.rootObject()->findChild<QQuickItem *>(QStringLiteral("sceneActions"));
+    QVERIFY(actions);
+
+    const auto captureButton = [&panel](QQuickItem *button) {
+        const QImage frame = panel.grabFramebuffer();
+        const QRectF rect = button->mapRectToScene(button->boundingRect());
+        const qreal scale = qreal(frame.width()) / panel.width();
+        return frame.copy(QRect(qRound(rect.x() * scale), qRound(rect.y() * scale),
+                                qRound(rect.width() * scale), qRound(rect.height() * scale)));
+    };
+    const auto hasIconPixels = [](const QImage &image) {
+        if (image.isNull())
+            return false;
+        const QRgb background = image.pixel(0, 0);
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                if (image.pixel(x, y) != background)
+                    return true;
+            }
+        }
+        return false;
+    };
+
+    int checkedButtons = 0;
+    for (auto *button : actions->childItems()) {
+        if (!button->objectName().endsWith(QStringLiteral("Button")))
+            continue;
+        QVERIFY(!button->isEnabled());
+        QTRY_VERIFY(hasIconPixels(captureButton(button)));
+        const QImage disabledImage = captureButton(button);
+
+        // Exercise presentation only; scene operations remain unconnected.
+        button->setEnabled(true);
+        QTRY_VERIFY(captureButton(button) != disabledImage);
+        QVERIFY(hasIconPixels(captureButton(button)));
+        button->setEnabled(false);
+        ++checkedButtons;
+    }
+    QCOMPARE(checkedButtons, 4);
 }
 
 QTEST_MAIN(MainWindowTest)

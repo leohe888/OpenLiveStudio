@@ -54,10 +54,10 @@ Rectangle {
 
                 Repeater {
                     model: [
-                        { name: "addSceneButton", symbol: "+", label: qsTr("添加场景") },
-                        { name: "removeSceneButton", symbol: "−", label: qsTr("移除场景") },
-                        { name: "moveSceneUpButton", symbol: "↑", label: qsTr("场景上移") },
-                        { name: "moveSceneDownButton", symbol: "↓", label: qsTr("场景下移") }
+                        { name: "addSceneButton", icon: "qrc:/assets/icons/plus.svg", label: qsTr("添加场景") },
+                        { name: "removeSceneButton", icon: "qrc:/assets/icons/minus.svg", label: qsTr("移除场景") },
+                        { name: "moveSceneUpButton", icon: "qrc:/assets/icons/arrow-up.svg", label: qsTr("场景上移") },
+                        { name: "moveSceneDownButton", icon: "qrc:/assets/icons/arrow-down.svg", label: qsTr("场景下移") }
                     ]
 
                     delegate: ToolButton {
@@ -65,18 +65,15 @@ Rectangle {
                         objectName: modelData.name
                         width: 30
                         height: 30
-                        text: modelData.symbol
+                        text: modelData.label
+                        display: AbstractButton.IconOnly
+                        icon.source: modelData.icon
+                        icon.width: 16
+                        icon.height: 16
+                        icon.color: enabled ? "#d6d6d6" : "#666666"
                         enabled: false
                         Accessible.name: modelData.label
                         ToolTip.text: modelData.label
-
-                        contentItem: Text {
-                            text: parent.text
-                            color: "#666666"
-                            font.pixelSize: 18
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
 
                         background: Item {}
                     }
