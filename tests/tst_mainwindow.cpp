@@ -23,6 +23,7 @@ private slots:
     void keepsOutputStatusVisibleWhenResized();
     void loadsScenePanelWithEmptyState();
     void loadsSourcePanelWithEmptyState();
+    void loadsMixerPanelWithUnavailableChannels();
     void embedsScenePanelInLeftDock();
     void embedsSourcePanelBelowSceneDock();
     void panelDockCanFloatRedockAndClose_data();
@@ -173,6 +174,67 @@ void MainWindowTest::loadsSourcePanelWithEmptyState()
     }
 }
 
+void MainWindowTest::loadsMixerPanelWithUnavailableChannels()
+{
+    QQuickWidget panel;
+    panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
+    panel.resize(238, 260);
+    panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/MixerPanel.qml")));
+    QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
+    panel.show();
+    auto *root = panel.rootObject();
+    QVERIFY(root);
+    auto *channels = root->findChild<QQuickItem *>(QStringLiteral("mixerChannels"));
+    auto *scroll = root->findChild<QQuickItem *>(QStringLiteral("mixerScrollView"));
+    QVERIFY(channels);
+    QVERIFY(scroll);
+    QList<QQuickItem *> channelItems;
+    for (auto *item : channels->childItems()) {
+        if (item->objectName().endsWith(QStringLiteral("Channel")))
+            channelItems.append(item);
+    }
+    QCOMPARE(channelItems.size(), 2);
+    for (auto *channel : channelItems) {
+        QQuickItem *slider = nullptr;
+        // Repeater-created level tracks belong to the visual tree.
+        int tracks = 0;
+        const auto inspect = [&](auto &&self, QQuickItem *parent) -> void {
+            for (auto *item : parent->childItems()) {
+                if (item->objectName() == QStringLiteral("levelTrack"))
+                    ++tracks;
+                if (item->objectName().endsWith(QStringLiteral("VolumeSlider")))
+                    slider = item;
+                self(self, item);
+            }
+        };
+        inspect(inspect, channel);
+        QCOMPARE(tracks, 2);
+        QVERIFY(slider);
+        QVERIFY(slider->objectName().endsWith(QStringLiteral("VolumeSlider")));
+        QVERIFY(!slider->isEnabled());
+        const qreal value = slider->property("value").toReal();
+        const QPoint center = slider->mapToScene(slider->boundingRect().center()).toPoint();
+        QTest::mouseClick(&panel, Qt::LeftButton, Qt::NoModifier, center);
+        QCOMPARE(slider->property("value").toReal(), value);
+        auto *status = channel->findChild<QObject *>(QStringLiteral("channelStatus"));
+        auto *displayValue = channel->findChild<QObject *>(QStringLiteral("channelValue"));
+        QVERIFY(status);
+        QVERIFY(displayValue);
+        QVERIFY(!status->property("text").toString().isEmpty());
+        QCOMPARE(displayValue->property("text").toString(), QString::fromUtf8("—"));
+    }
+    for (const auto &size : {QSize(160, 140), QSize(400, 500), QSize(238, 260)}) {
+        panel.resize(size);
+        QTRY_COMPARE(root->size(), QSizeF(size));
+        QVERIFY(scroll->property("contentWidth").toReal() >= scroll->width());
+        QVERIFY(!channelItems[0]->mapRectToScene(channelItems[0]->boundingRect()).intersects(
+            channelItems[1]->mapRectToScene(channelItems[1]->boundingRect())));
+    }
+    // Short panels retain a scrollable channel layout instead of clipping controls.
+    panel.resize(160, 140);
+    QTRY_VERIFY(scroll->property("contentHeight").toReal() > scroll->height());
+}
+
 void MainWindowTest::embedsScenePanelInLeftDock()
 {
     MainWindow window;
@@ -304,7 +366,7 @@ void MainWindowTest::panelIconsCanBeDecoded_data()
 {
     QTest::addColumn<QString>("resourcePath");
     for (const auto *name : {"plus", "minus", "arrow-up", "arrow-down",
-                             "eye", "lock", "sliders-horizontal", "settings"}) {
+                             "eye", "lock", "sliders-horizontal", "settings", "volume-2"}) {
         QTest::newRow(name) << QStringLiteral(":/assets/icons/%1.svg").arg(QLatin1String(name));
     }
 }
@@ -325,6 +387,7 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates_data()
     QTest::addColumn<int>("expectedButtons");
     QTest::newRow("scenes") << QStringLiteral("ScenesPanel") << 4;
     QTest::newRow("sources") << QStringLiteral("SourcesPanel") << 8;
+    QTest::newRow("mixer") << QStringLiteral("MixerPanel") << 4;
 }
 
 void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
