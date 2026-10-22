@@ -38,35 +38,45 @@ and mixer QML loading with two unavailable channel slots. Transition panel
 checks cover loading, unselected effects, the prototype duration default,
 disabled controls ignoring mouse and keyboard input, and resizing. Layout
 checks cover the vertically arranged scene and source docks on the left and
-the mixer and transition docks on the right, and the controls dock spanning the
-bottom above the status bar. All five docks are checked
+the left column extending to the bottom, with mixer, transitions and controls
+arranged left to right beneath the preview. All five docks are checked
 for floating, redocking, closing, load failure and recovery, including isolation
 from the other panels. Icon checks cover decoding all twelve SVG resources and
 rendering the panel buttons in enabled and disabled states. Source row checks
 use test-only model data. Mixer checks also cover disabled sliders ignoring
-clicks and scrollable content at small sizes. The application still has no
+clicks, compact panel height, scrollable content at small sizes, and fixed-width
+channels staying grouped on the left as the panel grows. The application still has no
 scene, source, audio or transition backend; mixer meters remain empty and
 unconnected controls disabled. Rendering checks isolate the transition,
 recording and streaming icons from button text and borders.
 
-Controls panel checks cover disabled recording, streaming and settings entries,
-separate duration placeholders, exit requests, and reaching the exit button by
-scrolling a narrow panel. Integration checks verify that exit uses the normal
-window close event, honors rejection, and remains connected after a QML reload.
+Controls panel checks cover exactly the recording, streaming and settings
+entries, all disabled and arranged vertically with fixed heights at the top.
+A bottom spacer takes up remaining height; short panels can scroll to the last
+button. The exit entry, exit signal and panel duration labels have been removed.
+REC/LIVE duration placeholders remain in the main window status bar. Transition
+checks also verify that the transition button stays at the bottom of its panel.
 Recording, streaming, timers and the settings dialog remain unimplemented.
 
-After controls dock integration, Qt Test reported 43 passes and CTest reported
+View-menu checks cover hiding and restoring every panel, check-state sync for
+docked and floating panels, and restoring all panels after they have been hidden.
+Layout reset checks cover moved, tabbed, floating, off-screen and hidden panels,
+plus repeated resets at default and minimum window sizes. Reset restores the
+current default layout without changing window size or recreating QML roots.
+Layout persistence across application restarts remains future work.
+
+After the latest layout and alignment updates, Qt Test reported 45 passes and CTest reported
 one passing test. These checks use Qt's `offscreen` platform plugin and the
 software Qt Quick backend. The CTest command supplies Qt DLL, plugin and QML
-import paths and has a 15-second timeout. Default and minimum window size
+import paths and has a 30-second timeout. Default and minimum window size
 screenshots were also inspected with software rendering. Real GPU rendering,
 media processing and device behavior remain unverified.
 
-Known issue: the current controls QML emits a `contentHeight` binding-loop
-warning during loading or resizing. The suite passes despite this warning;
-these results do not establish a warning-free UI. A candidate correction was
-checked only in an ignored build-directory copy and has not been applied to
-the project source.
+The controls panel's width and height binding loops have been fixed in project
+source. The regression check was verified to fail with the original bindings;
+each test now fails on binding-loop warnings. Current test and software-rendering
+logs contain no such warnings. Expected warnings from missing-resource recovery
+tests and limitations of the offscreen platform are not treated as binding loops.
 
 ```powershell
 ctest --test-dir $buildDir -L smoke --output-on-failure
