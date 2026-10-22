@@ -29,6 +29,7 @@ private slots:
     void embedsScenePanelInLeftDock();
     void embedsSourcePanelBelowSceneDock();
     void embedsMixerPanelInRightDock();
+    void embedsTransitionsPanelBelowMixerDock();
     void panelDockCanFloatRedockAndClose_data();
     void panelDockCanFloatRedockAndClose();
     void panelDockShowsLoadErrorAndRecovers_data();
@@ -370,6 +371,44 @@ void MainWindowTest::embedsMixerPanelInRightDock()
     }
 }
 
+void MainWindowTest::embedsTransitionsPanelBelowMixerDock()
+{
+    MainWindow window;
+    window.show();
+    auto *mixerDock = window.findChild<QDockWidget *>(QStringLiteral("mixerDock"));
+    auto *dock = window.findChild<QDockWidget *>(QStringLiteral("transitionsDock"));
+    auto *view = window.findChild<QQuickWidget *>(QStringLiteral("transitionsQuickWidget"));
+    auto *errorLabel = window.findChild<QLabel *>(QStringLiteral("transitionsLoadError"));
+    QVERIFY(mixerDock);
+    QVERIFY(dock);
+    QVERIFY(view);
+    QVERIFY(errorLabel);
+    QCOMPARE(window.dockWidgetArea(dock), Qt::RightDockWidgetArea);
+    QVERIFY(dock->isAncestorOf(view));
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    QVERIFY(view->rootObject());
+    QCOMPARE(view->rootObject()->objectName(), QStringLiteral("transitionsPanel"));
+
+    for (const auto &size : {QSize(1280, 800), window.minimumSize(), QSize(1280, 800)}) {
+        window.resize(size);
+        QTRY_VERIFY(dock->isVisible());
+        QVERIFY(view->isVisible());
+        QVERIFY(mixerDock->isVisible());
+        QVERIFY(!errorLabel->isVisible());
+        QTRY_VERIFY(mixerDock->geometry().bottom() < dock->geometry().top());
+        QVERIFY(dock->geometry().left() > window.centralWidget()->geometry().right());
+        QVERIFY(window.rect().contains(dock->geometry()));
+        QTRY_COMPARE(view->rootObject()->size(), QSizeF(view->size()));
+        for (const auto *name : {"transitionEffect", "transitionDuration", "executeTransitionButton"}) {
+            auto *control = view->rootObject()->findChild<QQuickItem *>(QLatin1String(name));
+            QVERIFY(control);
+            QVERIFY(!control->isEnabled());
+            QVERIFY(view->rootObject()->boundingRect().contains(
+                control->mapRectToScene(control->boundingRect())));
+        }
+    }
+}
+
 void MainWindowTest::panelDockCanFloatRedockAndClose_data()
 {
     QTest::addColumn<QString>("panelId");
@@ -381,6 +420,8 @@ void MainWindowTest::panelDockCanFloatRedockAndClose_data()
         << Qt::LeftDockWidgetArea << QStringLiteral("SourcesPanel");
     QTest::newRow("mixer") << QStringLiteral("mixer")
         << Qt::RightDockWidgetArea << QStringLiteral("MixerPanel");
+    QTest::newRow("transitions") << QStringLiteral("transitions")
+        << Qt::RightDockWidgetArea << QStringLiteral("TransitionsPanel");
 }
 
 void MainWindowTest::panelDockCanFloatRedockAndClose()

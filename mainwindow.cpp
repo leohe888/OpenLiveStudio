@@ -27,6 +27,7 @@ MainWindow::MainWindow(QWidget *parent)
     setupScenesDock();
     setupSourcesDock();
     setupMixerDock();
+    setupTransitionsDock();
     updateStatusLayout();
 }
 
@@ -235,6 +236,60 @@ void MainWindow::setupMixerDock()
     addDockWidget(Qt::RightDockWidgetArea, dock);
     resizeDocks({dock}, {238}, Qt::Horizontal);
     view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/MixerPanel.qml")));
+}
+
+void MainWindow::setupTransitionsDock()
+{
+    auto *dock = new QDockWidget(tr("场景转场"), this);
+    dock->setObjectName(QStringLiteral("transitionsDock"));
+    dock->setMinimumWidth(200);
+
+    auto *pages = new QStackedWidget(dock);
+    auto *view = new QQuickWidget(pages);
+    view->setObjectName(QStringLiteral("transitionsQuickWidget"));
+    view->setResizeMode(QQuickWidget::SizeRootObjectToView);
+    view->setMinimumHeight(124);
+    view->setClearColor(QColor(QStringLiteral("#1d1d1d")));
+    pages->addWidget(view);
+
+    auto *errorLabel = new QLabel(tr("场景转场面板加载失败，请查看日志。"), pages);
+    errorLabel->setObjectName(QStringLiteral("transitionsLoadError"));
+    errorLabel->setAlignment(Qt::AlignCenter);
+    errorLabel->setWordWrap(true);
+    pages->addWidget(errorLabel);
+
+    const auto showError = [this, pages, errorLabel](const QString &details) {
+        qWarning().noquote() << tr("场景转场面板加载失败：") << details;
+        errorLabel->setToolTip(details);
+        pages->setCurrentWidget(errorLabel);
+        statusBar()->showMessage(tr("场景转场面板加载失败，请查看日志。"));
+    };
+    connect(view, &QQuickWidget::statusChanged, this,
+            [this, view, pages, errorLabel, showError](QQuickWidget::Status status) {
+        if (status == QQuickWidget::Error) {
+            QStringList errors;
+            for (const auto &error : view->errors())
+                errors.append(error.toString());
+            showError(errors.join('\n'));
+        } else if (status == QQuickWidget::Ready) {
+            if (pages->currentWidget() == errorLabel)
+                statusBar()->showMessage(tr("场景转场面板已加载"), 3000);
+            pages->setCurrentWidget(view);
+        }
+    });
+    connect(view, &QQuickWidget::sceneGraphError, this,
+            [showError](QQuickWindow::SceneGraphError, const QString &message) {
+        showError(message);
+    });
+
+    dock->setWidget(pages);
+    addDockWidget(Qt::RightDockWidgetArea, dock);
+    if (auto *mixerDock = findChild<QDockWidget *>(QStringLiteral("mixerDock"))) {
+        splitDockWidget(mixerDock, dock, Qt::Vertical);
+        resizeDocks({mixerDock, dock}, {500, 150}, Qt::Vertical);
+    }
+    resizeDocks({dock}, {238}, Qt::Horizontal);
+    view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/TransitionsPanel.qml")));
 }
 
 void MainWindow::resizeEvent(QResizeEvent *event)

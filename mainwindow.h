@@ -24,6 +24,7 @@ private:
     void setupScenesDock();
     void setupSourcesDock();
     void setupMixerDock();
+    void setupTransitionsDock();
     void updateStatusLayout();
 
     QLabel *m_outputStatus = nullptr;
