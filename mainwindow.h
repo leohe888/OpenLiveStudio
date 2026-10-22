@@ -3,6 +3,9 @@
 
 #include <QMainWindow>
 
+class QLabel;
+class QResizeEvent;
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -10,5 +13,17 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
+
+protected:
+    void resizeEvent(QResizeEvent *event) override;
+
+private:
+    void setupMenusAndToolBar();
+    void setupPreview();
+    void setupStatusBar();
+    void updateStatusLayout();
+
+    QLabel *m_outputStatus = nullptr;
+    QLabel *m_outputMetrics = nullptr;
 };
 #endif // MAINWINDOW_H
