@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 
+#include <QDockWidget>
 #include <QLabel>
 #include <QMenuBar>
 #include <QQmlError>
@@ -18,6 +19,9 @@ private slots:
     void hasWindowShell();
     void keepsOutputStatusVisibleWhenResized();
     void loadsScenePanelWithEmptyState();
+    void embedsScenePanelInLeftDock();
+    void sceneDockCanFloatRedockAndClose();
+    void sceneDockShowsLoadErrorAndRecovers();
 };
 
 void MainWindowTest::canShowAndClose()
@@ -115,6 +119,67 @@ void MainWindowTest::loadsScenePanelWithEmptyState()
     panel.resize(200, 180);
     QTRY_COMPARE(root->size(), QSizeF(panel.size()));
     QVERIFY(emptyLabel->isVisible());
+}
+
+void MainWindowTest::embedsScenePanelInLeftDock()
+{
+    MainWindow window;
+    window.show();
+    auto *dock = window.findChild<QDockWidget *>(QStringLiteral("scenesDock"));
+    auto *view = window.findChild<QQuickWidget *>(QStringLiteral("scenesQuickWidget"));
+    QVERIFY(dock);
+    QVERIFY(view);
+    QCOMPARE(window.dockWidgetArea(dock), Qt::LeftDockWidgetArea);
+    QVERIFY(dock->isAncestorOf(view));
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    QVERIFY(view->rootObject());
+    QTRY_VERIFY(dock->isVisible());
+    QVERIFY(view->isVisible());
+}
+
+void MainWindowTest::sceneDockCanFloatRedockAndClose()
+{
+    MainWindow window;
+    window.show();
+    auto *dock = window.findChild<QDockWidget *>(QStringLiteral("scenesDock"));
+    auto *view = window.findChild<QQuickWidget *>(QStringLiteral("scenesQuickWidget"));
+    QVERIFY(dock);
+    QVERIFY(view);
+
+    dock->setFloating(true);
+    QTRY_VERIFY(dock->isFloating());
+    QVERIFY(view->isVisible());
+    dock->setFloating(false);
+    QTRY_VERIFY(!dock->isFloating());
+    QCOMPARE(window.dockWidgetArea(dock), Qt::LeftDockWidgetArea);
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+
+    QVERIFY(dock->close());
+    QTRY_VERIFY(!dock->isVisible());
+    dock->show();
+    QTRY_VERIFY(dock->isVisible());
+    QVERIFY(view->isVisible());
+}
+
+void MainWindowTest::sceneDockShowsLoadErrorAndRecovers()
+{
+    MainWindow window;
+    window.show();
+    auto *view = window.findChild<QQuickWidget *>(QStringLiteral("scenesQuickWidget"));
+    auto *errorLabel = window.findChild<QLabel *>(QStringLiteral("scenesLoadError"));
+    QVERIFY(view);
+    QVERIFY(errorLabel);
+
+    view->setSource(QUrl(QStringLiteral("qrc:/missing-scenes-panel.qml")));
+    QTRY_COMPARE(view->status(), QQuickWidget::Error);
+    QTRY_VERIFY(errorLabel->isVisible());
+    QVERIFY(!view->isVisible());
+    QVERIFY(!errorLabel->toolTip().isEmpty());
+
+    view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ScenesPanel.qml")));
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    QTRY_VERIFY(view->isVisible());
+    QVERIFY(!errorLabel->isVisible());
 }
 
 QTEST_MAIN(MainWindowTest)

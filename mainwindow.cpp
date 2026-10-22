@@ -1,11 +1,16 @@
 #include "mainwindow.h"
 
 #include <QAction>
+#include <QDebug>
+#include <QDockWidget>
 #include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
+#include <QQmlError>
+#include <QQuickWidget>
 #include <QResizeEvent>
 #include <QStatusBar>
+#include <QStackedWidget>
 #include <QToolBar>
 #include <QVBoxLayout>
 
@@ -19,6 +24,7 @@ MainWindow::MainWindow(QWidget *parent)
     setupMenusAndToolBar();
     setupPreview();
     setupStatusBar();
+    setupScenesDock();
     updateStatusLayout();
 }
 
@@ -76,6 +82,55 @@ void MainWindow::setupStatusBar()
     statusBar()->addPermanentWidget(m_outputStatus);
     statusBar()->addPermanentWidget(m_outputMetrics);
     statusBar()->showMessage(tr("就绪"));
+}
+
+void MainWindow::setupScenesDock()
+{
+    auto *dock = new QDockWidget(tr("场景"), this);
+    dock->setObjectName(QStringLiteral("scenesDock"));
+    dock->setMinimumWidth(180);
+
+    auto *pages = new QStackedWidget(dock);
+    auto *view = new QQuickWidget(pages);
+    view->setObjectName(QStringLiteral("scenesQuickWidget"));
+    view->setResizeMode(QQuickWidget::SizeRootObjectToView);
+    view->setClearColor(QColor(QStringLiteral("#1d1d1d")));
+    pages->addWidget(view);
+
+    auto *errorLabel = new QLabel(tr("场景面板加载失败，请查看日志。"), pages);
+    errorLabel->setObjectName(QStringLiteral("scenesLoadError"));
+    errorLabel->setAlignment(Qt::AlignCenter);
+    errorLabel->setWordWrap(true);
+    pages->addWidget(errorLabel);
+
+    const auto showError = [this, pages, errorLabel](const QString &details) {
+        qWarning().noquote() << tr("场景面板加载失败：") << details;
+        errorLabel->setToolTip(details);
+        pages->setCurrentWidget(errorLabel);
+        statusBar()->showMessage(tr("场景面板加载失败，请查看日志。"));
+    };
+    connect(view, &QQuickWidget::statusChanged, this,
+            [this, view, pages, errorLabel, showError](QQuickWidget::Status status) {
+        if (status == QQuickWidget::Error) {
+            QStringList errors;
+            for (const auto &error : view->errors())
+                errors.append(error.toString());
+            showError(errors.join('\n'));
+        } else if (status == QQuickWidget::Ready) {
+            if (pages->currentWidget() == errorLabel)
+                statusBar()->showMessage(tr("场景面板已加载"), 3000);
+            pages->setCurrentWidget(view);
+        }
+    });
+    connect(view, &QQuickWidget::sceneGraphError, this,
+            [showError](QQuickWindow::SceneGraphError, const QString &message) {
+        showError(message);
+    });
+
+    dock->setWidget(pages);
+    addDockWidget(Qt::LeftDockWidgetArea, dock);
+    resizeDocks({dock}, {238}, Qt::Horizontal);
+    view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ScenesPanel.qml")));
 }
 
 void MainWindow::resizeEvent(QResizeEvent *event)

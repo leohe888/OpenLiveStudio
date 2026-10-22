@@ -21,6 +21,7 @@ private:
     void setupMenusAndToolBar();
     void setupPreview();
     void setupStatusBar();
+    void setupScenesDock();
     void updateStatusLayout();
 
     QLabel *m_outputStatus = nullptr;
