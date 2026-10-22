@@ -41,5 +41,5 @@ add_test(NAME ui.mainwindow
 )
 set_tests_properties(ui.mainwindow PROPERTIES
     LABELS "ui;smoke"
-    TIMEOUT 15
+    TIMEOUT 30
 )

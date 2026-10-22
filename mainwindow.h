@@ -28,6 +28,7 @@ private:
     void setupTransitionsDock();
     void setupControlsDock();
     void setupDockViewActions();
+    void resetDockLayout();
     void updateStatusLayout();
 
     QLabel *m_outputStatus = nullptr;

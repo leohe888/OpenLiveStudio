@@ -31,6 +31,7 @@ MainWindow::MainWindow(QWidget *parent)
     setupTransitionsDock();
     setupControlsDock();
     setupDockViewActions();
+    resetDockLayout();
     updateStatusLayout();
 }
 
@@ -66,7 +67,42 @@ void MainWindow::setupDockViewActions()
     m_viewMenu->addSeparator();
     auto *resetAction = m_viewMenu->addAction(tr("重置布局"));
     resetAction->setObjectName(QStringLiteral("resetLayoutAction"));
-    resetAction->setEnabled(false);
+    connect(resetAction, &QAction::triggered, this, &MainWindow::resetDockLayout);
+}
+
+void MainWindow::resetDockLayout()
+{
+    auto *scenes = findChild<QDockWidget *>(QStringLiteral("scenesDock"));
+    auto *sources = findChild<QDockWidget *>(QStringLiteral("sourcesDock"));
+    auto *mixer = findChild<QDockWidget *>(QStringLiteral("mixerDock"));
+    auto *transitions = findChild<QDockWidget *>(QStringLiteral("transitionsDock"));
+    auto *controls = findChild<QDockWidget *>(QStringLiteral("controlsDock"));
+    const QList<QDockWidget *> docks{scenes, sources, mixer, transitions, controls};
+
+    const bool wasUpdating = updatesEnabled();
+    setUpdatesEnabled(false);
+    // Remove old splits and tab groups while preserving each dock and QML root.
+    for (auto *dock : docks) {
+        Q_ASSERT(dock);
+        dock->setFloating(false);
+        removeDockWidget(dock);
+    }
+    setCorner(Qt::BottomLeftCorner, Qt::BottomDockWidgetArea);
+    setCorner(Qt::BottomRightCorner, Qt::BottomDockWidgetArea);
+    addDockWidget(Qt::LeftDockWidgetArea, scenes);
+    addDockWidget(Qt::LeftDockWidgetArea, sources);
+    splitDockWidget(scenes, sources, Qt::Vertical);
+    addDockWidget(Qt::RightDockWidgetArea, mixer);
+    addDockWidget(Qt::RightDockWidgetArea, transitions);
+    splitDockWidget(mixer, transitions, Qt::Vertical);
+    addDockWidget(Qt::BottomDockWidgetArea, controls);
+    for (auto *dock : docks)
+        dock->show();
+    resizeDocks({scenes, mixer}, {238, 238}, Qt::Horizontal);
+    resizeDocks({scenes, sources}, {220, 440}, Qt::Vertical);
+    resizeDocks({mixer, transitions}, {500, 150}, Qt::Vertical);
+    resizeDocks({controls}, {84}, Qt::Vertical);
+    setUpdatesEnabled(wasUpdating);
 }
 
 void MainWindow::setupPreview()
@@ -146,8 +182,6 @@ void MainWindow::setupScenesDock()
     });
 
     dock->setWidget(pages);
-    addDockWidget(Qt::LeftDockWidgetArea, dock);
-    resizeDocks({dock}, {238}, Qt::Horizontal);
     view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ScenesPanel.qml")));
 }
 
@@ -195,12 +229,6 @@ void MainWindow::setupSourcesDock()
     });
 
     dock->setWidget(pages);
-    addDockWidget(Qt::LeftDockWidgetArea, dock);
-    if (auto *scenesDock = findChild<QDockWidget *>(QStringLiteral("scenesDock"))) {
-        splitDockWidget(scenesDock, dock, Qt::Vertical);
-        resizeDocks({scenesDock, dock}, {220, 440}, Qt::Vertical);
-    }
-    resizeDocks({dock}, {238}, Qt::Horizontal);
     view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml")));
 }
 
@@ -248,8 +276,6 @@ void MainWindow::setupMixerDock()
     });
 
     dock->setWidget(pages);
-    addDockWidget(Qt::RightDockWidgetArea, dock);
-    resizeDocks({dock}, {238}, Qt::Horizontal);
     view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/MixerPanel.qml")));
 }
 
@@ -298,12 +324,6 @@ void MainWindow::setupTransitionsDock()
     });
 
     dock->setWidget(pages);
-    addDockWidget(Qt::RightDockWidgetArea, dock);
-    if (auto *mixerDock = findChild<QDockWidget *>(QStringLiteral("mixerDock"))) {
-        splitDockWidget(mixerDock, dock, Qt::Vertical);
-        resizeDocks({mixerDock, dock}, {500, 150}, Qt::Vertical);
-    }
-    resizeDocks({dock}, {238}, Qt::Horizontal);
     view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/TransitionsPanel.qml")));
 }
 
@@ -356,10 +376,6 @@ void MainWindow::setupControlsDock()
     });
 
     dock->setWidget(pages);
-    setCorner(Qt::BottomLeftCorner, Qt::BottomDockWidgetArea);
-    setCorner(Qt::BottomRightCorner, Qt::BottomDockWidgetArea);
-    addDockWidget(Qt::BottomDockWidgetArea, dock);
-    resizeDocks({dock}, {84}, Qt::Vertical);
     view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ControlsPanel.qml")));
 }
 
