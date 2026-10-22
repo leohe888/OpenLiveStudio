@@ -34,9 +34,9 @@ private slots:
     void loadsControlsPanelWithVerticalButtons();
     void embedsScenePanelInLeftDock();
     void embedsSourcePanelBelowSceneDock();
-    void embedsMixerPanelInRightDock();
-    void embedsTransitionsPanelBelowMixerDock();
-    void embedsControlsPanelAcrossBottom();
+    void embedsMixerPanelBelowPreview();
+    void embedsTransitionsPanelBesideMixerDock();
+    void embedsControlsPanelAtBottomRight();
     void panelDockCanFloatRedockAndClose_data();
     void panelDockCanFloatRedockAndClose();
     void viewMenuCanRestoreAllHiddenDocks();
@@ -243,12 +243,14 @@ void MainWindowTest::loadsMixerPanelWithUnavailableChannels()
         QVERIFY(!status->property("text").toString().isEmpty());
         QCOMPARE(displayValue->property("text").toString(), QString::fromUtf8("—"));
     }
-    for (const auto &size : {QSize(160, 140), QSize(400, 500), QSize(238, 260)}) {
+    for (const auto &size : {QSize(160, 140), QSize(238, 178), QSize(400, 500)}) {
         panel.resize(size);
         QTRY_COMPARE(root->size(), QSizeF(size));
         QVERIFY(scroll->property("contentWidth").toReal() >= scroll->width());
         QVERIFY(!channelItems[0]->mapRectToScene(channelItems[0]->boundingRect()).intersects(
             channelItems[1]->mapRectToScene(channelItems[1]->boundingRect())));
+        if (size == QSize(238, 178))
+            QVERIFY(scroll->property("contentHeight").toReal() <= scroll->height());
     }
     // Short panels retain a scrollable channel layout instead of clipping controls.
     panel.resize(160, 140);
@@ -302,6 +304,8 @@ void MainWindowTest::loadsTransitionsPanelWithDisabledControls()
             QVERIFY(!rect.intersects(previous));
             previous = rect;
         }
+        const QRectF buttonRect = button->mapRectToScene(button->boundingRect());
+        QVERIFY(qAbs(buttonRect.bottom() - (root->height() - 8)) <= 1);
     }
 }
 
@@ -422,7 +426,7 @@ void MainWindowTest::embedsSourcePanelBelowSceneDock()
     }
 }
 
-void MainWindowTest::embedsMixerPanelInRightDock()
+void MainWindowTest::embedsMixerPanelBelowPreview()
 {
     MainWindow window;
     window.show();
@@ -432,7 +436,7 @@ void MainWindowTest::embedsMixerPanelInRightDock()
     QVERIFY(dock);
     QVERIFY(view);
     QVERIFY(errorLabel);
-    QCOMPARE(window.dockWidgetArea(dock), Qt::RightDockWidgetArea);
+    QCOMPARE(window.dockWidgetArea(dock), Qt::BottomDockWidgetArea);
     QVERIFY(dock->isAncestorOf(view));
     QTRY_COMPARE(view->status(), QQuickWidget::Ready);
     QVERIFY(view->rootObject());
@@ -444,13 +448,13 @@ void MainWindowTest::embedsMixerPanelInRightDock()
         QVERIFY(view->isVisible());
         QVERIFY(!errorLabel->isVisible());
         QTRY_COMPARE(view->rootObject()->size(), QSizeF(view->size()));
-        QTRY_VERIFY(dock->geometry().left() > window.centralWidget()->geometry().right());
+        QTRY_VERIFY(dock->geometry().top() > window.centralWidget()->geometry().bottom());
         QVERIFY(window.centralWidget()->width() > 0);
         QVERIFY(window.rect().contains(dock->geometry()));
     }
 }
 
-void MainWindowTest::embedsTransitionsPanelBelowMixerDock()
+void MainWindowTest::embedsTransitionsPanelBesideMixerDock()
 {
     MainWindow window;
     window.show();
@@ -462,7 +466,7 @@ void MainWindowTest::embedsTransitionsPanelBelowMixerDock()
     QVERIFY(dock);
     QVERIFY(view);
     QVERIFY(errorLabel);
-    QCOMPARE(window.dockWidgetArea(dock), Qt::RightDockWidgetArea);
+    QCOMPARE(window.dockWidgetArea(dock), Qt::BottomDockWidgetArea);
     QVERIFY(dock->isAncestorOf(view));
     QTRY_COMPARE(view->status(), QQuickWidget::Ready);
     QVERIFY(view->rootObject());
@@ -474,8 +478,9 @@ void MainWindowTest::embedsTransitionsPanelBelowMixerDock()
         QVERIFY(view->isVisible());
         QVERIFY(mixerDock->isVisible());
         QVERIFY(!errorLabel->isVisible());
-        QTRY_VERIFY(mixerDock->geometry().bottom() < dock->geometry().top());
-        QVERIFY(dock->geometry().left() > window.centralWidget()->geometry().right());
+        QTRY_VERIFY(mixerDock->geometry().right() < dock->geometry().left());
+        QCOMPARE(mixerDock->geometry().top(), dock->geometry().top());
+        QVERIFY(dock->geometry().top() > window.centralWidget()->geometry().bottom());
         QVERIFY(window.rect().contains(dock->geometry()));
         QTRY_COMPARE(view->rootObject()->size(), QSizeF(view->size()));
         for (const auto *name : {"transitionEffect", "transitionDuration", "executeTransitionButton"}) {
@@ -488,7 +493,7 @@ void MainWindowTest::embedsTransitionsPanelBelowMixerDock()
     }
 }
 
-void MainWindowTest::embedsControlsPanelAcrossBottom()
+void MainWindowTest::embedsControlsPanelAtBottomRight()
 {
     MainWindow window;
     window.show();
@@ -513,9 +518,13 @@ void MainWindowTest::embedsControlsPanelAcrossBottom()
             if (otherDock == dock)
                 continue;
             QVERIFY(otherDock->isVisible());
-            QVERIFY(otherDock->geometry().bottom() < dock->geometry().top());
-            QVERIFY(dock->geometry().left() <= otherDock->geometry().left());
-            QVERIFY(dock->geometry().right() >= otherDock->geometry().right());
+            QVERIFY(otherDock->geometry().right() < dock->geometry().left());
+            if (window.dockWidgetArea(otherDock) == Qt::BottomDockWidgetArea) {
+                QCOMPARE(otherDock->geometry().top(), dock->geometry().top());
+                QCOMPARE(otherDock->geometry().bottom(), dock->geometry().bottom());
+            } else {
+                QVERIFY(otherDock->geometry().left() < window.centralWidget()->geometry().left());
+            }
         }
         for (const auto *name : {"recordButton", "streamButton", "settingsButton"}) {
             auto *button = view->rootObject()->findChild<QQuickItem *>(QLatin1String(name));
@@ -537,9 +546,9 @@ void MainWindowTest::panelDockCanFloatRedockAndClose_data()
     QTest::newRow("sources") << QStringLiteral("sources")
         << Qt::LeftDockWidgetArea << QStringLiteral("SourcesPanel");
     QTest::newRow("mixer") << QStringLiteral("mixer")
-        << Qt::RightDockWidgetArea << QStringLiteral("MixerPanel");
+        << Qt::BottomDockWidgetArea << QStringLiteral("MixerPanel");
     QTest::newRow("transitions") << QStringLiteral("transitions")
-        << Qt::RightDockWidgetArea << QStringLiteral("TransitionsPanel");
+        << Qt::BottomDockWidgetArea << QStringLiteral("TransitionsPanel");
     QTest::newRow("controls") << QStringLiteral("controls")
         << Qt::BottomDockWidgetArea << QStringLiteral("ControlsPanel");
 }
@@ -646,7 +655,7 @@ void MainWindowTest::resetLayoutRestoresDocksWithoutReload()
     QList<QQuickWidget *> views;
     QList<QPointer<QQuickItem>> roots;
     const QList<Qt::DockWidgetArea> areas{Qt::LeftDockWidgetArea, Qt::LeftDockWidgetArea,
-        Qt::RightDockWidgetArea, Qt::RightDockWidgetArea, Qt::BottomDockWidgetArea};
+        Qt::BottomDockWidgetArea, Qt::BottomDockWidgetArea, Qt::BottomDockWidgetArea};
     for (const auto *id : {"scenes", "sources", "mixer", "transitions", "controls"}) {
         auto *dock = window.findChild<QDockWidget *>(QLatin1String(id) + QStringLiteral("Dock"));
         auto *view = window.findChild<QQuickWidget *>(QLatin1String(id) + QStringLiteral("QuickWidget"));
@@ -690,14 +699,16 @@ void MainWindowTest::resetLayoutRestoresDocksWithoutReload()
             QCOMPARE(views[i]->status(), QQuickWidget::Ready);
         }
         QTRY_VERIFY(docks[0]->geometry().bottom() < docks[1]->geometry().top());
-        QTRY_VERIFY(docks[2]->geometry().bottom() < docks[3]->geometry().top());
-        for (int i = 0; i < 4; ++i) {
-            QVERIFY(docks[i]->geometry().bottom() < docks[4]->geometry().top());
-            QVERIFY(docks[4]->geometry().left() <= docks[i]->geometry().left());
-            QVERIFY(docks[4]->geometry().right() >= docks[i]->geometry().right());
+        QTRY_VERIFY(docks[2]->geometry().right() < docks[3]->geometry().left());
+        QTRY_VERIFY(docks[3]->geometry().right() < docks[4]->geometry().left());
+        for (int i = 2; i < 5; ++i) {
+            QVERIFY(docks[i]->geometry().top() > window.centralWidget()->geometry().bottom());
+            QCOMPARE(docks[i]->geometry().top(), docks[2]->geometry().top());
+            QCOMPARE(docks[i]->geometry().bottom(), docks[1]->geometry().bottom());
+            QVERIFY(docks[1]->geometry().right() < docks[i]->geometry().left());
         }
         QVERIFY(docks[0]->geometry().right() < window.centralWidget()->geometry().left());
-        QVERIFY(docks[2]->geometry().left() > window.centralWidget()->geometry().right());
+        QVERIFY(window.centralWidget()->width() > 0);
     }
 }
 

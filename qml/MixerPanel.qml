@@ -5,12 +5,13 @@ import QtQuick.Layouts
 Rectangle {
     objectName: "mixerPanel"
     implicitWidth: 238
-    implicitHeight: 260
+    implicitHeight: 178
     color: "#1d1d1d"
 
     component MixerButton: ToolButton {
-        implicitWidth: 26
-        implicitHeight: 26
+        implicitWidth: 22
+        implicitHeight: 18
+        padding: 1
         display: AbstractButton.IconOnly
         icon.width: 16
         icon.height: 16
@@ -27,13 +28,13 @@ Rectangle {
         anchors.fill: parent
         clip: true
         contentWidth: Math.max(availableWidth, 180)
-        contentHeight: channels.implicitHeight + 16
+        contentHeight: channels.implicitHeight + 12
 
         RowLayout {
             id: channels
             objectName: "mixerChannels"
             x: 8
-            y: 8
+            y: 6
             width: scroll.contentWidth - 16
             spacing: 12
 
@@ -50,7 +51,7 @@ Rectangle {
                     objectName: modelData.key + "Channel"
                     Layout.fillWidth: true
                     Layout.minimumWidth: 72
-                    spacing: 6
+                    spacing: 4
 
                     Row {
                         Layout.alignment: Qt.AlignHCenter
@@ -75,7 +76,7 @@ Rectangle {
                             delegate: Rectangle {
                                 objectName: "levelTrack"
                                 width: 6
-                                height: 120
+                                height: 92
                                 color: "#0c0c0c"
                                 border.color: "#000000"
                                 // Empty until real channel levels are available.
@@ -86,7 +87,7 @@ Rectangle {
                             objectName: channel.modelData.key + "VolumeSlider"
                             orientation: Qt.Vertical
                             width: 26
-                            height: 120
+                            height: 92
                             from: 0
                             to: 1
                             value: 0.5 // Visual placeholder, not an audio gain.
@@ -116,6 +117,7 @@ Rectangle {
                     Label {
                         Layout.fillWidth: true
                         text: channel.modelData.label
+                        font.pixelSize: 10
                         horizontalAlignment: Text.AlignHCenter
                         elide: Text.ElideRight
                         color: "#b9b9b9"
@@ -124,12 +126,14 @@ Rectangle {
                         objectName: "channelStatus"
                         Layout.alignment: Qt.AlignHCenter
                         text: qsTr("未接入")
+                        font.pixelSize: 10
                         color: "#8c8c8c"
                     }
                     Label {
                         objectName: "channelValue"
                         Layout.alignment: Qt.AlignHCenter
                         text: "—"
+                        font.pixelSize: 10
                         color: "#8c8c8c"
                     }
                 }

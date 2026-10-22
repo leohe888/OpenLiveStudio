@@ -86,21 +86,23 @@ void MainWindow::resetDockLayout()
         dock->setFloating(false);
         removeDockWidget(dock);
     }
-    setCorner(Qt::BottomLeftCorner, Qt::BottomDockWidgetArea);
+    setCorner(Qt::BottomLeftCorner, Qt::LeftDockWidgetArea);
     setCorner(Qt::BottomRightCorner, Qt::BottomDockWidgetArea);
     addDockWidget(Qt::LeftDockWidgetArea, scenes);
     addDockWidget(Qt::LeftDockWidgetArea, sources);
     splitDockWidget(scenes, sources, Qt::Vertical);
-    addDockWidget(Qt::RightDockWidgetArea, mixer);
-    addDockWidget(Qt::RightDockWidgetArea, transitions);
-    splitDockWidget(mixer, transitions, Qt::Vertical);
+    addDockWidget(Qt::BottomDockWidgetArea, mixer);
+    addDockWidget(Qt::BottomDockWidgetArea, transitions);
+    splitDockWidget(mixer, transitions, Qt::Horizontal);
     addDockWidget(Qt::BottomDockWidgetArea, controls);
+    splitDockWidget(transitions, controls, Qt::Horizontal);
     for (auto *dock : docks)
         dock->show();
-    resizeDocks({scenes, mixer}, {238, 238}, Qt::Horizontal);
+    resizeDocks({scenes}, {238}, Qt::Horizontal);
     resizeDocks({scenes, sources}, {220, 440}, Qt::Vertical);
-    resizeDocks({mixer, transitions}, {500, 150}, Qt::Vertical);
-    resizeDocks({controls}, {84}, Qt::Vertical);
+    resizeDocks({mixer, transitions, controls},
+                {qMax(200, width() - 238 - 224 - 286 - 12), 224, 286}, Qt::Horizontal);
+    resizeDocks({mixer}, {198}, Qt::Vertical);
     setUpdatesEnabled(wasUpdating);
 }
 

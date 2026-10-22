@@ -4,16 +4,14 @@ import QtQuick.Layouts
 
 Rectangle {
     objectName: "transitionsPanel"
-    implicitWidth: 238
+    implicitWidth: 224
     implicitHeight: 124
     color: "#1d1d1d"
 
     ColumnLayout {
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
+        anchors.fill: parent
         anchors.margins: 8
-        spacing: 8
+        spacing: 7
 
         ComboBox {
             objectName: "transitionEffect"
@@ -64,6 +62,8 @@ Rectangle {
                 color: "#8c8c8c"
             }
         }
+
+        Item { Layout.fillHeight: true }
 
         Button {
             objectName: "executeTransitionButton"
