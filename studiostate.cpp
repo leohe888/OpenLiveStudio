@@ -15,6 +15,8 @@ public:
             m_roles.insert(TypeRole, "sourceType");
             m_roles.insert(FilePathRole, "sourceFilePath");
             m_roles.insert(OriginalSizeRole, "sourceOriginalSize");
+            m_roles.insert(VisibleRole, "sourceVisible");
+            m_roles.insert(LockedRole, "sourceLocked");
         }
     }
 
@@ -40,6 +42,10 @@ public:
                 return item.filePath;
             if (role == OriginalSizeRole)
                 return item.originalSize;
+            if (role == VisibleRole)
+                return item.visible;
+            if (role == LockedRole)
+                return item.locked;
         }
         return {};
     }
@@ -88,6 +94,15 @@ public:
         endMoveRows();
     }
 
+    void setFlag(int row, int role, bool value)
+    {
+        if (role == VisibleRole)
+            m_items[row].visible = value;
+        else
+            m_items[row].locked = value;
+        emit dataChanged(index(row, 0), index(row, 0), {role});
+    }
+
 private:
     QHash<int, QByteArray> m_roles;
     QList<SourceData> m_items;
@@ -108,6 +123,11 @@ StudioState::StudioState(const QList<SceneData> &scenes, QObject *parent)
     connect(m_sceneModel, &QAbstractItemModel::rowsInserted, this, &StudioState::sceneMoveAvailabilityChanged);
     connect(m_sceneModel, &QAbstractItemModel::rowsRemoved, this, &StudioState::sceneMoveAvailabilityChanged);
     connect(m_sceneModel, &QAbstractItemModel::rowsMoved, this, &StudioState::sceneMoveAvailabilityChanged);
+    connect(this, &StudioState::currentSourceIdChanged, this, &StudioState::sourceMoveAvailabilityChanged);
+    connect(m_sourceModel, &QAbstractItemModel::modelReset, this, &StudioState::sourceMoveAvailabilityChanged);
+    connect(m_sourceModel, &QAbstractItemModel::rowsInserted, this, &StudioState::sourceMoveAvailabilityChanged);
+    connect(m_sourceModel, &QAbstractItemModel::rowsRemoved, this, &StudioState::sourceMoveAvailabilityChanged);
+    connect(m_sourceModel, &QAbstractItemModel::rowsMoved, this, &StudioState::sourceMoveAvailabilityChanged);
     QList<SourceData> sceneItems;
     for (const auto &scene : m_scenes)
         sceneItems.append({scene.id, scene.name});
@@ -352,4 +372,70 @@ bool StudioState::removeSource(const QString &sceneId, const QString &sourceId)
         return true;
     }
     return false;
+}
+
+int StudioState::sourceRow(const QString &sceneId, const QString &sourceId) const
+{
+    const int scene = sceneRow(sceneId);
+    if (scene < 0 || sourceId.isEmpty())
+        return -1;
+    const auto &sources = m_scenes.at(scene).sources;
+    for (int row = 0; row < sources.size(); ++row) {
+        if (sources.at(row).id == sourceId)
+            return row;
+    }
+    return -1;
+}
+
+bool StudioState::canMoveCurrentSourceUp() const
+{
+    return sourceRow(m_currentSceneId, m_currentSourceId) > 0;
+}
+
+bool StudioState::canMoveCurrentSourceDown() const
+{
+    const int row = sourceRow(m_currentSceneId, m_currentSourceId);
+    return row >= 0 && row + 1 < m_sourceModel->rowCount();
+}
+
+bool StudioState::moveSource(const QString &sceneId, const QString &sourceId, int offset)
+{
+    if (offset != -1 && offset != 1)
+        return false;
+    const int from = sourceRow(sceneId, sourceId);
+    if (from < 0)
+        return false;
+    auto &sources = m_scenes[sceneRow(sceneId)].sources;
+    const int to = from + offset;
+    if (to < 0 || to >= sources.size())
+        return false;
+    sources.move(from, to);
+    if (sceneId == m_currentSceneId)
+        m_sourceModel->move(from, to);
+    return true;
+}
+
+bool StudioState::setSourceFlag(const QString &sceneId, const QString &sourceId, int role, bool value)
+{
+    const int row = sourceRow(sceneId, sourceId);
+    if (row < 0)
+        return false;
+    auto &source = m_scenes[sceneRow(sceneId)].sources[row];
+    bool &flag = role == VisibleRole ? source.visible : source.locked;
+    if (flag != value) {
+        flag = value;
+        if (sceneId == m_currentSceneId)
+            m_sourceModel->setFlag(row, role, value);
+    }
+    return true;
+}
+
+bool StudioState::setSourceVisible(const QString &sceneId, const QString &sourceId, bool visible)
+{
+    return setSourceFlag(sceneId, sourceId, VisibleRole, visible);
+}
+
+bool StudioState::setSourceLocked(const QString &sceneId, const QString &sourceId, bool locked)
+{
+    return setSourceFlag(sceneId, sourceId, LockedRole, locked);
 }

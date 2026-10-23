@@ -17,6 +17,8 @@ class StudioState : public QObject
     Q_PROPERTY(bool canRemoveCurrentScene READ canRemoveCurrentScene NOTIFY canRemoveCurrentSceneChanged)
     Q_PROPERTY(bool canMoveCurrentSceneUp READ canMoveCurrentSceneUp NOTIFY sceneMoveAvailabilityChanged)
     Q_PROPERTY(bool canMoveCurrentSceneDown READ canMoveCurrentSceneDown NOTIFY sceneMoveAvailabilityChanged)
+    Q_PROPERTY(bool canMoveCurrentSourceUp READ canMoveCurrentSourceUp NOTIFY sourceMoveAvailabilityChanged)
+    Q_PROPERTY(bool canMoveCurrentSourceDown READ canMoveCurrentSourceDown NOTIFY sourceMoveAvailabilityChanged)
 
 public:
     struct SourceData {
@@ -25,9 +27,12 @@ public:
         QString type;
         QString filePath;
         QSize originalSize;
+        bool visible = true;
+        bool locked = false;
     };
     struct SceneData { QString id; QString name; QList<SourceData> sources; };
-    enum Role { IdRole = Qt::UserRole + 1, NameRole, TypeRole, FilePathRole, OriginalSizeRole };
+    enum Role { IdRole = Qt::UserRole + 1, NameRole, TypeRole, FilePathRole, OriginalSizeRole,
+                VisibleRole, LockedRole };
 
     explicit StudioState(QObject *parent = nullptr);
     // Initial IDs must be nonempty and unique within each list.
@@ -63,16 +68,25 @@ public:
                                        const QString &filePath);
     // Remove only this scene's entry; never delete its file or another scene's entry.
     Q_INVOKABLE bool removeSource(const QString &sceneId, const QString &sourceId);
+    bool canMoveCurrentSourceUp() const;
+    bool canMoveCurrentSourceDown() const;
+    // List order is topmost first. Locking only restricts future transform edits.
+    Q_INVOKABLE bool moveSource(const QString &sceneId, const QString &sourceId, int offset);
+    Q_INVOKABLE bool setSourceVisible(const QString &sceneId, const QString &sourceId, bool visible);
+    Q_INVOKABLE bool setSourceLocked(const QString &sceneId, const QString &sourceId, bool locked);
 
 signals:
     void currentSceneIdChanged();
     void currentSourceIdChanged();
     void canRemoveCurrentSceneChanged();
     void sceneMoveAvailabilityChanged();
+    void sourceMoveAvailabilityChanged();
 
 private:
     class ListModel;
     int sceneRow(const QString &id) const;
+    int sourceRow(const QString &sceneId, const QString &sourceId) const;
+    bool setSourceFlag(const QString &sceneId, const QString &sourceId, int role, bool value);
     QString validateImageSource(const QString &sceneId, const QString &name,
                                 const QString &filePath, QSize *size) const;
     QList<SceneData> m_scenes;

@@ -37,6 +37,9 @@ private slots:
     void removesSourceWithoutChangingOtherSelections();
     void rejectsInvalidSourceRemoval();
     void removesLastImageSourceWithoutDeletingFile();
+    void movesSourcesAndPreservesIdentity();
+    void sourceFlagsStayWithSceneEntries();
+    void sourceMoveAvailabilityTracksChanges();
 };
 
 static QList<StudioState::SceneData> scenes()
@@ -693,6 +696,142 @@ void StudioStateTest::suggestsUnusedSourceNamesWithinTargetScene()
     QCOMPARE(state.suggestedSourceName("first", base), base + " 2");
     QVERIFY(state.removeSource("first", "a"));
     QCOMPARE(state.suggestedSourceName("first", base), base);
+}
+
+void StudioStateTest::movesSourcesAndPreservesIdentity()
+{
+    StudioState state(scenes());
+    auto *model = state.sourceModel();
+    QVERIFY(state.selectSource("a"));
+    QVERIFY(state.setSourceVisible("first", "a", false));
+    QVERIFY(state.setSourceLocked("first", "a", true));
+    QPersistentModelIndex original(model->index(0, 0));
+    QSignalSpy moved(model, &QAbstractItemModel::rowsMoved);
+    QSignalSpy reset(model, &QAbstractItemModel::modelReset);
+    QSignalSpy selected(&state, &StudioState::currentSourceIdChanged);
+    QVERIFY(!state.moveSource("first", "a", -1));
+    QVERIFY(!state.moveSource("first", "shared", 1));
+    QVERIFY(!state.moveSource("first", "a", 0));
+    QVERIFY(!state.moveSource("first", "a", 2));
+    QVERIFY(!state.moveSource("missing", "a", 1));
+    QVERIFY(!state.moveSource("first", "missing", 1));
+    QVERIFY(!state.moveSource("first", {}, 1));
+    QVERIFY(!state.moveSource("empty", "a", 1));
+    QVERIFY(!state.moveSource("second", "a", 1));
+    QCOMPARE(moved.count(), 0);
+    QVERIFY(state.moveSource("first", "a", 1));
+    QCOMPARE(original.row(), 1);
+    QCOMPARE(original.data(StudioState::IdRole).toString(), QString("a"));
+    QCOMPARE(original.data(StudioState::NameRole).toString(), QString("Image"));
+    QCOMPARE(original.data(StudioState::VisibleRole).toBool(), false);
+    QCOMPARE(original.data(StudioState::LockedRole).toBool(), true);
+    QCOMPARE(moved.count(), 1);
+    QVERIFY(state.moveSource("first", "shared", 1)); // Move the unselected entry.
+    QCOMPARE(original.row(), 0);
+    QCOMPARE(moved.count(), 2);
+    QVERIFY(state.moveSource("second", "shared", -1)); // Inactive scene only.
+    QCOMPARE(moved.count(), 2);
+    QCOMPARE(reset.count(), 0);
+    QCOMPARE(selected.count(), 0);
+    QCOMPARE(state.currentSourceId(), QString("a"));
+    QVERIFY(state.selectScene("second"));
+    QCOMPARE(model->index(0, 0).data(StudioState::IdRole).toString(), QString("shared"));
+    QVERIFY(state.selectScene("first"));
+    QCOMPARE(model->index(0, 0).data(StudioState::IdRole).toString(), QString("a"));
+    QVERIFY(!model->index(0, 0).data(StudioState::VisibleRole).toBool());
+    QVERIFY(model->index(0, 0).data(StudioState::LockedRole).toBool());
+}
+
+void StudioStateTest::sourceFlagsStayWithSceneEntries()
+{
+    StudioState state(scenes());
+    auto *model = state.sourceModel();
+    QCOMPARE(model->roleNames().value(StudioState::VisibleRole), QByteArray("sourceVisible"));
+    QCOMPARE(model->roleNames().value(StudioState::LockedRole), QByteArray("sourceLocked"));
+    QVERIFY(model->index(1, 0).data(StudioState::VisibleRole).toBool());
+    QVERIFY(!model->index(1, 0).data(StudioState::LockedRole).toBool());
+    QVERIFY(state.selectSource("a"));
+    QSignalSpy changed(model, &QAbstractItemModel::dataChanged);
+    QSignalSpy reset(model, &QAbstractItemModel::modelReset);
+    QSignalSpy selected(&state, &StudioState::currentSourceIdChanged);
+    QVERIFY(state.setSourceVisible("first", "shared", false));
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(changed.first().at(0).value<QModelIndex>().row(), 1);
+    QCOMPARE(changed.first().at(2).value<QList<int>>(), QList<int>{StudioState::VisibleRole});
+    QVERIFY(state.setSourceVisible("first", "shared", false));
+    QCOMPARE(changed.count(), 1); // Idempotent setters do not notify.
+    QVERIFY(state.setSourceLocked("first", "shared", true));
+    QCOMPARE(changed.count(), 2);
+    QCOMPARE(changed.last().at(2).value<QList<int>>(), QList<int>{StudioState::LockedRole});
+    QVERIFY(!model->index(1, 0).data(StudioState::VisibleRole).toBool());
+    QVERIFY(model->index(1, 0).data(StudioState::LockedRole).toBool());
+    for (const auto &target : QList<QPair<QString, QString>>{
+             {"missing", "a"}, {"first", "missing"}, {"first", {}}, {"second", "a"}, {"empty", "a"}}) {
+        QVERIFY(!state.setSourceVisible(target.first, target.second, false));
+        QVERIFY(!state.setSourceLocked(target.first, target.second, true));
+    }
+    QVERIFY(state.setSourceVisible("second", "b", false));
+    QVERIFY(state.setSourceLocked("second", "b", true));
+    QCOMPARE(changed.count(), 2);
+    QCOMPARE(reset.count(), 0);
+    QCOMPARE(selected.count(), 0);
+    QCOMPARE(state.currentSourceId(), QString("a"));
+    QVERIFY(state.selectScene("second"));
+    QVERIFY(!model->index(0, 0).data(StudioState::VisibleRole).toBool());
+    QVERIFY(model->index(0, 0).data(StudioState::LockedRole).toBool());
+    QVERIFY(model->index(1, 0).data(StudioState::VisibleRole).toBool()); // Same ID, other scene.
+    QVERIFY(!model->index(1, 0).data(StudioState::LockedRole).toBool());
+    QVERIFY(state.selectScene("first"));
+    QVERIFY(state.setSourceVisible("first", "shared", true));
+    QVERIFY(state.setSourceLocked("first", "shared", false));
+    QVERIFY(model->index(1, 0).data(StudioState::VisibleRole).toBool());
+    QVERIFY(!model->index(1, 0).data(StudioState::LockedRole).toBool());
+    QVERIFY(state.setSourceLocked("first", "shared", true));
+    QVERIFY(state.removeSource("first", "shared")); // Locked entries remain removable.
+}
+
+void StudioStateTest::sourceMoveAvailabilityTracksChanges()
+{
+    StudioState state(scenes());
+    QSignalSpy available(&state, &StudioState::sourceMoveAvailabilityChanged);
+    QVERIFY(!state.canMoveCurrentSourceUp());
+    QVERIFY(!state.canMoveCurrentSourceDown());
+    QVERIFY(state.selectSource("a"));
+    QVERIFY(!available.isEmpty());
+    QVERIFY(!state.canMoveCurrentSourceUp());
+    QVERIFY(state.canMoveCurrentSourceDown());
+    available.clear();
+    QVERIFY(state.moveSource("first", "a", 1));
+    QVERIFY(!available.isEmpty());
+    QVERIFY(state.canMoveCurrentSourceUp());
+    QVERIFY(!state.canMoveCurrentSourceDown());
+    available.clear();
+    QVERIFY(state.removeSource("first", "shared"));
+    QVERIFY(!available.isEmpty());
+    QVERIFY(!state.canMoveCurrentSourceUp());
+    QVERIFY(!state.canMoveCurrentSourceDown());
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QImage image(4, 4, QImage::Format_RGB32);
+    image.fill(Qt::red);
+    const QString path = dir.filePath("image.png");
+    QVERIFY(image.save(path));
+    const QString added = state.addImageSource("first", "New", path);
+    QVERIFY(!added.isEmpty());
+    QVERIFY(state.sourceModel()->index(0, 0).data(StudioState::VisibleRole).toBool());
+    QVERIFY(!state.sourceModel()->index(0, 0).data(StudioState::LockedRole).toBool());
+    QVERIFY(!state.canMoveCurrentSourceUp());
+    QVERIFY(state.canMoveCurrentSourceDown());
+    QVERIFY(state.selectSource({}));
+    QVERIFY(!state.canMoveCurrentSourceDown());
+    QVERIFY(state.selectScene("second"));
+    QVERIFY(state.selectSource("shared"));
+    QVERIFY(state.canMoveCurrentSourceUp());
+    available.clear();
+    QVERIFY(state.selectScene("empty"));
+    QVERIFY(!available.isEmpty());
+    QVERIFY(!state.canMoveCurrentSourceUp());
+    QVERIFY(!state.canMoveCurrentSourceDown());
 }
 
 QTEST_GUILESS_MAIN(StudioStateTest)

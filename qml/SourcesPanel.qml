@@ -12,18 +12,22 @@ Rectangle {
     signal sourceAddDialogRequested(string sceneId)
     signal sourceRemovalDialogRequested(string sceneId, string sourceId)
 
-    // Source operations remain unavailable until their business steps.
+    // Each operation opts in once its business implementation is available.
     component SourceButton: ToolButton {
         width: 30
         height: 30
         display: AbstractButton.IconOnly
         icon.width: 16
         icon.height: 16
-        icon.color: enabled ? "#d6d6d6" : "#666666"
+        icon.color: enabled ? (checked ? "#8fc7ff" : "#d6d6d6") : "#666666"
         enabled: false
         Accessible.name: text
         ToolTip.text: text
-        background: Item {}
+        ToolTip.visible: hovered
+        background: Rectangle {
+            color: parent.checked ? "#253b50" : "transparent"
+            radius: 3
+        }
     }
 
     ColumnLayout {
@@ -66,6 +70,8 @@ Rectangle {
                 delegate: Rectangle {
                     required property string sourceId
                     required property string sourceName
+                    required property bool sourceVisible
+                    required property bool sourceLocked
                     readonly property bool selected: root.state !== null
                         && root.state.currentSourceId === sourceId
                     objectName: "sourceRow_" + sourceId
@@ -76,10 +82,6 @@ Rectangle {
                     Accessible.name: sourceName
                     Accessible.selected: selected
 
-                    TapHandler {
-                        onTapped: root.state.selectSource(sourceId)
-                    }
-
                     RowLayout {
                         anchors.fill: parent
                         anchors.leftMargin: 8
@@ -87,21 +89,32 @@ Rectangle {
 
                         Label {
                             Layout.fillWidth: true
+                            Layout.fillHeight: true
                             Layout.minimumWidth: 0
                             text: sourceName
                             textFormat: Text.PlainText
                             elide: Text.ElideRight
                             color: "#d6d6d6"
+                            verticalAlignment: Text.AlignVCenter
+                            TapHandler {
+                                onTapped: root.state.selectSource(sourceId)
+                            }
                         }
                         SourceButton {
                             objectName: "sourceVisibilityButton"
-                            text: qsTr("来源显隐")
+                            enabled: root.state !== null
+                            checked: sourceVisible
+                            text: sourceVisible ? qsTr("隐藏来源") : qsTr("显示来源")
                             icon.source: "qrc:/assets/icons/eye.svg"
+                            onClicked: root.state.setSourceVisible(root.state.currentSceneId, sourceId, !sourceVisible)
                         }
                         SourceButton {
                             objectName: "sourceLockButton"
-                            text: qsTr("来源锁定")
+                            enabled: root.state !== null
+                            checked: sourceLocked
+                            text: sourceLocked ? qsTr("解锁来源") : qsTr("锁定来源")
                             icon.source: "qrc:/assets/icons/lock.svg"
+                            onClicked: root.state.setSourceLocked(root.state.currentSceneId, sourceId, !sourceLocked)
                         }
                     }
                 }
@@ -145,14 +158,25 @@ Rectangle {
                         text: modelData.label
                         icon.source: "qrc:/assets/icons/" + modelData.icon + ".svg"
                         Layout.preferredWidth: 30
-                        enabled: root.state !== null && root.state.currentSceneId.length > 0
-                            && (modelData.name === "addSourceButton"
-                                || (modelData.name === "removeSourceButton" && root.state.currentSourceId.length > 0))
+                        enabled: {
+                            if (!root.state) return false
+                            switch (modelData.name) {
+                            case "addSourceButton": return root.state.currentSceneId.length > 0
+                            case "removeSourceButton": return root.state.currentSourceId.length > 0
+                            case "moveSourceUpButton": return root.state.canMoveCurrentSourceUp
+                            case "moveSourceDownButton": return root.state.canMoveCurrentSourceDown
+                            default: return false
+                            }
+                        }
                         onClicked: {
                             if (modelData.name === "addSourceButton")
                                 root.sourceAddDialogRequested(root.state.currentSceneId)
                             else if (modelData.name === "removeSourceButton")
                                 root.sourceRemovalDialogRequested(root.state.currentSceneId, root.state.currentSourceId)
+                            else if (modelData.name === "moveSourceUpButton")
+                                root.state.moveSource(root.state.currentSceneId, root.state.currentSourceId, -1)
+                            else if (modelData.name === "moveSourceDownButton")
+                                root.state.moveSource(root.state.currentSceneId, root.state.currentSourceId, 1)
                         }
                     }
                 }

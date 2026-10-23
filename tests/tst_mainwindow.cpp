@@ -37,6 +37,8 @@ private slots:
     void hasWindowShell();
     void panelsShareStateAcrossReloadsAndReleaseItWithWindow();
     void panelsFollowSceneAndSourceSelection();
+    void sourcePanelCanMoveAndToggle_data();
+    void sourcePanelCanMoveAndToggle();
     void listScrollBarsHandleOverflow_data();
     void listScrollBarsHandleOverflow();
     void qmlDialogReceivesInitialPropertiesAndCloses();
@@ -230,6 +232,132 @@ void MainWindowTest::panelsFollowSceneAndSourceSelection()
     QTRY_VERIFY(!empty->isVisible());
     QTRY_VERIFY(row(sources, "sourceList", "sourceRow_a"));
     QVERIFY(!row(sources, "sourceList", "sourceRow_a")->property("selected").toBool());
+}
+
+void MainWindowTest::sourcePanelCanMoveAndToggle_data()
+{
+    QTest::addColumn<bool>("reload");
+    QTest::newRow("initial") << false;
+    QTest::newRow("recovered") << true;
+}
+
+void MainWindowTest::sourcePanelCanMoveAndToggle()
+{
+    QFETCH(bool, reload);
+    StudioState state(QList<StudioState::SceneData>{
+        {"first", "First", {{"a", "Foreground"}, {"b", "Background"}, {"c", "Logo"}}},
+        {"second", "Second", {{"b", "Other scene image"}}}, {"empty", "Empty", {}}});
+    QQuickWidget panel;
+    panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
+    panel.resize(280, 220);
+    panel.rootContext()->setContextProperty(QStringLiteral("studioState"), &state);
+    const QUrl url(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml"));
+    panel.setSource(url);
+    QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
+    panel.show();
+    if (reload) {
+        panel.setSource(QUrl(QStringLiteral("qrc:/missing-source-panel.qml")));
+        QTRY_COMPARE(panel.status(), QQuickWidget::Error);
+        panel.setSource(url);
+        QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
+    }
+    const auto find = [&panel](const QString &name) -> QQuickItem * {
+        const auto search = [&name](auto &&self, QQuickItem *parent) -> QQuickItem * {
+            if (parent->objectName() == name) return parent;
+            for (auto *child : parent->childItems()) {
+                if (auto *found = self(self, child)) return found;
+            }
+            return nullptr;
+        };
+        return search(search, panel.rootObject());
+    };
+    const auto click = [&panel](QQuickItem *item) {
+        QTest::mouseClick(&panel, Qt::LeftButton, Qt::NoModifier,
+            item->mapToScene(QPointF(item->width() / 2, item->height() / 2)).toPoint());
+    };
+    QTRY_VERIFY(find("sourceRow_b"));
+    auto *up = find("moveSourceUpButton");
+    auto *down = find("moveSourceDownButton");
+    QVERIFY(up);
+    QVERIFY(down);
+    QVERIFY(!up->isEnabled());
+    QVERIFY(!down->isEnabled());
+    QVERIFY(state.selectSource("a"));
+    QTRY_VERIFY(down->isEnabled());
+    QVERIFY(!up->isEnabled());
+    auto *row = find("sourceRow_b");
+    auto *visibility = row->findChild<QQuickItem *>(QStringLiteral("sourceVisibilityButton"));
+    auto *lock = row->findChild<QQuickItem *>(QStringLiteral("sourceLockButton"));
+    QVERIFY(visibility);
+    QVERIFY(lock);
+    QVERIFY(visibility->isEnabled());
+    QVERIFY(lock->isEnabled());
+    QVERIFY(visibility->property("checked").toBool());
+    QVERIFY(!lock->property("checked").toBool());
+    click(visibility); // A nonselected row must not steal selection.
+    QTRY_VERIFY(!visibility->property("checked").toBool());
+    QCOMPARE(state.currentSourceId(), QString("a"));
+    QVERIFY(!state.sourceModel()->index(1, 0).data(StudioState::VisibleRole).toBool());
+    click(lock);
+    QTRY_VERIFY(lock->property("checked").toBool());
+    QCOMPARE(state.currentSourceId(), QString("a"));
+    QVERIFY(state.sourceModel()->index(1, 0).data(StudioState::LockedRole).toBool());
+    // Model updates must continue to drive presentation after user clicks.
+    QVERIFY(state.setSourceVisible("first", "b", true));
+    QTRY_VERIFY(visibility->property("checked").toBool());
+    click(visibility);
+    QTRY_VERIFY(!visibility->property("checked").toBool());
+    click(lock);
+    QTRY_VERIFY(!lock->property("checked").toBool());
+    click(lock);
+    QTRY_VERIFY(lock->property("checked").toBool());
+    // Select through the label area, then move a hidden, locked entry.
+    QTest::mouseClick(&panel, Qt::LeftButton, Qt::NoModifier,
+        row->mapToScene(QPointF(40, row->height() / 2)).toPoint());
+    QTRY_COMPARE(state.currentSourceId(), QString("b"));
+    QTRY_VERIFY(up->isEnabled());
+    QTRY_VERIFY(down->isEnabled());
+    click(up);
+    QTRY_COMPARE(state.sourceModel()->index(0, 0).data(StudioState::IdRole).toString(), QString("b"));
+    QTRY_VERIFY(!up->isEnabled());
+    QCOMPARE(state.currentSourceId(), QString("b"));
+    QTRY_VERIFY(find("sourceRow_b")->y() < find("sourceRow_a")->y());
+    click(down);
+    click(down);
+    QTRY_COMPARE(state.sourceModel()->index(2, 0).data(StudioState::IdRole).toString(), QString("b"));
+    QTRY_VERIFY(!down->isEnabled());
+    click(down);
+    QCOMPARE(state.currentSourceId(), QString("b"));
+    QVERIFY(state.selectScene("second"));
+    QTRY_VERIFY(!up->isEnabled());
+    QTRY_VERIFY(!down->isEnabled());
+    QVERIFY(state.selectScene("first"));
+    QVERIFY(state.selectSource("b"));
+    panel.setSource(QUrl());
+    panel.setSource(url);
+    QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
+    QTRY_VERIFY(find("sourceRow_b"));
+    row = find("sourceRow_b");
+    QTRY_VERIFY(row->property("selected").toBool());
+    visibility = row->findChild<QQuickItem *>(QStringLiteral("sourceVisibilityButton"));
+    lock = row->findChild<QQuickItem *>(QStringLiteral("sourceLockButton"));
+    QVERIFY(visibility);
+    QVERIFY(lock);
+    QTRY_VERIFY(!visibility->property("checked").toBool());
+    QTRY_VERIFY(lock->property("checked").toBool());
+    QTRY_VERIFY(find("moveSourceUpButton")->isEnabled());
+    QTRY_VERIFY(!find("moveSourceDownButton")->isEnabled());
+    click(visibility);
+    QTRY_VERIFY(visibility->property("checked").toBool());
+    click(visibility);
+    QTRY_VERIFY(!visibility->property("checked").toBool());
+    const QString screenshot = qEnvironmentVariable("OPENLIVE_SOURCE_PANEL_SCREENSHOT");
+    if (!screenshot.isEmpty() && !reload)
+        QVERIFY(panel.grabFramebuffer().save(screenshot));
+    QVERIFY(state.selectScene("empty"));
+    QTRY_VERIFY(find("emptySourcesLabel")->isVisible());
+    QVERIFY(!find("moveSourceUpButton")->isEnabled());
+    QVERIFY(!find("moveSourceDownButton")->isEnabled());
 }
 
 void MainWindowTest::listScrollBarsHandleOverflow_data()
@@ -2046,7 +2174,8 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
     if (panelName == QStringLiteral("SourcesPanel")) {
         QQmlComponent component(panel.engine());
         component.setData("import QtQml.Models\nListModel { ListElement { "
-                          "sourceId: 'image'; sourceName: 'A long source name for layout verification' } }", QUrl());
+                          "sourceId: 'image'; sourceName: 'A long source name for layout verification'; "
+                          "sourceVisible: true; sourceLocked: false } }", QUrl());
         sourceModel.reset(component.create());
         QVERIFY2(sourceModel, qPrintable(component.errorString()));
         auto *list = panel.rootObject()->findChild<QObject *>(QStringLiteral("sourceList"));
