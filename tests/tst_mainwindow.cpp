@@ -52,6 +52,8 @@ private slots:
     void sceneNameDialogCancelsWithoutChanges_data();
     void sceneNameDialogCancelsWithoutChanges();
     void scenePanelCanAddAndRenameAfterReload();
+    void sourceRemovalDialogHandlesConfirmation_data();
+    void sourceRemovalDialogHandlesConfirmation();
     void sceneRemovalDialogHandlesConfirmation_data();
     void sceneRemovalDialogHandlesConfirmation();
     void scenePanelCanRemoveAndMove_data();
@@ -909,6 +911,101 @@ void MainWindowTest::scenePanelCanAddAndRenameAfterReload()
         QTRY_COMPARE(findRow()->property("sceneName").toString(), renamed);
         QCOMPARE(state->sceneModel()->rowCount(), pass + 2);
     }
+}
+
+void MainWindowTest::sourceRemovalDialogHandlesConfirmation_data()
+{
+    QTest::addColumn<QString>("action");
+    for (const auto *name : {"confirm", "switched", "last", "cancel", "escape", "close", "stale-source", "stale-scene"})
+        QTest::newRow(name) << QString::fromLatin1(name);
+}
+
+void MainWindowTest::sourceRemovalDialogHandlesConfirmation()
+{
+    QFETCH(QString, action);
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath("image.png");
+    QImage image(19, 11, QImage::Format_ARGB32);
+    image.fill(Qt::red);
+    QVERIFY(image.save(path));
+    const QString name = "<b>Logo & image</b>";
+    QList<StudioState::SourceData> sources{{"shared", name, "image", path, image.size()}};
+    if (action != "last") sources.append(StudioState::SourceData{"remaining", "Remaining"});
+    StudioState state(QList<StudioState::SceneData>{
+        {"target", "Target", sources}, {"other", "Other", {{"shared", "Other image"}}}});
+    QVERIFY(state.selectSource("shared"));
+    MainWindow window;
+    window.show();
+    window.showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceRemovalDialog.qml")),
+        QStringLiteral("Remove source"), {{"state", QVariant::fromValue(&state)},
+        {"sceneId", "target"}, {"sourceId", "shared"}, {"sourceName", name}});
+    QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
+    QVERIFY(dialog);
+    auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    QPointer<QQuickItem> root = view->rootObject();
+    QVERIFY(root);
+    auto *message = root->findChild<QQuickItem *>(QStringLiteral("sourceRemovalMessage"));
+    auto *confirm = root->findChild<QQuickItem *>(QStringLiteral("confirmSourceRemovalButton"));
+    auto *cancel = root->findChild<QQuickItem *>(QStringLiteral("cancelSourceRemovalButton"));
+    auto *error = root->findChild<QQuickItem *>(QStringLiteral("sourceRemovalError"));
+    QVERIFY(message && confirm && cancel && error);
+    QVERIFY(message->property("text").toString().contains(name));
+    QCOMPARE(message->property("textFormat").toInt(), 0); // Text.PlainText
+    QTRY_VERIFY(cancel->hasActiveFocus());
+    QCOMPARE(state.sourceModel()->rowCount(), sources.size());
+    if (action == "switched") {
+        QVERIFY(state.selectScene("other"));
+        QVERIFY(state.selectSource("shared"));
+    } else if (action == "stale-source") {
+        QVERIFY(state.removeSource("target", "shared"));
+    } else if (action == "stale-scene") {
+        QVERIFY(state.removeScene("target"));
+    }
+    const auto click = [&](QQuickItem *button) {
+        QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
+            button->mapToScene(button->boundingRect().center()).toPoint());
+    };
+    if (action == "cancel") {
+        QTest::keyClick(view, Qt::Key_Space); // Cancel is the initial keyboard action.
+    } else if (action == "escape") {
+        QTest::keyClick(view, Qt::Key_Escape);
+    } else if (action == "close") {
+        dialog->close();
+    } else {
+        click(confirm);
+        if (action.startsWith("stale-")) {
+            QTRY_VERIFY(!error->property("text").toString().isEmpty());
+            QVERIFY(dialog->isVisible());
+            click(cancel);
+        }
+    }
+    QTRY_VERIFY(dialog.isNull());
+    QVERIFY(root.isNull());
+    if (action == "switched") {
+        QCOMPARE(state.currentSceneId(), QString("other"));
+        QCOMPARE(state.currentSourceId(), QString("shared"));
+        QCOMPARE(state.sourceModel()->rowCount(), 1);
+    }
+    const bool removed = action == "confirm" || action == "switched" || action == "last" || action == "stale-source";
+    if (action == "stale-scene") {
+        QVERIFY(!state.selectScene("target"));
+    } else {
+        QVERIFY(state.selectScene("target"));
+        QCOMPARE(state.sourceModel()->rowCount(), sources.size() - (removed ? 1 : 0));
+        if (removed) {
+            QVERIFY(!state.selectSource("shared"));
+            QVERIFY(state.currentSourceId().isEmpty());
+        } else {
+            QCOMPARE(state.currentSourceId(), QString("shared"));
+        }
+    }
+    QVERIFY(QFile::exists(path));
+    QCOMPARE(QImage(path), image);
+    QVERIFY(state.selectScene("other"));
+    QCOMPARE(state.sourceModel()->rowCount(), 1);
+    QVERIFY(state.selectSource("shared"));
 }
 
 void MainWindowTest::sceneRemovalDialogHandlesConfirmation_data()
