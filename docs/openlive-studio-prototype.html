@@ -128,6 +128,12 @@ svg{display:block}
 .dock-h:hover .hb{opacity:1}
 .dock-h .hb:hover{background:#3a3a3a;color:#fff}
 .dock-b{flex:1 1 auto;min-height:0;overflow:auto;padding:2px}
+#sceneList,#sourceList{overflow-x:hidden;overflow-y:auto}
+#sceneList::-webkit-scrollbar,#sourceList::-webkit-scrollbar{width:12px}
+#sceneList::-webkit-scrollbar-track,#sourceList::-webkit-scrollbar-track{background:#232323}
+#sceneList::-webkit-scrollbar-thumb,#sourceList::-webkit-scrollbar-thumb{background:#606060;border:2px solid #232323;border-radius:6px}
+#sceneList::-webkit-scrollbar-thumb:hover,#sourceList::-webkit-scrollbar-thumb:hover{background:#808080}
+#sceneList::-webkit-scrollbar-thumb:active,#sourceList::-webkit-scrollbar-thumb:active{background:#9a9a9a}
 .dock-f{
   flex:0 0 auto;height:26px;display:flex;align-items:center;gap:1px;padding:0 3px;
   background:#191919;border-top:1px solid #0a0a0a;
@@ -699,10 +705,12 @@ function renderScenes() {
   const box = $('#sceneList');
   box.innerHTML = scenes.map((s, i) => `
     <div class="row ${i === state.scene ? 'sel' : ''}" data-scene="${i}">
-      <span class="nm" style="padding-left:2px">${s.name}</span>
+      <span class="nm" style="padding-left:2px"></span>
     </div>`).join('');
   $$('.row', box).forEach(r => {
+    r.querySelector('.nm').textContent = scenes[+r.dataset.scene].name;
     r.addEventListener('click', () => switchScene(+r.dataset.scene));
+    r.addEventListener('dblclick', () => openSceneNameDialog(scenes[+r.dataset.scene]));
   });
 }
 
@@ -1037,7 +1045,7 @@ function closeDialog() {
 }
 $('#dlgX').addEventListener('click', closeDialog);
 $('#dlgCancel').addEventListener('click', closeDialog);
-$('#dlgOk').addEventListener('click', () => { if (dlgOk) dlgOk(); closeDialog(); });
+$('#dlgOk').addEventListener('click', () => { if (dlgOk && dlgOk() === false) return; closeDialog(); });
 $('#overlay').addEventListener('mousedown', e => { if (e.target.id === 'overlay') closeDialog(); });
 
 function openProps(id) {
@@ -1345,12 +1353,45 @@ function moveSource(dir) {
   renderSources(); renderPreview();
   msg('来源层级已调整');
 }
-$('[data-act="scene-add"]').addEventListener('click', () => {
-  scenes.push({ name: '场景 ' + (scenes.length + 1), sources: [] });
-  renderScenes();
-  switchScene(scenes.length - 1);
-  msg('已添加场景');
-});
+function sceneNameError(name, target = null) {
+  if (!name.trim()) return '场景名称不能为空。';
+  return scenes.some(s => s !== target && s.name.trim().toLowerCase() === name.trim().toLowerCase())
+    ? '场景名称已存在。' : '';
+}
+function suggestedSceneName() {
+  let name = '场景';
+  for (let number = 2; sceneNameError(name); number++) name = '场景 ' + number;
+  return name;
+}
+function openSceneNameDialog(target = null) {
+  openDialog(target ? '重命名场景' : '添加场景', `
+    <label class="fld"><span>场景名称</span><input id="sceneNameInput" type="text" autocomplete="off"></label>
+    <div id="sceneNameError" role="alert" style="color:#ee9b9b;min-height:18px"></div>`, () => {
+    const name = $('#sceneNameInput').value.trim();
+    const error = sceneNameError(name, target);
+    $('#sceneNameError').textContent = error;
+    if (error) return false;
+    if (target) {
+      target.name = name;
+      renderScenes();
+      msg('已重命名场景');
+    } else {
+      scenes.push({ name, sources: [] });
+      renderScenes();
+      switchScene(scenes.length - 1);
+      msg('已添加场景');
+    }
+  });
+  const input = $('#sceneNameInput');
+  input.value = target ? target.name : suggestedSceneName();
+  input.addEventListener('input', () => { $('#sceneNameError').textContent = ''; });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('#dlgOk').click(); }
+  });
+  input.focus();
+  input.select();
+}
+$('[data-act="scene-add"]').addEventListener('click', () => openSceneNameDialog());
 $('[data-act="src-add"]').addEventListener('click', () => {
   const names = ['摄像头', '桌面', 'Logo', '文本'];
   openDialog('添加来源', `
@@ -1432,6 +1473,10 @@ setInterval(() => {
 
 /* 键盘 */
 window.addEventListener('keydown', e => {
+  if ($('#overlay').classList.contains('on')) {
+    if (e.key === 'Escape') { e.preventDefault(); closeDialog(); }
+    return;
+  }
   if (e.key === 'F11') { e.preventDefault(); return setFullPreview(!isFullPreview()); }
   if (e.key === 'Escape' && isFullPreview()) { e.preventDefault(); return setFullPreview(false); }
   if (e.target instanceof Element && e.target.matches('input,select,textarea')) return;
