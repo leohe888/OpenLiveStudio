@@ -17,6 +17,10 @@ private slots:
     void rejectsInvalidNames_data();
     void rejectsInvalidNames();
     void renamesWithoutChangingIdentityOrSelection();
+    void removesCurrentSceneAndSelectsNeighbour_data();
+    void removesCurrentSceneAndSelectsNeighbour();
+    void removesOtherSceneWithoutChangingSelection();
+    void protectsLastSceneAndUpdatesRemovalAvailability();
 };
 
 static QList<StudioState::SceneData> scenes()
@@ -224,6 +228,103 @@ void StudioStateTest::renamesWithoutChangingIdentityOrSelection()
     QCOMPARE(sourceReset.count(), 0);
     QCOMPARE(sceneSelection.count(), 0);
     QCOMPARE(sourceSelection.count(), 0);
+}
+
+void StudioStateTest::removesCurrentSceneAndSelectsNeighbour_data()
+{
+    QTest::addColumn<int>("row");
+    QTest::addColumn<QString>("nextId");
+    QTest::newRow("first") << 0 << QString("second");
+    QTest::newRow("middle") << 1 << QString("third");
+    QTest::newRow("last") << 2 << QString("second");
+}
+
+void StudioStateTest::removesCurrentSceneAndSelectsNeighbour()
+{
+    QFETCH(int, row);
+    QFETCH(QString, nextId);
+    StudioState state(QList<StudioState::SceneData>{
+        {"first", "First", {{"a", "A"}}}, {"second", "Second", {{"b", "B"}}},
+        {"third", "Third", {{"c", "C"}}}});
+    auto *model = state.sceneModel();
+    const QString id = model->index(row, 0).data(StudioState::IdRole).toString();
+    QVERIFY(state.selectScene(id));
+    QVERIFY(state.selectSource(state.sourceModel()->index(0, 0).data(StudioState::IdRole).toString()));
+    QPersistentModelIndex deleted(model->index(row, 0));
+    QPersistentModelIndex survivor(model->index(row == 0 ? 1 : 0, 0));
+    const QString survivorId = survivor.data(StudioState::IdRole).toString();
+    QSignalSpy removed(model, &QAbstractItemModel::rowsRemoved);
+    QSignalSpy sceneReset(model, &QAbstractItemModel::modelReset);
+    QSignalSpy sourceReset(state.sourceModel(), &QAbstractItemModel::modelReset);
+    QSignalSpy sceneChanged(&state, &StudioState::currentSceneIdChanged);
+    QSignalSpy sourceChanged(&state, &StudioState::currentSourceIdChanged);
+    QVERIFY(state.removeScene(id));
+    QCOMPARE(model->rowCount(), 2);
+    QCOMPARE(state.currentSceneId(), nextId);
+    QVERIFY(state.currentSourceId().isEmpty());
+    QCOMPARE(state.sourceModel()->rowCount(), 1);
+    const QString sourceId = state.sourceModel()->index(0, 0).data(StudioState::IdRole).toString();
+    QCOMPARE(sourceId, nextId == "second" ? QString("b") : QString("c"));
+    QVERIFY(!state.selectScene(id));
+    QVERIFY(!deleted.isValid());
+    QVERIFY(survivor.isValid());
+    QCOMPARE(survivor.data(StudioState::IdRole).toString(), survivorId);
+    QCOMPARE(removed.count(), 1);
+    QCOMPARE(removed.first().at(1).toInt(), row);
+    QCOMPARE(removed.first().at(2).toInt(), row);
+    QCOMPARE(sceneReset.count(), 0);
+    QCOMPARE(sourceReset.count(), 1);
+    QCOMPARE(sceneChanged.count(), 1);
+    QCOMPARE(sourceChanged.count(), 1);
+}
+
+void StudioStateTest::removesOtherSceneWithoutChangingSelection()
+{
+    StudioState state(scenes());
+    QVERIFY(state.selectScene("second"));
+    QVERIFY(state.selectSource("b"));
+    QSignalSpy sceneChanged(&state, &StudioState::currentSceneIdChanged);
+    QSignalSpy sourceChanged(&state, &StudioState::currentSourceIdChanged);
+    QSignalSpy reset(state.sourceModel(), &QAbstractItemModel::modelReset);
+    QVERIFY(state.removeScene("first"));
+    QCOMPARE(state.currentSceneId(), QString("second"));
+    QCOMPARE(state.currentSourceId(), QString("b"));
+    QCOMPARE(state.sourceModel()->rowCount(), 2);
+    QCOMPARE(sceneChanged.count(), 0);
+    QCOMPARE(sourceChanged.count(), 0);
+    QCOMPARE(reset.count(), 0);
+}
+
+void StudioStateTest::protectsLastSceneAndUpdatesRemovalAvailability()
+{
+    StudioState state(QList<StudioState::SceneData>{{"last", "Last", {{"image", "Image"}}}});
+    QVERIFY(state.selectSource("image"));
+    QVERIFY(!state.canRemoveCurrentScene());
+    QSignalSpy availability(&state, &StudioState::canRemoveCurrentSceneChanged);
+    QSignalSpy removed(state.sceneModel(), &QAbstractItemModel::rowsRemoved);
+    QVERIFY(!state.removeScene("last"));
+    QVERIFY(!state.removeScene("missing"));
+    QCOMPARE(state.currentSourceId(), QString("image"));
+    QCOMPARE(state.sourceModel()->rowCount(), 1);
+    const QString added = state.addScene("New");
+    QVERIFY(!added.isEmpty());
+    QVERIFY(state.canRemoveCurrentScene());
+    QCOMPARE(availability.count(), 1);
+    QVERIFY(!state.removeScene({}));
+    QVERIFY(!state.removeScene("missing"));
+    QCOMPARE(removed.count(), 0);
+    QVERIFY(state.removeScene(added));
+    QVERIFY(!state.canRemoveCurrentScene());
+    QCOMPARE(availability.count(), 2);
+    QCOMPARE(state.currentSceneId(), QString("last"));
+    QVERIFY(state.selectSource("image"));
+    QVERIFY(!state.removeScene("last"));
+    QVERIFY(!state.removeScene(added));
+    QCOMPARE(state.currentSourceId(), QString("image"));
+    QCOMPARE(removed.count(), 1);
+    StudioState empty(QList<StudioState::SceneData>{});
+    QVERIFY(!empty.canRemoveCurrentScene());
+    QVERIFY(!empty.removeScene("missing"));
 }
 
 QTEST_GUILESS_MAIN(StudioStateTest)

@@ -50,6 +50,13 @@ public:
         emit dataChanged(index(row, 0), index(row, 0), {NameRole, Qt::DisplayRole});
     }
 
+    void remove(int row)
+    {
+        beginRemoveRows({}, row, row);
+        m_items.removeAt(row);
+        endRemoveRows();
+    }
+
 private:
     QHash<int, QByteArray> m_roles;
     QList<SourceData> m_items;
@@ -146,9 +153,12 @@ QString StudioState::addScene(const QString &name)
         return {};
     const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     const QString trimmed = name.trimmed();
+    const bool couldRemove = canRemoveCurrentScene();
     m_scenes.append({id, trimmed, {}});
     m_sceneModel->append({id, trimmed});
     selectScene(id);
+    if (couldRemove != canRemoveCurrentScene())
+        emit canRemoveCurrentSceneChanged();
     return id;
 }
 
@@ -165,6 +175,27 @@ bool StudioState::renameScene(const QString &id, const QString &name)
             scene.name = trimmed;
             m_sceneModel->rename(row, trimmed);
         }
+        return true;
+    }
+    return false;
+}
+
+bool StudioState::removeScene(const QString &id)
+{
+    if (m_scenes.size() <= 1)
+        return false;
+    for (int row = 0; row < m_scenes.size(); ++row) {
+        if (m_scenes.at(row).id != id)
+            continue;
+        const bool couldRemove = canRemoveCurrentScene();
+        if (m_currentSceneId == id) {
+            const int nextRow = row + 1 < m_scenes.size() ? row + 1 : row - 1;
+            selectScene(m_scenes.at(nextRow).id);
+        }
+        m_scenes.removeAt(row);
+        m_sceneModel->remove(row);
+        if (couldRemove != canRemoveCurrentScene())
+            emit canRemoveCurrentSceneChanged();
         return true;
     }
     return false;

@@ -13,6 +13,7 @@ class StudioState : public QObject
     Q_PROPERTY(QAbstractItemModel *sourceModel READ sourceModel CONSTANT)
     Q_PROPERTY(QString currentSceneId READ currentSceneId NOTIFY currentSceneIdChanged)
     Q_PROPERTY(QString currentSourceId READ currentSourceId NOTIFY currentSourceIdChanged)
+    Q_PROPERTY(bool canRemoveCurrentScene READ canRemoveCurrentScene NOTIFY canRemoveCurrentSceneChanged)
 
 public:
     struct SourceData { QString id; QString name; };
@@ -27,6 +28,7 @@ public:
     QAbstractItemModel *sourceModel() const;
     QString currentSceneId() const { return m_currentSceneId; }
     QString currentSourceId() const { return m_currentSourceId; }
+    bool canRemoveCurrentScene() const { return m_scenes.size() > 1 && !m_currentSceneId.isEmpty(); }
 
     Q_INVOKABLE bool selectScene(const QString &id);
     // An empty ID clears selection; other IDs must belong to the current scene.
@@ -37,10 +39,12 @@ public:
     // Creation returns the new ID, or an empty string if the name is invalid.
     Q_INVOKABLE QString addScene(const QString &name);
     Q_INVOKABLE bool renameScene(const QString &id, const QString &name);
+    Q_INVOKABLE bool removeScene(const QString &id);
 
 signals:
     void currentSceneIdChanged();
     void currentSourceIdChanged();
+    void canRemoveCurrentSceneChanged();
 
 private:
     class ListModel;
