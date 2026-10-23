@@ -89,14 +89,25 @@ and last selection fallback, source-selection clearing, preservation when
 removing another scene, invalid IDs and protecting the final scene without
 clearing its content. Movement checks cover selected and unselected scenes,
 invalid offsets and boundaries, stable IDs, content and selection, persistent
-model indexes and button availability. The test has a 10-second timeout.
+model indexes and button availability. Image-source checks cover name validation,
+scene-local unused-name suggestions and gap reuse, insertion at the top, selection,
+metadata and scene isolation. Removal checks cover selection clearing, row
+notifications without resetting the list, persistent indexes, invalid targets,
+entries with the same ID in different scenes, removing the final source and
+preserving its file. The test has a 10-second timeout. It links Qt Gui for image
+operations but still runs with QCoreApplication, without a GUI platform.
+
+`core.imageloader` uses temporary PNG/BMP images to check decoded dimensions,
+content-based detection, relative paths and Unicode filenames. Empty, missing,
+directory, corrupt and truncated inputs must return errors without success
+metadata. It also uses QCoreApplication and has a 10-second timeout.
 
 Production starts with one selected empty scene and no sources. MainWindow
 provides the same StudioState instance to both QML panels; business selection
 rules remain in C++. UI checks cover default scene display, clicking scene
 and source rows, highlights driven by C++, clearing source selection when
 switching scenes, empty-state updates, and restoring highlights after reload.
-Multiple scenes and sources are supplied only as test data. Shared-instance,
+Tests use controlled scenes and locally generated images. Shared-instance,
 load-failure recovery and destruction-order checks verify that panel QML
 content is released before the state. The add button and row double-click
 open the shared QML name dialog, including after panel reload. Dialog checks
@@ -107,8 +118,18 @@ stale targets and final-scene protection. The dialog captures a scene ID so
 changes to selection or order do not change its target; cancellation has initial
 focus. Scene-panel checks cover deletion and movement in an overflowing list,
 selection fallback and disabled boundary actions, both initially and after
-panel reload. Source operations, media processing and persistence remain
-unimplemented.
+panel reload. Source creation/removal is implemented; source ordering, visibility,
+locking, reuse, composition and persistence remain future work.
+
+The source add form is QML; browsing uses a C++ QFileDialog parented to the form
+window. Non-native file-picker tests verify cancellation preserves the previous
+input, spaces/Unicode/#/% in paths, picking without creating, confirmation and
+cleanup. The second opening receives the next unused suggested name. Removal
+checks cover fixed scene/source IDs after switching scenes, last-source removal,
+stale scenes/sources, plain-text names, default Cancel focus and file preservation.
+Both panel actions are tested initially and after load failure/recovery. The
+shared dialog entry no longer calls winId() early or manually positions dialogs;
+the temporary centering regression tests were removed with that positioning code.
 
 Both list panels have overflow-only vertical scrollbars. Data-driven tests
 use 24 scenes and sources to verify wheel input, thumb dragging to the end,
@@ -123,7 +144,7 @@ Enter confirmation, rename, Esc and button cancellation, and scrolling an
 overflowing scene list. Prototype scenes and media remain demonstration data;
 these browser checks do not establish application backend or device support.
 The prototype has not yet been updated for the implemented scene removal and
-ordering interactions.
+ordering interactions, or the image-source add/remove behavior completed in B4.
 
 `ui.mainwindow` covers window lifecycle and structure, output status visibility
 on resize, scene and source QML loading and empty states, source panel resizing,
@@ -166,24 +187,33 @@ the application version or development fallback, resizing, reuse while open,
 the Close button, Esc, and reopening. The view menu no longer contains the
 cancelled fullscreen-preview entry.
 
-After scene removal and ordering integration, the state executable reported
-24 passes, including initialization and cleanup. The removal dialog passed six
-behavior cases; the final scene-panel integration passed both initial-load and
-reload cases. The latest Debug build and complete CTest run passed (2/2); the
-UI executable took 21.85 seconds. Earlier removal/dialog rounds encountered
-CTest timeouts while separate full UI runs passed. The final round passed
-without changing the 30-second UI timeout; local run times still vary.
-Local validation used Qt 6.12.0 with MSVC 2022 x64, Debug.
-The Visual Studio multi-configuration build and CTest commands used by CI also
-passed locally and produced the JUnit report. CI's Qt 6.8.3 installation and
-the GitHub-hosted workflow have not yet been verified.
+After image-source add/remove integration, the image-loader executable reported
+12 passes and the state executable 40 passes, including initialization and cleanup.
+The final source-action regression run reported 14 passes. The separate complete
+window suite reported 88 passes in 32.38 seconds. The latest Debug build passed.
+The latest CTest run passed both core tests but timed out ui.mainwindow at its
+unchanged 30-second limit; the complete CTest run is therefore not passing.
+Earlier complete CTest passes do not establish that the expanded suite fits this
+limit. Local run times vary; resolving suite runtime/organization needs separate
+work rather than claiming a passing CTest result.
+Local validation used Qt 6.12.0 with MSVC 2022 x64, Debug. The Visual Studio
+multi-configuration commands used by CI previously passed locally and produced a
+JUnit report. CI's Qt 6.8.3 installation and the GitHub-hosted workflow remain
+unverified.
 UI checks use Qt's `offscreen` platform plugin and the
 software Qt Quick backend. The CTest command supplies Qt DLL, plugin and QML
 import paths and has a 30-second timeout. Software-rendered screenshots of
 the default scene, source empty state, selected test source, name-dialog
 normal/error states, overflowing lists with scrollbars, removal-dialog
 confirmation/error states and movement button states before and after ordering
-were checked.
+were checked. Image-source add and removal dialogs were also inspected in
+normal/error states. Windows checks confirmed native file-picker opening, owner
+window and closing; deployment dry-run scanning identified the dialog dependencies
+at that stage. The final implementation uses QFileDialog instead of Qt Quick
+FileDialog. Temporary native-window checks also exercised repeated dialogs and
+parent-window movement before manual centering was removed; those positioning
+checks do not validate the current default placement or prove absence of visual
+flicker.
 Default and minimum window size screenshots and the about dialog were also
 inspected in earlier rounds. Real GPU rendering,
 media processing and device behavior remain unverified.

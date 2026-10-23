@@ -93,19 +93,28 @@ that media work does not block UI interaction. Threading, resource ownership
 and cleanup are designed and verified with the feature that introduces them;
 the current scene state and Qt models must not be mutated from worker threads.
 
-## Current implementation and next adjustment
+## Current implementation and next boundaries
 
-The application currently has the Widgets shell, QML panels/dialogs and
-StudioState for scene editing. B1 through B3 are complete. B4's first round is
-reviewed and committed as `97459a4`: source metadata, image
-validation and insertion are present, but no source-add UI or composition is
-connected. The current SourceData structure has not yet separated reusable
-sources from scene instances.
+B1 through B4 are complete and committed. The application has the Widgets shell,
+QML panels/dialogs, scene editing in StudioState, and an independent ImageLoader.
+Source descriptions store their type, file path and original image dimensions.
+ImageLoader checks and actually decodes files synchronously, returns metadata or
+an error, and discards the pixels. StudioState still coordinates that call during
+image validation/insertion and owns scene/name rules, selection and list updates.
+There is no asynchronous loading, image cache or composition backend yet.
 
-That first round currently decodes images synchronously inside StudioState.
-The agreed architectural direction is to move image reading/decoding into a
-focused source-loading component, leaving scene validation and insertion in
-StudioState. That adjustment has not been implemented or separately authorized.
-It requires a small implementation proposal before changing code. Future modules
-are introduced alongside actual features, rather than building a complete media
-framework in advance.
+The add form is QML, with only the image type currently available. MainWindow
+passes an unused name for the captured target scene and hosts a C++ QFileDialog
+for browsing. Picking a file updates the form; confirmation creates the source.
+The shared dialog entry no longer forces an early native handle, exposes a
+window handle to QML, or manually centers dialogs. Qt handles window placement.
+The removal form captures both scene and source IDs, allows removal of the last
+source, and never deletes the underlying file. Source-panel add/remove actions
+remain connected after QML reload.
+
+The current SourceData structure has not yet separated reusable sources from
+scene instances. B5 adds ordering, visibility and locking; B6 addresses reuse and
+independent scene placement. Actual composition starts at C1. Cross-module
+coordination, media ownership and threading are developed with the relevant
+features, rather than building a complete framework in advance. Media-file
+playback remains outside the scheduled implementation steps.
