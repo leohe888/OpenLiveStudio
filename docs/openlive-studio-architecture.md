@@ -95,7 +95,7 @@ the current scene state and Qt models must not be mutated from worker threads.
 
 ## Current implementation and next boundaries
 
-B1 through B4 are complete and committed. The application has the Widgets shell,
+B1 through B5 are complete and committed. The application has the Widgets shell,
 QML panels/dialogs, scene editing in StudioState, and an independent ImageLoader.
 Source descriptions store their type, file path and original image dimensions.
 ImageLoader checks and actually decodes files synchronously, returns metadata or
@@ -113,8 +113,18 @@ source, and never deletes the underlying file. Source-panel add/remove actions
 remain connected after QML reload.
 
 The current SourceData structure has not yet separated reusable sources from
-scene instances. B5 adds ordering, visibility and locking; B6 addresses reuse and
-independent scene placement. Actual composition starts at C1. Cross-module
+scene instances. B5 stores topmost-first order and per-entry visibility/lock flags
+in each scene. StudioState addresses operations by scene/source IDs, exposes
+sourceVisible/sourceLocked model roles, and emits row-move or data-change
+notifications without resetting the active list. Reordering preserves identity
+and selection; row buttons update their own entry without changing selection.
+Hidden or locked entries remain selectable, reorderable and removable. QML uses
+eye/eye-off and lock/lock-open icons with neutral colors and current-state tooltips;
+Widgets retain the existing window and dock containers. States survive scene
+changes and QML reloads within the session, but are not persisted across launches.
+B6 addresses reuse and independent scene placement. Transform restrictions for
+locked entries will be enforced with the editing features in stage C. Actual
+composition starts at C1. Cross-module
 coordination, media ownership and threading are developed with the relevant
 features, rather than building a complete framework in advance. Media-file
 playback remains outside the scheduled implementation steps.

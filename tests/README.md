@@ -94,7 +94,14 @@ scene-local unused-name suggestions and gap reuse, insertion at the top, selecti
 metadata and scene isolation. Removal checks cover selection clearing, row
 notifications without resetting the list, persistent indexes, invalid targets,
 entries with the same ID in different scenes, removing the final source and
-preserving its file. The test has a 10-second timeout. It links Qt Gui for image
+preserving its file. Source ordering checks cover invalid targets and offsets,
+first/last boundaries, persistent indexes, stable identity/selection and active
+versus inactive scene updates without resetting the list. Visibility/lock checks
+cover visible/unlocked defaults, role-specific notifications, idempotent setters,
+invalid targets, scene-local flags (including equal IDs in different scenes),
+state restoration after switching, locked-entry removal and movement availability
+after insertion, removal, selection and scene changes. The test has a 10-second
+timeout. It links Qt Gui for image
 operations but still runs with QCoreApplication, without a GUI platform.
 
 `core.imageloader` uses temporary PNG/BMP images to check decoded dimensions,
@@ -118,8 +125,12 @@ stale targets and final-scene protection. The dialog captures a scene ID so
 changes to selection or order do not change its target; cancellation has initial
 focus. Scene-panel checks cover deletion and movement in an overflowing list,
 selection fallback and disabled boundary actions, both initially and after
-panel reload. Source creation/removal is implemented; source ordering, visibility,
-locking, reuse, composition and persistence remain future work.
+panel reload. Source creation/removal, ordering, visibility and lock-state
+management are implemented. Source-panel tests also cover clicking a nonselected
+entry without changing selection, four state icons, model-driven updates, moving
+hidden/locked entries, disabled boundaries and restoration after load failure or
+QML reload. Reuse, composition, transform restrictions and persistence remain
+future work.
 
 The source add form is QML; browsing uses a C++ QFileDialog parented to the form
 window. Non-native file-picker tests verify cancellation preserves the previous
@@ -144,7 +155,8 @@ Enter confirmation, rename, Esc and button cancellation, and scrolling an
 overflowing scene list. Prototype scenes and media remain demonstration data;
 these browser checks do not establish application backend or device support.
 The prototype has not yet been updated for the implemented scene removal and
-ordering interactions, or the image-source add/remove behavior completed in B4.
+ordering interactions, the image-source add/remove behavior completed in B4, or
+the source ordering/visibility/lock behavior completed in B5.
 
 `ui.mainwindow` covers window lifecycle and structure, output status visibility
 on resize, scene and source QML loading and empty states, source panel resizing,
@@ -155,14 +167,19 @@ checks cover the vertically arranged scene and source docks on the left and
 the left column extending to the bottom, with mixer, transitions and controls
 arranged left to right beneath the preview. All five docks are checked
 for floating, redocking, closing, load failure and recovery, including isolation
-from the other panels. Icon checks cover decoding all twelve SVG resources and
+from the other panels. Icon checks cover decoding all fourteen SVG resources and
 rendering the panel buttons in enabled and disabled states. Source row checks
 use test-only model data. Mixer checks also cover disabled sliders ignoring
 clicks, compact panel height, scrollable content at small sizes, and fixed-width
 channels staying grouped on the left as the panel grows. The application still has no
 media capture, audio or transition backend; mixer meters remain empty and
-unconnected controls disabled. Rendering checks isolate the transition,
-recording and streaming icons from button text and borders.
+unconnected controls disabled. Rendering checks isolate source, transition,
+recording and streaming icons from button text and backgrounds. Source rendering
+covers eye/eye-off and lock/lock-open in enabled and disabled states. State icons
+use neutral colors and transparent button backgrounds; selection highlights
+belong to the source row. Tooltips and accessible names describe current state
+(visible/hidden and locked/unlocked), rather than the next click action. Native
+hover-tooltip appearance has not been manually verified.
 
 Controls panel checks cover exactly the recording, streaming and settings
 entries, all disabled and arranged vertically with fixed heights at the top.
@@ -187,17 +204,28 @@ the application version or development fallback, resizing, reuse while open,
 the Close button, Esc, and reopening. The view menu no longer contains the
 cancelled fullscreen-preview entry.
 
-After image-source add/remove integration, the image-loader executable reported
+After B5 and its icon/tooltip adjustments, the Ninja Debug build passed with
+Qt 6.12.0 and MSVC 2022 x64. The final complete CTest run on 2026-10-23 passed
+3/3: ui.mainwindow took 31.49 seconds and the full run took 31.86 seconds.
+The state-icon decoding, enabled/disabled rendering, interaction and reload
+checks passed. Software-rendered source-panel screenshots were inspected after
+removing the blue checked-state styling. These results validate state management
+and panel behavior, not composition, hidden-source output or transform locking.
+Real GPU rendering and native hover-tooltip appearance remain unverified.
+
+At the B4 checkpoint, after image-source add/remove integration, the image-loader
+executable reported
 12 passes and the state executable 40 passes, including initialization and cleanup.
 The final source-action regression run reported 14 passes. The separate complete
-window suite reported 88 passes in 32.38 seconds. The latest Debug build passed.
+window suite reported 88 passes in 32.38 seconds. That Debug build passed.
 The original 30-second CTest limit applied to the entire UI executable, including
 all data rows. A diagnostic run passed all 88 cases in 30.07 seconds, with the
 slowest case taking about 0.78 seconds; no individual case was stuck. Repeated
 window/QML setup, rendering and asynchronous event handling accumulate across
 the suite. The UI executable now has a 90-second limit to allow setup and CI
 variance. Both core executables retain their 10-second limits; individual test
-assertion rules are unchanged. The latest complete CTest run passed 3/3, with
+assertion rules are unchanged. The complete CTest run at that checkpoint passed
+3/3, with
 ui.mainwindow taking 31.04 seconds and the full run 31.29 seconds. The suite has
 not been split into smaller executables.
 Local validation used Qt 6.12.0 with MSVC 2022 x64, Debug. The Visual Studio
