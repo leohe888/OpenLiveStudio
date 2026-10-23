@@ -84,7 +84,12 @@ rather than display names, determine selection. Creation and rename checks
 cover trimmed names, empty and case-insensitive duplicate rejection, unused
 name suggestions, new empty-scene selection, preservation of existing content,
 and stable IDs and selection on rename. Model checks verify row insertion and
-name updates without a full scene-model reset. The test has a 10-second timeout.
+name updates without a full scene-model reset. Removal checks cover first, middle
+and last selection fallback, source-selection clearing, preservation when
+removing another scene, invalid IDs and protecting the final scene without
+clearing its content. Movement checks cover selected and unselected scenes,
+invalid offsets and boundaries, stable IDs, content and selection, persistent
+model indexes and button availability. The test has a 10-second timeout.
 
 Production starts with one selected empty scene and no sources. MainWindow
 provides the same StudioState instance to both QML panels; business selection
@@ -97,8 +102,13 @@ content is released before the state. The add button and row double-click
 open the shared QML name dialog, including after panel reload. Dialog checks
 cover prefilling and selection, validation errors, Enter to save, button
 confirmation, Tab navigation, and cancellation by button, Esc or window close.
-Scene deletion and ordering, source operations, media processing and
-persistence remain unimplemented.
+Removal-dialog checks cover confirmation, cancellation, Esc, window close,
+stale targets and final-scene protection. The dialog captures a scene ID so
+changes to selection or order do not change its target; cancellation has initial
+focus. Scene-panel checks cover deletion and movement in an overflowing list,
+selection fallback and disabled boundary actions, both initially and after
+panel reload. Source operations, media processing and persistence remain
+unimplemented.
 
 Both list panels have overflow-only vertical scrollbars. Data-driven tests
 use 24 scenes and sources to verify wheel input, thumb dragging to the end,
@@ -112,6 +122,8 @@ check. Browser checks verified empty/duplicate rejection, trimmed creation,
 Enter confirmation, rename, Esc and button cancellation, and scrolling an
 overflowing scene list. Prototype scenes and media remain demonstration data;
 these browser checks do not establish application backend or device support.
+The prototype has not yet been updated for the implemented scene removal and
+ordering interactions.
 
 `ui.mainwindow` covers window lifecycle and structure, output status visibility
 on resize, scene and source QML loading and empty states, source panel resizing,
@@ -154,12 +166,13 @@ the application version or development fallback, resizing, reuse while open,
 the Close button, Esc, and reopening. The view menu no longer contains the
 cancelled fullscreen-preview entry.
 
-The state executable reported 14 passes, including initialization and cleanup.
-After scene creation and rename integration, the full window suite reported
-59 passes. The subsequent scrollbar addition passed both new panel data cases
-and the full CTest run (2/2). During scene-action integration, the first CTest
-run timed out; separate full UI runs passed, and the CTest rerun passed 2/2
-without changing the 30-second UI timeout. Timing varied between local runs.
+After scene removal and ordering integration, the state executable reported
+24 passes, including initialization and cleanup. The removal dialog passed six
+behavior cases; the final scene-panel integration passed both initial-load and
+reload cases. The latest Debug build and complete CTest run passed (2/2); the
+UI executable took 21.85 seconds. Earlier removal/dialog rounds encountered
+CTest timeouts while separate full UI runs passed. The final round passed
+without changing the 30-second UI timeout; local run times still vary.
 Local validation used Qt 6.12.0 with MSVC 2022 x64, Debug.
 The Visual Studio multi-configuration build and CTest commands used by CI also
 passed locally and produced the JUnit report. CI's Qt 6.8.3 installation and
@@ -168,7 +181,9 @@ UI checks use Qt's `offscreen` platform plugin and the
 software Qt Quick backend. The CTest command supplies Qt DLL, plugin and QML
 import paths and has a 30-second timeout. Software-rendered screenshots of
 the default scene, source empty state, selected test source, name-dialog
-normal/error states and overflowing lists with scrollbars were checked.
+normal/error states, overflowing lists with scrollbars, removal-dialog
+confirmation/error states and movement button states before and after ordering
+were checked.
 Default and minimum window size screenshots and the about dialog were also
 inspected in earlier rounds. Real GPU rendering,
 media processing and device behavior remain unverified.
