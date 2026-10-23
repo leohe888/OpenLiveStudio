@@ -512,15 +512,13 @@ void MainWindowTest::sourcePanelCanBrowseAndAdd()
     auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
     QTRY_COMPARE(view->status(), QQuickWidget::Ready);
     QPointer<QQuickItem> root = view->rootObject();
-    QPointer<QObject> picker = root->findChild<QObject *>(QStringLiteral("sourceFileDialog"));
+    QPointer<QFileDialog> picker = dialog->findChild<QFileDialog *>(QStringLiteral("imageFileDialog"));
     auto *file = root->findChild<QQuickItem *>(QStringLiteral("sourceFileInput"));
     auto *browse = root->findChild<QQuickItem *>(QStringLiteral("browseSourceFileButton"));
     QVERIFY(picker && file && browse);
-    QCOMPARE(qvariant_cast<QWindow *>(picker->property("parentWindow")), dialog->windowHandle());
-    // The headless test explicitly exercises Qt Quick's non-native implementation.
-    QVERIFY(picker->setProperty("options", int(QFileDialog::DontUseNativeDialog)));
-    QVERIFY(picker->setProperty("parentWindow", QVariant::fromValue<QWindow *>(view->quickWindow())));
-    QVERIFY(picker->setProperty("currentFolder", QUrl::fromLocalFile(dir.path())));
+    QCOMPARE(picker->parentWidget(), dialog.data());
+    picker->setOption(QFileDialog::DontUseNativeDialog);
+    picker->setDirectory(dir.path());
     file->forceActiveFocus();
     QTest::keyClicks(view, "previous.png");
     const auto openPicker = [&] {
@@ -528,17 +526,17 @@ void MainWindowTest::sourcePanelCanBrowseAndAdd()
             browse->mapToScene(browse->boundingRect().center()).toPoint());
     };
     openPicker();
-    QTRY_VERIFY(picker->property("visible").toBool());
-    QVERIFY(picker->setProperty("selectedFile", QUrl::fromLocalFile(path)));
+    QTRY_VERIFY(picker->isVisible());
+    picker->selectFile(path);
     QVERIFY(QMetaObject::invokeMethod(picker, "reject"));
-    QTRY_VERIFY(!picker->property("visible").toBool());
+    QTRY_VERIFY(!picker->isVisible());
     QCOMPARE(file->property("text").toString(), QString("previous.png"));
     QCOMPARE(state->sourceModel()->rowCount(), 0);
     openPicker();
-    QTRY_VERIFY(picker->property("visible").toBool());
-    QVERIFY(picker->setProperty("selectedFile", QUrl::fromLocalFile(path)));
+    QTRY_VERIFY(picker->isVisible());
+    picker->selectFile(path);
     QVERIFY(QMetaObject::invokeMethod(picker, "accept"));
-    QTRY_VERIFY(!picker->property("visible").toBool());
+    QTRY_VERIFY(!picker->isVisible());
     QTRY_COMPARE(file->property("text").toString(), path);
     QCOMPARE(root->property("filePath").toString(), path);
     QCOMPARE(state->sourceModel()->rowCount(), 0); // Picking is not creation.
@@ -554,13 +552,12 @@ void MainWindowTest::sourcePanelCanBrowseAndAdd()
     dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
     view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
     QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-    picker = view->rootObject()->findChild<QObject *>(QStringLiteral("sourceFileDialog"));
+    picker = dialog->findChild<QFileDialog *>(QStringLiteral("imageFileDialog"));
     QVERIFY(picker);
-    QVERIFY(picker->setProperty("options", int(QFileDialog::DontUseNativeDialog)));
-    QVERIFY(picker->setProperty("parentWindow", QVariant::fromValue<QWindow *>(view->quickWindow())));
-    QVERIFY(picker->setProperty("currentFolder", QUrl::fromLocalFile(dir.path())));
+    picker->setOption(QFileDialog::DontUseNativeDialog);
+    picker->setDirectory(dir.path());
     QVERIFY(QMetaObject::invokeMethod(picker, "open"));
-    QTRY_VERIFY(picker->property("visible").toBool());
+    QTRY_VERIFY(picker->isVisible());
     dialog->close();
     QTRY_VERIFY(dialog.isNull());
     QVERIFY(picker.isNull());
