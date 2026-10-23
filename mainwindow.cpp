@@ -120,6 +120,21 @@ void MainWindow::showSceneNameDialog(const QString &sceneId, const QString &init
         });
 }
 
+void MainWindow::showSceneRemovalDialog(const QString &sceneId)
+{
+    auto *model = m_studioState->sceneModel();
+    for (int row = 0; row < model->rowCount(); ++row) {
+        const auto index = model->index(row, 0);
+        if (index.data(StudioState::IdRole).toString() != sceneId)
+            continue;
+        showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SceneRemovalDialog.qml")),
+            tr("删除场景"), {{QStringLiteral("state"), QVariant::fromValue(m_studioState)},
+            {QStringLiteral("sceneId"), sceneId},
+            {QStringLiteral("sceneName"), index.data(StudioState::NameRole)}});
+        return;
+    }
+}
+
 void MainWindow::setupMenusAndToolBar()
 {
     m_viewMenu = menuBar()->addMenu(tr("视图"));
@@ -276,6 +291,8 @@ void MainWindow::setupScenesDock()
                 statusBar()->showMessage(tr("场景面板已加载"), 3000);
             connect(view->rootObject(), SIGNAL(sceneNameDialogRequested(QString,QString)),
                     this, SLOT(showSceneNameDialog(QString,QString)), Qt::UniqueConnection);
+            connect(view->rootObject(), SIGNAL(sceneRemovalDialogRequested(QString)),
+                    this, SLOT(showSceneRemovalDialog(QString)), Qt::UniqueConnection);
             pages->setCurrentWidget(view);
         }
     });

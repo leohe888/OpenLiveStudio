@@ -49,6 +49,8 @@ private slots:
     void scenePanelCanAddAndRenameAfterReload();
     void sceneRemovalDialogHandlesConfirmation_data();
     void sceneRemovalDialogHandlesConfirmation();
+    void scenePanelCanRemoveAndMove_data();
+    void scenePanelCanRemoveAndMove();
     void keepsOutputStatusVisibleWhenResized();
     void loadsScenePanelWithEmptyState();
     void loadsSourcePanelWithEmptyState();
@@ -605,8 +607,6 @@ void MainWindowTest::scenePanelCanAddAndRenameAfterReload()
             if (button->objectName() == QStringLiteral("addSceneButton")) {
                 add = button;
                 QVERIFY(button->isEnabled());
-            } else {
-                QVERIFY(!button->isEnabled());
             }
         }
         QVERIFY(add);
@@ -749,6 +749,121 @@ void MainWindowTest::sceneRemovalDialogHandlesConfirmation()
         QCOMPARE(state->sceneModel()->rowCount(), originalCount);
         QCOMPARE(state->currentSceneId(), targetId);
     }
+}
+
+void MainWindowTest::scenePanelCanRemoveAndMove_data()
+{
+    QTest::addColumn<bool>("reload");
+    QTest::newRow("initial") << false;
+    QTest::newRow("reloaded") << true;
+}
+
+void MainWindowTest::scenePanelCanRemoveAndMove()
+{
+    QFETCH(bool, reload);
+    MainWindow window;
+    window.show();
+    auto *state = window.findChild<StudioState *>();
+    auto *panel = window.findChild<QQuickWidget *>(QStringLiteral("scenesQuickWidget"));
+    QVERIFY(state);
+    QVERIFY(panel);
+    if (reload) {
+        const QUrl source = panel->source();
+        panel->setSource(QUrl(QStringLiteral("qrc:/missing-scene-actions.qml")));
+        QTRY_COMPARE(panel->status(), QQuickWidget::Error);
+        panel->setSource(source);
+    }
+    QTRY_COMPARE(panel->status(), QQuickWidget::Ready);
+    auto *actions = panel->rootObject()->findChild<QQuickItem *>(QStringLiteral("sceneActions"));
+    QVERIFY(actions);
+    const auto button = [&](const QString &name) -> QQuickItem * {
+        for (auto *item : actions->childItems()) {
+            if (item->objectName() == name)
+                return item;
+        }
+        return nullptr;
+    };
+    auto *remove = button("removeSceneButton");
+    auto *up = button("moveSceneUpButton");
+    auto *down = button("moveSceneDownButton");
+    QVERIFY(remove);
+    QVERIFY(up);
+    QVERIFY(down);
+    QVERIFY(!remove->isEnabled());
+    QVERIFY(!up->isEnabled());
+    QVERIFY(!down->isEnabled());
+    const auto click = [&](QQuickWidget *view, QQuickItem *item) {
+        QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
+            item->mapToScene(item->boundingRect().center()).toPoint());
+    };
+    click(panel, remove);
+    QVERIFY(!window.findChild<QDialog *>(QStringLiteral("qmlDialog")));
+    const QString firstId = state->currentSceneId();
+    for (int i = 0; i < 20; ++i)
+        QVERIFY(!state->addScene(QStringLiteral("Scene %1").arg(i)).isEmpty());
+    const QString lastId = state->currentSceneId();
+    QTRY_VERIFY(remove->isEnabled());
+    QTRY_VERIFY(up->isEnabled());
+    QVERIFY(!down->isEnabled());
+    auto *list = panel->rootObject()->findChild<QQuickItem *>(QStringLiteral("sceneList"));
+    auto *bar = panel->rootObject()->findChild<QQuickItem *>(QStringLiteral("sceneScrollBar"));
+    QVERIFY(list);
+    QVERIFY(bar);
+    QTRY_VERIFY(bar->isVisible());
+    QVERIFY(QMetaObject::invokeMethod(list, "positionViewAtEnd"));
+    QTRY_VERIFY(list->property("atYEnd").toBool());
+    click(panel, up);
+    QCOMPARE(state->sceneModel()->index(19, 0).data(StudioState::IdRole).toString(), lastId);
+    QCOMPARE(state->currentSceneId(), lastId);
+    QTRY_VERIFY(down->isEnabled());
+    click(panel, down);
+    QCOMPARE(state->sceneModel()->index(20, 0).data(StudioState::IdRole).toString(), lastId);
+    QTRY_VERIFY(!down->isEnabled());
+    QVERIFY(state->selectScene(firstId));
+    QTRY_VERIFY(!up->isEnabled());
+    QTRY_VERIFY(down->isEnabled());
+    click(panel, down);
+    QCOMPARE(state->sceneModel()->index(1, 0).data(StudioState::IdRole).toString(), firstId);
+    QTRY_VERIFY(up->isEnabled());
+    click(panel, up);
+    QCOMPARE(state->sceneModel()->index(0, 0).data(StudioState::IdRole).toString(), firstId);
+    const QString nextId = state->sceneModel()->index(1, 0).data(StudioState::IdRole).toString();
+    click(panel, remove);
+    QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
+    QVERIFY(dialog);
+    QCOMPARE(window.findChildren<QDialog *>().size(), 1);
+    QCOMPARE(dialog->windowTitle(), QString::fromUtf8("删除场景"));
+    auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
+    QVERIFY(view);
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    QCOMPARE(view->rootObject()->property("sceneId").toString(), firstId);
+    auto *cancel = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("cancelSceneRemovalButton"));
+    QVERIFY(cancel);
+    QTRY_VERIFY(cancel->hasActiveFocus());
+    QTest::keyClick(view, Qt::Key_Escape);
+    QTRY_VERIFY(dialog.isNull());
+    QCOMPARE(state->sceneModel()->rowCount(), 21);
+    QCOMPARE(state->currentSceneId(), firstId);
+    click(panel, remove);
+    dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
+    QVERIFY(dialog);
+    view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
+    QVERIFY(view);
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    auto *confirm = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("confirmSceneRemovalButton"));
+    QVERIFY(confirm);
+    click(view, confirm);
+    QTRY_VERIFY(dialog.isNull());
+    QCOMPARE(state->sceneModel()->rowCount(), 20);
+    QCOMPARE(state->currentSceneId(), nextId);
+    while (state->canRemoveCurrentScene())
+        QVERIFY(state->removeScene(state->currentSceneId()));
+    QTRY_VERIFY(!remove->isEnabled());
+    QTRY_VERIFY(!up->isEnabled());
+    QTRY_VERIFY(!down->isEnabled());
+    click(panel, remove);
+    QCOMPARE(state->sceneModel()->rowCount(), 1);
+    QVERIFY(!window.findChild<QDialog *>(QStringLiteral("qmlDialog")));
 }
 
 void MainWindowTest::keepsOutputStatusVisibleWhenResized()

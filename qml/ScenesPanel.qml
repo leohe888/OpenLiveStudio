@@ -10,6 +10,7 @@ Rectangle {
     color: "#1d1d1d"
     readonly property var state: typeof studioState !== "undefined" ? studioState : null
     signal sceneNameDialogRequested(string sceneId, string initialName)
+    signal sceneRemovalDialogRequested(string sceneId)
 
     ColumnLayout {
         anchors.fill: parent
@@ -123,8 +124,24 @@ Rectangle {
                         icon.width: 16
                         icon.height: 16
                         icon.color: enabled ? "#d6d6d6" : "#666666"
-                        enabled: root.state !== null && modelData.name === "addSceneButton"
-                        onClicked: root.sceneNameDialogRequested("", "")
+                        enabled: {
+                            if (!root.state) return false
+                            switch (modelData.name) {
+                            case "addSceneButton": return true
+                            case "removeSceneButton": return root.state.canRemoveCurrentScene
+                            case "moveSceneUpButton": return root.state.canMoveCurrentSceneUp
+                            case "moveSceneDownButton": return root.state.canMoveCurrentSceneDown
+                            default: return false
+                            }
+                        }
+                        onClicked: {
+                            switch (modelData.name) {
+                            case "addSceneButton": root.sceneNameDialogRequested("", ""); break
+                            case "removeSceneButton": root.sceneRemovalDialogRequested(root.state.currentSceneId); break
+                            case "moveSceneUpButton": root.state.moveScene(root.state.currentSceneId, -1); break
+                            case "moveSceneDownButton": root.state.moveScene(root.state.currentSceneId, 1); break
+                            }
+                        }
                         Accessible.name: modelData.label
                         ToolTip.text: modelData.label
 
