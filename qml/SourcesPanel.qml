@@ -19,15 +19,12 @@ Rectangle {
         display: AbstractButton.IconOnly
         icon.width: 16
         icon.height: 16
-        icon.color: enabled ? (checked ? "#8fc7ff" : "#d6d6d6") : "#666666"
+        icon.color: enabled ? "#d6d6d6" : "#666666"
         enabled: false
         Accessible.name: text
         ToolTip.text: text
         ToolTip.visible: hovered
-        background: Rectangle {
-            color: parent.checked ? "#253b50" : "transparent"
-            radius: 3
-        }
+        background: Item {}
     }
 
     ColumnLayout {
