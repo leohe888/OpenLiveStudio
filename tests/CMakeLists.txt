@@ -6,7 +6,7 @@ qt_add_executable(tst_studiostate
     ../studiostate.h
 )
 target_include_directories(tst_studiostate PRIVATE "${PROJECT_SOURCE_DIR}")
-target_link_libraries(tst_studiostate PRIVATE Qt6::Core Qt6::Test)
+target_link_libraries(tst_studiostate PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
 add_test(NAME core.studiostate
     COMMAND "${CMAKE_COMMAND}" -E env
         "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"

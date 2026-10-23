@@ -1,13 +1,22 @@
 #include "studiostate.h"
 
 #include <QAbstractListModel>
+#include <QFileInfo>
+#include <QImageReader>
 #include <QUuid>
 
 class StudioState::ListModel : public QAbstractListModel
 {
 public:
     ListModel(const QByteArray &idRole, const QByteArray &nameRole, QObject *parent)
-        : QAbstractListModel(parent), m_roles{{IdRole, idRole}, {NameRole, nameRole}} {}
+        : QAbstractListModel(parent), m_roles{{IdRole, idRole}, {NameRole, nameRole}}
+    {
+        if (idRole == "sourceId") {
+            m_roles.insert(TypeRole, "sourceType");
+            m_roles.insert(FilePathRole, "sourceFilePath");
+            m_roles.insert(OriginalSizeRole, "sourceOriginalSize");
+        }
+    }
 
     int rowCount(const QModelIndex &parent = {}) const override
     {
@@ -24,6 +33,14 @@ public:
             return item.id;
         if (role == NameRole || role == Qt::DisplayRole)
             return item.name;
+        if (m_roles.contains(role)) {
+            if (role == TypeRole)
+                return item.type;
+            if (role == FilePathRole)
+                return item.filePath;
+            if (role == OriginalSizeRole)
+                return item.originalSize;
+        }
         return {};
     }
 
@@ -48,6 +65,13 @@ public:
     {
         m_items[row].name = name;
         emit dataChanged(index(row, 0), index(row, 0), {NameRole, Qt::DisplayRole});
+    }
+
+    void prepend(const SourceData &item)
+    {
+        beginInsertRows({}, 0, 0);
+        m_items.prepend(item);
+        endInsertRows();
     }
 
     void remove(int row)
@@ -243,4 +267,51 @@ bool StudioState::moveScene(const QString &id, int offset)
     m_scenes.move(from, to);
     m_sceneModel->move(from, to);
     return true;
+}
+
+QString StudioState::validateImageSource(const QString &sceneId, const QString &name,
+                                        const QString &filePath, QSize *size) const
+{
+    const int row = sceneRow(sceneId);
+    if (row < 0)
+        return tr("目标场景不存在。");
+    const QString trimmed = name.trimmed();
+    if (trimmed.isEmpty())
+        return tr("来源名称不能为空。");
+    for (const auto &source : m_scenes.at(row).sources) {
+        if (source.name.trimmed().compare(trimmed, Qt::CaseInsensitive) == 0)
+            return tr("来源名称已存在。");
+    }
+    const QFileInfo file(filePath);
+    if (filePath.isEmpty() || !file.isFile() || !file.isReadable())
+        return tr("请选择存在且可读取的图像文件。");
+    QImageReader reader(file.absoluteFilePath());
+    const QImage image = reader.read();
+    if (image.isNull())
+        return tr("无法读取图像：%1").arg(reader.errorString());
+    if (size)
+        *size = image.size();
+    return {};
+}
+
+QString StudioState::imageSourceError(const QString &sceneId, const QString &name,
+                                     const QString &filePath) const
+{
+    return validateImageSource(sceneId, name, filePath, nullptr);
+}
+
+QString StudioState::addImageSource(const QString &sceneId, const QString &name,
+                                   const QString &filePath)
+{
+    QSize size;
+    if (!validateImageSource(sceneId, name, filePath, &size).isEmpty())
+        return {};
+    const SourceData source{QUuid::createUuid().toString(QUuid::WithoutBraces), name.trimmed(),
+                            QStringLiteral("image"), QFileInfo(filePath).absoluteFilePath(), size};
+    m_scenes[sceneRow(sceneId)].sources.prepend(source);
+    if (sceneId == m_currentSceneId) {
+        m_sourceModel->prepend(source);
+        selectSource(source.id);
+    }
+    return source.id;
 }

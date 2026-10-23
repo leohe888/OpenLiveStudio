@@ -4,6 +4,7 @@
 #include <QAbstractItemModel>
 #include <QList>
 #include <QObject>
+#include <QSize>
 #include <QString>
 
 class StudioState : public QObject
@@ -18,9 +19,15 @@ class StudioState : public QObject
     Q_PROPERTY(bool canMoveCurrentSceneDown READ canMoveCurrentSceneDown NOTIFY sceneMoveAvailabilityChanged)
 
 public:
-    struct SourceData { QString id; QString name; };
+    struct SourceData {
+        QString id;
+        QString name;
+        QString type;
+        QString filePath;
+        QSize originalSize;
+    };
     struct SceneData { QString id; QString name; QList<SourceData> sources; };
-    enum Role { IdRole = Qt::UserRole + 1, NameRole };
+    enum Role { IdRole = Qt::UserRole + 1, NameRole, TypeRole, FilePathRole, OriginalSizeRole };
 
     explicit StudioState(QObject *parent = nullptr);
     // Initial IDs must be nonempty and unique within each list.
@@ -46,6 +53,12 @@ public:
     Q_INVOKABLE bool removeScene(const QString &id);
     // Move one row: offset must be -1 (up) or 1 (down).
     Q_INVOKABLE bool moveScene(const QString &id, int offset);
+    // Paths are local filesystem paths. Empty error means the image can be decoded.
+    Q_INVOKABLE QString imageSourceError(const QString &sceneId, const QString &name,
+                                         const QString &filePath) const;
+    // Returns the new ID, or empty on failure. Adds at the top of the target scene.
+    Q_INVOKABLE QString addImageSource(const QString &sceneId, const QString &name,
+                                       const QString &filePath);
 
 signals:
     void currentSceneIdChanged();
@@ -56,6 +69,8 @@ signals:
 private:
     class ListModel;
     int sceneRow(const QString &id) const;
+    QString validateImageSource(const QString &sceneId, const QString &name,
+                                const QString &filePath, QSize *size) const;
     QList<SceneData> m_scenes;
     ListModel *m_sceneModel;
     ListModel *m_sourceModel;

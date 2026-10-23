@@ -1,7 +1,10 @@
 #include "studiostate.h"
 
 #include <QPersistentModelIndex>
+#include <QFile>
+#include <QImage>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QTest>
 
 class StudioStateTest : public QObject
@@ -25,6 +28,9 @@ private slots:
     void movesOneRowWithoutChangingSelection();
     void rejectsInvalidSceneMoves();
     void updatesMoveAvailabilityAfterSceneChanges();
+    void addsImageSourcesAndPreservesSceneIsolation();
+    void rejectsInvalidImageSources_data();
+    void rejectsInvalidImageSources();
 };
 
 static QList<StudioState::SceneData> scenes()
@@ -433,6 +439,109 @@ void StudioStateTest::updatesMoveAvailabilityAfterSceneChanges()
     QVERIFY(!available.isEmpty());
     QVERIFY(!state.canMoveCurrentSceneUp());
     QVERIFY(!state.canMoveCurrentSceneDown());
+}
+
+void StudioStateTest::addsImageSourcesAndPreservesSceneIsolation()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath("image.png");
+    QImage image(13, 7, QImage::Format_ARGB32);
+    image.fill(Qt::transparent);
+    QVERIFY(image.save(path));
+    StudioState state(scenes());
+    auto *model = state.sourceModel();
+    QSignalSpy inserted(model, &QAbstractItemModel::rowsInserted);
+    QSignalSpy reset(model, &QAbstractItemModel::modelReset);
+    QSignalSpy selected(&state, &StudioState::currentSourceIdChanged);
+    QPersistentModelIndex previous(model->index(0, 0));
+    QVERIFY(state.imageSourceError("first", " Logo ", path).isEmpty());
+    const QString id = state.addImageSource("first", " Logo ", path);
+    QVERIFY(!id.isEmpty());
+    QCOMPARE(state.currentSceneId(), QString("first"));
+    QCOMPARE(state.currentSourceId(), id);
+    QCOMPARE(model->rowCount(), 3);
+    QCOMPARE(inserted.count(), 1);
+    QCOMPARE(inserted.first().at(1).toInt(), 0);
+    QCOMPARE(inserted.first().at(2).toInt(), 0);
+    QCOMPARE(reset.count(), 0);
+    QCOMPARE(selected.count(), 1);
+    QCOMPARE(previous.row(), 1);
+    QCOMPARE(previous.data(StudioState::IdRole).toString(), QString("a"));
+    const auto row = model->index(0, 0);
+    QCOMPARE(row.data(StudioState::IdRole).toString(), id);
+    QCOMPARE(row.data(StudioState::NameRole).toString(), QString("Logo"));
+    QCOMPARE(row.data(StudioState::TypeRole).toString(), QString("image"));
+    QCOMPARE(row.data(StudioState::FilePathRole).toString(), path);
+    QCOMPARE(row.data(StudioState::OriginalSizeRole).toSize(), QSize(13, 7));
+    QCOMPARE(model->roleNames().value(StudioState::OriginalSizeRole), QByteArray("sourceOriginalSize"));
+    QVERIFY(!state.sceneModel()->index(0, 0).data(StudioState::TypeRole).isValid());
+    // A captured target scene can differ from the current scene without changing selection.
+    const QString other = state.addImageSource("second", "Logo", path);
+    QVERIFY(!other.isEmpty());
+    QVERIFY(other != id);
+    QCOMPARE(state.currentSourceId(), id);
+    QCOMPARE(inserted.count(), 1);
+    QVERIFY(state.selectScene("second"));
+    QCOMPARE(model->rowCount(), 3);
+    QCOMPARE(model->index(0, 0).data(StudioState::IdRole).toString(), other);
+    QCOMPARE(model->index(0, 0).data(StudioState::OriginalSizeRole).toSize(), image.size());
+    QVERIFY(state.currentSourceId().isEmpty());
+    QVERIFY(state.selectScene("first"));
+    QCOMPARE(model->index(0, 0).data(StudioState::IdRole).toString(), id);
+    QCOMPARE(model->index(0, 0).data(StudioState::FilePathRole).toString(), path);
+}
+
+void StudioStateTest::rejectsInvalidImageSources_data()
+{
+    QTest::addColumn<QString>("failure");
+    for (const auto *name : {"empty-name", "duplicate-name", "missing-file", "empty-path",
+                             "directory", "corrupt-file", "truncated-image", "missing-scene"})
+        QTest::newRow(name) << QString::fromLatin1(name);
+}
+
+void StudioStateTest::rejectsInvalidImageSources()
+{
+    QFETCH(QString, failure);
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString path = dir.filePath("image.png");
+    QImage image(13, 7, QImage::Format_ARGB32);
+    image.fill(Qt::red);
+    QVERIFY(image.save(path));
+    StudioState state(scenes());
+    QVERIFY(state.selectSource("a"));
+    QString sceneId = "first", name = "Logo";
+    if (failure == "empty-name") name = " \t ";
+    if (failure == "duplicate-name") name = " iMaGe ";
+    if (failure == "missing-scene") sceneId = "missing";
+    if (failure == "missing-file") path = dir.filePath("missing.png");
+    if (failure == "empty-path") path.clear();
+    if (failure == "directory") path = dir.path();
+    if (failure == "corrupt-file" || failure == "truncated-image") {
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::ReadWrite));
+        if (failure == "corrupt-file") {
+            QVERIFY(file.resize(0));
+            QCOMPARE(file.write("not an image"), qint64(12));
+        } else {
+            QVERIFY(file.resize(40)); // Keep PNG header, discard pixel data.
+        }
+    }
+    QSignalSpy inserted(state.sourceModel(), &QAbstractItemModel::rowsInserted);
+    QSignalSpy reset(state.sourceModel(), &QAbstractItemModel::modelReset);
+    QSignalSpy selected(&state, &StudioState::currentSourceIdChanged);
+    QVERIFY(!state.imageSourceError(sceneId, name, path).isEmpty());
+    QVERIFY(state.addImageSource(sceneId, name, path).isEmpty());
+    QCOMPARE(state.sourceModel()->rowCount(), 2);
+    QCOMPARE(state.currentSourceId(), QString("a"));
+    QCOMPARE(inserted.count(), 0);
+    QCOMPARE(reset.count(), 0);
+    QCOMPARE(selected.count(), 0);
+    QVERIFY(state.selectScene("second"));
+    QCOMPARE(state.sourceModel()->rowCount(), 2);
+    StudioState empty(QList<StudioState::SceneData>{});
+    QVERIFY(empty.addImageSource({}, "Logo", path).isEmpty());
 }
 
 QTEST_GUILESS_MAIN(StudioStateTest)
