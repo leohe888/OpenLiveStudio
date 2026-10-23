@@ -22,6 +22,7 @@
 #include <QStatusBar>
 #include <QTemporaryDir>
 #include <QToolBar>
+#include <QWheelEvent>
 #include <QtTest/QTest>
 #include <memory>
 
@@ -35,6 +36,8 @@ private slots:
     void hasWindowShell();
     void panelsShareStateAcrossReloadsAndReleaseItWithWindow();
     void panelsFollowSceneAndSourceSelection();
+    void listScrollBarsHandleOverflow_data();
+    void listScrollBarsHandleOverflow();
     void qmlDialogReceivesInitialPropertiesAndCloses();
     void qmlDialogShowsLoadErrors_data();
     void qmlDialogShowsLoadErrors();
@@ -214,6 +217,81 @@ void MainWindowTest::panelsFollowSceneAndSourceSelection()
     QTRY_VERIFY(!empty->isVisible());
     QTRY_VERIFY(row(sources, "sourceList", "sourceRow_a"));
     QVERIFY(!row(sources, "sourceList", "sourceRow_a")->property("selected").toBool());
+}
+
+void MainWindowTest::listScrollBarsHandleOverflow_data()
+{
+    QTest::addColumn<QString>("panelName");
+    QTest::addColumn<QString>("prefix");
+    QTest::newRow("scenes") << QString("ScenesPanel") << QString("scene");
+    QTest::newRow("sources") << QString("SourcesPanel") << QString("source");
+}
+
+void MainWindowTest::listScrollBarsHandleOverflow()
+{
+    QFETCH(QString, panelName);
+    QFETCH(QString, prefix);
+    QList<StudioState::SourceData> sources;
+    QList<StudioState::SceneData> scenes;
+    for (int i = 0; i < 24; ++i)
+        sources.append({QString::number(i), QStringLiteral("Source %1").arg(i)});
+    for (int i = 0; i < 24; ++i)
+        scenes.append({QString::number(i), QStringLiteral("Scene %1").arg(i), sources});
+    StudioState state(scenes);
+    StudioState shortState(QList<StudioState::SceneData>{{"only", "Only", {{"one", "One"}}}});
+    QVERIFY(state.selectSource("0"));
+    QQuickWidget panel;
+    panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
+    panel.resize(238, 150);
+    panel.rootContext()->setContextProperty(QStringLiteral("studioState"), &state);
+    panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(panelName)));
+    QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
+    panel.show();
+    auto *list = panel.rootObject()->findChild<QQuickItem *>(prefix + "List");
+    auto *bar = panel.rootObject()->findChild<QQuickItem *>(prefix + "ScrollBar");
+    QVERIFY(list);
+    QVERIFY(bar);
+    QTRY_COMPARE(list->property("count").toInt(), 24);
+    QTRY_VERIFY(bar->isVisible());
+    const QPoint wheelPosition = list->mapToScene(list->boundingRect().center()).toPoint();
+    QWheelEvent wheel(wheelPosition, panel.mapToGlobal(wheelPosition), {}, QPoint(0, -120),
+        Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+    QCoreApplication::sendEvent(&panel, &wheel);
+    QTRY_VERIFY(list->property("contentY").toReal() > 0);
+    QTRY_VERIFY(bar->property("position").toReal() > 0);
+    const auto findLast = [&]() -> QQuickItem * {
+        auto *content = list->property("contentItem").value<QQuickItem *>();
+        if (content) {
+            for (auto *item : content->childItems()) {
+                if (item->objectName() == prefix + "Row_23")
+                    return item;
+            }
+        }
+        return nullptr;
+    };
+    auto *thumb = bar->property("contentItem").value<QQuickItem *>();
+    QVERIFY(thumb);
+    QTRY_VERIFY(thumb->height() > 0 && thumb->height() < bar->height());
+    const QPoint start = thumb->mapToScene(thumb->boundingRect().center()).toPoint();
+    const QPoint end = bar->mapToScene(QPointF(bar->width() / 2, bar->height() - 2)).toPoint();
+    QTest::mousePress(&panel, Qt::LeftButton, Qt::NoModifier, start);
+    QTest::mouseMove(&panel, end, 20);
+    QTest::mouseRelease(&panel, Qt::LeftButton, Qt::NoModifier, end);
+    QTRY_VERIFY(list->property("atYEnd").toBool());
+    QTRY_VERIFY(findLast());
+    const QRectF lastRect = findLast()->mapRectToItem(list, findLast()->boundingRect());
+    QVERIFY(lastRect.top() >= -1 && lastRect.bottom() <= list->height() + 1);
+    QVERIFY(lastRect.right() <= bar->x());
+    QCOMPARE(state.currentSceneId(), QString("0"));
+    QCOMPARE(state.currentSourceId(), QString("0"));
+    panel.resize(238, 1000);
+    QTRY_VERIFY(!bar->isVisible());
+    panel.resize(238, 150);
+    QTRY_VERIFY(bar->isVisible());
+    // A short list needs no scrollbar even in the smaller panel.
+    panel.rootContext()->setContextProperty(QStringLiteral("studioState"), &shortState);
+    QTRY_COMPARE(list->property("count").toInt(), 1);
+    QTRY_VERIFY(!bar->isVisible());
 }
 
 void MainWindowTest::hasWindowShell()

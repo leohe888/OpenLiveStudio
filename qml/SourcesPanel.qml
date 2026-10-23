@@ -41,13 +41,33 @@ Rectangle {
                 currentIndex: -1
                 keyNavigationEnabled: false
 
+                ScrollBar.vertical: ScrollBar {
+                    id: sourceScrollBar
+                    objectName: "sourceScrollBar"
+                    policy: sourceList.contentHeight > sourceList.height
+                        ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
+                    implicitWidth: 12
+                    padding: 2
+                    minimumSize: Math.min(1, 24 / Math.max(1, height))
+                    hoverEnabled: true
+                    z: 1
+                    contentItem: Rectangle {
+                        implicitWidth: 8
+                        implicitHeight: 24
+                        radius: 4
+                        color: sourceScrollBar.pressed ? "#9a9a9a"
+                            : (sourceScrollBar.hovered ? "#808080" : "#606060")
+                    }
+                    background: Rectangle { color: "#232323" }
+                }
+
                 delegate: Rectangle {
                     required property string sourceId
                     required property string sourceName
                     readonly property bool selected: root.state !== null
                         && root.state.currentSourceId === sourceId
                     objectName: "sourceRow_" + sourceId
-                    width: sourceList.width
+                    width: sourceList.width - (sourceScrollBar.visible ? sourceScrollBar.width : 0)
                     height: 32
                     color: selected ? "#31445b" : "transparent"
                     Accessible.role: Accessible.ListItem
