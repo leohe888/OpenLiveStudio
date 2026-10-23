@@ -47,6 +47,8 @@ private slots:
     void sceneNameDialogCancelsWithoutChanges_data();
     void sceneNameDialogCancelsWithoutChanges();
     void scenePanelCanAddAndRenameAfterReload();
+    void sceneRemovalDialogHandlesConfirmation_data();
+    void sceneRemovalDialogHandlesConfirmation();
     void keepsOutputStatusVisibleWhenResized();
     void loadsScenePanelWithEmptyState();
     void loadsSourcePanelWithEmptyState();
@@ -664,6 +666,88 @@ void MainWindowTest::scenePanelCanAddAndRenameAfterReload()
         QCOMPARE(state->currentSceneId(), id);
         QTRY_COMPARE(findRow()->property("sceneName").toString(), renamed);
         QCOMPARE(state->sceneModel()->rowCount(), pass + 2);
+    }
+}
+
+void MainWindowTest::sceneRemovalDialogHandlesConfirmation_data()
+{
+    QTest::addColumn<QString>("action");
+    for (const auto *name : {"confirm", "cancel", "escape", "close", "stale", "last"})
+        QTest::newRow(name) << QString::fromLatin1(name);
+}
+
+void MainWindowTest::sceneRemovalDialogHandlesConfirmation()
+{
+    QFETCH(QString, action);
+    MainWindow window;
+    window.show();
+    auto *state = window.findChild<StudioState *>();
+    QVERIFY(state);
+    const QString targetId = state->currentSceneId();
+    const QString name = QStringLiteral("<b>Scene & name</b>");
+    QVERIFY(state->renameScene(targetId, name));
+    const QString otherId = action == "last" ? QString() : state->addScene("Other");
+    QVERIFY(state->selectScene(targetId));
+    const int originalCount = state->sceneModel()->rowCount();
+    window.showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SceneRemovalDialog.qml")),
+        QStringLiteral("Remove scene"), {{"state", QVariant::fromValue(state)},
+        {"sceneId", targetId}, {"sceneName", name}});
+    QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
+    QVERIFY(dialog);
+    auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
+    QVERIFY(view);
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    QPointer<QQuickItem> root = view->rootObject();
+    QVERIFY(root);
+    auto *message = root->findChild<QQuickItem *>(QStringLiteral("sceneRemovalMessage"));
+    auto *confirm = root->findChild<QQuickItem *>(QStringLiteral("confirmSceneRemovalButton"));
+    auto *cancel = root->findChild<QQuickItem *>(QStringLiteral("cancelSceneRemovalButton"));
+    auto *error = root->findChild<QQuickItem *>(QStringLiteral("sceneRemovalError"));
+    QVERIFY(message);
+    QVERIFY(confirm);
+    QVERIFY(cancel);
+    QVERIFY(error);
+    QVERIFY(message->property("text").toString().contains(name));
+    QCOMPARE(message->property("textFormat").toInt(), 0); // Text.PlainText
+    QTRY_VERIFY(cancel->hasActiveFocus());
+    QCOMPARE(state->sceneModel()->rowCount(), originalCount);
+    if (action == "confirm") {
+        // A changed row or current selection must not change the captured target.
+        QVERIFY(state->moveScene(targetId, 1));
+        QVERIFY(state->selectScene(otherId));
+    } else if (action == "stale") {
+        QVERIFY(state->removeScene(targetId));
+    }
+    const auto click = [&](QQuickItem *button) {
+        QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
+            button->mapToScene(button->boundingRect().center()).toPoint());
+    };
+    if (action == "cancel") {
+        click(cancel);
+    } else if (action == "escape") {
+        QTest::keyClick(view, Qt::Key_Escape);
+    } else if (action == "close") {
+        dialog->close();
+    } else {
+        click(confirm);
+        if (action == "stale" || action == "last") {
+            QVERIFY(dialog->isVisible());
+            QTRY_VERIFY(!error->property("text").toString().isEmpty());
+            QCOMPARE(state->sceneModel()->rowCount(), 1);
+            const QString remainingId = action == "last" ? targetId : otherId;
+            QCOMPARE(state->currentSceneId(), remainingId);
+            click(cancel);
+        }
+    }
+    QTRY_VERIFY(dialog.isNull());
+    QVERIFY(root.isNull());
+    if (action == "confirm" || action == "stale") {
+        QCOMPARE(state->sceneModel()->rowCount(), 1);
+        QCOMPARE(state->currentSceneId(), otherId);
+        QVERIFY(!state->selectScene(targetId));
+    } else {
+        QCOMPARE(state->sceneModel()->rowCount(), originalCount);
+        QCOMPARE(state->currentSceneId(), targetId);
     }
 }
 
