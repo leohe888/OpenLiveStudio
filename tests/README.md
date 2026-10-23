@@ -30,6 +30,50 @@ Use a terminal with the selected MSVC compiler and build tool available. For a
 multi-configuration generator, `-C Debug` must match the configuration built.
 To omit test targets, reconfigure with `-DBUILD_TESTING=OFF`.
 
+## GitHub Actions
+
+The `Windows CI` workflow in `.github/workflows/windows-ci.yml` builds the
+application and tests on `windows-2022` with Visual Studio 2022, x64, Debug and
+Qt 6.8.3. The standard desktop Qt installation includes Qt Test, Qt Quick,
+Quick Controls and SVG; no Qt account or custom repository secrets are required.
+The Qt installation is cached. Actions are pinned to commit hashes, with their
+release versions recorded beside each reference.
+
+The workflow runs on pushes to `main`, pull requests, and manual dispatch.
+A local commit does not trigger CI until pushed to GitHub. Once the workflow
+is on the default branch, open **Actions > Windows CI > Run workflow** to
+start it manually. If Actions are disabled by repository or organization
+policy, enable this workflow and allow the referenced actions first.
+
+The build uses the Visual Studio multi-configuration generator:
+
+```powershell
+cmake -S . -B build/ci -G "Visual Studio 17 2022" -A x64 -DBUILD_TESTING=ON
+cmake --build build/ci --config Debug --parallel
+ctest --test-dir build/ci -C Debug --output-on-failure --no-tests=error --output-junit test-results.xml
+```
+
+Install Qt and make its CMake packages discoverable before running these
+commands locally, for example by setting `CMAKE_PREFIX_PATH` to the Qt kit.
+The Qt installation action supplies this environment in CI; local absolute
+paths are not embedded in the workflow.
+
+In a workflow run, inspect the Configure, Build and Test steps. CTest reports
+failures in the Test step and treats an empty test set as an error. The existing
+CTest configuration sets the Qt DLL, plugin and QML paths and uses `offscreen`
+with the software Qt Quick backend. The job has a 30-minute timeout; each test
+keeps its CTest timeout. A newer run on the same branch cancels the older run.
+
+The `windows-debug-test-logs` artifact contains available CTest logs, JUnit
+results and the CMake configure log, including after a failed step. Logs are
+retained for seven days; a failure before configuration may leave no files to
+upload. Build errors remain visible in the Build step's console log.
+
+Accept the workflow after its first GitHub-hosted run has passed configuration,
+compilation and testing. Local checks do not establish that the hosted runner
+or Qt download succeeds. This workflow does not package or publish the app,
+and it does not verify real GPU rendering, capture devices or media output.
+
 ## Current coverage
 
 `ui.mainwindow` covers window lifecycle and structure, output status visibility
