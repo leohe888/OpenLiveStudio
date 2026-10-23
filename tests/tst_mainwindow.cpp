@@ -2,6 +2,8 @@
 
 #include <QAction>
 #include <QDockWidget>
+#include <QDialog>
+#include <QFile>
 #include <QImageReader>
 #include <QLabel>
 #include <QMenuBar>
@@ -14,6 +16,7 @@
 #include <QRegularExpression>
 #include <QSignalSpy>
 #include <QStatusBar>
+#include <QTemporaryDir>
 #include <QToolBar>
 #include <QtTest/QTest>
 #include <memory>
@@ -26,6 +29,9 @@ private slots:
     void init();
     void canShowAndClose();
     void hasWindowShell();
+    void qmlDialogReceivesInitialPropertiesAndCloses();
+    void qmlDialogShowsLoadErrors_data();
+    void qmlDialogShowsLoadErrors();
     void keepsOutputStatusVisibleWhenResized();
     void loadsScenePanelWithEmptyState();
     void loadsSourcePanelWithEmptyState();
@@ -83,6 +89,100 @@ void MainWindowTest::hasWindowShell()
     QCOMPARE(window.toolBarArea(toolBar), Qt::TopToolBarArea);
     QVERIFY(window.statusBar()->isVisible());
     QVERIFY(window.findChild<QLabel *>(QStringLiteral("previewPlaceholder")));
+}
+
+void MainWindowTest::qmlDialogReceivesInitialPropertiesAndCloses()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    QFile file(directory.filePath(QStringLiteral("Dialog.qml")));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    const QByteArray qml = R"(
+import QtQuick
+Rectangle {
+    implicitWidth: 340; implicitHeight: 180
+    required property string message
+    property string completedMessage
+    signal closeRequested()
+    Component.onCompleted: completedMessage = message
+    MouseArea { anchors.fill: parent; onClicked: parent.closeRequested() }
+})";
+    QCOMPARE(file.write(qml), qint64(qml.size()));
+    file.close();
+    MainWindow window;
+    window.show();
+    window.showDialog(QUrl::fromLocalFile(file.fileName()), QStringLiteral("Test dialog"),
+                      {{QStringLiteral("message"), QStringLiteral("Initial value")}});
+    QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
+    QVERIFY(dialog);
+    auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
+    QVERIFY(view);
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    QPointer<QQuickItem> root = view->rootObject();
+    QVERIFY(root);
+    QCOMPARE(root->property("completedMessage").toString(), QStringLiteral("Initial value"));
+    QCOMPARE(dialog->windowTitle(), QStringLiteral("Test dialog"));
+    QTRY_VERIFY(dialog->isVisible());
+    dialog->resize(400, 240);
+    QTRY_COMPARE(root->size(), QSizeF(view->size()));
+    QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier, QPoint(20, 20));
+    QTRY_VERIFY(dialog.isNull());
+    QVERIFY(root.isNull());
+    QVERIFY(window.isVisible());
+
+    window.showDialog(QUrl::fromLocalFile(file.fileName()), QStringLiteral("Reopened"),
+                      {{QStringLiteral("message"), QStringLiteral("New value")}});
+    dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
+    QVERIFY(dialog);
+    view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
+    QVERIFY(view);
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    QCOMPARE(view->rootObject()->property("completedMessage").toString(), QStringLiteral("New value"));
+    QTest::keyClick(dialog, Qt::Key_Escape);
+    QTRY_VERIFY(dialog.isNull());
+
+    auto owner = std::make_unique<MainWindow>();
+    owner->showDialog(QUrl::fromLocalFile(file.fileName()), QStringLiteral("Owned dialog"),
+                      {{QStringLiteral("message"), QStringLiteral("Owned value")}});
+    dialog = owner->findChild<QDialog *>(QStringLiteral("qmlDialog"));
+    QVERIFY(dialog);
+    owner.reset();
+    QVERIFY(dialog.isNull());
+}
+
+void MainWindowTest::qmlDialogShowsLoadErrors_data()
+{
+    QTest::addColumn<QByteArray>("qml");
+    QTest::newRow("missing-file") << QByteArray();
+    QTest::newRow("syntax-error") << QByteArray("import QtQuick\nRectangle {");
+    QTest::newRow("missing-required-property")
+        << QByteArray("import QtQuick\nItem { required property string message }");
+    QTest::newRow("non-visual-root") << QByteArray("import QtQml\nQtObject {}");
+}
+
+void MainWindowTest::qmlDialogShowsLoadErrors()
+{
+    QFETCH(QByteArray, qml);
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    QFile file(directory.filePath(QStringLiteral("Dialog.qml")));
+    if (!qml.isEmpty()) {
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        QCOMPARE(file.write(qml), qint64(qml.size()));
+        file.close();
+    }
+    MainWindow window;
+    window.show();
+    window.showDialog(QUrl::fromLocalFile(file.fileName()), QStringLiteral("Load error"));
+    QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
+    QVERIFY(dialog);
+    auto *errorLabel = dialog->findChild<QLabel *>(QStringLiteral("dialogLoadError"));
+    QVERIFY(errorLabel);
+    QTRY_VERIFY(errorLabel->isVisible());
+    QVERIFY(!errorLabel->toolTip().isEmpty());
+    QTest::keyClick(dialog, Qt::Key_Escape);
+    QTRY_VERIFY(dialog.isNull());
+    QVERIFY(window.isVisible());
 }
 
 void MainWindowTest::keepsOutputStatusVisibleWhenResized()

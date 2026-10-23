@@ -2,11 +2,14 @@
 
 #include <QAction>
 #include <QDebug>
+#include <QDialog>
 #include <QDockWidget>
 #include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
+#include <QQmlComponent>
 #include <QQmlError>
+#include <QQuickItem>
 #include <QQuickWidget>
 #include <QResizeEvent>
 #include <QStatusBar>
@@ -35,6 +38,70 @@ MainWindow::MainWindow(QWidget *parent)
 }
 
 MainWindow::~MainWindow() = default;
+
+void MainWindow::showDialog(const QUrl &source, const QString &title,
+                            const QVariantMap &properties)
+{
+    auto *dialog = new QDialog(this);
+    dialog->setObjectName(QStringLiteral("qmlDialog"));
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setWindowTitle(title);
+    dialog->resize(420, 240);
+    auto *layout = new QVBoxLayout(dialog);
+    layout->setContentsMargins(0, 0, 0, 0);
+    auto *pages = new QStackedWidget(dialog);
+    layout->addWidget(pages);
+    auto *view = new QQuickWidget(pages);
+    view->setObjectName(QStringLiteral("dialogQuickWidget"));
+    view->setResizeMode(QQuickWidget::SizeRootObjectToView);
+    view->setClearColor(QColor(QStringLiteral("#1d1d1d")));
+    pages->addWidget(view);
+    auto *errorLabel = new QLabel(tr("对话框加载失败，请查看日志。"), pages);
+    errorLabel->setObjectName(QStringLiteral("dialogLoadError"));
+    errorLabel->setAlignment(Qt::AlignCenter);
+    errorLabel->setWordWrap(true);
+    pages->addWidget(errorLabel);
+    const auto showError = [pages, errorLabel](const QString &details) {
+        qWarning().noquote() << tr("对话框加载失败：") << details;
+        errorLabel->setToolTip(details);
+        pages->setCurrentWidget(errorLabel);
+    };
+    connect(view, &QQuickWidget::sceneGraphError, dialog,
+            [showError](QQuickWindow::SceneGraphError, const QString &message) {
+        showError(message);
+    });
+    auto *component = new QQmlComponent(view->engine(), view);
+    connect(component, &QQmlComponent::statusChanged, dialog,
+            [dialog, view, component, source, properties, showError](QQmlComponent::Status status) {
+        if (status == QQmlComponent::Error) {
+            QStringList errors;
+            for (const auto &error : component->errors())
+                errors.append(error.toString());
+            showError(errors.join('\n'));
+        } else if (status == QQmlComponent::Ready) {
+            // Compatible with Qt 6.5; properties precede Component.onCompleted.
+            auto *object = component->createWithInitialProperties(properties, view->rootContext());
+            auto *root = qobject_cast<QQuickItem *>(object);
+            if (!root) {
+                QStringList errors;
+                for (const auto &error : component->errors())
+                    errors.append(error.toString());
+                showError(errors.isEmpty() ? tr("QML 根对象必须是可视 Item。") : errors.join('\n'));
+                delete object;
+                return;
+            }
+            if (root->metaObject()->indexOfSignal("closeRequested()") >= 0)
+                connect(root, SIGNAL(closeRequested()), dialog, SLOT(close()));
+            const QSize contentSize(qMax(1, qRound(root->implicitWidth())),
+                                    qMax(1, qRound(root->implicitHeight())));
+            view->setContent(source, component, root);
+            if (contentSize.width() > 1 && contentSize.height() > 1)
+                dialog->resize(contentSize);
+        }
+    });
+    component->loadUrl(source, QQmlComponent::PreferSynchronous);
+    dialog->open();
+}
 
 void MainWindow::setupMenusAndToolBar()
 {

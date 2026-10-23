@@ -2,6 +2,8 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QUrl>
+#include <QVariantMap>
 
 class QLabel;
 class QMenu;
@@ -14,6 +16,9 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
+
+    void showDialog(const QUrl &source, const QString &title,
+                    const QVariantMap &properties = {});
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
