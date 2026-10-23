@@ -8,6 +8,7 @@
 class QLabel;
 class QMenu;
 class QResizeEvent;
+class StudioState;
 
 class MainWindow : public QMainWindow
 {
@@ -39,5 +40,6 @@ private:
     QLabel *m_outputStatus = nullptr;
     QLabel *m_outputMetrics = nullptr;
     QMenu *m_viewMenu = nullptr;
+    StudioState *m_studioState = nullptr;
 };
 #endif // MAINWINDOW_H

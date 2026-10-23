@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "studiostate.h"
 
 #include <QAction>
 #include <QCoreApplication>
@@ -9,6 +10,7 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QQmlComponent>
+#include <QQmlContext>
 #include <QQmlError>
 #include <QQuickItem>
 #include <QQuickWidget>
@@ -21,6 +23,7 @@
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
+    m_studioState = new StudioState;
     setWindowTitle(QStringLiteral("OpenLive Studio"));
     setMinimumSize(960, 640);
     resize(1280, 800);
@@ -36,6 +39,8 @@ MainWindow::MainWindow(QWidget *parent)
     setupDockViewActions();
     resetDockLayout();
     updateStatusLayout();
+    // Destroy the dock QML contexts before their shared state.
+    m_studioState->setParent(this);
 }
 
 MainWindow::~MainWindow() = default;
@@ -232,6 +237,7 @@ void MainWindow::setupScenesDock()
     auto *pages = new QStackedWidget(dock);
     auto *view = new QQuickWidget(pages);
     view->setObjectName(QStringLiteral("scenesQuickWidget"));
+    view->rootContext()->setContextProperty(QStringLiteral("studioState"), m_studioState);
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
     view->setClearColor(QColor(QStringLiteral("#1d1d1d")));
     pages->addWidget(view);
@@ -279,6 +285,7 @@ void MainWindow::setupSourcesDock()
     auto *pages = new QStackedWidget(dock);
     auto *view = new QQuickWidget(pages);
     view->setObjectName(QStringLiteral("sourcesQuickWidget"));
+    view->rootContext()->setContextProperty(QStringLiteral("studioState"), m_studioState);
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
     view->setClearColor(QColor(QStringLiteral("#1d1d1d")));
     pages->addWidget(view);

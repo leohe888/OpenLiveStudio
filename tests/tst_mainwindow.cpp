@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "studiostate.h"
 
 #include <QAction>
 #include <QDockWidget>
@@ -10,6 +11,8 @@
 #include <QMenu>
 #include <QPointer>
 #include <QQmlComponent>
+#include <QQmlContext>
+#include <QQmlExpression>
 #include <QQmlError>
 #include <QQuickItem>
 #include <QQuickWidget>
@@ -29,6 +32,7 @@ private slots:
     void init();
     void canShowAndClose();
     void hasWindowShell();
+    void panelsShareStateAcrossReloadsAndReleaseItWithWindow();
     void qmlDialogReceivesInitialPropertiesAndCloses();
     void qmlDialogShowsLoadErrors_data();
     void qmlDialogShowsLoadErrors();
@@ -73,6 +77,60 @@ void MainWindowTest::canShowAndClose()
 
     QVERIFY(window.close());
     QTRY_VERIFY(!window.isVisible());
+}
+
+void MainWindowTest::panelsShareStateAcrossReloadsAndReleaseItWithWindow()
+{
+    auto window = std::make_unique<MainWindow>();
+    window->show();
+    QPointer<StudioState> state = window->findChild<StudioState *>();
+    QVERIFY(state);
+    QCOMPARE(window->findChildren<StudioState *>().size(), 1);
+    QCOMPARE(state->parent(), window.get());
+    const QString sceneId = state->currentSceneId();
+    QVERIFY(!sceneId.isEmpty());
+    QPointer<QAbstractItemModel> scenes = state->sceneModel();
+    QPointer<QAbstractItemModel> sources = state->sourceModel();
+    QList<QPointer<QQuickItem>> roots;
+    QStringList destructionOrder;
+    connect(state, &QObject::destroyed, this, [&] { destructionOrder.append("state"); });
+
+    for (const auto *panelId : {"scenes", "sources"}) {
+        auto *view = window->findChild<QQuickWidget *>(QLatin1String(panelId) + QStringLiteral("QuickWidget"));
+        QVERIFY(view);
+        QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+        QCOMPARE(view->rootContext()->contextProperty(QStringLiteral("studioState")).value<QObject *>(), state.data());
+        // Exercise the QML context and invokable API, rather than just a C++ pointer.
+        QQmlExpression expression(view->rootContext(), view->rootObject(),
+            QStringLiteral("studioState.selectScene(studioState.currentSceneId)"));
+        QCOMPARE(expression.evaluate().toBool(), true);
+        QVERIFY2(!expression.hasError(), qPrintable(expression.error().toString()));
+        QPointer<QQuickItem> oldRoot = view->rootObject();
+        const QUrl source = view->source();
+        view->setSource(QUrl(QStringLiteral("qrc:/missing-state-panel.qml")));
+        QTRY_COMPARE(view->status(), QQuickWidget::Error);
+        QTRY_VERIFY(oldRoot.isNull());
+        view->setSource(source);
+        QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+        QCOMPARE(view->rootContext()->contextProperty(QStringLiteral("studioState")).value<QObject *>(), state.data());
+        QQmlExpression reloaded(view->rootContext(), view->rootObject(),
+            QStringLiteral("studioState.currentSceneId"));
+        QCOMPARE(reloaded.evaluate().toString(), sceneId);
+        QVERIFY2(!reloaded.hasError(), qPrintable(reloaded.error().toString()));
+        QCOMPARE(state->sceneModel(), scenes.data());
+        QCOMPARE(state->sourceModel(), sources.data());
+        roots.append(view->rootObject());
+        connect(view->rootObject(), &QObject::destroyed, this,
+            [&] { destructionOrder.append("panel"); });
+    }
+
+    window.reset();
+    QVERIFY(state.isNull());
+    QVERIFY(scenes.isNull());
+    QVERIFY(sources.isNull());
+    for (const auto &root : roots)
+        QVERIFY(root.isNull());
+    QCOMPARE(destructionOrder, QStringList({"panel", "panel", "state"}));
 }
 
 void MainWindowTest::hasWindowShell()

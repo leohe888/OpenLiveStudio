@@ -19,6 +19,8 @@ qt_add_executable(tst_mainwindow
     tst_mainwindow.cpp
     ../mainwindow.cpp
     ../mainwindow.h
+    ../studiostate.cpp
+    ../studiostate.h
 )
 
 target_include_directories(tst_mainwindow PRIVATE "${PROJECT_SOURCE_DIR}")
