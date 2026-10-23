@@ -109,11 +109,23 @@ plus repeated resets at default and minimum window sizes. Reset restores the
 current default layout without changing window size or recreating QML roots.
 Layout persistence across application restarts remains future work.
 
-After the latest layout and alignment updates, Qt Test reported 45 passes and CTest reported
-one passing test. These checks use Qt's `offscreen` platform plugin and the
+Dialog tests cover initial properties before QML completion, closing and
+resource cleanup, reopening, parent-window destruction, and load failures
+(missing files, invalid QML, missing required properties and nonvisual roots).
+About-dialog checks cover the help action, product and runtime Qt information,
+the application version or development fallback, resizing, reuse while open,
+the Close button, Esc, and reopening. The view menu no longer contains the
+cancelled fullscreen-preview entry.
+
+After the about-dialog implementation, Qt Test reported 51 passes and CTest reported
+one passing test. Local validation used Qt 6.12.0 with MSVC 2022 x64, Debug.
+The Visual Studio multi-configuration build and CTest commands used by CI also
+passed locally and produced the JUnit report. CI's Qt 6.8.3 installation and
+the GitHub-hosted workflow have not yet been verified.
+These checks use Qt's `offscreen` platform plugin and the
 software Qt Quick backend. The CTest command supplies Qt DLL, plugin and QML
 import paths and has a 30-second timeout. Default and minimum window size
-screenshots were also inspected with software rendering. Real GPU rendering,
+screenshots and the about dialog were also inspected with software rendering. Real GPU rendering,
 media processing and device behavior remain unverified.
 
 The controls panel's width and height binding loops have been fixed in project
