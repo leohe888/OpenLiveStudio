@@ -4,6 +4,7 @@
 #include <QFile>
 #include <QImage>
 #include <QSignalSpy>
+#include <QSet>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -40,6 +41,7 @@ private slots:
     void movesSourcesAndPreservesIdentity();
     void sourceFlagsStayWithSceneEntries();
     void sourceMoveAvailabilityTracksChanges();
+    void sameImageEntriesStayIndependentAcrossSceneChanges();
 };
 
 static QList<StudioState::SceneData> scenes()
@@ -832,6 +834,88 @@ void StudioStateTest::sourceMoveAvailabilityTracksChanges()
     QVERIFY(!available.isEmpty());
     QVERIFY(!state.canMoveCurrentSourceUp());
     QVERIFY(!state.canMoveCurrentSourceDown());
+}
+
+void StudioStateTest::sameImageEntriesStayIndependentAcrossSceneChanges()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath("shared-file.png");
+    QImage image(17, 9, QImage::Format_ARGB32);
+    image.fill(Qt::transparent);
+    QVERIFY(image.save(path));
+    StudioState state(QList<StudioState::SceneData>{
+        {"a", "First", {}}, {"b", "Second", {}}, {"empty", "Empty", {}}});
+    const QString a = state.addImageSource("a", "Logo", path);
+    const QString aBackground = state.addImageSource("a", "Background", path);
+    const QString b = state.addImageSource("b", "Logo", path);
+    const QString bBackground = state.addImageSource("b", "Background", path);
+    const QSet<QString> ids{a, aBackground, b, bBackground};
+    QCOMPARE(ids.size(), 4);
+    QVERIFY(!ids.contains(QString()));
+    auto *model = state.sourceModel();
+    const auto snapshot = [model] {
+        QList<QVariantList> rows;
+        for (int row = 0; row < model->rowCount(); ++row) {
+            QVariantList values;
+            for (const auto role : {StudioState::IdRole, StudioState::NameRole,
+                     StudioState::TypeRole, StudioState::FilePathRole,
+                     StudioState::OriginalSizeRole, StudioState::VisibleRole, StudioState::LockedRole})
+                values.append(model->index(row, 0).data(role));
+            rows.append(values);
+        }
+        return rows;
+    };
+    QVERIFY(state.moveSource("a", a, -1));
+    QVERIFY(state.setSourceVisible("a", a, false));
+    QVERIFY(state.setSourceLocked("a", a, true));
+    QVERIFY(state.selectSource(a));
+    const auto first = snapshot();
+    QCOMPARE(first.first().at(0).toString(), a);
+    QSignalSpy reset(model, &QAbstractItemModel::modelReset);
+    QSignalSpy selection(&state, &StudioState::currentSourceIdChanged);
+    QVERIFY(state.selectScene("a"));
+    QVERIFY(!state.selectScene("missing"));
+    QCOMPARE(state.currentSourceId(), a);
+    QCOMPARE(snapshot(), first);
+    QCOMPARE(reset.count(), 0);
+    QCOMPARE(selection.count(), 0);
+    QVERIFY(state.selectScene("b"));
+    QVERIFY(state.currentSourceId().isEmpty());
+    QCOMPARE(reset.count(), 1);
+    QCOMPARE(selection.count(), 1);
+    QCOMPARE(model->index(0, 0).data(StudioState::IdRole).toString(), bBackground);
+    QVERIFY(model->index(1, 0).data(StudioState::VisibleRole).toBool());
+    QVERIFY(!model->index(1, 0).data(StudioState::LockedRole).toBool());
+    QVERIFY(!state.selectSource(a));
+    QVERIFY(state.selectSource(b));
+    QVERIFY(state.setSourceVisible("b", bBackground, false));
+    QVERIFY(state.setSourceLocked("b", bBackground, true));
+    QVERIFY(state.removeSource("b", b));
+    QVERIFY(state.currentSourceId().isEmpty());
+    const QString bNew = state.addImageSource("b", "New", path);
+    QVERIFY(!bNew.isEmpty());
+    const auto second = snapshot();
+    for (int iteration = 0; iteration < 4; ++iteration) {
+        QVERIFY(state.selectScene("a"));
+        QVERIFY(state.currentSourceId().isEmpty());
+        QCOMPARE(snapshot(), first);
+        QVERIFY(state.selectSource(a));
+        QVERIFY(state.selectScene("empty"));
+        QCOMPARE(model->rowCount(), 0);
+        QVERIFY(state.currentSourceId().isEmpty());
+        QVERIFY(!state.canMoveCurrentSourceUp());
+        QVERIFY(!state.canMoveCurrentSourceDown());
+        QVERIFY(state.selectScene("b"));
+        QCOMPARE(snapshot(), second);
+        QVERIFY(state.currentSourceId().isEmpty());
+        QVERIFY(state.selectSource(bNew));
+    }
+    QVERIFY(state.removeSource("a", a));
+    QVERIFY(state.removeScene("a"));
+    QCOMPARE(snapshot(), second);
+    QCOMPARE(state.currentSourceId(), bNew);
+    QCOMPARE(QImage(path), image);
 }
 
 QTEST_GUILESS_MAIN(StudioStateTest)

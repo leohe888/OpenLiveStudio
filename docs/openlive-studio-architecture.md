@@ -101,7 +101,7 @@ the current scene state and Qt models must not be mutated from worker threads.
 
 ## Current implementation and next boundaries
 
-B1 through B5 are complete and committed. The application has the Widgets shell,
+B1 through B6 are complete and approved. The application has the Widgets shell,
 QML panels/dialogs, scene editing in StudioState, and an independent ImageLoader.
 Source descriptions store their type, file path and original image dimensions.
 ImageLoader checks and actually decodes files synchronously, returns metadata or
@@ -131,9 +131,10 @@ Widgets retain the existing window and dock containers. States survive scene
 changes and QML reloads within the session, but are not persisted across launches.
 B6 verifies immediate scene switching, source-list updates, selection clearing
 and scene-local state isolation, including entries referring to the same file.
-It adds no reuse APIs/UI, placement editing or transition animation. The earlier
-proposal to implement shared definitions first is superseded; B6 remains pending
-verification. Transform restrictions and independent placement editing will be
+B6 verification is complete and approved: generated-image state tests and
+MainWindow interaction/reload tests pass without changes to business code.
+It adds no reuse APIs/UI, placement editing or transition animation. Shared
+definitions remain deferred. The next step is C1 static-image composition. Transform restrictions and independent placement editing will be
 implemented with the editing features in stage C. Actual
 composition starts at C1. Cross-module
 coordination, media ownership and threading are developed with the relevant

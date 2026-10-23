@@ -132,6 +132,31 @@ hidden/locked entries, disabled boundaries and restoration after load failure or
 QML reload. Reuse, composition, transform restrictions and persistence remain
 future work.
 
+B6 acceptance uses a generated PNG added separately to two real scenes. The core
+scenario checks distinct entry IDs for the same path, independent additions,
+removals, ordering, visibility and lock flags, and exact state restoration over
+repeated switches through an empty scene. It also checks current/invalid scene
+selection, source-selection clearing, removal of an inactive scene and preservation
+of the underlying file. Existing invalid-target and selection cases remain part
+of the complete state suite.
+
+The MainWindow scenario runs with both initial panels and recovery after load
+failure. It clicks actual QML scene rows and source controls, verifies immediate
+C++ scene updates without an animation timer, preserves selection when clicking
+the current scene, and checks repeated round trips, independent flags/order,
+empty-state action availability and source-panel reload. Scene delegates must be
+ready before test input is sent. These are offscreen software-backend checks;
+composition, placement editing, real GPU rendering and source reuse are outside
+B6. The change has passed user review; it adds tests without changing business
+code or introducing a reuse framework.
+
+B6 validation on 2026-10-23 used Qt 6.12.0, MSVC 2022 x64 and Ninja Debug.
+The build passed. The new core scenario and both UI data rows passed in targeted
+runs. Complete CTest passed 3/3, with ui.mainwindow taking 56.49 seconds and the
+full run 56.75 seconds. The first targeted UI run exposed test input arriving
+before scene delegates were ready; readiness waits and a null-item assertion
+were added to the test, after which targeted and complete runs passed.
+
 The source add form is QML; browsing uses a C++ QFileDialog parented to the form
 window. Non-native file-picker tests verify cancellation preserves the previous
 input, spaces/Unicode/#/% in paths, picking without creating, confirmation and
