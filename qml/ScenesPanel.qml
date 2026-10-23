@@ -9,6 +9,7 @@ Rectangle {
     implicitHeight: 260
     color: "#1d1d1d"
     readonly property var state: typeof studioState !== "undefined" ? studioState : null
+    signal sceneNameDialogRequested(string sceneId, string initialName)
 
     ColumnLayout {
         anchors.fill: parent
@@ -52,6 +53,7 @@ Rectangle {
                     }
                     TapHandler {
                         onTapped: root.state.selectScene(sceneId)
+                        onDoubleTapped: root.sceneNameDialogRequested(sceneId, sceneName)
                     }
                 }
             }
@@ -101,7 +103,8 @@ Rectangle {
                         icon.width: 16
                         icon.height: 16
                         icon.color: enabled ? "#d6d6d6" : "#666666"
-                        enabled: false
+                        enabled: root.state !== null && modelData.name === "addSceneButton"
+                        onClicked: root.sceneNameDialogRequested("", "")
                         Accessible.name: modelData.label
                         ToolTip.text: modelData.label
 

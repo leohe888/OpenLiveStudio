@@ -16,6 +16,7 @@
 #include <QQmlError>
 #include <QQuickItem>
 #include <QQuickWidget>
+#include <QQuickWindow>
 #include <QRegularExpression>
 #include <QSignalSpy>
 #include <QStatusBar>
@@ -42,6 +43,7 @@ private slots:
     void sceneNameDialogValidatesAndSaves();
     void sceneNameDialogCancelsWithoutChanges_data();
     void sceneNameDialogCancelsWithoutChanges();
+    void scenePanelCanAddAndRenameAfterReload();
     void keepsOutputStatusVisibleWhenResized();
     void loadsScenePanelWithEmptyState();
     void loadsSourcePanelWithEmptyState();
@@ -495,6 +497,96 @@ void MainWindowTest::sceneNameDialogCancelsWithoutChanges()
     QCOMPARE(state->sceneModel()->rowCount(), 1);
     QCOMPARE(state->currentSceneId(), originalId);
     QCOMPARE(state->sceneModel()->index(0, 0).data(StudioState::NameRole).toString(), originalName);
+}
+
+void MainWindowTest::scenePanelCanAddAndRenameAfterReload()
+{
+    MainWindow window;
+    window.show();
+    auto *state = window.findChild<StudioState *>();
+    auto *panel = window.findChild<QQuickWidget *>(QStringLiteral("scenesQuickWidget"));
+    QVERIFY(state);
+    QVERIFY(panel);
+    const QString originalId = state->currentSceneId();
+    const QUrl source = panel->source();
+    for (int pass = 0; pass < 2; ++pass) {
+        if (pass == 1) {
+            panel->setSource(QUrl(QStringLiteral("qrc:/missing-scene-panel.qml")));
+            QTRY_COMPARE(panel->status(), QQuickWidget::Error);
+            panel->setSource(source);
+        }
+        QTRY_COMPARE(panel->status(), QQuickWidget::Ready);
+        auto *actions = panel->rootObject()->findChild<QQuickItem *>(QStringLiteral("sceneActions"));
+        QVERIFY(actions);
+        QQuickItem *add = nullptr;
+        for (auto *button : actions->childItems()) {
+            if (!button->objectName().endsWith(QStringLiteral("Button")))
+                continue;
+            if (button->objectName() == QStringLiteral("addSceneButton")) {
+                add = button;
+                QVERIFY(button->isEnabled());
+            } else {
+                QVERIFY(!button->isEnabled());
+            }
+        }
+        QVERIFY(add);
+        const QString suggestion = state->suggestedSceneName();
+        QTest::mouseClick(panel, Qt::LeftButton, Qt::NoModifier,
+            add->mapToScene(add->boundingRect().center()).toPoint());
+        QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
+        QVERIFY(dialog);
+        QCOMPARE(window.findChildren<QDialog *>().size(), 1);
+        QCOMPARE(dialog->windowTitle(), QString::fromUtf8("添加场景"));
+        auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
+        QVERIFY(view);
+        QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+        auto *input = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("sceneNameInput"));
+        QVERIFY(input);
+        QCOMPARE(input->property("text").toString(), suggestion);
+        QTRY_VERIFY(input->hasActiveFocus());
+        QTest::keyClick(view, Qt::Key_Return);
+        QTRY_VERIFY(dialog.isNull());
+        const QString id = state->currentSceneId();
+        QVERIFY(id != originalId);
+        QCOMPARE(state->sceneModel()->rowCount(), pass + 2);
+        QCOMPARE(state->sourceModel()->rowCount(), 0);
+        auto *list = panel->rootObject()->findChild<QQuickItem *>(QStringLiteral("sceneList"));
+        QVERIFY(list);
+        const auto findRow = [&]() -> QQuickItem * {
+            auto *content = list->property("contentItem").value<QQuickItem *>();
+            if (content) {
+                for (auto *item : content->childItems()) {
+                    if (item->objectName() == QStringLiteral("sceneRow_") + id)
+                        return item;
+                }
+            }
+            return nullptr;
+        };
+        QTRY_VERIFY(findRow());
+        QVERIFY(findRow()->property("selected").toBool());
+        const QPoint position = findRow()->mapToScene(findRow()->boundingRect().center()).toPoint();
+        // The QWindow helper sends both complete clicks with double-click timing.
+        QTest::mouseDClick(panel->quickWindow(), Qt::LeftButton, Qt::NoModifier, position);
+        QTRY_VERIFY(window.findChild<QDialog *>(QStringLiteral("qmlDialog")));
+        dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
+        QCOMPARE(window.findChildren<QDialog *>().size(), 1);
+        QCOMPARE(dialog->windowTitle(), QString::fromUtf8("重命名场景"));
+        view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
+        QVERIFY(view);
+        QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+        input = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("sceneNameInput"));
+        QVERIFY(input);
+        QCOMPARE(input->property("text").toString(), suggestion);
+        QTRY_VERIFY(input->hasActiveFocus());
+        const QString renamed = QStringLiteral("Renamed %1").arg(pass);
+        QTest::keyClick(view, Qt::Key_A, Qt::ControlModifier);
+        QTest::keyClicks(view, renamed);
+        QTest::keyClick(view, Qt::Key_Return);
+        QTRY_VERIFY(dialog.isNull());
+        QCOMPARE(state->currentSceneId(), id);
+        QTRY_COMPARE(findRow()->property("sceneName").toString(), renamed);
+        QCOMPARE(state->sceneModel()->rowCount(), pass + 2);
+    }
 }
 
 void MainWindowTest::keepsOutputStatusVisibleWhenResized()

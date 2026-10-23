@@ -24,6 +24,9 @@ public:
 protected:
     void resizeEvent(QResizeEvent *event) override;
 
+private slots:
+    void showSceneNameDialog(const QString &sceneId, const QString &initialName);
+
 private:
     void setupMenusAndToolBar();
     void setupPreview();

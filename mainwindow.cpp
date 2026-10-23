@@ -110,6 +110,16 @@ void MainWindow::showDialog(const QUrl &source, const QString &title,
     dialog->open();
 }
 
+void MainWindow::showSceneNameDialog(const QString &sceneId, const QString &initialName)
+{
+    showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SceneNameDialog.qml")),
+        sceneId.isEmpty() ? tr("添加场景") : tr("重命名场景"), {
+            {QStringLiteral("state"), QVariant::fromValue(m_studioState)},
+            {QStringLiteral("initialName"), sceneId.isEmpty() ? m_studioState->suggestedSceneName() : initialName},
+            {QStringLiteral("sceneId"), sceneId}
+        });
+}
+
 void MainWindow::setupMenusAndToolBar()
 {
     m_viewMenu = menuBar()->addMenu(tr("视图"));
@@ -264,6 +274,8 @@ void MainWindow::setupScenesDock()
         } else if (status == QQuickWidget::Ready) {
             if (pages->currentWidget() == errorLabel)
                 statusBar()->showMessage(tr("场景面板已加载"), 3000);
+            connect(view->rootObject(), SIGNAL(sceneNameDialogRequested(QString,QString)),
+                    this, SLOT(showSceneNameDialog(QString,QString)), Qt::UniqueConnection);
             pages->setCurrentWidget(view);
         }
     });
