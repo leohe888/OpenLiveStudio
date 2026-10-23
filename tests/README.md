@@ -76,6 +76,23 @@ and it does not verify real GPU rendering, capture devices or media output.
 
 ## Current coverage
 
+`core.studiostate` runs with QCoreApplication and requires no GUI platform.
+Its four behavior cases cover the default selected empty scene, source-list
+isolation and selection clearing on scene changes, invalid and repeated
+selections, explicit source deselection, and an empty initial state. IDs,
+rather than display names, determine selection. The test has a 10-second
+timeout.
+
+Production starts with one selected empty scene and no sources. MainWindow
+provides the same StudioState instance to both QML panels; business selection
+rules remain in C++. UI checks cover default scene display, clicking scene
+and source rows, highlights driven by C++, clearing source selection when
+switching scenes, empty-state updates, and restoring highlights after reload.
+Multiple scenes and sources are supplied only as test data. Shared-instance,
+load-failure recovery and destruction-order checks verify that panel QML
+content is released before the state. Scene editing, source operations, media
+processing and persistence remain unimplemented.
+
 `ui.mainwindow` covers window lifecycle and structure, output status visibility
 on resize, scene and source QML loading and empty states, source panel resizing,
 and mixer QML loading with two unavailable channel slots. Transition panel
@@ -90,7 +107,7 @@ rendering the panel buttons in enabled and disabled states. Source row checks
 use test-only model data. Mixer checks also cover disabled sliders ignoring
 clicks, compact panel height, scrollable content at small sizes, and fixed-width
 channels staying grouped on the left as the panel grows. The application still has no
-scene, source, audio or transition backend; mixer meters remain empty and
+media capture, audio or transition backend; mixer meters remain empty and
 unconnected controls disabled. Rendering checks isolate the transition,
 recording and streaming icons from button text and borders.
 
@@ -117,15 +134,21 @@ the application version or development fallback, resizing, reuse while open,
 the Close button, Esc, and reopening. The view menu no longer contains the
 cancelled fullscreen-preview entry.
 
-After the about-dialog implementation, Qt Test reported 51 passes and CTest reported
-one passing test. Local validation used Qt 6.12.0 with MSVC 2022 x64, Debug.
+After scene/source list integration, the state executable reported 6 passes
+(including initialization and cleanup; 4 behavior cases), and the window
+executable reported 53 passes. CTest passed both core.studiostate and
+ui.mainwindow. The first CTest run in the final round timed out; the full UI
+suite passed separately, and a CTest rerun passed 2/2 without changing timeouts.
+Local validation used Qt 6.12.0 with MSVC 2022 x64, Debug.
 The Visual Studio multi-configuration build and CTest commands used by CI also
 passed locally and produced the JUnit report. CI's Qt 6.8.3 installation and
 the GitHub-hosted workflow have not yet been verified.
-These checks use Qt's `offscreen` platform plugin and the
+UI checks use Qt's `offscreen` platform plugin and the
 software Qt Quick backend. The CTest command supplies Qt DLL, plugin and QML
-import paths and has a 30-second timeout. Default and minimum window size
-screenshots and the about dialog were also inspected with software rendering. Real GPU rendering,
+import paths and has a 30-second timeout. Software-rendered screenshots of
+the default scene, source empty state and a selected test source were checked.
+Default and minimum window size screenshots and the about dialog were also
+inspected in earlier rounds. Real GPU rendering,
 media processing and device behavior remain unverified.
 
 The controls panel's width and height binding loops have been fixed in project
