@@ -32,6 +32,7 @@ private slots:
     void qmlDialogReceivesInitialPropertiesAndCloses();
     void qmlDialogShowsLoadErrors_data();
     void qmlDialogShowsLoadErrors();
+    void aboutActionShowsProjectInfoAndReusesDialog();
     void keepsOutputStatusVisibleWhenResized();
     void loadsScenePanelWithEmptyState();
     void loadsSourcePanelWithEmptyState();
@@ -183,6 +184,61 @@ void MainWindowTest::qmlDialogShowsLoadErrors()
     QTest::keyClick(dialog, Qt::Key_Escape);
     QTRY_VERIFY(dialog.isNull());
     QVERIFY(window.isVisible());
+}
+
+void MainWindowTest::aboutActionShowsProjectInfoAndReusesDialog()
+{
+    MainWindow window;
+    window.show();
+    auto *action = window.findChild<QAction *>(QStringLiteral("aboutAction"));
+    QVERIFY(action);
+    QVERIFY(action->isEnabled());
+    action->trigger();
+    QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
+    QVERIFY(dialog);
+    auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
+    QVERIFY(view);
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    QPointer<QQuickItem> root = view->rootObject();
+    QVERIFY(root);
+    QCOMPARE(root->objectName(), QStringLiteral("aboutDialogContent"));
+    QCOMPARE(root->property("productName").toString(), window.windowTitle());
+    QCOMPARE(root->property("qtVersion").toString(), QString::fromLatin1(qVersion()));
+    const QString version = QCoreApplication::applicationVersion();
+    QCOMPARE(root->property("versionText").toString(), version.isEmpty()
+        ? QString::fromUtf8("开发版本（未设置版本号）") : version);
+    for (const auto *name : {"aboutProductName", "aboutVersion", "aboutQtVersion"}) {
+        auto *label = root->findChild<QQuickItem *>(QLatin1String(name));
+        QVERIFY(label);
+        QVERIFY(label->isVisible());
+        QVERIFY(!label->property("text").toString().isEmpty());
+    }
+    action->trigger();
+    QCOMPARE(window.findChildren<QDialog *>().size(), 1);
+    QCOMPARE(view->rootObject(), root.data());
+    dialog->resize(480, 280);
+    QTRY_COMPARE(root->size(), QSizeF(view->size()));
+    auto *button = root->findChild<QQuickItem *>(QStringLiteral("closeAboutButton"));
+    QVERIFY(button);
+    QVERIFY(button->isEnabled());
+    QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
+        button->mapToScene(button->boundingRect().center()).toPoint());
+    QTRY_VERIFY(dialog.isNull());
+    QVERIFY(root.isNull());
+    action->trigger();
+    dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
+    QVERIFY(dialog);
+    QTRY_VERIFY(dialog->isVisible());
+    QTest::keyClick(dialog, Qt::Key_Escape);
+    QTRY_VERIFY(dialog.isNull());
+    QVERIFY(window.isVisible());
+
+    auto *viewMenu = window.findChild<QMenu *>(QStringLiteral("viewMenu"));
+    QVERIFY(viewMenu);
+    for (auto *viewAction : viewMenu->actions()) {
+        if (!viewAction->isSeparator() && !viewAction->isCheckable())
+            QCOMPARE(viewAction->objectName(), QStringLiteral("resetLayoutAction"));
+    }
 }
 
 void MainWindowTest::keepsOutputStatusVisibleWhenResized()

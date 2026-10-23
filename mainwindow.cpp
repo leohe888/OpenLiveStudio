@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 
 #include <QAction>
+#include <QCoreApplication>
 #include <QDebug>
 #include <QDialog>
 #include <QDockWidget>
@@ -44,6 +45,7 @@ void MainWindow::showDialog(const QUrl &source, const QString &title,
 {
     auto *dialog = new QDialog(this);
     dialog->setObjectName(QStringLiteral("qmlDialog"));
+    dialog->setProperty("qmlSource", source);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->setWindowTitle(title);
     dialog->resize(420, 240);
@@ -107,11 +109,26 @@ void MainWindow::setupMenusAndToolBar()
 {
     m_viewMenu = menuBar()->addMenu(tr("视图"));
     m_viewMenu->setObjectName(QStringLiteral("viewMenu"));
-    m_viewMenu->addAction(tr("全屏预览"))->setEnabled(false);
-    m_viewMenu->addSeparator();
 
     auto *helpMenu = menuBar()->addMenu(tr("帮助"));
-    helpMenu->addAction(tr("关于 OpenLive Studio…"))->setEnabled(false);
+    auto *aboutAction = helpMenu->addAction(tr("关于 OpenLive Studio…"));
+    aboutAction->setObjectName(QStringLiteral("aboutAction"));
+    connect(aboutAction, &QAction::triggered, this, [this] {
+        const QUrl source(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/AboutDialog.qml"));
+        for (auto *dialog : findChildren<QDialog *>(QString(), Qt::FindDirectChildrenOnly)) {
+            if (dialog->property("qmlSource").toUrl() == source && dialog->isVisible()) {
+                dialog->raise();
+                dialog->activateWindow();
+                return;
+            }
+        }
+        const QString version = QCoreApplication::applicationVersion();
+        showDialog(source, tr("关于 OpenLive Studio"), {
+            {QStringLiteral("productName"), windowTitle()},
+            {QStringLiteral("versionText"), version.isEmpty() ? tr("开发版本（未设置版本号）") : version},
+            {QStringLiteral("qtVersion"), QString::fromLatin1(qVersion())}
+        });
+    });
 
     auto *toolBar = addToolBar(tr("主工具栏"));
     toolBar->setObjectName(QStringLiteral("mainToolBar"));

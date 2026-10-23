@@ -20,6 +20,7 @@ qt_add_resources(tst_mainwindow "test_ui"
           "${PROJECT_SOURCE_DIR}/qml/MixerPanel.qml"
           "${PROJECT_SOURCE_DIR}/qml/TransitionsPanel.qml"
           "${PROJECT_SOURCE_DIR}/qml/ControlsPanel.qml"
+          "${PROJECT_SOURCE_DIR}/qml/AboutDialog.qml"
 )
 
 qt_add_resources(tst_mainwindow "test_icons"
