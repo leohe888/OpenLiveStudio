@@ -202,9 +202,8 @@ svg{display:block}
 .preview-hint{
   position:absolute;left:8px;bottom:6px;font-size:10.5px;color:#5c5c5c;pointer-events:none;
 }
-.trans-flash{
-  position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;
-}
+.trans-outgoing{position:absolute;inset:0;margin:auto;pointer-events:none;z-index:70}
+.trans-btn:disabled,.dur input:disabled{opacity:.45;cursor:default}
 
 /* ---------- 混音器 ---------- */
 .mixer-cols{display:flex;gap:2px;padding:6px 4px;align-items:flex-start;justify-content:space-around;overflow-x:auto}
@@ -438,7 +437,6 @@ input[type=range].h::-webkit-slider-thumb{
       <div class="preview-wrap" data-page-node-id="f0hbbZitHL89K4rlCwfku7">
         <div class="preview" id="preview" data-page-node-id="QKL2aRa7R2phHnEvqqDRZy">
           <div class="canvas" id="canvas" data-page-node-id="P5JkKW6cnAvBord9fraHS7"></div>
-          <div class="trans-flash" id="flash" data-page-node-id="RHrRy0itmz7fmoceCHCEVw"></div>
           <div class="preview-hint" id="previewHint" data-page-node-id="8HbtEDsPnYYmJ6SAeRCYfP">1920×1080 · 16:9 · 输出 30 fps</div>
         </div>
       </div>
@@ -460,19 +458,17 @@ input[type=range].h::-webkit-slider-thumb{
         </div>
         <div class="trans-b" data-page-node-id="K1BoQTGIJPYjSIR5QFhizu">
           <div class="trans-row" data-page-node-id="2uXun6KqHYoB4egnsOD1W0">
-            <select id="transSel" data-page-node-id="xjCf29bZ73bN4Y6c7o4eXX">
+            <select id="transSel" aria-label="转场效果（原型演示）" data-page-node-id="xjCf29bZ73bN4Y6c7o4eXX">
               <option data-page-node-id="atpSbwlZTzdVuzcJi6FjRB">淡入淡出</option>
               <option data-page-node-id="TPjooNEEqyiHXLhzAgMYtC">剪切</option>
-              <option data-page-node-id="i2gYgTwalvM5pJFUZtRcCX">滑动</option>
-              <option data-page-node-id="ZakvFa8IiCzMKMcSHRCARz">擦除</option>
             </select>
           </div>
           <div class="dur" data-page-node-id="Fh6FdB3Bx4qXPspAC89Y5L">
             <span data-page-node-id="wWXxzFNes1BUbTgDAZt6bk">时长</span>
-            <input type="number" id="transDur" value="300" min="0" max="20000" step="50" data-page-node-id="SmAUAvLLji0feRYCfuwZ5t">
+            <input type="number" id="transDur" aria-label="淡入淡出时长（毫秒）" value="300" min="0" max="20000" step="50" data-page-node-id="SmAUAvLLji0feRYCfuwZ5t">
             <span data-page-node-id="b28gZFpmSEYbvq4dZWBMkZ">ms</span>
           </div>
-          <button class="trans-btn" id="transGo" data-page-node-id="xP13794Fmj33I086JPU4p5">
+          <button class="trans-btn" id="transGo" title="切换到下一场景（原型演示）" data-page-node-id="xP13794Fmj33I086JPU4p5">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" data-page-node-id="qdzjZEcRL8ZgmNIaeB6BwC"><path d="M1 6h8M6.5 2.5L10 6l-3.5 3.5" data-page-node-id="jg9AILhPP8IJUhs2bfceW8"/></svg>
             转场
           </button>
@@ -712,16 +708,17 @@ function renderScenes() {
     r.addEventListener('click', () => switchScene(+r.dataset.scene));
     r.addEventListener('dblclick', () => openSceneNameDialog(scenes[+r.dataset.scene]));
   });
+  syncTransitionControls();
 }
 
 function switchScene(i) {
-  if (i === state.scene) return;
+  if (!scenes[i] || i === state.scene) return;
+  cancelTransition();
   state.scene = i;
   state.selected = null;
   renderScenes();
   renderPreview();
   renderSources();
-  flash();
   msg(`已切换场景：${scenes[i].name}`);
 }
 
@@ -1230,21 +1227,60 @@ $('#settingsBtn').addEventListener('click', () => {
     <div class="fld"><span>输出帧率</span><select><option>30</option><option>60</option></select></div>`, () => msg('设置已保存（原型）'));
 });
 
-/* ---------- 转场 ---------- */
-$('#transGo').addEventListener('click', () => {
-  const next = (state.scene + 1) % scenes.length;
-  flash();
-  setTimeout(() => switchScene(next), 60);
-});
-function flash() {
-  const f = $('#flash');
-  f.style.transition = 'none';
-  f.style.opacity = '0.85';
-  requestAnimationFrame(() => {
-    f.style.transition = 'opacity .28s ease-out';
-    f.style.opacity = '0';
-  });
+/* ---------- 转场：仅演示原型素材，不代表真实合成或输出 ---------- */
+let activeTransition = null;
+function syncTransitionControls() {
+  const busy = activeTransition !== null;
+  $('#transSel').disabled = busy;
+  $('#transDur').disabled = busy || $('#transSel').value === '剪切';
+  $('#transGo').disabled = busy || scenes.length < 2;
 }
+function cancelTransition() {
+  if (!activeTransition) return;
+  const previous = activeTransition;
+  activeTransition = null;
+  previous.animation.cancel();
+  previous.overlay.remove();
+  syncTransitionControls();
+}
+$('#transSel').addEventListener('change', syncTransitionControls);
+$('#transGo').addEventListener('click', () => {
+  if (activeTransition || scenes.length < 2) return;
+  const next = (state.scene + 1) % scenes.length;
+  if ($('#transSel').value === '剪切') {
+    switchScene(next);
+    return;
+  }
+  const input = $('#transDur');
+  const duration = Number.isFinite(input.valueAsNumber)
+    ? Math.max(0, Math.min(20000, input.valueAsNumber)) : 300;
+  input.value = duration;
+  if (duration === 0) {
+    switchScene(next);
+    return;
+  }
+  // Freeze the outgoing prototype canvas, including its simulated camera frame.
+  const canvas = $('#canvas');
+  const overlay = canvas.cloneNode(true);
+  overlay.removeAttribute('id');
+  overlay.classList.add('trans-outgoing');
+  overlay.setAttribute('aria-hidden', 'true');
+  overlay.querySelector('.selbox')?.remove();
+  const frames = canvas.querySelectorAll('canvas');
+  overlay.querySelectorAll('canvas').forEach((frame, index) => {
+    frame.getContext('2d').drawImage(frames[index], 0, 0);
+  });
+  switchScene(next);
+  canvas.parentElement.appendChild(overlay);
+  const animation = overlay.animate([{ opacity: 1 }, { opacity: 0 }],
+    { duration, easing: 'linear', fill: 'forwards' });
+  const transition = { animation, overlay };
+  activeTransition = transition;
+  syncTransitionControls();
+  animation.finished.then(() => {
+    if (activeTransition === transition) cancelTransition();
+  }).catch(() => {}); // Cancellation also removes the overlay synchronously.
+});
 
 /* ---------- 菜单栏 ---------- */
 $$('.menu').forEach(m => {
@@ -1437,6 +1473,10 @@ function fitCanvas() {
   if (w / h > 16 / 9) w = h * 16 / 9; else h = w * 9 / 16;
   c.style.width = Math.round(w) + 'px';
   c.style.height = Math.round(h) + 'px';
+  if (activeTransition) {
+    activeTransition.overlay.style.width = c.style.width;
+    activeTransition.overlay.style.height = c.style.height;
+  }
 }
 
 /* ---------- 启动 ---------- */
