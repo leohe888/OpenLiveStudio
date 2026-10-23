@@ -182,6 +182,28 @@ QString StudioState::sceneNameError(const QString &name, const QString &excluded
     return {};
 }
 
+QString StudioState::suggestedSourceName(const QString &sceneId, const QString &baseName) const
+{
+    const int row = sceneRow(sceneId);
+    const QString base = baseName.trimmed();
+    if (row < 0 || base.isEmpty())
+        return {};
+    const auto &sources = m_scenes.at(row).sources;
+    QString candidate = base;
+    for (int number = 2; ; ++number) {
+        bool used = false;
+        for (const auto &source : sources) {
+            if (source.name.trimmed().compare(candidate, Qt::CaseInsensitive) == 0) {
+                used = true;
+                break;
+            }
+        }
+        if (!used)
+            return candidate;
+        candidate = base + QStringLiteral(" %1").arg(number);
+    }
+}
+
 QString StudioState::addScene(const QString &name)
 {
     if (!sceneNameError(name).isEmpty())

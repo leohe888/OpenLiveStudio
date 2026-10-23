@@ -513,6 +513,9 @@ void MainWindowTest::sourcePanelCanBrowseAndAdd()
     QTRY_COMPARE(view->status(), QQuickWidget::Ready);
     QPointer<QQuickItem> root = view->rootObject();
     QPointer<QFileDialog> picker = dialog->findChild<QFileDialog *>(QStringLiteral("imageFileDialog"));
+    auto *name = root->findChild<QQuickItem *>(QStringLiteral("sourceNameInput"));
+    QVERIFY(name);
+    QCOMPARE(name->property("text").toString(), QString::fromUtf8("图像"));
     auto *file = root->findChild<QQuickItem *>(QStringLiteral("sourceFileInput"));
     auto *browse = root->findChild<QQuickItem *>(QStringLiteral("browseSourceFileButton"));
     QVERIFY(picker && file && browse);
@@ -553,6 +556,9 @@ void MainWindowTest::sourcePanelCanBrowseAndAdd()
     view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
     QTRY_COMPARE(view->status(), QQuickWidget::Ready);
     picker = dialog->findChild<QFileDialog *>(QStringLiteral("imageFileDialog"));
+    name = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("sourceNameInput"));
+    QVERIFY(name);
+    QCOMPARE(name->property("text").toString(), QString::fromUtf8("图像 2"));
     QVERIFY(picker);
     picker->setOption(QFileDialog::DontUseNativeDialog);
     picker->setDirectory(dir.path());

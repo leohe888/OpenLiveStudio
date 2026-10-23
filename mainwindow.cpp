@@ -150,11 +150,13 @@ void MainWindow::showSceneRemovalDialog(const QString &sceneId)
 
 void MainWindow::showSourceAddDialog(const QString &sceneId)
 {
-    if (sceneId.isEmpty())
+    const QString initialName = m_studioState->suggestedSourceName(sceneId, tr("图像"));
+    if (initialName.isEmpty())
         return;
     showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml")),
         tr("添加来源"), {{QStringLiteral("state"), QVariant::fromValue(m_studioState)},
-                       {QStringLiteral("sceneId"), sceneId}});
+                       {QStringLiteral("sceneId"), sceneId},
+                       {QStringLiteral("initialName"), initialName}});
 }
 
 void MainWindow::setupMenusAndToolBar()

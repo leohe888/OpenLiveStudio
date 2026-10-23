@@ -45,6 +45,8 @@ public:
     // An empty ID clears selection; other IDs must belong to the current scene.
     Q_INVOKABLE bool selectSource(const QString &id);
     Q_INVOKABLE QString suggestedSceneName() const;
+    // Suggest an unused name within the target scene; empty for an invalid scene or base.
+    Q_INVOKABLE QString suggestedSourceName(const QString &sceneId, const QString &baseName) const;
     // Empty means valid. Exclude the target scene when checking a rename.
     Q_INVOKABLE QString sceneNameError(const QString &name, const QString &excludedSceneId = {}) const;
     // Creation returns the new ID, or an empty string if the name is invalid.

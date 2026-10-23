@@ -17,6 +17,7 @@ private slots:
     void supportsEmptyInitialState();
     void addsEmptySceneAndPreservesPreviousContent();
     void suggestsUnusedSceneNames();
+    void suggestsUnusedSourceNamesWithinTargetScene();
     void rejectsInvalidNames_data();
     void rejectsInvalidNames();
     void renamesWithoutChangingIdentityOrSelection();
@@ -665,6 +666,33 @@ void StudioStateTest::removesLastImageSourceWithoutDeletingFile()
     QVERIFY(!newId.isEmpty());
     QVERIFY(newId != id);
     QCOMPARE(state.currentSourceId(), newId);
+}
+
+void StudioStateTest::suggestsUnusedSourceNamesWithinTargetScene()
+{
+    const QString base = QString::fromUtf8("图像");
+    StudioState state(QList<StudioState::SceneData>{
+        {"first", "First", {{"a", base}, {"b", base + " 3"},
+                            {"c", "Camera"}, {"d", " cAmErA 2 "}}},
+        {"second", "Second", {}}});
+    QVERIFY(state.selectSource("a"));
+    QSignalSpy selected(&state, &StudioState::currentSourceIdChanged);
+    QSignalSpy inserted(state.sourceModel(), &QAbstractItemModel::rowsInserted);
+    QCOMPARE(state.suggestedSourceName("first", base), base + " 2");
+    QCOMPARE(state.suggestedSourceName("first", " camera "), QString("camera 3"));
+    QCOMPARE(state.suggestedSourceName("second", base), base);
+    QVERIFY(state.suggestedSourceName("missing", base).isEmpty());
+    QVERIFY(state.suggestedSourceName({}, base).isEmpty());
+    QVERIFY(state.suggestedSourceName("first", " \t ").isEmpty());
+    QCOMPARE(state.currentSceneId(), QString("first"));
+    QCOMPARE(state.currentSourceId(), QString("a"));
+    QCOMPARE(state.sourceModel()->rowCount(), 4);
+    QCOMPARE(selected.count(), 0);
+    QCOMPARE(inserted.count(), 0);
+    QVERIFY(state.selectScene("second"));
+    QCOMPARE(state.suggestedSourceName("first", base), base + " 2");
+    QVERIFY(state.removeSource("first", "a"));
+    QCOMPARE(state.suggestedSourceName("first", base), base);
 }
 
 QTEST_GUILESS_MAIN(StudioStateTest)
