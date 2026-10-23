@@ -3,9 +3,9 @@
 These SVG files are unmodified copies from the [official Lucide repository](https://github.com/lucide-icons/lucide). Only icons used by the scene, source, mixer, transition and control panels have been imported. All are bundled through Qt resources for use by the application and tests.
 
 - Upstream commit: [20aef31db93fe4d9f398dbb15b120d99c48eef95](https://github.com/lucide-icons/lucide/tree/20aef31db93fe4d9f398dbb15b120d99c48eef95).
-- Imported on: 2026-10-22.
+- Imported on: 2026-10-22; `eye-off` and `lock-open` added on 2026-10-23.
 - Modifications: none; original SVG bytes, dimensions and strokes are preserved.
-- License: the complete upstream LICENSE is reproduced below, including the ISC and Feather-derived MIT notices. The imported names `plus`, `minus`, `arrow-up`, `arrow-down`, `arrow-right`, `lock`, `circle` and `radio` occur in the upstream Feather-derived list; `eye`, `sliders-horizontal`, `settings` and `volume-2` do not occur in that list.
+- License: the complete upstream LICENSE is reproduced below, including the ISC and Feather-derived MIT notices. The imported names `plus`, `minus`, `arrow-up`, `arrow-down`, `arrow-right`, `lock`, `circle` and `radio` occur in the upstream Feather-derived list; `eye`, `eye-off`, `lock-open`, `sliders-horizontal`, `settings` and `volume-2` do not occur in that list.
 
 | Local file | Intended use | Pinned source | SHA-256 |
 | --- | --- | --- | --- |
@@ -14,7 +14,9 @@ These SVG files are unmodified copies from the [official Lucide repository](http
 | [arrow-up.svg](arrow-up.svg) | Move scene or source up | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/arrow-up.svg) | `8c22c25874c80bb062bef985d207d8f1d4a4d7847237d0a8cf720a3235968518` |
 | [arrow-down.svg](arrow-down.svg) | Move scene or source down | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/arrow-down.svg) | `2b641c7a59d39450edfed72067fcc9940a1a316a737346af23b4b9103c0689f2` |
 | [eye.svg](eye.svg) | Source visibility | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/eye.svg) | `5bf90197dd7629cad64a2e48d1186a71559deb6121207d10e3dc5b19ebaffdcf` |
+| [eye-off.svg](eye-off.svg) | Hidden source state | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/eye-off.svg) | `774bcd975c5de781a4ee778c76e5591bcdeb409955f7054847e7e6003da0a520` |
 | [lock.svg](lock.svg) | Source lock | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/lock.svg) | `d2cfe60cac8deaef36442b5c8218c1e61abe18222784b2a370ea090d13fca840` |
+| [lock-open.svg](lock-open.svg) | Unlocked source state | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/lock-open.svg) | `f167153e8fec4008d6946f28035607636ed0b04dcfecdf58d7204db0b3d030f2` |
 | [sliders-horizontal.svg](sliders-horizontal.svg) | Source filters | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/sliders-horizontal.svg) | `e43a00e5eb684e6cbb61083bed2528d7a3fa5f265693eb2b5f314cd432aa65f4` |
 | [settings.svg](settings.svg) | Source or audio properties | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/settings.svg) | `0ae27fd0f81999229e3127ac96c5b32edfea448e291d509e76212b917551d66b` |
 | [volume-2.svg](volume-2.svg) | Mixer mute action | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/volume-2.svg) | `fb404f9c128a0579de67b399177631e5edb3502fdc247ceb30e8b15754b46071` |
