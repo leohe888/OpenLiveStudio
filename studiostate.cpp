@@ -57,6 +57,13 @@ public:
         endRemoveRows();
     }
 
+    void move(int from, int to)
+    {
+        beginMoveRows({}, from, from, {}, to > from ? to + 1 : to);
+        m_items.move(from, to);
+        endMoveRows();
+    }
+
 private:
     QHash<int, QByteArray> m_roles;
     QList<SourceData> m_items;
@@ -73,6 +80,10 @@ StudioState::StudioState(const QList<SceneData> &scenes, QObject *parent)
       m_sceneModel(new ListModel("sceneId", "sceneName", this)),
       m_sourceModel(new ListModel("sourceId", "sourceName", this))
 {
+    connect(this, &StudioState::currentSceneIdChanged, this, &StudioState::sceneMoveAvailabilityChanged);
+    connect(m_sceneModel, &QAbstractItemModel::rowsInserted, this, &StudioState::sceneMoveAvailabilityChanged);
+    connect(m_sceneModel, &QAbstractItemModel::rowsRemoved, this, &StudioState::sceneMoveAvailabilityChanged);
+    connect(m_sceneModel, &QAbstractItemModel::rowsMoved, this, &StudioState::sceneMoveAvailabilityChanged);
     QList<SourceData> sceneItems;
     for (const auto &scene : m_scenes)
         sceneItems.append({scene.id, scene.name});
@@ -199,4 +210,37 @@ bool StudioState::removeScene(const QString &id)
         return true;
     }
     return false;
+}
+
+int StudioState::sceneRow(const QString &id) const
+{
+    for (int row = 0; row < m_scenes.size(); ++row) {
+        if (m_scenes.at(row).id == id)
+            return row;
+    }
+    return -1;
+}
+
+bool StudioState::canMoveCurrentSceneUp() const
+{
+    return sceneRow(m_currentSceneId) > 0;
+}
+
+bool StudioState::canMoveCurrentSceneDown() const
+{
+    const int row = sceneRow(m_currentSceneId);
+    return row >= 0 && row + 1 < m_scenes.size();
+}
+
+bool StudioState::moveScene(const QString &id, int offset)
+{
+    if (offset != -1 && offset != 1)
+        return false;
+    const int from = sceneRow(id);
+    const int to = from + offset;
+    if (from < 0 || to < 0 || to >= m_scenes.size())
+        return false;
+    m_scenes.move(from, to);
+    m_sceneModel->move(from, to);
+    return true;
 }

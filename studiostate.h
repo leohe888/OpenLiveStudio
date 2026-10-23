@@ -14,6 +14,8 @@ class StudioState : public QObject
     Q_PROPERTY(QString currentSceneId READ currentSceneId NOTIFY currentSceneIdChanged)
     Q_PROPERTY(QString currentSourceId READ currentSourceId NOTIFY currentSourceIdChanged)
     Q_PROPERTY(bool canRemoveCurrentScene READ canRemoveCurrentScene NOTIFY canRemoveCurrentSceneChanged)
+    Q_PROPERTY(bool canMoveCurrentSceneUp READ canMoveCurrentSceneUp NOTIFY sceneMoveAvailabilityChanged)
+    Q_PROPERTY(bool canMoveCurrentSceneDown READ canMoveCurrentSceneDown NOTIFY sceneMoveAvailabilityChanged)
 
 public:
     struct SourceData { QString id; QString name; };
@@ -29,6 +31,8 @@ public:
     QString currentSceneId() const { return m_currentSceneId; }
     QString currentSourceId() const { return m_currentSourceId; }
     bool canRemoveCurrentScene() const { return m_scenes.size() > 1 && !m_currentSceneId.isEmpty(); }
+    bool canMoveCurrentSceneUp() const;
+    bool canMoveCurrentSceneDown() const;
 
     Q_INVOKABLE bool selectScene(const QString &id);
     // An empty ID clears selection; other IDs must belong to the current scene.
@@ -40,14 +44,18 @@ public:
     Q_INVOKABLE QString addScene(const QString &name);
     Q_INVOKABLE bool renameScene(const QString &id, const QString &name);
     Q_INVOKABLE bool removeScene(const QString &id);
+    // Move one row: offset must be -1 (up) or 1 (down).
+    Q_INVOKABLE bool moveScene(const QString &id, int offset);
 
 signals:
     void currentSceneIdChanged();
     void currentSourceIdChanged();
     void canRemoveCurrentSceneChanged();
+    void sceneMoveAvailabilityChanged();
 
 private:
     class ListModel;
+    int sceneRow(const QString &id) const;
     QList<SceneData> m_scenes;
     ListModel *m_sceneModel;
     ListModel *m_sourceModel;
