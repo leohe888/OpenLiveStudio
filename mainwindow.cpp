@@ -60,6 +60,8 @@ void MainWindow::showDialog(const QUrl &source, const QString &title,
     layout->addWidget(pages);
     auto *view = new QQuickWidget(pages);
     view->setObjectName(QStringLiteral("dialogQuickWidget"));
+    dialog->winId(); // Native dialogs need the host window, not QQuickWidget's offscreen window.
+    view->rootContext()->setContextProperty(QStringLiteral("dialogWindow"), dialog->windowHandle());
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
     view->setClearColor(QColor(QStringLiteral("#1d1d1d")));
     pages->addWidget(view);
@@ -133,6 +135,15 @@ void MainWindow::showSceneRemovalDialog(const QString &sceneId)
             {QStringLiteral("sceneName"), index.data(StudioState::NameRole)}});
         return;
     }
+}
+
+void MainWindow::showSourceAddDialog(const QString &sceneId)
+{
+    if (sceneId.isEmpty())
+        return;
+    showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml")),
+        tr("添加来源"), {{QStringLiteral("state"), QVariant::fromValue(m_studioState)},
+                       {QStringLiteral("sceneId"), sceneId}});
 }
 
 void MainWindow::setupMenusAndToolBar()
@@ -342,6 +353,8 @@ void MainWindow::setupSourcesDock()
             if (pages->currentWidget() == errorLabel)
                 statusBar()->showMessage(tr("来源面板已加载"), 3000);
             pages->setCurrentWidget(view);
+            connect(view->rootObject(), SIGNAL(sourceAddDialogRequested(QString)),
+                    this, SLOT(showSourceAddDialog(QString)), Qt::UniqueConnection);
         }
     });
     connect(view, &QQuickWidget::sceneGraphError, this,

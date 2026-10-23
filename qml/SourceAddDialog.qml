@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import QtQuick.Dialogs
 
 Rectangle {
     id: root
@@ -14,6 +15,29 @@ Rectangle {
     property string filePath: ""
     property string errorText: ""
     signal closeRequested()
+
+    function acceptFileUrl(url) {
+        const value = url.toString()
+        if (!value.startsWith("file://")) {
+            errorText = qsTr("请选择本地图像文件。")
+            return
+        }
+        const path = decodeURIComponent(value.substring(7))
+        // file:///C:/... is a drive path; file://server/... is a UNC path.
+        filePath = /^\/[A-Za-z]:\//.test(path) ? path.substring(1)
+            : (value.startsWith("file:///") ? path : "//" + path)
+        errorText = ""
+    }
+
+    FileDialog {
+        id: imageFileDialog
+        objectName: "sourceFileDialog"
+        parentWindow: typeof dialogWindow !== "undefined" ? dialogWindow : root.Window.window
+        title: qsTr("选择图像文件")
+        fileMode: FileDialog.OpenFile
+        nameFilters: [qsTr("图像文件 (*.png *.jpg *.jpeg *.bmp *.gif *.webp *.svg)"), qsTr("所有文件 (*)")]
+        onAccepted: root.acceptFileUrl(selectedFile)
+    }
 
     function submit() {
         if (!state) {
@@ -77,9 +101,7 @@ Rectangle {
             ActionButton {
                 objectName: "browseSourceFileButton"
                 text: qsTr("浏览")
-                enabled: false
-                ToolTip.text: qsTr("文件选择尚未接入，请手动输入路径。")
-                ToolTip.visible: hovered
+                onClicked: imageFileDialog.open()
             }
         }
     }

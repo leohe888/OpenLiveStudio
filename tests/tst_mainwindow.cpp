@@ -5,6 +5,7 @@
 #include <QDockWidget>
 #include <QDialog>
 #include <QFile>
+#include <QFileDialog>
 #include <QImageReader>
 #include <QLabel>
 #include <QMenuBar>
@@ -42,6 +43,8 @@ private slots:
     void qmlDialogShowsLoadErrors_data();
     void qmlDialogShowsLoadErrors();
     void aboutActionShowsProjectInfoAndReusesDialog();
+    void sourcePanelCanBrowseAndAdd_data();
+    void sourcePanelCanBrowseAndAdd();
     void sourceAddDialogHandlesInput_data();
     void sourceAddDialogHandlesInput();
     void sceneNameDialogValidatesAndSaves_data();
@@ -466,6 +469,104 @@ void MainWindowTest::aboutActionShowsProjectInfoAndReusesDialog()
     }
 }
 
+void MainWindowTest::sourcePanelCanBrowseAndAdd_data()
+{
+    QTest::addColumn<bool>("reload");
+    QTest::newRow("initial") << false;
+    QTest::newRow("reloaded") << true;
+}
+
+void MainWindowTest::sourcePanelCanBrowseAndAdd()
+{
+    QFETCH(bool, reload);
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QString::fromUtf8("图像 #100% space.png"));
+    QImage image(19, 11, QImage::Format_ARGB32);
+    image.fill(Qt::red);
+    QVERIFY(image.save(path));
+    MainWindow window;
+    window.show();
+    auto *state = window.findChild<StudioState *>();
+    auto *panel = window.findChild<QQuickWidget *>(QStringLiteral("sourcesQuickWidget"));
+    QVERIFY(state && panel);
+    if (reload) {
+        panel->setSource(QUrl(QStringLiteral("qrc:/missing-source-panel.qml")));
+        QTRY_COMPARE(panel->status(), QQuickWidget::Error);
+        panel->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml")));
+    }
+    QTRY_COMPARE(panel->status(), QQuickWidget::Ready);
+    auto *actions = panel->rootObject()->findChild<QQuickItem *>(QStringLiteral("sourceActions"));
+    QVERIFY(actions);
+    QQuickItem *add = nullptr;
+    for (auto *item : actions->childItems()) {
+        if (item->objectName() == QStringLiteral("addSourceButton"))
+            add = item;
+    }
+    QVERIFY(add && add->isEnabled());
+    QTest::mouseClick(panel, Qt::LeftButton, Qt::NoModifier,
+        add->mapToScene(add->boundingRect().center()).toPoint());
+    QTRY_COMPARE(window.findChildren<QDialog *>(QStringLiteral("qmlDialog")).size(), 1);
+    QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
+    QCOMPARE(dialog->windowTitle(), QString::fromUtf8("添加来源"));
+    auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    QPointer<QQuickItem> root = view->rootObject();
+    QPointer<QObject> picker = root->findChild<QObject *>(QStringLiteral("sourceFileDialog"));
+    auto *file = root->findChild<QQuickItem *>(QStringLiteral("sourceFileInput"));
+    auto *browse = root->findChild<QQuickItem *>(QStringLiteral("browseSourceFileButton"));
+    QVERIFY(picker && file && browse);
+    QCOMPARE(qvariant_cast<QWindow *>(picker->property("parentWindow")), dialog->windowHandle());
+    // The headless test explicitly exercises Qt Quick's non-native implementation.
+    QVERIFY(picker->setProperty("options", int(QFileDialog::DontUseNativeDialog)));
+    QVERIFY(picker->setProperty("parentWindow", QVariant::fromValue<QWindow *>(view->quickWindow())));
+    QVERIFY(picker->setProperty("currentFolder", QUrl::fromLocalFile(dir.path())));
+    file->forceActiveFocus();
+    QTest::keyClicks(view, "previous.png");
+    const auto openPicker = [&] {
+        QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
+            browse->mapToScene(browse->boundingRect().center()).toPoint());
+    };
+    openPicker();
+    QTRY_VERIFY(picker->property("visible").toBool());
+    QVERIFY(picker->setProperty("selectedFile", QUrl::fromLocalFile(path)));
+    QVERIFY(QMetaObject::invokeMethod(picker, "reject"));
+    QTRY_VERIFY(!picker->property("visible").toBool());
+    QCOMPARE(file->property("text").toString(), QString("previous.png"));
+    QCOMPARE(state->sourceModel()->rowCount(), 0);
+    openPicker();
+    QTRY_VERIFY(picker->property("visible").toBool());
+    QVERIFY(picker->setProperty("selectedFile", QUrl::fromLocalFile(path)));
+    QVERIFY(QMetaObject::invokeMethod(picker, "accept"));
+    QTRY_VERIFY(!picker->property("visible").toBool());
+    QTRY_COMPARE(file->property("text").toString(), path);
+    QCOMPARE(root->property("filePath").toString(), path);
+    QCOMPARE(state->sourceModel()->rowCount(), 0); // Picking is not creation.
+    QVERIFY(QMetaObject::invokeMethod(root, "submit"));
+    QTRY_VERIFY(dialog.isNull());
+    QVERIFY(picker.isNull());
+    QCOMPARE(state->sourceModel()->rowCount(), 1);
+    QCOMPARE(state->sourceModel()->index(0, 0).data(StudioState::FilePathRole).toString(), path);
+    QCOMPARE(state->currentSourceId(), state->sourceModel()->index(0, 0).data(StudioState::IdRole).toString());
+    QTest::mouseClick(panel, Qt::LeftButton, Qt::NoModifier,
+        add->mapToScene(add->boundingRect().center()).toPoint());
+    QTRY_COMPARE(window.findChildren<QDialog *>(QStringLiteral("qmlDialog")).size(), 1);
+    dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
+    view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    picker = view->rootObject()->findChild<QObject *>(QStringLiteral("sourceFileDialog"));
+    QVERIFY(picker);
+    QVERIFY(picker->setProperty("options", int(QFileDialog::DontUseNativeDialog)));
+    QVERIFY(picker->setProperty("parentWindow", QVariant::fromValue<QWindow *>(view->quickWindow())));
+    QVERIFY(picker->setProperty("currentFolder", QUrl::fromLocalFile(dir.path())));
+    QVERIFY(QMetaObject::invokeMethod(picker, "open"));
+    QTRY_VERIFY(picker->property("visible").toBool());
+    dialog->close();
+    QTRY_VERIFY(dialog.isNull());
+    QVERIFY(picker.isNull());
+    QCOMPARE(state->sourceModel()->rowCount(), 1);
+}
+
 void MainWindowTest::sourceAddDialogHandlesInput_data()
 {
     QTest::addColumn<QString>("method");
@@ -508,7 +609,7 @@ void MainWindowTest::sourceAddDialogHandlesInput()
     auto *cancel = find("cancelSourceAddButton");
     QVERIFY(name && file && error && type && browse && confirm && cancel);
     QCOMPARE(type->property("count").toInt(), 1);
-    QVERIFY(!browse->isEnabled());
+    QVERIFY(browse->isEnabled());
     QCOMPARE(name->property("text").toString(), QString::fromUtf8("图像"));
     QTRY_VERIFY(name->hasActiveFocus());
     QCOMPARE(name->property("selectedText").toString(), name->property("text").toString());
@@ -543,10 +644,12 @@ void MainWindowTest::sourceAddDialogHandlesInput()
     }
     input(name, "  Logo  ");
     if (method == "cancel" || method == "escape" || method == "close") {
-        // Tab from the name field visits the path and skips the disabled Browse button.
+        // Tab follows the path, Browse, Confirm and Cancel controls.
         QTest::keyClick(view, Qt::Key_Tab);
         QTRY_VERIFY(file->hasActiveFocus());
         if (method == "cancel") {
+            QTest::keyClick(view, Qt::Key_Tab);
+            QTRY_VERIFY(browse->hasActiveFocus());
             QTest::keyClick(view, Qt::Key_Tab);
             QTRY_VERIFY(confirm->hasActiveFocus());
             QTest::keyClick(view, Qt::Key_Tab);
@@ -1357,7 +1460,7 @@ void MainWindowTest::embedsSourcePanelBelowSceneDock()
         for (auto *button : actions->childItems()) {
             if (!button->objectName().endsWith(QStringLiteral("Button")))
                 continue;
-            QVERIFY(!button->isEnabled());
+            QCOMPARE(button->isEnabled(), button->objectName() == QStringLiteral("addSourceButton"));
             QVERIFY(view->rootObject()->boundingRect().contains(
                 button->mapRectToScene(button->boundingRect())));
         }
@@ -1467,7 +1570,7 @@ void MainWindowTest::embedsControlsPanelAtBottomRight()
         for (const auto *name : {"recordButton", "streamButton", "settingsButton"}) {
             auto *button = view->rootObject()->findChild<QQuickItem *>(QLatin1String(name));
             QVERIFY(button);
-            QVERIFY(!button->isEnabled());
+            QCOMPARE(button->isEnabled(), button->objectName() == QStringLiteral("addSourceButton"));
             QVERIFY(view->rootObject()->boundingRect().contains(
                 button->mapRectToScene(button->boundingRect())));
         }

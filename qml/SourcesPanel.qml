@@ -9,6 +9,7 @@ Rectangle {
     implicitHeight: 320
     color: "#1d1d1d"
     readonly property var state: typeof studioState !== "undefined" ? studioState : null
+    signal sourceAddDialogRequested(string sceneId)
 
     // Source operations remain unavailable until their business steps.
     component SourceButton: ToolButton {
@@ -143,6 +144,9 @@ Rectangle {
                         text: modelData.label
                         icon.source: "qrc:/assets/icons/" + modelData.icon + ".svg"
                         Layout.preferredWidth: 30
+                        enabled: modelData.name === "addSourceButton" && root.state !== null
+                            && root.state.currentSceneId.length > 0
+                        onClicked: root.sourceAddDialogRequested(root.state.currentSceneId)
                     }
                 }
                 Rectangle {
