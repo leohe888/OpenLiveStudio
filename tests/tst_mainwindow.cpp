@@ -294,21 +294,31 @@ void MainWindowTest::sourcePanelCanMoveAndToggle()
     QVERIFY(lock->isEnabled());
     QVERIFY(visibility->property("checked").toBool());
     QVERIFY(!lock->property("checked").toBool());
+    const auto iconSource = [&panel](QQuickItem *button) {
+        QQmlExpression expression(panel.rootContext(), button, QStringLiteral("icon.source"));
+        return expression.evaluate().toUrl();
+    };
+    QCOMPARE(iconSource(visibility), QUrl("qrc:/assets/icons/eye.svg"));
+    QCOMPARE(iconSource(lock), QUrl("qrc:/assets/icons/lock-open.svg"));
     click(visibility); // A nonselected row must not steal selection.
     QTRY_VERIFY(!visibility->property("checked").toBool());
+    QTRY_COMPARE(iconSource(visibility), QUrl("qrc:/assets/icons/eye-off.svg"));
     QCOMPARE(state.currentSourceId(), QString("a"));
     QVERIFY(!state.sourceModel()->index(1, 0).data(StudioState::VisibleRole).toBool());
     click(lock);
     QTRY_VERIFY(lock->property("checked").toBool());
+    QTRY_COMPARE(iconSource(lock), QUrl("qrc:/assets/icons/lock.svg"));
     QCOMPARE(state.currentSourceId(), QString("a"));
     QVERIFY(state.sourceModel()->index(1, 0).data(StudioState::LockedRole).toBool());
     // Model updates must continue to drive presentation after user clicks.
     QVERIFY(state.setSourceVisible("first", "b", true));
     QTRY_VERIFY(visibility->property("checked").toBool());
+    QTRY_COMPARE(iconSource(visibility), QUrl("qrc:/assets/icons/eye.svg"));
     click(visibility);
     QTRY_VERIFY(!visibility->property("checked").toBool());
     click(lock);
     QTRY_VERIFY(!lock->property("checked").toBool());
+    QTRY_COMPARE(iconSource(lock), QUrl("qrc:/assets/icons/lock-open.svg"));
     click(lock);
     QTRY_VERIFY(lock->property("checked").toBool());
     // Select through the label area, then move a hidden, locked entry.
@@ -345,6 +355,8 @@ void MainWindowTest::sourcePanelCanMoveAndToggle()
     QVERIFY(lock);
     QTRY_VERIFY(!visibility->property("checked").toBool());
     QTRY_VERIFY(lock->property("checked").toBool());
+    QTRY_COMPARE(iconSource(visibility), QUrl("qrc:/assets/icons/eye-off.svg"));
+    QTRY_COMPARE(iconSource(lock), QUrl("qrc:/assets/icons/lock.svg"));
     QTRY_VERIFY(find("moveSourceUpButton")->isEnabled());
     QTRY_VERIFY(!find("moveSourceDownButton")->isEnabled());
     click(visibility);
@@ -2130,7 +2142,7 @@ void MainWindowTest::panelIconsCanBeDecoded_data()
 {
     QTest::addColumn<QString>("resourcePath");
     for (const auto *name : {"plus", "minus", "arrow-up", "arrow-down",
-                             "eye", "lock", "sliders-horizontal", "settings", "volume-2", "arrow-right",
+                             "eye", "eye-off", "lock", "lock-open", "sliders-horizontal", "settings", "volume-2", "arrow-right",
                              "circle", "radio"}) {
         QTest::newRow(name) << QStringLiteral(":/assets/icons/%1.svg").arg(QLatin1String(name));
     }
@@ -2150,17 +2162,20 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates_data()
 {
     QTest::addColumn<QString>("panelName");
     QTest::addColumn<int>("expectedButtons");
-    QTest::newRow("scenes") << QStringLiteral("ScenesPanel") << 4;
-    QTest::newRow("sources") << QStringLiteral("SourcesPanel") << 8;
-    QTest::newRow("mixer") << QStringLiteral("MixerPanel") << 4;
-    QTest::newRow("transitions") << QStringLiteral("TransitionsPanel") << 1;
-    QTest::newRow("controls") << QStringLiteral("ControlsPanel") << 2;
+    QTest::addColumn<bool>("alternateSourceState");
+    QTest::newRow("scenes") << QStringLiteral("ScenesPanel") << 4 << false;
+    QTest::newRow("sources") << QStringLiteral("SourcesPanel") << 8 << false;
+    QTest::newRow("sources-hidden-locked") << QStringLiteral("SourcesPanel") << 8 << true;
+    QTest::newRow("mixer") << QStringLiteral("MixerPanel") << 4 << false;
+    QTest::newRow("transitions") << QStringLiteral("TransitionsPanel") << 1 << false;
+    QTest::newRow("controls") << QStringLiteral("ControlsPanel") << 2 << false;
 }
 
 void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
 {
     QFETCH(QString, panelName);
     QFETCH(int, expectedButtons);
+    QFETCH(bool, alternateSourceState);
     QQuickWidget panel;
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(238, 260);
@@ -2173,9 +2188,11 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
     std::unique_ptr<QObject> sourceModel;
     if (panelName == QStringLiteral("SourcesPanel")) {
         QQmlComponent component(panel.engine());
-        component.setData("import QtQml.Models\nListModel { ListElement { "
+        component.setData(QStringLiteral("import QtQml.Models\nListModel { ListElement { "
                           "sourceId: 'image'; sourceName: 'A long source name for layout verification'; "
-                          "sourceVisible: true; sourceLocked: false } }", QUrl());
+                          "sourceVisible: %1; sourceLocked: %2 } }")
+                          .arg(alternateSourceState ? "false" : "true",
+                               alternateSourceState ? "true" : "false").toUtf8(), QUrl());
         sourceModel.reset(component.create());
         QVERIFY2(sourceModel, qPrintable(component.errorString()));
         auto *list = panel.rootObject()->findChild<QObject *>(QStringLiteral("sourceList"));
@@ -2226,7 +2243,8 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
     int checkedButtons = 0;
     for (auto *button : buttons) {
         // Isolate icons from button text and borders for rendering checks.
-        const bool isolateIcon = panelName == QStringLiteral("TransitionsPanel")
+        const bool isolateIcon = panelName == QStringLiteral("SourcesPanel")
+            || panelName == QStringLiteral("TransitionsPanel")
             || panelName == QStringLiteral("ControlsPanel");
         const QVariant originalDisplay = button->property("display");
         auto *background = button->property("background").value<QQuickItem *>();

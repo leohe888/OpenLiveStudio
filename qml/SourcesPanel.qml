@@ -105,7 +105,8 @@ Rectangle {
                             enabled: root.state !== null
                             checked: sourceVisible
                             text: sourceVisible ? qsTr("隐藏来源") : qsTr("显示来源")
-                            icon.source: "qrc:/assets/icons/eye.svg"
+                            icon.source: sourceVisible ? "qrc:/assets/icons/eye.svg"
+                                : "qrc:/assets/icons/eye-off.svg"
                             onClicked: root.state.setSourceVisible(root.state.currentSceneId, sourceId, !sourceVisible)
                         }
                         SourceButton {
@@ -113,7 +114,8 @@ Rectangle {
                             enabled: root.state !== null
                             checked: sourceLocked
                             text: sourceLocked ? qsTr("解锁来源") : qsTr("锁定来源")
-                            icon.source: "qrc:/assets/icons/lock.svg"
+                            icon.source: sourceLocked ? "qrc:/assets/icons/lock.svg"
+                                : "qrc:/assets/icons/lock-open.svg"
                             onClicked: root.state.setSourceLocked(root.state.currentSceneId, sourceId, !sourceLocked)
                         }
                     }
