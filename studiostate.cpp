@@ -36,6 +36,20 @@ public:
         endResetModel();
     }
 
+    void append(const SourceData &item)
+    {
+        const int row = int(m_items.size());
+        beginInsertRows({}, row, row);
+        m_items.append(item);
+        endInsertRows();
+    }
+
+    void rename(int row, const QString &name)
+    {
+        m_items[row].name = name;
+        emit dataChanged(index(row, 0), index(row, 0), {NameRole, Qt::DisplayRole});
+    }
+
 private:
     QHash<int, QByteArray> m_roles;
     QList<SourceData> m_items;
@@ -102,4 +116,56 @@ bool StudioState::selectSource(const QString &id)
         emit currentSourceIdChanged();
     }
     return true;
+}
+
+QString StudioState::suggestedSceneName() const
+{
+    const QString base = tr("场景");
+    QString candidate = base;
+    for (int number = 2; !sceneNameError(candidate).isEmpty(); ++number)
+        candidate = base + QStringLiteral(" %1").arg(number);
+    return candidate;
+}
+
+QString StudioState::sceneNameError(const QString &name, const QString &excludedSceneId) const
+{
+    const QString trimmed = name.trimmed();
+    if (trimmed.isEmpty())
+        return tr("场景名称不能为空。");
+    for (const auto &scene : m_scenes) {
+        if (scene.id != excludedSceneId
+            && scene.name.trimmed().compare(trimmed, Qt::CaseInsensitive) == 0)
+            return tr("场景名称已存在。");
+    }
+    return {};
+}
+
+QString StudioState::addScene(const QString &name)
+{
+    if (!sceneNameError(name).isEmpty())
+        return {};
+    const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    const QString trimmed = name.trimmed();
+    m_scenes.append({id, trimmed, {}});
+    m_sceneModel->append({id, trimmed});
+    selectScene(id);
+    return id;
+}
+
+bool StudioState::renameScene(const QString &id, const QString &name)
+{
+    for (int row = 0; row < m_scenes.size(); ++row) {
+        auto &scene = m_scenes[row];
+        if (scene.id != id)
+            continue;
+        if (!sceneNameError(name, id).isEmpty())
+            return false;
+        const QString trimmed = name.trimmed();
+        if (scene.name != trimmed) {
+            scene.name = trimmed;
+            m_sceneModel->rename(row, trimmed);
+        }
+        return true;
+    }
+    return false;
 }
