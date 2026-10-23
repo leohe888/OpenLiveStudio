@@ -19,6 +19,8 @@ qt_add_executable(tst_studiostate
     tst_studiostate.cpp
     ../studiostate.cpp
     ../studiostate.h
+    ../imageloader.cpp
+    ../imageloader.h
 )
 target_include_directories(tst_studiostate PRIVATE "${PROJECT_SOURCE_DIR}")
 target_link_libraries(tst_studiostate PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -36,6 +38,8 @@ qt_add_executable(tst_mainwindow
     ../mainwindow.h
     ../studiostate.cpp
     ../studiostate.h
+    ../imageloader.cpp
+    ../imageloader.h
 )
 
 target_include_directories(tst_mainwindow PRIVATE "${PROJECT_SOURCE_DIR}")

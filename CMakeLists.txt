@@ -16,6 +16,8 @@ qt_add_executable(OpenLiveStudio
     mainwindow.h
     studiostate.cpp
     studiostate.h
+    imageloader.cpp
+    imageloader.h
 )
 
 qt_add_qml_module(OpenLiveStudio

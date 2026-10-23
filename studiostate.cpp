@@ -1,8 +1,8 @@
 #include "studiostate.h"
+#include "imageloader.h"
 
 #include <QAbstractListModel>
 #include <QFileInfo>
-#include <QImageReader>
 #include <QUuid>
 
 class StudioState::ListModel : public QAbstractListModel
@@ -282,15 +282,11 @@ QString StudioState::validateImageSource(const QString &sceneId, const QString &
         if (source.name.trimmed().compare(trimmed, Qt::CaseInsensitive) == 0)
             return tr("来源名称已存在。");
     }
-    const QFileInfo file(filePath);
-    if (filePath.isEmpty() || !file.isFile() || !file.isReadable())
-        return tr("请选择存在且可读取的图像文件。");
-    QImageReader reader(file.absoluteFilePath());
-    const QImage image = reader.read();
-    if (image.isNull())
-        return tr("无法读取图像：%1").arg(reader.errorString());
+    const auto result = ImageLoader::load(filePath);
+    if (!result.isValid())
+        return result.error;
     if (size)
-        *size = image.size();
+        *size = result.originalSize;
     return {};
 }
 
