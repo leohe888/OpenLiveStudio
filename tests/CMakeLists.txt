@@ -80,7 +80,8 @@ add_test(NAME ui.mainwindow
         "$<TARGET_FILE:tst_mainwindow>"
         -o "-,txt"
 )
+# Timeout covers the complete UI suite; allow headroom for QML setup and CI variance.
 set_tests_properties(ui.mainwindow PROPERTIES
     LABELS "ui;smoke"
-    TIMEOUT 30
+    TIMEOUT 90
 )

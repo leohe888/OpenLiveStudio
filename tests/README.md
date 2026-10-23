@@ -191,18 +191,22 @@ After image-source add/remove integration, the image-loader executable reported
 12 passes and the state executable 40 passes, including initialization and cleanup.
 The final source-action regression run reported 14 passes. The separate complete
 window suite reported 88 passes in 32.38 seconds. The latest Debug build passed.
-The latest CTest run passed both core tests but timed out ui.mainwindow at its
-unchanged 30-second limit; the complete CTest run is therefore not passing.
-Earlier complete CTest passes do not establish that the expanded suite fits this
-limit. Local run times vary; resolving suite runtime/organization needs separate
-work rather than claiming a passing CTest result.
+The original 30-second CTest limit applied to the entire UI executable, including
+all data rows. A diagnostic run passed all 88 cases in 30.07 seconds, with the
+slowest case taking about 0.78 seconds; no individual case was stuck. Repeated
+window/QML setup, rendering and asynchronous event handling accumulate across
+the suite. The UI executable now has a 90-second limit to allow setup and CI
+variance. Both core executables retain their 10-second limits; individual test
+assertion rules are unchanged. The latest complete CTest run passed 3/3, with
+ui.mainwindow taking 31.04 seconds and the full run 31.29 seconds. The suite has
+not been split into smaller executables.
 Local validation used Qt 6.12.0 with MSVC 2022 x64, Debug. The Visual Studio
 multi-configuration commands used by CI previously passed locally and produced a
 JUnit report. CI's Qt 6.8.3 installation and the GitHub-hosted workflow remain
 unverified.
 UI checks use Qt's `offscreen` platform plugin and the
 software Qt Quick backend. The CTest command supplies Qt DLL, plugin and QML
-import paths and has a 30-second timeout. Software-rendered screenshots of
+import paths and gives the entire UI executable a 90-second timeout. Software-rendered screenshots of
 the default scene, source empty state, selected test source, name-dialog
 normal/error states, overflowing lists with scrollbars, removal-dialog
 confirmation/error states and movement button states before and after ordering
