@@ -28,6 +28,7 @@ private slots:
     void showSceneNameDialog(const QString &sceneId, const QString &initialName);
     void showSceneRemovalDialog(const QString &sceneId);
     void showSourceAddDialog(const QString &sceneId);
+    void showSourceRemovalDialog(const QString &sceneId, const QString &sourceId);
 
 private:
     void setupMenusAndToolBar();

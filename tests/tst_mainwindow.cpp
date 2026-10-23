@@ -52,6 +52,8 @@ private slots:
     void sceneNameDialogCancelsWithoutChanges_data();
     void sceneNameDialogCancelsWithoutChanges();
     void scenePanelCanAddAndRenameAfterReload();
+    void sourcePanelCanRemove_data();
+    void sourcePanelCanRemove();
     void sourceRemovalDialogHandlesConfirmation_data();
     void sourceRemovalDialogHandlesConfirmation();
     void sceneRemovalDialogHandlesConfirmation_data();
@@ -911,6 +913,116 @@ void MainWindowTest::scenePanelCanAddAndRenameAfterReload()
         QTRY_COMPARE(findRow()->property("sceneName").toString(), renamed);
         QCOMPARE(state->sceneModel()->rowCount(), pass + 2);
     }
+}
+
+void MainWindowTest::sourcePanelCanRemove_data()
+{
+    QTest::addColumn<bool>("reload");
+    QTest::newRow("initial") << false;
+    QTest::newRow("reloaded") << true;
+}
+
+void MainWindowTest::sourcePanelCanRemove()
+{
+    QFETCH(bool, reload);
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath("image.png");
+    QImage image(19, 11, QImage::Format_ARGB32);
+    image.fill(Qt::red);
+    QVERIFY(image.save(path));
+    MainWindow window;
+    window.show();
+    auto *state = window.findChild<StudioState *>();
+    auto *panel = window.findChild<QQuickWidget *>(QStringLiteral("sourcesQuickWidget"));
+    QVERIFY(state && panel);
+    QTRY_COMPARE(panel->status(), QQuickWidget::Ready);
+    const auto removeButton = [&]() -> QQuickItem * {
+        auto *actions = panel->rootObject()->findChild<QQuickItem *>(QStringLiteral("sourceActions"));
+        if (actions) {
+            for (auto *item : actions->childItems()) {
+                if (item->objectName() == QStringLiteral("removeSourceButton")) return item;
+            }
+        }
+        return nullptr;
+    };
+    const auto click = [](QQuickWidget *view, QQuickItem *item) {
+        QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
+            item->mapToScene(QPointF(15, item->height() / 2)).toPoint());
+    };
+    QVERIFY(removeButton());
+    QVERIFY(!removeButton()->isEnabled());
+    click(panel, removeButton());
+    QVERIFY(!window.findChild<QDialog *>(QStringLiteral("qmlDialog")));
+    const QString sceneId = state->currentSceneId();
+    const QString first = state->addImageSource(sceneId, "Alpha", path);
+    const QString second = state->addImageSource(sceneId, "Beta", path);
+    QVERIFY(!first.isEmpty() && !second.isEmpty());
+    if (reload) {
+        const QUrl url = panel->source();
+        panel->setSource(QUrl(QStringLiteral("qrc:/missing-source-removal-panel.qml")));
+        QTRY_COMPARE(panel->status(), QQuickWidget::Error);
+        panel->setSource(url);
+        QTRY_COMPARE(panel->status(), QQuickWidget::Ready);
+    }
+    QTRY_VERIFY(removeButton() && removeButton()->isEnabled());
+    QVERIFY(state->selectSource({}));
+    QTRY_VERIFY(!removeButton()->isEnabled());
+    auto *list = panel->rootObject()->findChild<QQuickItem *>(QStringLiteral("sourceList"));
+    QVERIFY(list);
+    const auto firstRow = [&]() -> QQuickItem * {
+        auto *content = list->property("contentItem").value<QQuickItem *>();
+        if (content) {
+            for (auto *item : content->childItems()) {
+                if (item->objectName() == "sourceRow_" + first) return item;
+            }
+        }
+        return nullptr;
+    };
+    QTRY_VERIFY(firstRow());
+    click(panel, firstRow());
+    QTRY_COMPARE(state->currentSourceId(), first);
+    QTRY_VERIFY(removeButton()->isEnabled());
+    for (const auto &action : {QString("cancel"), QString("confirm")}) {
+        click(panel, removeButton());
+        QTRY_COMPARE(window.findChildren<QDialog *>(QStringLiteral("qmlDialog")).size(), 1);
+        QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
+        QCOMPARE(dialog->windowTitle(), QString::fromUtf8("移除来源"));
+        auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
+        QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+        auto *root = view->rootObject();
+        QCOMPARE(root->property("sceneId").toString(), sceneId);
+        QCOMPARE(root->property("sourceId").toString(), first);
+        QCOMPARE(root->property("sourceName").toString(), QString("Alpha"));
+        auto *button = root->findChild<QQuickItem *>(action == "cancel"
+            ? QStringLiteral("cancelSourceRemovalButton") : QStringLiteral("confirmSourceRemovalButton"));
+        QVERIFY(button);
+        click(view, button);
+        QTRY_VERIFY(dialog.isNull());
+        QCOMPARE(state->sourceModel()->rowCount(), action == "cancel" ? 2 : 1);
+        QCOMPARE(state->currentSourceId(), action == "cancel" ? first : QString());
+    }
+    QTRY_VERIFY(!removeButton()->isEnabled());
+    QVERIFY(state->selectSource(second));
+    QTRY_VERIFY(removeButton()->isEnabled());
+    click(panel, removeButton());
+    QTRY_VERIFY(window.findChild<QDialog *>(QStringLiteral("qmlDialog")));
+    QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
+    auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    auto *confirm = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("confirmSourceRemovalButton"));
+    QVERIFY(confirm);
+    click(view, confirm);
+    QTRY_VERIFY(dialog.isNull());
+    QCOMPARE(state->sourceModel()->rowCount(), 0);
+    QVERIFY(state->currentSourceId().isEmpty());
+    auto *empty = panel->rootObject()->findChild<QQuickItem *>(QStringLiteral("emptySourcesLabel"));
+    QVERIFY(empty);
+    QTRY_VERIFY(empty->isVisible());
+    QTRY_VERIFY(!removeButton()->isEnabled());
+    click(panel, removeButton());
+    QVERIFY(!window.findChild<QDialog *>(QStringLiteral("qmlDialog")));
+    QVERIFY(QFile::exists(path));
 }
 
 void MainWindowTest::sourceRemovalDialogHandlesConfirmation_data()

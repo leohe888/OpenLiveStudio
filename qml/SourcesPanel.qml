@@ -10,6 +10,7 @@ Rectangle {
     color: "#1d1d1d"
     readonly property var state: typeof studioState !== "undefined" ? studioState : null
     signal sourceAddDialogRequested(string sceneId)
+    signal sourceRemovalDialogRequested(string sceneId, string sourceId)
 
     // Source operations remain unavailable until their business steps.
     component SourceButton: ToolButton {
@@ -144,9 +145,15 @@ Rectangle {
                         text: modelData.label
                         icon.source: "qrc:/assets/icons/" + modelData.icon + ".svg"
                         Layout.preferredWidth: 30
-                        enabled: modelData.name === "addSourceButton" && root.state !== null
-                            && root.state.currentSceneId.length > 0
-                        onClicked: root.sourceAddDialogRequested(root.state.currentSceneId)
+                        enabled: root.state !== null && root.state.currentSceneId.length > 0
+                            && (modelData.name === "addSourceButton"
+                                || (modelData.name === "removeSourceButton" && root.state.currentSourceId.length > 0))
+                        onClicked: {
+                            if (modelData.name === "addSourceButton")
+                                root.sourceAddDialogRequested(root.state.currentSceneId)
+                            else if (modelData.name === "removeSourceButton")
+                                root.sourceRemovalDialogRequested(root.state.currentSceneId, root.state.currentSourceId)
+                        }
                     }
                 }
                 Rectangle {
