@@ -38,6 +38,10 @@ private slots:
     void qmlDialogShowsLoadErrors_data();
     void qmlDialogShowsLoadErrors();
     void aboutActionShowsProjectInfoAndReusesDialog();
+    void sceneNameDialogValidatesAndSaves_data();
+    void sceneNameDialogValidatesAndSaves();
+    void sceneNameDialogCancelsWithoutChanges_data();
+    void sceneNameDialogCancelsWithoutChanges();
     void keepsOutputStatusVisibleWhenResized();
     void loadsScenePanelWithEmptyState();
     void loadsSourcePanelWithEmptyState();
@@ -374,6 +378,123 @@ void MainWindowTest::aboutActionShowsProjectInfoAndReusesDialog()
         if (!viewAction->isSeparator() && !viewAction->isCheckable())
             QCOMPARE(viewAction->objectName(), QStringLiteral("resetLayoutAction"));
     }
+}
+
+void MainWindowTest::sceneNameDialogValidatesAndSaves_data()
+{
+    QTest::addColumn<bool>("rename");
+    QTest::newRow("add-enter") << false;
+    QTest::newRow("rename-click") << true;
+}
+
+void MainWindowTest::sceneNameDialogValidatesAndSaves()
+{
+    QFETCH(bool, rename);
+    MainWindow window;
+    window.show();
+    auto *state = window.findChild<StudioState *>();
+    QVERIFY(state);
+    const QString originalId = state->currentSceneId();
+    QVERIFY(!state->addScene("Existing").isEmpty());
+    QVERIFY(state->selectScene(originalId));
+    const QString initial = rename ? state->sceneModel()->index(0, 0).data(StudioState::NameRole).toString()
+                                   : state->suggestedSceneName();
+    window.showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SceneNameDialog.qml")),
+        QStringLiteral("Scene name"), {{"state", QVariant::fromValue(state)},
+        {"initialName", initial}, {"sceneId", rename ? originalId : QString()}});
+    QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
+    QVERIFY(dialog);
+    auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
+    QVERIFY(view);
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    QPointer<QQuickItem> root = view->rootObject();
+    auto *input = root->findChild<QQuickItem *>(QStringLiteral("sceneNameInput"));
+    auto *error = root->findChild<QQuickItem *>(QStringLiteral("sceneNameError"));
+    QVERIFY(input);
+    QVERIFY(error);
+    QCOMPARE(input->property("text").toString(), initial);
+    QTRY_VERIFY(input->hasActiveFocus());
+    QCOMPARE(input->property("selectedText").toString(), initial);
+    const auto type = [&](const QString &text) {
+        input->forceActiveFocus();
+        QTest::keyClick(view, Qt::Key_A, Qt::ControlModifier);
+        QTest::keyClick(view, Qt::Key_Backspace);
+        QTest::keyClicks(view, text);
+    };
+    for (const auto &invalid : {QString("   "), QString(" existing ")}) {
+        type(invalid);
+        QTest::keyClick(view, Qt::Key_Return);
+        QTRY_VERIFY(!error->property("text").toString().isEmpty());
+        QVERIFY(dialog->isVisible());
+        QCOMPARE(state->sceneModel()->rowCount(), 2);
+        QCOMPARE(state->currentSceneId(), originalId);
+    }
+    type("  Saved name  ");
+    QTRY_VERIFY(error->property("text").toString().isEmpty());
+    if (rename) {
+        auto *button = root->findChild<QQuickItem *>(QStringLiteral("confirmSceneNameButton"));
+        QVERIFY(button);
+        QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
+            button->mapToScene(button->boundingRect().center()).toPoint());
+    } else {
+        QTest::keyClick(view, Qt::Key_Return);
+    }
+    QTRY_VERIFY(dialog.isNull());
+    QVERIFY(root.isNull());
+    QCOMPARE(state->sceneModel()->rowCount(), rename ? 2 : 3);
+    QCOMPARE(state->sceneModel()->index(rename ? 0 : 2, 0).data(StudioState::NameRole).toString(), QString("Saved name"));
+    if (rename)
+        QCOMPARE(state->currentSceneId(), originalId);
+    else
+        QVERIFY(state->currentSceneId() != originalId);
+}
+
+void MainWindowTest::sceneNameDialogCancelsWithoutChanges_data()
+{
+    QTest::addColumn<QString>("method");
+    QTest::newRow("cancel") << QString("cancel");
+    QTest::newRow("escape") << QString("escape");
+    QTest::newRow("window-close") << QString("close");
+}
+
+void MainWindowTest::sceneNameDialogCancelsWithoutChanges()
+{
+    QFETCH(QString, method);
+    MainWindow window;
+    window.show();
+    auto *state = window.findChild<StudioState *>();
+    QVERIFY(state);
+    const QString originalId = state->currentSceneId();
+    const QString originalName = state->sceneModel()->index(0, 0).data(StudioState::NameRole).toString();
+    window.showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SceneNameDialog.qml")),
+        QStringLiteral("Scene name"), {{"state", QVariant::fromValue(state)},
+        {"initialName", originalName}, {"sceneId", originalId}});
+    QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
+    QVERIFY(dialog);
+    auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
+    QVERIFY(view);
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    auto *input = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("sceneNameInput"));
+    QVERIFY(input);
+    QTRY_VERIFY(input->hasActiveFocus());
+    QTest::keyClicks(view, "Unsaved");
+    if (method == "cancel") {
+        auto *button = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("cancelSceneNameButton"));
+        QVERIFY(button);
+        // Keyboard focus moves from the input to Confirm and then Cancel.
+        QTest::keyClick(view, Qt::Key_Tab);
+        QTest::keyClick(view, Qt::Key_Tab);
+        QTRY_VERIFY(button->hasActiveFocus());
+        QTest::keyClick(view, Qt::Key_Space);
+    } else if (method == "escape") {
+        QTest::keyClick(view, Qt::Key_Escape);
+    } else {
+        dialog->close();
+    }
+    QTRY_VERIFY(dialog.isNull());
+    QCOMPARE(state->sceneModel()->rowCount(), 1);
+    QCOMPARE(state->currentSceneId(), originalId);
+    QCOMPARE(state->sceneModel()->index(0, 0).data(StudioState::NameRole).toString(), originalName);
 }
 
 void MainWindowTest::keepsOutputStatusVisibleWhenResized()

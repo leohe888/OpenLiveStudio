@@ -24,6 +24,7 @@ qt_add_qml_module(OpenLiveStudio
     RESOURCE_PREFIX "/"
     QML_FILES qml/ScenesPanel.qml qml/SourcesPanel.qml qml/MixerPanel.qml
               qml/TransitionsPanel.qml qml/ControlsPanel.qml qml/AboutDialog.qml
+              qml/SceneNameDialog.qml
 )
 
 set(OPENLIVE_STUDIO_ICON_FILES
