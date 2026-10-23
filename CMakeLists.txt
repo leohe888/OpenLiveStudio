@@ -28,6 +28,7 @@ qt_add_qml_module(OpenLiveStudio
               qml/TransitionsPanel.qml qml/ControlsPanel.qml qml/AboutDialog.qml
               qml/SceneNameDialog.qml
               qml/SceneRemovalDialog.qml
+              qml/SourceAddDialog.qml
 )
 
 set(OPENLIVE_STUDIO_ICON_FILES

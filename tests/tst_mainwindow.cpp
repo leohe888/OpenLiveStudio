@@ -42,6 +42,8 @@ private slots:
     void qmlDialogShowsLoadErrors_data();
     void qmlDialogShowsLoadErrors();
     void aboutActionShowsProjectInfoAndReusesDialog();
+    void sourceAddDialogHandlesInput_data();
+    void sourceAddDialogHandlesInput();
     void sceneNameDialogValidatesAndSaves_data();
     void sceneNameDialogValidatesAndSaves();
     void sceneNameDialogCancelsWithoutChanges_data();
@@ -462,6 +464,140 @@ void MainWindowTest::aboutActionShowsProjectInfoAndReusesDialog()
         if (!viewAction->isSeparator() && !viewAction->isCheckable())
             QCOMPARE(viewAction->objectName(), QStringLiteral("resetLayoutAction"));
     }
+}
+
+void MainWindowTest::sourceAddDialogHandlesInput_data()
+{
+    QTest::addColumn<QString>("method");
+    for (const auto *method : {"enter", "click", "cancel", "escape", "close", "stale", "switched"})
+        QTest::newRow(method) << QString::fromLatin1(method);
+}
+
+void MainWindowTest::sourceAddDialogHandlesInput()
+{
+    QFETCH(QString, method);
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath("image.png");
+    QImage image(19, 11, QImage::Format_ARGB32);
+    image.fill(Qt::transparent);
+    QVERIFY(image.save(path));
+    MainWindow window;
+    window.show();
+    auto *state = window.findChild<StudioState *>();
+    QVERIFY(state);
+    const QString sceneId = state->currentSceneId();
+    const QString existingId = state->addImageSource(sceneId, "Existing", path);
+    QVERIFY(!existingId.isEmpty());
+    window.showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml")),
+        QStringLiteral("Add source"), {{"state", QVariant::fromValue(state)}, {"sceneId", sceneId}});
+    QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
+    QVERIFY(dialog);
+    auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
+    QVERIFY(view);
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    QPointer<QQuickItem> root = view->rootObject();
+    QVERIFY(root);
+    const auto find = [&](const char *name) { return root->findChild<QQuickItem *>(QString::fromLatin1(name)); };
+    auto *name = find("sourceNameInput");
+    auto *file = find("sourceFileInput");
+    auto *error = find("sourceAddError");
+    auto *type = find("sourceTypeInput");
+    auto *browse = find("browseSourceFileButton");
+    auto *confirm = find("confirmSourceAddButton");
+    auto *cancel = find("cancelSourceAddButton");
+    QVERIFY(name && file && error && type && browse && confirm && cancel);
+    QCOMPARE(type->property("count").toInt(), 1);
+    QVERIFY(!browse->isEnabled());
+    QCOMPARE(name->property("text").toString(), QString::fromUtf8("图像"));
+    QTRY_VERIFY(name->hasActiveFocus());
+    QCOMPARE(name->property("selectedText").toString(), name->property("text").toString());
+    const auto input = [&](QQuickItem *field, const QString &text) {
+        field->forceActiveFocus();
+        QTest::keyClick(view, Qt::Key_A, Qt::ControlModifier);
+        QTest::keyClick(view, Qt::Key_Backspace);
+        QTest::keyClicks(view, text);
+    };
+    const auto click = [&](QQuickItem *button) {
+        QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
+            button->mapToScene(button->boundingRect().center()).toPoint());
+    };
+    input(file, path);
+    if (method == "enter" || method == "click") {
+        for (const auto &invalid : {QString("  "), QString(" existing ")}) {
+            input(name, invalid);
+            QTest::keyClick(view, Qt::Key_Return);
+            QTRY_VERIFY(!error->property("text").toString().isEmpty());
+            QCOMPARE(state->sourceModel()->rowCount(), 1);
+            QCOMPARE(state->currentSourceId(), existingId);
+            QVERIFY(dialog->isVisible());
+        }
+        input(name, "Logo");
+        input(file, dir.filePath("missing.png"));
+        QTest::keyClick(view, Qt::Key_Return);
+        QTRY_VERIFY(!error->property("text").toString().isEmpty());
+        QCOMPARE(name->property("text").toString(), QString("Logo"));
+        QCOMPARE(state->sourceModel()->rowCount(), 1);
+        input(file, path);
+        QTRY_VERIFY(error->property("text").toString().isEmpty());
+    }
+    input(name, "  Logo  ");
+    if (method == "cancel" || method == "escape" || method == "close") {
+        // Tab from the name field visits the path and skips the disabled Browse button.
+        QTest::keyClick(view, Qt::Key_Tab);
+        QTRY_VERIFY(file->hasActiveFocus());
+        if (method == "cancel") {
+            QTest::keyClick(view, Qt::Key_Tab);
+            QTRY_VERIFY(confirm->hasActiveFocus());
+            QTest::keyClick(view, Qt::Key_Tab);
+            QTRY_VERIFY(cancel->hasActiveFocus());
+            QTest::keyClick(view, Qt::Key_Space);
+        } else if (method == "escape") {
+            QTest::keyClick(view, Qt::Key_Escape);
+        } else {
+            dialog->close();
+        }
+        QTRY_VERIFY(dialog.isNull());
+        QVERIFY(root.isNull());
+        QCOMPARE(state->sourceModel()->rowCount(), 1);
+        QCOMPARE(state->currentSourceId(), existingId);
+        return;
+    }
+    QString otherId;
+    if (method == "stale" || method == "switched") {
+        otherId = state->addScene("Other");
+        QVERIFY(!otherId.isEmpty());
+        if (method == "stale")
+            QVERIFY(state->removeScene(sceneId));
+    }
+    if (method == "click")
+        click(confirm);
+    else
+        QTest::keyClick(view, Qt::Key_Return);
+    if (method == "stale") {
+        QTRY_VERIFY(!error->property("text").toString().isEmpty());
+        QVERIFY(dialog->isVisible());
+        QCOMPARE(state->sourceModel()->rowCount(), 0);
+        QCOMPARE(state->currentSceneId(), otherId);
+        QCOMPARE(name->property("text").toString(), QString("  Logo  "));
+        dialog->close();
+        QTRY_VERIFY(dialog.isNull());
+        return;
+    }
+    QTRY_VERIFY(dialog.isNull());
+    QVERIFY(root.isNull());
+    if (method == "switched") {
+        QCOMPARE(state->currentSceneId(), otherId);
+        QCOMPARE(state->sourceModel()->rowCount(), 0);
+        QVERIFY(state->selectScene(sceneId));
+    }
+    QCOMPARE(state->sourceModel()->rowCount(), 2);
+    const auto added = state->sourceModel()->index(0, 0);
+    QCOMPARE(added.data(StudioState::NameRole).toString(), QString("Logo"));
+    QCOMPARE(added.data(StudioState::FilePathRole).toString(), path);
+    QCOMPARE(added.data(StudioState::OriginalSizeRole).toSize(), image.size());
+    if (method != "switched")
+        QCOMPARE(state->currentSourceId(), added.data(StudioState::IdRole).toString());
 }
 
 void MainWindowTest::sceneNameDialogValidatesAndSaves_data()

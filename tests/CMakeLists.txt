@@ -59,6 +59,7 @@ qt_add_resources(tst_mainwindow "test_ui"
           "${PROJECT_SOURCE_DIR}/qml/AboutDialog.qml"
           "${PROJECT_SOURCE_DIR}/qml/SceneNameDialog.qml"
           "${PROJECT_SOURCE_DIR}/qml/SceneRemovalDialog.qml"
+          "${PROJECT_SOURCE_DIR}/qml/SourceAddDialog.qml"
 )
 
 qt_add_resources(tst_mainwindow "test_icons"
