@@ -3,12 +3,14 @@ import QtQuick.Controls.Basic
 import QtQuick.Layouts
 
 Rectangle {
+    id: root
     objectName: "sourcesPanel"
     implicitWidth: 238
     implicitHeight: 320
     color: "#1d1d1d"
+    readonly property var state: typeof studioState !== "undefined" ? studioState : null
 
-    // Presentation only. The C++ source model and operations arrive later.
+    // Source operations remain unavailable until their business steps.
     component SourceButton: ToolButton {
         width: 30
         height: 30
@@ -35,13 +37,26 @@ Rectangle {
                 objectName: "sourceList"
                 anchors.fill: parent
                 clip: true
-                model: null
+                model: root.state ? root.state.sourceModel : null
                 currentIndex: -1
+                keyNavigationEnabled: false
 
-                delegate: Item {
+                delegate: Rectangle {
+                    required property string sourceId
                     required property string sourceName
+                    readonly property bool selected: root.state !== null
+                        && root.state.currentSourceId === sourceId
+                    objectName: "sourceRow_" + sourceId
                     width: sourceList.width
                     height: 32
+                    color: selected ? "#31445b" : "transparent"
+                    Accessible.role: Accessible.ListItem
+                    Accessible.name: sourceName
+                    Accessible.selected: selected
+
+                    TapHandler {
+                        onTapped: root.state.selectSource(sourceId)
+                    }
 
                     RowLayout {
                         anchors.fill: parent
@@ -52,6 +67,7 @@ Rectangle {
                             Layout.fillWidth: true
                             Layout.minimumWidth: 0
                             text: sourceName
+                            textFormat: Text.PlainText
                             elide: Text.ElideRight
                             color: "#d6d6d6"
                         }

@@ -33,6 +33,7 @@ private slots:
     void canShowAndClose();
     void hasWindowShell();
     void panelsShareStateAcrossReloadsAndReleaseItWithWindow();
+    void panelsFollowSceneAndSourceSelection();
     void qmlDialogReceivesInitialPropertiesAndCloses();
     void qmlDialogShowsLoadErrors_data();
     void qmlDialogShowsLoadErrors();
@@ -131,6 +132,82 @@ void MainWindowTest::panelsShareStateAcrossReloadsAndReleaseItWithWindow()
     for (const auto &root : roots)
         QVERIFY(root.isNull());
     QCOMPARE(destructionOrder, QStringList({"panel", "panel", "state"}));
+}
+
+void MainWindowTest::panelsFollowSceneAndSourceSelection()
+{
+    StudioState state(QList<StudioState::SceneData>{
+        {"first", "Scene", {{"a", "Image"}}},
+        {"second", "Scene", {{"b", "Image"}}},
+        {"empty", "Empty", {}}});
+    QQuickWidget scenes;
+    QQuickWidget sources;
+    for (auto *view : {&scenes, &sources}) {
+        view->setResizeMode(QQuickWidget::SizeRootObjectToView);
+        view->resize(238, 260);
+        view->rootContext()->setContextProperty(QStringLiteral("studioState"), &state);
+    }
+    scenes.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ScenesPanel.qml")));
+    sources.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml")));
+    for (auto *view : {&scenes, &sources}) {
+        QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+        view->show();
+    }
+    const auto row = [](QQuickWidget &view, const QString &listName, const QString &rowName) -> QQuickItem * {
+        auto *list = view.rootObject()->findChild<QQuickItem *>(listName);
+        if (!list)
+            return nullptr;
+        auto *content = list->property("contentItem").value<QQuickItem *>();
+        if (!content)
+            return nullptr;
+        for (auto *item : content->childItems()) {
+            if (item->objectName() == rowName)
+                return item;
+        }
+        return nullptr;
+    };
+    const auto click = [](QQuickWidget &view, QQuickItem *item) {
+        QTest::mouseClick(&view, Qt::LeftButton, Qt::NoModifier,
+            item->mapToScene(QPointF(40, item->height() / 2)).toPoint());
+    };
+    QTRY_VERIFY(row(scenes, "sceneList", "sceneRow_first"));
+    QTRY_VERIFY(row(scenes, "sceneList", "sceneRow_second"));
+    QTRY_VERIFY(row(scenes, "sceneList", "sceneRow_empty"));
+    QTRY_VERIFY(row(sources, "sourceList", "sourceRow_a"));
+    QVERIFY(row(scenes, "sceneList", "sceneRow_first")->property("selected").toBool());
+    QVERIFY(!row(scenes, "sceneList", "sceneRow_second")->property("selected").toBool());
+    QVERIFY(!row(sources, "sourceList", "sourceRow_a")->property("selected").toBool());
+    click(sources, row(sources, "sourceList", "sourceRow_a"));
+    QTRY_COMPARE(state.currentSourceId(), QString("a"));
+    QTRY_VERIFY(row(sources, "sourceList", "sourceRow_a")->property("selected").toBool());
+    click(scenes, row(scenes, "sceneList", "sceneRow_second"));
+    QTRY_COMPARE(state.currentSceneId(), QString("second"));
+    QVERIFY(state.currentSourceId().isEmpty());
+    QTRY_VERIFY(row(scenes, "sceneList", "sceneRow_second")->property("selected").toBool());
+    QVERIFY(!row(scenes, "sceneList", "sceneRow_first")->property("selected").toBool());
+    QTRY_VERIFY(row(sources, "sourceList", "sourceRow_b"));
+    QVERIFY(!row(sources, "sourceList", "sourceRow_b")->property("selected").toBool());
+    QVERIFY(!row(sources, "sourceList", "sourceRow_a"));
+    QVERIFY(!state.selectSource("a"));
+    click(sources, row(sources, "sourceList", "sourceRow_b"));
+    QTRY_COMPARE(state.currentSourceId(), QString("b"));
+    // Recreated QML must derive its highlight from C++, not a previous delegate.
+    const QUrl source = sources.source();
+    sources.setSource(QUrl());
+    sources.setSource(source);
+    QTRY_COMPARE(sources.status(), QQuickWidget::Ready);
+    QTRY_VERIFY(row(sources, "sourceList", "sourceRow_b"));
+    QTRY_VERIFY(row(sources, "sourceList", "sourceRow_b")->property("selected").toBool());
+    QVERIFY(state.selectScene("empty"));
+    auto *empty = sources.rootObject()->findChild<QQuickItem *>(QStringLiteral("emptySourcesLabel"));
+    QVERIFY(empty);
+    QTRY_VERIFY(empty->isVisible());
+    QTRY_VERIFY(row(scenes, "sceneList", "sceneRow_empty")->property("selected").toBool());
+    QVERIFY(state.currentSourceId().isEmpty());
+    QVERIFY(state.selectScene("first"));
+    QTRY_VERIFY(!empty->isVisible());
+    QTRY_VERIFY(row(sources, "sourceList", "sourceRow_a"));
+    QVERIFY(!row(sources, "sourceList", "sourceRow_a")->property("selected").toBool());
 }
 
 void MainWindowTest::hasWindowShell()
@@ -613,6 +690,12 @@ void MainWindowTest::embedsScenePanelInLeftDock()
     QVERIFY(dock->isAncestorOf(view));
     QTRY_COMPARE(view->status(), QQuickWidget::Ready);
     QVERIFY(view->rootObject());
+    auto *list = view->rootObject()->findChild<QObject *>(QStringLiteral("sceneList"));
+    QVERIFY(list);
+    QTRY_COMPARE(list->property("count").toInt(), 1);
+    auto *empty = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("emptyScenesLabel"));
+    QVERIFY(empty);
+    QVERIFY(!empty->isVisible());
     QTRY_VERIFY(dock->isVisible());
     QVERIFY(view->isVisible());
 }
@@ -1017,12 +1100,12 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
     panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(panelName)));
     QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
     panel.show();
-    // Test-only data instantiates the source row; production keeps a null model.
+    // Test-only data instantiates a row; production starts with an empty source model.
     std::unique_ptr<QObject> sourceModel;
     if (panelName == QStringLiteral("SourcesPanel")) {
         QQmlComponent component(panel.engine());
         component.setData("import QtQml.Models\nListModel { ListElement { "
-                          "sourceName: 'A long source name for layout verification' } }", QUrl());
+                          "sourceId: 'image'; sourceName: 'A long source name for layout verification' } }", QUrl());
         sourceModel.reset(component.create());
         QVERIFY2(sourceModel, qPrintable(component.errorString()));
         auto *list = panel.rootObject()->findChild<QObject *>(QStringLiteral("sourceList"));

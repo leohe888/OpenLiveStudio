@@ -8,6 +8,7 @@ Rectangle {
     implicitWidth: 238
     implicitHeight: 260
     color: "#1d1d1d"
+    readonly property var state: typeof studioState !== "undefined" ? studioState : null
 
     ColumnLayout {
         anchors.fill: parent
@@ -22,8 +23,37 @@ Rectangle {
                 objectName: "sceneList"
                 anchors.fill: parent
                 clip: true
-                model: null
+                model: root.state ? root.state.sceneModel : null
                 currentIndex: -1
+                keyNavigationEnabled: false
+
+                delegate: Rectangle {
+                    required property string sceneId
+                    required property string sceneName
+                    readonly property bool selected: root.state !== null
+                        && root.state.currentSceneId === sceneId
+                    objectName: "sceneRow_" + sceneId
+                    width: sceneList.width
+                    height: 32
+                    color: selected ? "#31445b" : "transparent"
+                    Accessible.role: Accessible.ListItem
+                    Accessible.name: sceneName
+                    Accessible.selected: selected
+
+                    Label {
+                        anchors.fill: parent
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
+                        verticalAlignment: Text.AlignVCenter
+                        text: sceneName
+                        textFormat: Text.PlainText
+                        elide: Text.ElideRight
+                        color: "#d6d6d6"
+                    }
+                    TapHandler {
+                        onTapped: root.state.selectScene(sceneId)
+                    }
+                }
             }
 
             Label {
