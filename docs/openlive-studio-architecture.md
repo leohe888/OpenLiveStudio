@@ -18,12 +18,18 @@ delivery steps remain defined by the [plan](openlive-studio-plan.md) and
 | Mixer panel | Display channel levels and let the user control audio mixing | Level meters, volume sliders and mute buttons |
 | Output | Encode and synchronize video and audio for recording or streaming | A playable recording or a live stream |
 
-A source and its placement have different lifetimes and responsibilities. Shared
-source configuration, media resources and device capture belong to the source;
-position, size, layer, visibility and lock state belong to its scene instance.
-Reusing a camera should allow independent placement without opening the same
-device again. Concrete ownership and reuse rules will be implemented with B6
-and the relevant capture steps.
+The source/scene-instance distinction above is a future reuse design, not an MVP
+requirement. For the MVP, each scene adds and owns independent source entries.
+Adding the same image path to two scenes creates two entries with independent
+names, order, visibility, lock flags and later placement/filter properties; it
+does not copy the disk file or share application state by path. Removing one
+entry leaves the other intact.
+
+Cross-scene source reuse, shared definitions and a reuse UI are deferred beyond
+B6. When reuse is introduced, source configuration and media resources can be
+shared while placement and editing state remain scene-local. Device ownership
+and avoiding repeated opens of the same camera will be addressed with capture
+in stage D, without requiring a general reuse framework in B6.
 
 ## Source capabilities and scope
 
@@ -112,8 +118,9 @@ The removal form captures both scene and source IDs, allows removal of the last
 source, and never deletes the underlying file. Source-panel add/remove actions
 remain connected after QML reload.
 
-The current SourceData structure has not yet separated reusable sources from
-scene instances. B5 stores topmost-first order and per-entry visibility/lock flags
+The current SourceData structure keeps scene-local source entries and will not
+be split into shared sources and scene instances for B6. B5 stores topmost-first
+order and per-entry visibility/lock flags
 in each scene. StudioState addresses operations by scene/source IDs, exposes
 sourceVisible/sourceLocked model roles, and emits row-move or data-change
 notifications without resetting the active list. Reordering preserves identity
@@ -122,8 +129,12 @@ Hidden or locked entries remain selectable, reorderable and removable. QML uses
 eye/eye-off and lock/lock-open icons with neutral colors and current-state tooltips;
 Widgets retain the existing window and dock containers. States survive scene
 changes and QML reloads within the session, but are not persisted across launches.
-B6 addresses reuse and independent scene placement. Transform restrictions for
-locked entries will be enforced with the editing features in stage C. Actual
+B6 verifies immediate scene switching, source-list updates, selection clearing
+and scene-local state isolation, including entries referring to the same file.
+It adds no reuse APIs/UI, placement editing or transition animation. The earlier
+proposal to implement shared definitions first is superseded; B6 remains pending
+verification. Transform restrictions and independent placement editing will be
+implemented with the editing features in stage C. Actual
 composition starts at C1. Cross-module
 coordination, media ownership and threading are developed with the relevant
 features, rather than building a complete framework in advance. Media-file
