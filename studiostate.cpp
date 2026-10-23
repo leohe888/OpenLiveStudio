@@ -311,3 +311,23 @@ QString StudioState::addImageSource(const QString &sceneId, const QString &name,
     }
     return source.id;
 }
+
+bool StudioState::removeSource(const QString &sceneId, const QString &sourceId)
+{
+    const int scene = sceneRow(sceneId);
+    if (scene < 0 || sourceId.isEmpty())
+        return false;
+    auto &sources = m_scenes[scene].sources;
+    for (int row = 0; row < sources.size(); ++row) {
+        if (sources.at(row).id != sourceId)
+            continue;
+        const bool isCurrentScene = sceneId == m_currentSceneId;
+        if (isCurrentScene && sourceId == m_currentSourceId)
+            selectSource({});
+        sources.removeAt(row);
+        if (isCurrentScene)
+            m_sourceModel->remove(row);
+        return true;
+    }
+    return false;
+}

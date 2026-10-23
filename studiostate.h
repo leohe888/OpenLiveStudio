@@ -59,6 +59,8 @@ public:
     // Returns the new ID, or empty on failure. Adds at the top of the target scene.
     Q_INVOKABLE QString addImageSource(const QString &sceneId, const QString &name,
                                        const QString &filePath);
+    // Remove only this scene's entry; never delete its file or another scene's entry.
+    Q_INVOKABLE bool removeSource(const QString &sceneId, const QString &sourceId);
 
 signals:
     void currentSceneIdChanged();

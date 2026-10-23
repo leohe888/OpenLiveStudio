@@ -31,6 +31,11 @@ private slots:
     void addsImageSourcesAndPreservesSceneIsolation();
     void rejectsInvalidImageSources_data();
     void rejectsInvalidImageSources();
+    void removesSelectedSource_data();
+    void removesSelectedSource();
+    void removesSourceWithoutChangingOtherSelections();
+    void rejectsInvalidSourceRemoval();
+    void removesLastImageSourceWithoutDeletingFile();
 };
 
 static QList<StudioState::SceneData> scenes()
@@ -542,6 +547,124 @@ void StudioStateTest::rejectsInvalidImageSources()
     QCOMPARE(state.sourceModel()->rowCount(), 2);
     StudioState empty(QList<StudioState::SceneData>{});
     QVERIFY(empty.addImageSource({}, "Logo", path).isEmpty());
+}
+
+void StudioStateTest::removesSelectedSource_data()
+{
+    QTest::addColumn<int>("row");
+    QTest::newRow("first") << 0;
+    QTest::newRow("middle") << 1;
+    QTest::newRow("last") << 2;
+}
+
+void StudioStateTest::removesSelectedSource()
+{
+    QFETCH(int, row);
+    const QList<StudioState::SourceData> sources{{"a", "A"}, {"b", "B"}, {"c", "C"}};
+    StudioState state(QList<StudioState::SceneData>{{"scene", "Scene", sources}});
+    auto *model = state.sourceModel();
+    const QString id = sources.at(row).id;
+    QVERIFY(state.selectSource(id));
+    QPersistentModelIndex removedIndex(model->index(row, 0));
+    QPersistentModelIndex remainingIndex(model->index(row == 0 ? 1 : 0, 0));
+    const QString remainingId = remainingIndex.data(StudioState::IdRole).toString();
+    QSignalSpy removed(model, &QAbstractItemModel::rowsRemoved);
+    QSignalSpy reset(model, &QAbstractItemModel::modelReset);
+    QSignalSpy selected(&state, &StudioState::currentSourceIdChanged);
+    QSignalSpy sceneSelected(&state, &StudioState::currentSceneIdChanged);
+    QVERIFY(state.removeSource("scene", id));
+    QCOMPARE(state.sourceModel(), model);
+    QCOMPARE(model->rowCount(), 2);
+    QVERIFY(state.currentSourceId().isEmpty());
+    QCOMPARE(state.currentSceneId(), QString("scene"));
+    QCOMPARE(removed.count(), 1);
+    QCOMPARE(removed.first().at(1).toInt(), row);
+    QCOMPARE(removed.first().at(2).toInt(), row);
+    QCOMPARE(reset.count(), 0);
+    QCOMPARE(selected.count(), 1);
+    QCOMPARE(sceneSelected.count(), 0);
+    QVERIFY(!removedIndex.isValid());
+    QVERIFY(remainingIndex.isValid());
+    QCOMPARE(remainingIndex.data(StudioState::IdRole).toString(), remainingId);
+    QVERIFY(!state.selectSource(id));
+    QVERIFY(!state.removeSource("scene", id));
+}
+
+void StudioStateTest::removesSourceWithoutChangingOtherSelections()
+{
+    StudioState state(scenes());
+    QVERIFY(state.selectSource("shared"));
+    QSignalSpy selected(&state, &StudioState::currentSourceIdChanged);
+    QSignalSpy removed(state.sourceModel(), &QAbstractItemModel::rowsRemoved);
+    QSignalSpy reset(state.sourceModel(), &QAbstractItemModel::modelReset);
+    QVERIFY(state.removeSource("first", "a"));
+    QCOMPARE(state.currentSourceId(), QString("shared"));
+    QCOMPARE(removed.count(), 1);
+    removed.clear();
+    // A shared ID in another scene must not affect the selected scene's entry.
+    QVERIFY(state.removeSource("second", "shared"));
+    QCOMPARE(state.currentSceneId(), QString("first"));
+    QCOMPARE(state.currentSourceId(), QString("shared"));
+    QCOMPARE(state.sourceModel()->rowCount(), 1);
+    QCOMPARE(removed.count(), 0);
+    QCOMPARE(reset.count(), 0);
+    QCOMPARE(selected.count(), 0);
+    QVERIFY(state.selectScene("second"));
+    QCOMPARE(state.sourceModel()->rowCount(), 1);
+    QCOMPARE(state.sourceModel()->index(0, 0).data(StudioState::IdRole).toString(), QString("b"));
+    QVERIFY(!state.selectSource("shared"));
+    QVERIFY(state.selectScene("first"));
+    QCOMPARE(state.sourceModel()->rowCount(), 1);
+    QVERIFY(state.selectSource("shared"));
+}
+
+void StudioStateTest::rejectsInvalidSourceRemoval()
+{
+    StudioState state(scenes());
+    QVERIFY(state.selectSource("a"));
+    QSignalSpy removed(state.sourceModel(), &QAbstractItemModel::rowsRemoved);
+    QSignalSpy reset(state.sourceModel(), &QAbstractItemModel::modelReset);
+    QSignalSpy selected(&state, &StudioState::currentSourceIdChanged);
+    QVERIFY(!state.removeSource({}, "a"));
+    QVERIFY(!state.removeSource("missing", "a"));
+    QVERIFY(!state.removeSource("first", {}));
+    QVERIFY(!state.removeSource("first", "missing"));
+    QVERIFY(!state.removeSource("second", "a"));
+    QVERIFY(!state.removeSource("empty", "a"));
+    QCOMPARE(state.currentSceneId(), QString("first"));
+    QCOMPARE(state.currentSourceId(), QString("a"));
+    QCOMPARE(state.sourceModel()->rowCount(), 2);
+    QCOMPARE(removed.count(), 0);
+    QCOMPARE(reset.count(), 0);
+    QCOMPARE(selected.count(), 0);
+    StudioState empty(QList<StudioState::SceneData>{});
+    QVERIFY(!empty.removeSource("missing", "a"));
+}
+
+void StudioStateTest::removesLastImageSourceWithoutDeletingFile()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath("image.png");
+    QImage image(19, 11, QImage::Format_ARGB32);
+    image.fill(Qt::red);
+    QVERIFY(image.save(path));
+    StudioState state;
+    const QString sceneId = state.currentSceneId();
+    const QString id = state.addImageSource(sceneId, "Logo", path);
+    QVERIFY(!id.isEmpty());
+    QVERIFY(state.removeSource(sceneId, id));
+    QCOMPARE(state.sourceModel()->rowCount(), 0);
+    QCOMPARE(state.sceneModel()->rowCount(), 1);
+    QCOMPARE(state.currentSceneId(), sceneId);
+    QVERIFY(state.currentSourceId().isEmpty());
+    QVERIFY(QFile::exists(path));
+    QCOMPARE(QImage(path), image);
+    QVERIFY(!state.removeSource(sceneId, id));
+    const QString newId = state.addImageSource(sceneId, "Logo", path);
+    QVERIFY(!newId.isEmpty());
+    QVERIFY(newId != id);
+    QCOMPARE(state.currentSourceId(), newId);
 }
 
 QTEST_GUILESS_MAIN(StudioStateTest)
