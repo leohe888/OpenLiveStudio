@@ -21,7 +21,6 @@
 #include <QResizeEvent>
 #include <QStatusBar>
 #include <QStackedWidget>
-#include <QToolBar>
 #include <QVBoxLayout>
 #include <QShowEvent>
 #include <QTimer>
@@ -54,7 +53,7 @@ MainWindow::MainWindow(QWidget *parent)
     setMinimumSize(960, 640);
     resize(1280, 800);
 
-    setupMenusAndToolBar();
+    setupMenus();
     setupPreview();
     setupStatusBar();
     setupScenesDock();
@@ -208,7 +207,7 @@ void MainWindow::showSourceRemovalDialog(const QString &sceneId, const QString &
     }
 }
 
-void MainWindow::setupMenusAndToolBar()
+void MainWindow::setupMenus()
 {
     m_viewMenu = menuBar()->addMenu(tr("视图"));
     m_viewMenu->setObjectName(QStringLiteral("viewMenu"));
@@ -233,10 +232,6 @@ void MainWindow::setupMenusAndToolBar()
         });
     });
 
-    auto *toolBar = addToolBar(tr("主工具栏"));
-    toolBar->setObjectName(QStringLiteral("mainToolBar"));
-    toolBar->setMovable(false);
-    toolBar->setMinimumHeight(24);
 }
 
 void MainWindow::setupDockViewActions()

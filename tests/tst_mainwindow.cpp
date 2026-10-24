@@ -594,10 +594,7 @@ void MainWindowTest::hasWindowShell()
     QVERIFY(window.centralWidget()->isVisible());
     QVERIFY(window.menuBar()->isVisible());
     QCOMPARE(window.menuBar()->actions().size(), 2);
-    auto *toolBar = window.findChild<QToolBar *>(QStringLiteral("mainToolBar"));
-    QVERIFY(toolBar);
-    QVERIFY(toolBar->isVisible());
-    QCOMPARE(window.toolBarArea(toolBar), Qt::TopToolBarArea);
+    QVERIFY(window.findChildren<QToolBar *>().isEmpty());
     QVERIFY(window.statusBar()->isVisible());
     auto *unavailable = window.findChild<QLabel *>(QStringLiteral("previewUnavailable"));
     QVERIFY(unavailable);

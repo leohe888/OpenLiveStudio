@@ -31,7 +31,7 @@ private slots:
     void showSourceRemovalDialog(const QString &sceneId, const QString &sourceId);
 
 private:
-    void setupMenusAndToolBar();
+    void setupMenus();
     void setupPreview();
     void setupStatusBar();
     void setupScenesDock();
