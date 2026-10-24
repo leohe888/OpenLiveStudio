@@ -53,14 +53,15 @@ MainWindow::MainWindow(QWidget *parent)
     setMinimumSize(960, 640);
     resize(1280, 800);
 
-    setupMenus();
+    setupMenuBar();
     setupPreview();
     setupStatusBar();
     setupScenesDock();
     setupSourcesDock();
     setupMixerDock();
     setupControlsDock();
-    setupDockViewActions();
+    setupViewActions();
+    setupHelpActions();
     resetDockLayout();
     updateStatusLayout();
     // Destroy the dock QML contexts before their shared state.
@@ -207,13 +208,34 @@ void MainWindow::showSourceRemovalDialog(const QString &sceneId, const QString &
     }
 }
 
-void MainWindow::setupMenus()
+void MainWindow::setupMenuBar()
 {
     m_viewMenu = menuBar()->addMenu(tr("视图"));
     m_viewMenu->setObjectName(QStringLiteral("viewMenu"));
 
-    auto *helpMenu = menuBar()->addMenu(tr("帮助"));
-    auto *aboutAction = helpMenu->addAction(tr("关于 OpenLive Studio…"));
+    m_helpMenu = menuBar()->addMenu(tr("帮助"));
+}
+
+void MainWindow::setupViewActions()
+{
+    for (const auto *name : {"scenesDock", "sourcesDock", "mixerDock",
+                             "controlsDock"}) {
+        auto *dock = findChild<QDockWidget *>(QLatin1String(name));
+        Q_ASSERT(dock);
+        // The dock owns this action and keeps its checked state in sync.
+        auto *action = dock->toggleViewAction();
+        action->setObjectName(dock->objectName() + QStringLiteral("ViewAction"));
+        m_viewMenu->addAction(action);
+    }
+    m_viewMenu->addSeparator();
+    auto *resetAction = m_viewMenu->addAction(tr("重置布局"));
+    resetAction->setObjectName(QStringLiteral("resetLayoutAction"));
+    connect(resetAction, &QAction::triggered, this, &MainWindow::resetDockLayout);
+}
+
+void MainWindow::setupHelpActions()
+{
+    auto *aboutAction = m_helpMenu->addAction(tr("关于 OpenLive Studio…"));
     aboutAction->setObjectName(QStringLiteral("aboutAction"));
     connect(aboutAction, &QAction::triggered, this, [this] {
         const QUrl source(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/AboutDialog.qml"));
@@ -231,24 +253,6 @@ void MainWindow::setupMenus()
             {QStringLiteral("qtVersion"), QString::fromLatin1(qVersion())}
         });
     });
-
-}
-
-void MainWindow::setupDockViewActions()
-{
-    for (const auto *name : {"scenesDock", "sourcesDock", "mixerDock",
-                             "controlsDock"}) {
-        auto *dock = findChild<QDockWidget *>(QLatin1String(name));
-        Q_ASSERT(dock);
-        // The dock owns this action and keeps its checked state in sync.
-        auto *action = dock->toggleViewAction();
-        action->setObjectName(dock->objectName() + QStringLiteral("ViewAction"));
-        m_viewMenu->addAction(action);
-    }
-    m_viewMenu->addSeparator();
-    auto *resetAction = m_viewMenu->addAction(tr("重置布局"));
-    resetAction->setObjectName(QStringLiteral("resetLayoutAction"));
-    connect(resetAction, &QAction::triggered, this, &MainWindow::resetDockLayout);
 }
 
 void MainWindow::resetDockLayout()

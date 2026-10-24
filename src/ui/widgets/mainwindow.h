@@ -31,20 +31,22 @@ private slots:
     void showSourceRemovalDialog(const QString &sceneId, const QString &sourceId);
 
 private:
-    void setupMenus();
+    void setupMenuBar();
     void setupPreview();
     void setupStatusBar();
     void setupScenesDock();
     void setupSourcesDock();
     void setupMixerDock();
     void setupControlsDock();
-    void setupDockViewActions();
+    void setupViewActions();
+    void setupHelpActions();
     void resetDockLayout();
     void updateStatusLayout();
 
     QLabel *m_outputStatus = nullptr;
     QLabel *m_outputMetrics = nullptr;
     QMenu *m_viewMenu = nullptr;
+    QMenu *m_helpMenu = nullptr;
     StudioState *m_studioState = nullptr;
 };
 #endif // MAINWINDOW_H
