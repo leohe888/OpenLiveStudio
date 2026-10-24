@@ -5,6 +5,7 @@
 #include <QUrl>
 #include <QVariantMap>
 
+class QDockWidget;
 class QLabel;
 class QMenu;
 class QResizeEvent;
@@ -54,6 +55,10 @@ private:
     QMenu *m_viewMenu = nullptr;
     QMenu *m_themeMenu = nullptr;
     QMenu *m_helpMenu = nullptr;
+    QDockWidget *m_scenesDock = nullptr;
+    QDockWidget *m_sourcesDock = nullptr;
+    QDockWidget *m_mixerDock = nullptr;
+    QDockWidget *m_controlsDock = nullptr;
     StudioState *m_studioState = nullptr;
     ThemeManager &m_theme;
 };

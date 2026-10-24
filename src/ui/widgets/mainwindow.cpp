@@ -171,7 +171,8 @@ void MainWindow::applyTheme()
     // afterwards, including child windows (floating docks and dialogs).
     // Keep the application's global palette untouched.
     setPalette(colors);
-    for (auto *dock : findChildren<QDockWidget *>()) dock->setPalette(colors);
+    for (auto *dock : {m_scenesDock, m_sourcesDock, m_mixerDock, m_controlsDock})
+        if (dock) dock->setPalette(colors);
     for (auto *dialog : findChildren<QDialog *>()) dialog->setPalette(colors);
     if (auto *preview = findChild<PreviewWidget *>()) {
         preview->setSurroundingColor(color("preview.surrounding"));
@@ -331,40 +332,12 @@ void MainWindow::setupMenuBar()
     m_themeMenu->setObjectName(QStringLiteral("themeMenu"));
 
     m_helpMenu = menuBar()->addMenu(tr("帮助"));
-}
-
-void MainWindow::setupThemeActions()
-{
-    auto *group = new QActionGroup(m_themeMenu);
-    group->setExclusive(true);
-    for (const auto *id : {"dark", "light"}) {
-        auto *action = m_themeMenu->addAction(QLatin1String(id) == QLatin1String("dark") ? tr("深色") : tr("浅色"));
-        action->setObjectName(QLatin1String(id) + QStringLiteral("ThemeAction"));
-        action->setData(QString::fromLatin1(id));
-        action->setCheckable(true);
-        group->addAction(action);
-    }
-    const auto syncSelection = [this, group] {
-        for (auto *action : group->actions())
-            action->setChecked(action->data().toString() == m_theme.themeId());
-    };
-    syncSelection();
-    connect(&m_theme, &ThemeManager::themeChanged, group, syncSelection);
-    connect(group, &QActionGroup::triggered, this, [this, syncSelection](QAction *action) {
-        if (m_theme.setTheme(action->data().toString()))
-            statusBar()->clearMessage();
-        else
-            statusBar()->showMessage(tr("无法切换主题：%1").arg(m_theme.lastError()));
-        // QAction checks itself before triggered(); failed saves emit no themeChanged.
-        syncSelection();
-    });
+    m_helpMenu->setObjectName(QStringLiteral("helpMenu"));
 }
 
 void MainWindow::setupViewActions()
 {
-    for (const auto *name : {"scenesDock", "sourcesDock", "mixerDock",
-                             "controlsDock"}) {
-        auto *dock = findChild<QDockWidget *>(QLatin1String(name));
+    for (auto *dock : {m_scenesDock, m_sourcesDock, m_mixerDock, m_controlsDock}) {
         Q_ASSERT(dock);
         // The dock owns this action and keeps its checked state in sync.
         auto *action = dock->toggleViewAction();
@@ -399,13 +372,37 @@ void MainWindow::setupHelpActions()
     });
 }
 
+void MainWindow::setupThemeActions()
+{
+    auto *group = new QActionGroup(m_themeMenu);
+    group->setExclusive(true);
+    for (const auto *id : {"dark", "light"}) {
+        auto *action = m_themeMenu->addAction(QLatin1String(id) == QLatin1String("dark") ? tr("深色") : tr("浅色"));
+        action->setObjectName(QLatin1String(id) + QStringLiteral("ThemeAction"));
+        action->setData(QString::fromLatin1(id));
+        action->setCheckable(true);
+        group->addAction(action);
+    }
+    const auto syncSelection = [this, group] {
+        for (auto *action : group->actions())
+            action->setChecked(action->data().toString() == m_theme.themeId());
+    };
+    syncSelection();
+    connect(&m_theme, &ThemeManager::themeChanged, group, syncSelection);
+    connect(group, &QActionGroup::triggered, this, [this, syncSelection](QAction *action) {
+        if (m_theme.setTheme(action->data().toString()))
+            statusBar()->clearMessage();
+        else
+            statusBar()->showMessage(tr("无法切换主题：%1").arg(m_theme.lastError()));
+        // QAction checks itself before triggered(); failed saves emit no themeChanged.
+        syncSelection();
+    });
+}
+
 void MainWindow::resetDockLayout()
 {
-    auto *scenes = findChild<QDockWidget *>(QStringLiteral("scenesDock"));
-    auto *sources = findChild<QDockWidget *>(QStringLiteral("sourcesDock"));
-    auto *mixer = findChild<QDockWidget *>(QStringLiteral("mixerDock"));
-    auto *controls = findChild<QDockWidget *>(QStringLiteral("controlsDock"));
-    const QList<QDockWidget *> docks{scenes, sources, mixer, controls};
+    const QList<QDockWidget *> docks{m_scenesDock, m_sourcesDock,
+                                     m_mixerDock, m_controlsDock};
 
     const bool wasUpdating = updatesEnabled();
     setUpdatesEnabled(false);
@@ -417,19 +414,19 @@ void MainWindow::resetDockLayout()
     }
     setCorner(Qt::BottomLeftCorner, Qt::LeftDockWidgetArea);
     setCorner(Qt::BottomRightCorner, Qt::BottomDockWidgetArea);
-    addDockWidget(Qt::LeftDockWidgetArea, scenes);
-    addDockWidget(Qt::LeftDockWidgetArea, sources);
-    splitDockWidget(scenes, sources, Qt::Vertical);
-    addDockWidget(Qt::BottomDockWidgetArea, mixer);
-    addDockWidget(Qt::BottomDockWidgetArea, controls);
-    splitDockWidget(mixer, controls, Qt::Horizontal);
+    addDockWidget(Qt::LeftDockWidgetArea, m_scenesDock);
+    addDockWidget(Qt::LeftDockWidgetArea, m_sourcesDock);
+    splitDockWidget(m_scenesDock, m_sourcesDock, Qt::Vertical);
+    addDockWidget(Qt::BottomDockWidgetArea, m_mixerDock);
+    addDockWidget(Qt::BottomDockWidgetArea, m_controlsDock);
+    splitDockWidget(m_mixerDock, m_controlsDock, Qt::Horizontal);
     for (auto *dock : docks)
         dock->show();
-    resizeDocks({scenes}, {238}, Qt::Horizontal);
-    resizeDocks({scenes, sources}, {220, 440}, Qt::Vertical);
-    resizeDocks({mixer, controls},
+    resizeDocks({m_scenesDock}, {238}, Qt::Horizontal);
+    resizeDocks({m_scenesDock, m_sourcesDock}, {220, 440}, Qt::Vertical);
+    resizeDocks({m_mixerDock, m_controlsDock},
                 {qMax(200, width() - 238 - 286 - 12), 286}, Qt::Horizontal);
-    resizeDocks({mixer}, {198}, Qt::Vertical);
+    resizeDocks({m_mixerDock}, {198}, Qt::Vertical);
     setUpdatesEnabled(wasUpdating);
 }
 
@@ -544,11 +541,11 @@ void MainWindow::setupStatusBar()
 
 void MainWindow::setupScenesDock()
 {
-    auto *dock = new ThemedDockWidget(tr("场景"), m_theme, this);
-    dock->setObjectName(QStringLiteral("scenesDock"));
-    dock->setMinimumWidth(180);
+    m_scenesDock = new ThemedDockWidget(tr("场景"), m_theme, this);
+    m_scenesDock->setObjectName(QStringLiteral("scenesDock"));
+    m_scenesDock->setMinimumWidth(180);
 
-    auto *pages = new QStackedWidget(dock);
+    auto *pages = new QStackedWidget(m_scenesDock);
     auto *view = new QQuickWidget(pages);
     view->setObjectName(QStringLiteral("scenesQuickWidget"));
     view->rootContext()->setContextProperty(QStringLiteral("studioState"), m_studioState);
@@ -591,17 +588,17 @@ void MainWindow::setupScenesDock()
         showError(message);
     });
 
-    dock->setWidget(pages);
+    m_scenesDock->setWidget(pages);
     view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ScenesPanel.qml")));
 }
 
 void MainWindow::setupSourcesDock()
 {
-    auto *dock = new ThemedDockWidget(tr("来源"), m_theme, this);
-    dock->setObjectName(QStringLiteral("sourcesDock"));
-    dock->setMinimumWidth(220);
+    m_sourcesDock = new ThemedDockWidget(tr("来源"), m_theme, this);
+    m_sourcesDock->setObjectName(QStringLiteral("sourcesDock"));
+    m_sourcesDock->setMinimumWidth(220);
 
-    auto *pages = new QStackedWidget(dock);
+    auto *pages = new QStackedWidget(m_sourcesDock);
     auto *view = new QQuickWidget(pages);
     view->setObjectName(QStringLiteral("sourcesQuickWidget"));
     view->rootContext()->setContextProperty(QStringLiteral("studioState"), m_studioState);
@@ -644,17 +641,17 @@ void MainWindow::setupSourcesDock()
         showError(message);
     });
 
-    dock->setWidget(pages);
+    m_sourcesDock->setWidget(pages);
     view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml")));
 }
 
 void MainWindow::setupMixerDock()
 {
-    auto *dock = new ThemedDockWidget(tr("混音器"), m_theme, this);
-    dock->setObjectName(QStringLiteral("mixerDock"));
-    dock->setMinimumWidth(200);
+    m_mixerDock = new ThemedDockWidget(tr("混音器"), m_theme, this);
+    m_mixerDock->setObjectName(QStringLiteral("mixerDock"));
+    m_mixerDock->setMinimumWidth(200);
 
-    auto *pages = new QStackedWidget(dock);
+    auto *pages = new QStackedWidget(m_mixerDock);
     auto *view = new QQuickWidget(pages);
     view->setObjectName(QStringLiteral("mixerQuickWidget"));
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
@@ -692,17 +689,17 @@ void MainWindow::setupMixerDock()
         showError(message);
     });
 
-    dock->setWidget(pages);
+    m_mixerDock->setWidget(pages);
     view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/MixerPanel.qml")));
 }
 
 void MainWindow::setupControlsDock()
 {
-    auto *dock = new ThemedDockWidget(tr("控制"), m_theme, this);
-    dock->setObjectName(QStringLiteral("controlsDock"));
-    dock->setMinimumWidth(200);
+    m_controlsDock = new ThemedDockWidget(tr("控制"), m_theme, this);
+    m_controlsDock->setObjectName(QStringLiteral("controlsDock"));
+    m_controlsDock->setMinimumWidth(200);
 
-    auto *pages = new QStackedWidget(dock);
+    auto *pages = new QStackedWidget(m_controlsDock);
     auto *view = new QQuickWidget(pages);
     view->setObjectName(QStringLiteral("controlsQuickWidget"));
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
@@ -741,7 +738,7 @@ void MainWindow::setupControlsDock()
         showError(message);
     });
 
-    dock->setWidget(pages);
+    m_controlsDock->setWidget(pages);
     view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ControlsPanel.qml")));
 }
 
