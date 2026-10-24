@@ -21,6 +21,9 @@ public:
         unsigned int texture = 0;
         QSize size;
         quint64 token = 0;
+        // Premultiplied RGBA preview, with the same size/orientation as texture.
+        // Both textures belong to this single lease and must be returned together.
+        unsigned int previewTexture = 0;
     };
     static constexpr int BufferCount = 3;
 
@@ -44,7 +47,7 @@ public:
 
     // A compatible sharing context must be CURRENT on this thread. Acquires the
     // latest unconsumed frame and queues a GPU wait (never a CPU completion wait).
-    // Bind the texture in the consumer AFTER acquiring it. Zero token with empty
+    // Bind either texture in the consumer AFTER acquiring it. Zero token with empty
     // error means no new frame. One consumer per frame.
     Frame acquireFrame(QString *error = nullptr);
     // Call after all reads have been submitted, with the SAME consumer context

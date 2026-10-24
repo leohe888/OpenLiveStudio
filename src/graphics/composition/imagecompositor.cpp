@@ -35,6 +35,7 @@ public:
     enum State { Idle, Writing, Ready, Acquired, Returning };
     struct Slot {
         std::unique_ptr<QOpenGLFramebufferObject> fbo;
+        std::unique_ptr<QOpenGLFramebufferObject> previewFbo;
         GLsync fence = nullptr;
         State state = Idle;
         quint64 token = 0;
@@ -174,29 +175,34 @@ bool ImageCompositor::render(const QList<Layer> &layers, const QSize &canvas, QS
         QOpenGLFramebufferObjectFormat format;
         format.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
         slot.fbo = std::make_unique<QOpenGLFramebufferObject>(canvas, format);
+        slot.previewFbo = std::make_unique<QOpenGLFramebufferObject>(canvas, format);
     }
-    if (!slot.fbo->isValid() || !slot.fbo->bind())
-        return abortFrame(QStringLiteral("Cannot create or bind the composition framebuffer."));
-    gl->glViewport(0, 0, canvas.width(), canvas.height());
-    bool painted = false;
-    {
+    // Keep the black-backed output unchanged. A second, transparent composition
+    // lets the consumer choose a preview background without touching output pixels.
+    for (const bool preview : {false, true}) {
+        auto *fbo = preview ? slot.previewFbo.get() : slot.fbo.get();
+        if (!fbo->isValid() || !fbo->bind())
+            return abortFrame(QStringLiteral("Cannot create or bind the composition framebuffer."));
+        gl->glViewport(0, 0, canvas.width(), canvas.height());
         QOpenGLPaintDevice device(canvas);
         QPainter painter(&device);
-        if (painter.isActive()) {
-            painter.fillRect(QRect(QPoint(), canvas), Qt::black);
-            painter.setRenderHint(QPainter::SmoothPixmapTransform);
-            for (auto it = layers.crbegin(); it != layers.crend(); ++it) {
-                if (!it->visible) continue;
-                const QSizeF fitted = QSizeF(it->image.size()).scaled(QSizeF(canvas), Qt::KeepAspectRatio);
-                const QPointF origin((canvas.width() - fitted.width()) / 2,
-                                     (canvas.height() - fitted.height()) / 2);
-                painter.drawImage(QRectF(origin, fitted), it->image);
-            }
-            painted = true;
+        if (!painter.isActive())
+            return abortFrame(QStringLiteral("Cannot start the OpenGL paint engine."));
+        // Source mode is needed to erase alpha when a buffer is reused.
+        painter.setCompositionMode(QPainter::CompositionMode_Source);
+        painter.fillRect(QRect(QPoint(), canvas), preview ? Qt::transparent : Qt::black);
+        painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform);
+        for (auto it = layers.crbegin(); it != layers.crend(); ++it) {
+            if (!it->visible) continue;
+            const QSizeF fitted = QSizeF(it->image.size()).scaled(QSizeF(canvas), Qt::KeepAspectRatio);
+            const QPointF origin((canvas.width() - fitted.width()) / 2,
+                                 (canvas.height() - fitted.height()) / 2);
+            painter.drawImage(QRectF(origin, fitted), it->image);
         }
+        painter.end();
+        fbo->release();
     }
-    if (!painted) return abortFrame(QStringLiteral("Cannot start the OpenGL paint engine."));
-    slot.fbo->release();
     GLsync readyFence = nullptr;
     if (d->shared) {
         readyFence = gl->glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
@@ -254,7 +260,7 @@ ImageCompositor::Frame ImageCompositor::acquireFrame(QString *error)
     slot.consumer = current;
     slot.state = Private::Acquired;
     d->ready = -1;
-    return {slot.fbo->texture(), slot.fbo->size(), slot.token};
+    return {slot.fbo->texture(), slot.fbo->size(), slot.token, slot.previewFbo->texture()};
 }
 
 bool ImageCompositor::returnFrame(const Frame &frame, QString *error)
@@ -266,7 +272,7 @@ bool ImageCompositor::returnFrame(const Frame &frame, QString *error)
         if (slot.state != Private::Acquired || slot.token != frame.token) continue;
         auto *current = QOpenGLContext::currentContext();
         if (slot.consumer != current || frame.texture != slot.fbo->texture()
-            || frame.size != slot.fbo->size())
+            || frame.size != slot.fbo->size() || frame.previewTexture != slot.previewFbo->texture())
             return fail(error, QStringLiteral("Frame must be returned unchanged by its acquiring context."));
         auto *gl = current->extraFunctions();
         slot.fence = gl->glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
@@ -297,6 +303,7 @@ bool ImageCompositor::release(QString *error)
             gl->glDeleteSync(slot.fence);
         }
         slot.fbo.reset();
+        slot.previewFbo.reset();
         slot.fence = nullptr;
         slot.state = Private::Idle;
         slot.token = 0;

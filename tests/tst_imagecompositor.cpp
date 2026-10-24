@@ -29,7 +29,7 @@ bool near(const QColor &actual, const QColor &expected)
 // Read the shared texture through a CONSUMER-LOCAL FBO. FBO names are not shared.
 // Optional return occurs immediately after the GPU read command is submitted,
 // before CPU readback, so its fence covers queued texture consumption.
-QImage consume(const ImageCompositor::Frame &frame, ImageCompositor *returnTo = nullptr)
+QImage consume(const ImageCompositor::Frame &frame, ImageCompositor *returnTo = nullptr, bool preview = false)
 {
     if (!frame.token) return {};
     auto *gl = QOpenGLContext::currentContext()->extraFunctions();
@@ -38,7 +38,7 @@ QImage consume(const ImageCompositor::Frame &frame, ImageCompositor *returnTo = 
     gl->glGenFramebuffers(1, &input);
     gl->glBindFramebuffer(GL_READ_FRAMEBUFFER, input);
     gl->glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                               GL_TEXTURE_2D, frame.texture, 0);
+                               GL_TEXTURE_2D, preview ? frame.previewTexture : frame.texture, 0);
     const bool complete = gl->glCheckFramebufferStatus(GL_READ_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
     if (complete) {
         gl->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, output.handle());
@@ -95,6 +95,7 @@ private slots:
     void resizeAndRepeatedRelease();
     void workerThread();
     void sharedPixelsAndLatestFrame();
+    void transparentPreviewKeepsBlackOutput();
     void boundedBuffersAndResize();
     void invalidConsumersAndTokens();
     void sharedAcrossThreads();
@@ -286,6 +287,58 @@ void ImageCompositorTest::sharedPixelsAndLatestFrame()
     QVERIFY(error.isEmpty());
 }
 
+void ImageCompositorTest::transparentPreviewKeepsBlackOutput()
+{
+    SharedSession session;
+    QVERIFY(session.initialize(&m_surface, nullptr));
+    const QSize size(40, 40);
+    QImage source = solid(QSize(40, 20), Qt::transparent);
+    for (int y = 0; y < source.height(); ++y) {
+        for (int x = 10; x < 20; ++x) source.setPixelColor(x, y, QColor(0, 0, 255, 128));
+        for (int x = 20; x < 30; ++x) source.setPixelColor(x, y, Qt::black);
+        for (int x = 30; x < 40; ++x) source.setPixelColor(x, y, Qt::green);
+    }
+    QVERIFY(session.compositor.render({{solid(size, Qt::red), false}, {source}}, size));
+    const auto frame = session.acquire();
+    QVERIFY(frame.token && frame.texture && frame.previewTexture);
+    QVERIFY(frame.texture != frame.previewTexture);
+    const auto preview = consume(frame, nullptr, true);
+    const auto output = consume(frame, &session.compositor);
+    QVERIFY(!preview.isNull() && !output.isNull());
+    // Aspect-fit margins and transparent source pixels retain alpha only in preview.
+    QCOMPARE(preview.pixelColor(5, 5), QColor(Qt::transparent));
+    QCOMPARE(preview.pixelColor(5, 20), QColor(Qt::transparent));
+    QCOMPARE(output.pixelColor(5, 5), QColor(Qt::black));
+    QCOMPARE(output.pixelColor(5, 20), QColor(Qt::black));
+    QVERIFY(near(preview.pixelColor(15, 20), QColor(0, 0, 255, 128)));
+    QVERIFY(near(output.pixelColor(15, 20), QColor(0, 0, 128)));
+    const auto premultiplied = preview.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    QVERIFY(qAbs(qBlue(premultiplied.pixel(15, 20)) - 128) <= 2);
+    QCOMPARE(preview.pixelColor(25, 20), QColor(Qt::black)); // Real black stays opaque.
+    QCOMPARE(preview.pixelColor(35, 20), QColor(Qt::green));
+    QCOMPARE(output.pixelColor(35, 20), QColor(Qt::green));
+
+    QVERIFY(session.compositor.render({{solid(size, QColor(0, 0, 255, 128))},
+                                       {solid(size, QColor(255, 0, 0, 128))}}, size));
+    const auto layered = session.acquire();
+    QVERIFY(layered.token);
+    const auto layeredPreview = consume(layered, nullptr, true);
+    QVERIFY(!layeredPreview.isNull());
+    QVERIFY(near(layeredPreview.pixelColor(20, 20), QColor(85, 0, 170, 192)));
+    QVERIFY(near(consume(layered, &session.compositor).pixelColor(20, 20), QColor(64, 0, 128)));
+    // Cycle through reused slots; neither alpha nor pixels may leak from older frames.
+    for (int i = 0; i < 12; ++i) {
+        QString error;
+        bool rendered = false;
+        QTRY_VERIFY((rendered = session.compositor.render({}, size, &error)) || !error.isEmpty());
+        QVERIFY2(rendered, qPrintable(error));
+        const auto empty = session.acquire();
+        QVERIFY(empty.token);
+        QCOMPARE(consume(empty, nullptr, true).pixelColor(20, 20), QColor(Qt::transparent));
+        QCOMPARE(consume(empty, &session.compositor).pixelColor(20, 20), QColor(Qt::black));
+    }
+}
+
 void ImageCompositorTest::boundedBuffersAndResize()
 {
     SharedSession session;
@@ -301,8 +354,9 @@ void ImageCompositorTest::boundedBuffersAndResize()
         QVERIFY2(frame.token, qPrintable(error));
         held.append(frame);
         textures.insert(frame.texture);
+        textures.insert(frame.previewTexture);
     }
-    QCOMPARE(textures.size(), ImageCompositor::BufferCount);
+    QCOMPARE(textures.size(), ImageCompositor::BufferCount * 2);
     for (int i = 0; i < 20; ++i) {
         error = "previous error";
         QVERIFY(!session.compositor.render({}, QSize(200, 100), &error));
@@ -315,6 +369,7 @@ void ImageCompositorTest::boundedBuffersAndResize()
         const QImage pixels = consume(held[i]);
         QCOMPARE(pixels.size(), held[i].size);
         QCOMPARE(pixels.pixelColor(5, 5), colors[i]);
+        QCOMPARE(consume(held[i], nullptr, true).pixelColor(5, 5), colors[i]);
     }
     QVERIFY(session.compositor.returnFrame(held[0], &error));
     // Completion polling is nonblocking; retry until the real fence signals.
@@ -326,9 +381,12 @@ void ImageCompositorTest::boundedBuffersAndResize()
     QVERIFY2(resized.token, qPrintable(error));
     QCOMPARE(resized.size, QSize(200, 100));
     textures.insert(resized.texture);
+    textures.insert(resized.previewTexture);
+    QCOMPARE(consume(resized, nullptr, true).pixelColor(5, 5), QColor(Qt::yellow));
     QCOMPARE(consume(resized, &session.compositor).pixelColor(5, 5), QColor(Qt::yellow));
     // Resizing a returned slot must preserve the other two outstanding frames.
     for (int i = 1; i < held.size(); ++i) {
+        QCOMPARE(consume(held[i], nullptr, true).pixelColor(5, 5), colors[i]);
         const QImage pixels = consume(held[i], &session.compositor);
         QCOMPARE(pixels.size(), held[i].size);
         QCOMPARE(pixels.pixelColor(5, 5), colors[i]);
@@ -372,6 +430,10 @@ void ImageCompositorTest::invalidConsumersAndTokens()
     QVERIFY2(frame.token, qPrintable(error));
     auto changed = frame;
     changed.texture = 0;
+    QVERIFY(!session.compositor.returnFrame(changed, &error));
+    QVERIFY(!error.isEmpty());
+    changed = frame;
+    changed.previewTexture = 0;
     QVERIFY(!session.compositor.returnFrame(changed, &error));
     QVERIFY(!error.isEmpty());
     ImageCompositor another;
@@ -424,6 +486,8 @@ void ImageCompositorTest::sharedAcrossThreads()
     produced.acquire();
     consumer.makeCurrent(&m_surface);
     const auto second = compositor.acquireFrame();
+    const QImage oldPreview = consume(first, nullptr, true);
+    const QImage newPreview = consume(second, nullptr, true);
     const QImage oldPixels = consume(first, &compositor);
     const QImage newPixels = consume(second, &compositor);
     consumer.doneCurrent();
@@ -437,6 +501,9 @@ void ImageCompositorTest::sharedAcrossThreads()
     QCOMPARE(oldPixels.pixelColor(16, 16), QColor(Qt::red));
     QCOMPARE(newPixels.size(), QSize(48, 24));
     QCOMPARE(newPixels.pixelColor(24, 12), QColor(Qt::blue));
+    QCOMPARE(oldPreview.pixelColor(16, 16), QColor(Qt::red));
+    QCOMPARE(newPreview.size(), QSize(48, 24));
+    QCOMPARE(newPreview.pixelColor(24, 12), QColor(Qt::blue));
 }
 
 QTEST_MAIN(ImageCompositorTest)
