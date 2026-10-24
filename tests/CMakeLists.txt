@@ -148,6 +148,14 @@ set_tests_properties(core.studiostate PROPERTIES LABELS "core;smoke" TIMEOUT 10)
 
 qt_add_executable(tst_mainwindow
     tst_mainwindow.cpp
+    ../src/app/scenesnapshotbuilder.cpp
+    ../src/app/scenesnapshotbuilder.h
+    ../src/ui/preview/previewwidget.cpp
+    ../src/ui/preview/previewwidget.h
+    ../src/graphics/composition/compositionsession.cpp
+    ../src/graphics/composition/compositionsession.h
+    ../src/graphics/composition/imagecompositor.cpp
+    ../src/graphics/composition/imagecompositor.h
     ../src/ui/widgets/mainwindow.cpp
     ../src/ui/widgets/mainwindow.h
     ../src/scene/studiostate.cpp
@@ -157,13 +165,17 @@ qt_add_executable(tst_mainwindow
 )
 
 target_include_directories(tst_mainwindow PRIVATE
+    "${PROJECT_SOURCE_DIR}/src/app"
+    "${PROJECT_SOURCE_DIR}/src/ui/preview"
+    "${PROJECT_SOURCE_DIR}/src/graphics/composition"
     "${PROJECT_SOURCE_DIR}/src/ui/widgets"
     "${PROJECT_SOURCE_DIR}/src/sources"
     "${PROJECT_SOURCE_DIR}/src/scene"
 )
 target_link_libraries(tst_mainwindow PRIVATE
-    Qt6::Widgets Qt6::Test Qt6::QuickWidgets Qt6::QuickControls2 Qt6::Svg
+    Qt6::Widgets Qt6::Test Qt6::QuickWidgets Qt6::QuickControls2 Qt6::Svg Qt6::OpenGLWidgets
 )
+set_target_properties(tst_mainwindow PROPERTIES WIN32_EXECUTABLE FALSE)
 
 # Embed the same source at the application's resource URL.
 qt_add_resources(tst_mainwindow "test_ui"
@@ -194,3 +206,18 @@ set_tests_properties(ui.mainwindow PROPERTIES
     LABELS "ui;smoke"
     TIMEOUT 90
 )
+
+if(OPENLIVE_STUDIO_GL_TESTS)
+    add_test(NAME graphics.mainwindow
+        COMMAND "${CMAKE_COMMAND}" -E env
+            "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
+            "QT_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../plugins"
+            "QML_IMPORT_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../qml"
+            "QT_QPA_PLATFORM=windows"
+            "QT_QUICK_BACKEND=rhi"
+            "QSG_RHI_BACKEND=opengl"
+            "$<TARGET_FILE:tst_mainwindow>" --graphics
+            -o "${CMAKE_CURRENT_BINARY_DIR}/mainwindow-graphics.txt,txt"
+    )
+    set_tests_properties(graphics.mainwindow PROPERTIES LABELS "graphics" TIMEOUT 60)
+endif()

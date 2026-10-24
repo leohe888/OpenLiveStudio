@@ -58,8 +58,8 @@ unverified; these tests use offscreen software rendering.
 
 Manual acceptance for the completed migration: run the rebuilt application,
 check all four panels and the About dialog, add/rename/remove scenes and image
-entries, and exercise panel close/restore and reset. The central preview remains
-a placeholder. These actions should behave as before the path migration.
+entries, and exercise panel close/restore and reset. These actions should behave
+as before the path migration. Native image preview acceptance is described below.
 
 ## Build and run
 
@@ -374,7 +374,7 @@ Manual acceptance:
    window sizes; verify all four panels return without overlap.
 3. Add two scenes with distinct image entries. Switching scenes must update the
    source list immediately and clear source selection; clicking the current
-   scene must preserve it. The central preview is still a placeholder.
+   scene must preserve it. Native preview should follow the selected scene.
 4. Open `docs/openlive-studio-prototype.html` in a browser. Confirm no transition
    panel or menu entry remains, scene changes have no fade, panel closing and
    restoration work, and layout reset restores the four panels. Check for
@@ -382,11 +382,13 @@ Manual acceptance:
 
 ## Static image composition and shared frame handoff
 
-C1.1 added real offscreen OpenGL image composition. C1.2a adds optional context
-sharing and a fixed pool of three result buffers. This is a graphics-module
-capability: the application preview is still a placeholder. A production worker,
-scene-to-pixel snapshot assembly, QOpenGLWidget integration and unified Qt Quick
-OpenGL startup remain subsequent work.
+C1.1 added real offscreen OpenGL image composition. C1.2 added shared textures,
+a fixed pool of three result buffers and a dedicated composition worker.
+C1.3 connects StudioState through SceneSnapshotBuilder and CompositionSession
+to the main window's PreviewWidget. Desktop startup configures OpenGL 3.3 core
+and Qt Quick's OpenGL API before QApplication and any QQuickWidget is created.
+Widgets own the window, docks and preview; the existing QML panels continue to
+operate on the same C++ state. No duplicate scene model is introduced.
 
 `ImageCompositor` takes immutable decoded image layers, topmost first. Images fit
 the canvas without cropping, preserve transparency and compose over black.
@@ -445,7 +447,7 @@ are skipped, then return one and resize its replacement without changing the
 other two. Tests also cover latest-result selection, pending GPU reads before
 return, cross-thread sharing, invalid contexts/tokens, shutdown refusal,
 deletion of output texture names and restart. Readback is a diagnostic test
-operation, not the future production preview path.
+operation, not the production preview path.
 
 On 2026-10-24, C1.2a passed a Qt 6.12.0 / MSVC 2022 x64 Ninja Debug build.
 The native graphics executable passed 13 cases (including initialization and
@@ -459,6 +461,65 @@ unsupported-sync hardware and forced context loss remain
 unverified. Window display/resize/context recreation, production scheduling,
 minimized continuous media output and device/media output are not established
 by these tests.
+
+### Main window image preview
+
+`ui.mainwindow` stays on offscreen/software and checks an explicit unavailable
+message without constructing PreviewWidget, a decoder or a composition session.
+Enable `OPENLIVE_STUDIO_GL_TESTS` to register the separate `graphics.mainwindow`
+test, using native Windows, Qt Quick RHI and OpenGL. Run it with:
+
+```powershell
+ctest --test-dir build/c1-image-compositor-Debug -R graphics.mainwindow --output-on-failure
+# In the Qt runtime environment, for a detailed log:
+build/c1-image-compositor-Debug/tst_mainwindow.exe --graphics -o build/c1-image-compositor-Debug/c13c-native.txt,txt
+```
+
+Generated red and translucent blue images exercise real preview pixels, source
+addition, order, visibility, empty/selected scenes, missing/corrupt files and
+recovery. Tests also cover aspect ratio on resize, QML panel readiness, floating,
+closing/restoring docks, minimizing/restoring, context recreation by reparenting,
+and repeated destruction with a pending snapshot. The session resubmits the
+latest decoded snapshot after startup or context recreation. Window destruction
+joins decoding, releases preview frame leases, then joins composition, before
+the QML panels and shared StudioState are destroyed.
+
+Manual acceptance on a native desktop:
+
+1. Run the rebuilt app with Qt Quick's RHI/OpenGL backend. Add two PNGs, including
+   one with transparency. Check fit, transparency and topmost source ordering.
+2. Reorder, hide and show images; switch to an empty scene and back. During
+   decoding the preview status shows loading while the previous frame remains.
+3. Delete or corrupt one file after adding it, then toggle visibility or switch
+   scenes to reload. Its plain-text error must appear below the preview while
+   other images remain. Restore the file and trigger another change to recover.
+4. Resize, float/re-dock, close/restore panels, minimize/restore, and close the
+   app repeatedly. Check preview proportions, responsive panels and clean exit.
+
+There is no file watcher, retry button, transform editing, capture or output in
+this step. Files changed on disk are reread on scene/source changes. Software
+mode explicitly reports unavailable; native initialization/runtime graphics
+errors replace the preview with their message. Forced driver/context loss,
+other GPU drivers and moving between monitors with different DPI remain
+unverified. An in-progress QImageReader decode can delay shutdown until it ends.
+On the local NVIDIA/WGL backend, moving the live preview between top-level
+windows recreates its context, but sharing can fail
+`wglCreateContextAttribsARB`/`wglShareLists` in either direction. Picture recovery
+was observed in a direct run; the test also checks the explicit error fallback
+when sharing fails. This artificial
+reparent operation is not exposed by the application UI; automatic recovery
+from that driver failure is not implemented.
+
+On 2026-10-24, the Qt 6.12.0 / MSVC 2022 x64 Ninja Debug build passed.
+Complete CTest passed 10/10 in 53.77 seconds (software UI: 32.13 seconds;
+native main window: 7.08 seconds). The native suite passed four cases including
+setup/cleanup with no failures or skips, using OpenGL 3.3 core and DPR 1.25.
+The final run restored pixels after reparenting; earlier runs encountered the
+WGL sharing failure described above. The final run does not independently
+establish the graphics-error fallback or automatic recovery from driver loss. Logs are
+`build/c1-image-compositor-Debug/tests/mainwindow-graphics.txt` and
+`build/c1-image-compositor-Debug/c13c-results.xml`; the actual window screenshot
+is `build/c1-image-compositor-Debug/c13c-mainwindow.png`.
 
 ## Adding tests with features
 

@@ -1,5 +1,8 @@
 #include "mainwindow.h"
 #include "studiostate.h"
+#include "scenesnapshotbuilder.h"
+#include "compositionsession.h"
+#include "previewwidget.h"
 
 #include <QAction>
 #include <QCoreApplication>
@@ -20,6 +23,28 @@
 #include <QStackedWidget>
 #include <QToolBar>
 #include <QVBoxLayout>
+#include <QShowEvent>
+#include <QTimer>
+#include <memory>
+
+namespace {
+// QOpenGLWidget can fail before initializeGL(), so observe its first visible paint.
+class MainPreview final : public PreviewWidget
+{
+public:
+    using PreviewWidget::PreviewWidget;
+    std::function<void(const QString &)> initializationFailed;
+protected:
+    void showEvent(QShowEvent *event) override
+    {
+        PreviewWidget::showEvent(event);
+        QTimer::singleShot(0, this, [this] {
+            if (isVisible() && !isReady() && initializationFailed)
+                initializationFailed(tr("无法创建 OpenGL 3.3 预览上下文。"));
+        });
+    }
+};
+}
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -43,7 +68,14 @@ MainWindow::MainWindow(QWidget *parent)
     m_studioState->setParent(this);
 }
 
-MainWindow::~MainWindow() = default;
+MainWindow::~MainWindow()
+{
+    // Stop decoding before tearing down the view; it returns leases before the
+    // synchronous context-release handler joins the composition worker.
+    delete findChild<SceneSnapshotBuilder *>();
+    delete takeCentralWidget();
+    delete findChild<CompositionSession *>();
+}
 
 void MainWindow::showDialog(const QUrl &source, const QString &title,
                             const QVariantMap &properties)
@@ -265,14 +297,89 @@ void MainWindow::setupPreview()
     auto *layout = new QVBoxLayout(container);
     layout->setContentsMargins(12, 12, 12, 12);
 
-    auto *placeholder = new QLabel(tr("尚未添加画面来源"), container);
-    placeholder->setObjectName(QStringLiteral("previewPlaceholder"));
-    placeholder->setAlignment(Qt::AlignCenter);
-    placeholder->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    placeholder->setStyleSheet(QStringLiteral(
+    auto *pages = new QStackedWidget(container);
+    layout->addWidget(pages, 1);
+    auto *failure = new QLabel(pages);
+    failure->setObjectName(QStringLiteral("previewUnavailable"));
+    failure->setTextFormat(Qt::PlainText);
+    failure->setAlignment(Qt::AlignCenter);
+    failure->setWordWrap(true);
+    failure->setStyleSheet(QStringLiteral(
         "background: #000000; color: #8c8c8c; border: 1px solid #2e2e2e;"));
-    layout->addWidget(placeholder);
+    pages->addWidget(failure);
     setCentralWidget(container);
+    if (QGuiApplication::platformName() == QStringLiteral("offscreen")
+        || QQuickWindow::sceneGraphBackend() == QStringLiteral("software")) {
+        failure->setText(tr("当前软件或离屏环境不支持 OpenGL 预览。"));
+        return;
+    }
+
+    auto *status = new QLabel(tr("正在加载画面…"), container);
+    status->setObjectName(QStringLiteral("previewStatus"));
+    status->setTextFormat(Qt::PlainText);
+    status->setWordWrap(true);
+    layout->addWidget(status);
+    auto *preview = new MainPreview(pages);
+    preview->setObjectName(QStringLiteral("previewWidget"));
+    pages->addWidget(preview);
+    pages->setCurrentWidget(preview);
+    auto *session = new CompositionSession(this);
+    auto *builder = new SceneSnapshotBuilder(m_studioState, this);
+    struct Presentation {
+        SceneSnapshotBuilder::Snapshot latest;
+        bool hasSnapshot = false;
+        QStringList errors;
+    };
+    auto state = std::make_shared<Presentation>();
+    const auto showFailure = [pages, failure](const QString &message) {
+        failure->setText(tr("预览不可用：%1").arg(message));
+        pages->setCurrentWidget(failure);
+    };
+    preview->initializationFailed = showFailure;
+    connect(preview, &PreviewWidget::graphicsError, container, showFailure);
+    connect(session, &CompositionSession::errorOccurred, container, showFailure);
+    const auto submit = [session, state, showFailure] {
+        if (!state->hasSnapshot || !session->isRunning())
+            return;
+        QString error;
+        if (!session->submit(state->latest.layers, state->latest.canvas, &error))
+            showFailure(error);
+    };
+    connect(session, &CompositionSession::started, container, submit);
+    connect(preview, &PreviewWidget::contextReady, container,
+            [session, showFailure](QOpenGLContext *context) {
+        QString error;
+        if (!session->start(context, &error))
+            showFailure(error);
+    });
+    // This connection must survive deletion of the central container.
+    connect(preview, &PreviewWidget::contextAboutToBeReleased, session, [session] {
+        QString error;
+        if (!session->stop(&error))
+            qFatal("Preview composition shutdown failed: %s", qPrintable(error));
+    });
+    QString error;
+    if (!preview->setSession(session, &error))
+        showFailure(error);
+    connect(builder, &SceneSnapshotBuilder::loadingChanged, container, [builder, state, status] {
+        if (builder->isLoading()) {
+            state->errors.clear();
+            status->setText(tr("正在加载画面…"));
+        }
+    });
+    connect(builder, &SceneSnapshotBuilder::sourceError, container,
+            [state](const SceneSnapshotBuilder::SourceError &error) {
+        state->errors.append(tr("%1：%2").arg(error.name, error.message));
+    });
+    connect(builder, &SceneSnapshotBuilder::snapshotReady, container,
+            [state, status, submit](const SceneSnapshotBuilder::Snapshot &snapshot) {
+        state->latest = snapshot;
+        state->hasSnapshot = true;
+        status->setText(state->errors.isEmpty()
+            ? (snapshot.layers.isEmpty() ? tr("当前场景没有可见图像来源") : QString())
+            : state->errors.join('\n'));
+        submit();
+    });
 }
 
 void MainWindow::setupStatusBar()
