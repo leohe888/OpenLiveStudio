@@ -23,6 +23,7 @@ private slots:
         QCOMPARE(manager.themeId(), "dark");
         QVERIFY(manager.lastError().isEmpty());
         QCOMPARE(manager.color("text.primary"), QColor("#E6E9EE"));
+        QCOMPARE(manager.color("preview.surrounding"), QColor("#181A1D"));
         QCOMPARE(manager.colors().value("text").toMap().value("primary").value<QColor>(),
                  manager.color("text.primary"));
         QVERIFY(!QFile::exists(path));
@@ -52,6 +53,9 @@ private slots:
         QCOMPARE(manager.themeId(), "light");
         QCOMPARE(manager.color("text.primary"), QColor("#202936"));
         QCOMPARE(manager.color("preview.canvas"), QColor(Qt::black));
+        QCOMPARE(manager.color("preview.surrounding"), QColor("#D4D7DC"));
+        QCOMPARE(manager.colors().value("preview").toMap().value("surrounding").value<QColor>(),
+                 manager.color("preview.surrounding"));
         QVERIFY(manager.setTheme("light"));
         QCOMPARE(changed.size(), 1);
         {
@@ -67,6 +71,7 @@ private slots:
         ThemeManager secondRestore(path);
         QCOMPARE(secondRestore.themeId(), "dark");
         QCOMPARE(secondRestore.color("button.background.pressed"), QColor("#3F4854"));
+        QCOMPARE(secondRestore.color("preview.surrounding"), QColor("#181A1D"));
         // Existing instances retain their own state; there is no global singleton.
         QCOMPARE(manager.themeId(), "light");
     }

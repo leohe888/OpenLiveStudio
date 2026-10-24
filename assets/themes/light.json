@@ -59,7 +59,8 @@
       "indicator": "#197349"
     },
     "preview": {
-      "canvas": "#000000"
+      "canvas": "#000000",
+      "surrounding": "#D4D7DC"
     }
   }
 }

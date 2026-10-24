@@ -97,7 +97,7 @@ bool ThemeManager::loadTheme(const QString &id, QVariantMap *colors, QString *er
         "button.background.disabled", "button.background.accent", "scrollbar.thumb.normal",
         "scrollbar.thumb.hovered", "scrollbar.thumb.pressed", "slider.track", "slider.handle",
         "slider.handleDisabled", "status.success", "status.warning", "status.error",
-        "recording.indicator", "streaming.indicator", "preview.canvas"
+        "recording.indicator", "streaming.indicator", "preview.canvas", "preview.surrounding"
     };
     QVariantMap decoded;
     QSet<QString> paths;
