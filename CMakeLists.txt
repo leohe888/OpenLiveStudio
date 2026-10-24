@@ -12,8 +12,8 @@ endif()
 qt_add_executable(OpenLiveStudio
     WIN32 MACOSX_BUNDLE
     main.cpp
-    mainwindow.cpp
-    mainwindow.h
+    src/ui/mainwindow.cpp
+    src/ui/mainwindow.h
     src/scene/studiostate.cpp
     src/scene/studiostate.h
     src/media/imageloader.cpp
@@ -55,6 +55,7 @@ qt_add_resources(OpenLiveStudio "icons"
 )
 
 target_include_directories(OpenLiveStudio PRIVATE
+    "${PROJECT_SOURCE_DIR}/src/ui"
     "${PROJECT_SOURCE_DIR}/src/media"
     "${PROJECT_SOURCE_DIR}/src/scene"
 )
