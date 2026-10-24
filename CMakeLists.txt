@@ -16,6 +16,8 @@ qt_add_executable(OpenLiveStudio
     src/app/scenesnapshotbuilder.h
     src/ui/widgets/mainwindow.cpp
     src/ui/widgets/mainwindow.h
+    src/ui/theme/thememanager.cpp
+    src/ui/theme/thememanager.h
     src/scene/studiostate.cpp
     src/scene/studiostate.h
     src/sources/imageloader.cpp
@@ -90,6 +92,7 @@ qt_add_resources(OpenLiveStudio "themes"
 target_include_directories(OpenLiveStudio PRIVATE
     "${PROJECT_SOURCE_DIR}/src/app"
     "${PROJECT_SOURCE_DIR}/src/ui/widgets"
+    "${PROJECT_SOURCE_DIR}/src/ui/theme"
     "${PROJECT_SOURCE_DIR}/src/sources"
     "${PROJECT_SOURCE_DIR}/src/scene"
     "${PROJECT_SOURCE_DIR}/src/ui/preview"

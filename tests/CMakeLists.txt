@@ -1,5 +1,25 @@
 find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
 
+qt_add_executable(tst_thememanager
+    tst_thememanager.cpp
+    ../src/ui/theme/thememanager.cpp
+    ../src/ui/theme/thememanager.h
+)
+target_include_directories(tst_thememanager PRIVATE "${PROJECT_SOURCE_DIR}/src/ui/theme")
+target_link_libraries(tst_thememanager PRIVATE Qt6::Gui Qt6::Test)
+set_target_properties(tst_thememanager PROPERTIES WIN32_EXECUTABLE FALSE)
+qt_add_resources(tst_thememanager "test_themes"
+    PREFIX "/"
+    BASE "${PROJECT_SOURCE_DIR}"
+    FILES ${OPENLIVE_STUDIO_THEME_FILES}
+)
+add_test(NAME core.thememanager
+    COMMAND "${CMAKE_COMMAND}" -E env
+        "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
+        "$<TARGET_FILE:tst_thememanager>" -o "${CMAKE_CURRENT_BINARY_DIR}/thememanager-results.txt,txt"
+)
+set_tests_properties(core.thememanager PROPERTIES LABELS "core;smoke" TIMEOUT 15)
+
 qt_add_executable(tst_scenesnapshotbuilder
     tst_scenesnapshotbuilder.cpp
     ../src/app/scenesnapshotbuilder.cpp
