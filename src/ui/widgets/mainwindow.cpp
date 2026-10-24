@@ -173,6 +173,8 @@ void MainWindow::applyTheme()
     setPalette(colors);
     for (auto *dock : findChildren<QDockWidget *>()) dock->setPalette(colors);
     for (auto *dialog : findChildren<QDialog *>()) dialog->setPalette(colors);
+    if (auto *preview = findChild<PreviewWidget *>())
+        preview->setSurroundingColor(color("preview.surrounding"));
 }
 
 void MainWindow::configureQuickWidget(QQuickWidget *view)
@@ -458,6 +460,7 @@ void MainWindow::setupPreview()
     status->setWordWrap(true);
     layout->addWidget(status);
     auto *preview = new MainPreview(pages);
+    preview->setSurroundingColor(m_theme.color(QStringLiteral("preview.surrounding")));
     preview->setObjectName(QStringLiteral("previewWidget"));
     pages->addWidget(preview);
     pages->setCurrentWidget(preview);

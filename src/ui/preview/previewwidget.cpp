@@ -1,7 +1,6 @@
 #include "previewwidget.h"
 #include "compositionsession.h"
 
-#include <QEvent>
 #include <QOpenGLContext>
 #include <QOpenGLExtraFunctions>
 
@@ -56,11 +55,11 @@ QRectF PreviewWidget::canvasRect() const
     return QRectF(QPointF((width() - fitted.width()) / 2, (height() - fitted.height()) / 2), fitted);
 }
 
-void PreviewWidget::changeEvent(QEvent *event)
+void PreviewWidget::setSurroundingColor(const QColor &color)
 {
-    QOpenGLWidget::changeEvent(event);
-    if (event->type() == QEvent::PaletteChange || event->type() == QEvent::StyleChange)
-        update();
+    if (!color.isValid() || color == m_surroundingColor) return;
+    m_surroundingColor = color;
+    update();
 }
 
 void PreviewWidget::reportError(const QString &message)
@@ -140,13 +139,7 @@ void PreviewWidget::paintGL()
     m_gl->glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
     m_gl->glDisable(GL_SCISSOR_TEST);
     m_gl->glViewport(0, 0, pixelWidth, pixelHeight);
-    // Style sheets can leave a child with a cached palette; use the window's
-    // actual theme. Darken light backgrounds slightly to distinguish the preview
-    // area from its container without changing the canvas or output pixels.
-    const QColor windowColor = window()->palette().color(QPalette::Window);
-    const QColor surrounding = windowColor.lightnessF() > .5
-        ? windowColor.darker(110) : windowColor;
-    m_gl->glClearColor(surrounding.redF(), surrounding.greenF(), surrounding.blueF(), 1);
+    m_gl->glClearColor(m_surroundingColor.redF(), m_surroundingColor.greenF(), m_surroundingColor.blueF(), 1);
     m_gl->glClear(GL_COLOR_BUFFER_BIT);
 
     if (m_session && m_session->isRunning()) {

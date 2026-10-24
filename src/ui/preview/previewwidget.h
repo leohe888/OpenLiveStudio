@@ -2,6 +2,7 @@
 #define PREVIEWWIDGET_H
 
 #include "imagecompositor.h"
+#include <QColor>
 #include <QOpenGLWidget>
 #include <QPointer>
 #include <QRectF>
@@ -21,6 +22,8 @@ public:
     ~PreviewWidget() override;
 
     bool setSession(CompositionSession *session, QString *error = nullptr);
+    void setSurroundingColor(const QColor &color);
+    QColor surroundingColor() const { return m_surroundingColor; }
     bool isReady() const { return m_gl != nullptr; }
     QRectF canvasRect() const; // Logical widget coordinates, not output pixels.
     quint64 displayedFrameToken() const { return m_displayedToken; }
@@ -31,7 +34,6 @@ signals:
     void graphicsError(const QString &message);
 
 protected:
-    void changeEvent(QEvent *event) override;
     void initializeGL() override;
     void paintGL() override;
 
@@ -46,6 +48,7 @@ private:
     ImageCompositor::Frame m_frame, m_pending;
     quint64 m_displayedToken = 0;
     QString m_lastError;
+    QColor m_surroundingColor = Qt::black;
 };
 
 #endif // PREVIEWWIDGET_H

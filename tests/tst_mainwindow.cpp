@@ -3010,6 +3010,7 @@ private slots:
         QVERIFY(view);
         QTRY_VERIFY(view->displayedFrameToken() != 0);
         QTRY_COMPARE(centerPixel(view), QColor(Qt::black));
+        QCOMPARE(view->surroundingColor(), m_theme->color("preview.surrounding"));
         const auto panels = window.findChildren<QQuickWidget *>();
         QList<QPointer<QQuickItem>> roots;
         for (auto *panel : panels) {
@@ -3024,6 +3025,9 @@ private slots:
             QCOMPARE(m_theme->themeId(), QString::fromLatin1(id));
             QVERIFY(action->isChecked());
             QTRY_COMPARE(window.palette().color(QPalette::Window), m_theme->color("background.window"));
+            QCOMPARE(view->surroundingColor(), m_theme->color("preview.surrounding"));
+            QVERIFY(!view->canvasRect().contains(QPointF(1, 1)));
+            QTRY_COMPARE(view->grabFramebuffer().pixelColor(1, 1), m_theme->color("preview.surrounding"));
             QTRY_COMPARE(centerPixel(view), QColor(Qt::black));
             QCOMPARE(view->context(), context.data());
             for (int i = 0; i < panels.size(); ++i) {

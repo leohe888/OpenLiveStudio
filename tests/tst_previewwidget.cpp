@@ -90,7 +90,7 @@ class PreviewWidgetTest : public QObject
 private slots:
     void initTestCase();
     void sharedPixelsAndCanvasFit();
-    void paletteChangesKeepCanvasAndFrame();
+    void surroundingColorChangesKeepCanvasAndFrame();
     void repaintReplacementAndDetach();
     void reparentRecreatesContext();
     void repeatedCreationAndDestruction();
@@ -117,15 +117,13 @@ void PreviewWidgetTest::initTestCase()
 void PreviewWidgetTest::sharedPixelsAndCanvasFit()
 {
     Fixture fixture;
-    auto palette = fixture.window.palette();
-    palette.setColor(QPalette::Window, QColor("#181A1D"));
-    fixture.window.setPalette(palette);
+    fixture.view->setSurroundingColor(QColor("#181A1D"));
     fixture.window.show();
     QTRY_VERIFY(fixture.session.isRunning());
     const QImage empty = fixture.view->grabFramebuffer();
     QVERIFY(!empty.isNull());
     QCOMPARE(sample(fixture.view, empty, .5, .5), QColor(Qt::black));
-    QCOMPARE(empty.pixelColor(1, 1), fixture.view->palette().color(QPalette::Window));
+    QCOMPARE(empty.pixelColor(1, 1), QColor("#181A1D"));
     QVERIFY(qAbs(fixture.view->canvasRect().width() / fixture.view->canvasRect().height() - 16. / 9) < .001);
 
     QImage base = solid(Qt::red), overlay = solid(Qt::transparent);
@@ -161,7 +159,7 @@ void PreviewWidgetTest::sharedPixelsAndCanvasFit()
     QVERIFY(fixture.errors.isEmpty());
 }
 
-void PreviewWidgetTest::paletteChangesKeepCanvasAndFrame()
+void PreviewWidgetTest::surroundingColorChangesKeepCanvasAndFrame()
 {
     Fixture fixture;
     fixture.window.show();
@@ -171,18 +169,14 @@ void PreviewWidgetTest::paletteChangesKeepCanvasAndFrame()
     for (const auto &size : {QSize(640, 240), QSize(240, 420)}) {
         fixture.window.resize(size);
         QTRY_COMPARE(fixture.view->size(), size);
-        for (const auto &colors : {qMakePair(QColor("#181A1D"), QColor("#181A1D")),
-                                   qMakePair(QColor("#E9EDF2"), QColor("#D4D7DC"))}) {
-            const QColor color = colors.first;
-            auto palette = fixture.window.palette();
-            palette.setColor(QPalette::Window, color);
+        for (const auto &color : {QColor("#181A1D"), QColor("#D4D7DC"), QColor("#3579A1")}) {
             painted.clear();
-            fixture.window.setPalette(palette);
-            QTRY_COMPARE(fixture.view->palette().color(QPalette::Window), color);
-            QTRY_VERIFY(!painted.isEmpty()); // A palette change schedules a real repaint.
+            fixture.view->setSurroundingColor(color);
+            QCOMPARE(fixture.view->surroundingColor(), color);
+            QTRY_VERIFY(!painted.isEmpty()); // A color change schedules a real repaint.
             const auto frame = fixture.view->grabFramebuffer();
             QVERIFY(!frame.isNull());
-            QVERIFY(near(frame.pixelColor(1, 1), colors.second));
+            QCOMPARE(frame.pixelColor(1, 1), color);
             QCOMPARE(sample(fixture.view, frame, .5, .5), QColor(Qt::black));
             QCOMPARE(fixture.view->context(), context.data());
             QVERIFY(frame.save(artifact(QString("surrounding-%1-%2").arg(color.name().mid(1)).arg(size.width()), fixture.view)));
@@ -191,16 +185,12 @@ void PreviewWidgetTest::paletteChangesKeepCanvasAndFrame()
     QVERIFY(fixture.session.submit({{solid(Qt::red)}}, QSize(64, 32)));
     QTRY_VERIFY(fixture.view->displayedFrameToken() != 0);
     const auto token = fixture.view->displayedFrameToken();
-    for (const auto &colors : {qMakePair(QColor("#181A1D"), QColor("#181A1D")),
-                               qMakePair(QColor("#E9EDF2"), QColor("#D4D7DC"))}) {
-        const QColor color = colors.first;
-        auto palette = fixture.window.palette();
-        palette.setColor(QPalette::Window, color);
+    for (const auto &color : {QColor("#181A1D"), QColor("#D4D7DC")}) {
         painted.clear();
-        fixture.window.setPalette(palette);
+        fixture.view->setSurroundingColor(color);
         QTRY_VERIFY(!painted.isEmpty());
         const auto frame = fixture.view->grabFramebuffer();
-        QVERIFY(near(frame.pixelColor(1, 1), colors.second));
+        QCOMPARE(frame.pixelColor(1, 1), color);
         QCOMPARE(sample(fixture.view, frame, .5, .5), QColor(Qt::red));
         QCOMPARE(fixture.view->displayedFrameToken(), token);
         QCOMPARE(fixture.view->context(), context.data());
