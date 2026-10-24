@@ -893,6 +893,17 @@ void MainWindowTest::sceneAndSourceThemes()
             }
         }
         QVERIFY(foundLabel);
+        auto *row1 = find(prefix + "Row_1");
+        QVERIFY(row1);
+        const auto rowCenter = [](QQuickItem *item) {
+            return item->mapToScene(item->boundingRect().center()).toPoint();
+        };
+        moveMouse(rowCenter(row1));
+        QTRY_COMPARE(row1->property("color").value<QColor>(), m_theme->color("background.hovered"));
+        moveMouse(rowCenter(row));
+        QTRY_COMPARE(row->property("color").value<QColor>(), m_theme->color("background.selected"));
+        moveMouse(QPoint(panel.width() - 2, panel.height() - 2));
+        QTRY_COMPARE(row1->property("color").value<QColor>(), QColor(Qt::transparent));
         auto *add = find(prefix == "scene" ? "addSceneButton" : "addSourceButton");
         QVERIFY(add && add->isEnabled());
         QCOMPARE(QQmlProperty::read(add, "icon.color").value<QColor>(), m_theme->color("icon.primary"));

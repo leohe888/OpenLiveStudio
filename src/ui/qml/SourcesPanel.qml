@@ -87,11 +87,15 @@ Rectangle {
                     objectName: "sourceRow_" + sourceId
                     width: sourceList.width - (sourceScrollBar.visible ? sourceScrollBar.width : 0)
                     height: 32
-                    color: selected ? root.themeColors.background.selected : "transparent"
+                    color: selected ? root.themeColors.background.selected
+                        : (rowHover.hovered ? root.themeColors.background.hovered : "transparent")
                     Accessible.role: Accessible.ListItem
                     Accessible.name: sourceName
                     Accessible.selected: selected
 
+                    HoverHandler {
+                        id: rowHover
+                    }
                     RowLayout {
                         anchors.fill: parent
                         anchors.leftMargin: 8

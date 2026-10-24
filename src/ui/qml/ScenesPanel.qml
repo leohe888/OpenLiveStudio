@@ -59,7 +59,8 @@ Rectangle {
                     objectName: "sceneRow_" + sceneId
                     width: sceneList.width - (sceneScrollBar.visible ? sceneScrollBar.width : 0)
                     height: 32
-                    color: selected ? root.themeColors.background.selected : "transparent"
+                    color: selected ? root.themeColors.background.selected
+                        : (rowHover.hovered ? root.themeColors.background.hovered : "transparent")
                     Accessible.role: Accessible.ListItem
                     Accessible.name: sceneName
                     Accessible.selected: selected
@@ -73,6 +74,9 @@ Rectangle {
                         textFormat: Text.PlainText
                         elide: Text.ElideRight
                         color: root.themeColors.text.primary
+                    }
+                    HoverHandler {
+                        id: rowHover
                     }
                     TapHandler {
                         onTapped: root.state.selectScene(sceneId)
