@@ -6,9 +6,11 @@
 #include <QOpenGLWidget>
 #include <QPointer>
 #include <QRectF>
+#include <memory>
 
 class CompositionSession;
 class QOpenGLExtraFunctions;
+class QOpenGLTextureBlitter;
 
 // Presentation only: never drives composition or accesses live scene models.
 // GUI-thread use. The external coordinator starts the session on contextReady()
@@ -24,6 +26,8 @@ public:
     bool setSession(CompositionSession *session, QString *error = nullptr);
     void setSurroundingColor(const QColor &color);
     QColor surroundingColor() const { return m_surroundingColor; }
+    void setCanvasColor(const QColor &color);
+    QColor canvasColor() const { return m_canvasColor; }
     bool isReady() const { return m_gl != nullptr; }
     QRectF canvasRect() const; // Logical widget coordinates, not output pixels.
     quint64 displayedFrameToken() const { return m_displayedToken; }
@@ -44,11 +48,12 @@ private:
     QPointer<CompositionSession> m_session;
     QMetaObject::Connection m_frameConnection, m_errorConnection, m_cleanupConnection;
     QOpenGLExtraFunctions *m_gl = nullptr;
-    unsigned int m_readFramebuffer = 0;
+    std::unique_ptr<QOpenGLTextureBlitter> m_blitter;
     ImageCompositor::Frame m_frame, m_pending;
     quint64 m_displayedToken = 0;
     QString m_lastError;
     QColor m_surroundingColor = Qt::black;
+    QColor m_canvasColor = Qt::black;
 };
 
 #endif // PREVIEWWIDGET_H

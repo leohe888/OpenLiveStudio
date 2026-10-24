@@ -91,6 +91,7 @@ private slots:
     void initTestCase();
     void sharedPixelsAndCanvasFit();
     void surroundingColorChangesKeepCanvasAndFrame();
+    void canvasColorBlendsTransparentPreview();
     void repaintReplacementAndDetach();
     void reparentRecreatesContext();
     void repeatedCreationAndDestruction();
@@ -198,6 +199,55 @@ void PreviewWidgetTest::surroundingColorChangesKeepCanvasAndFrame()
     QVERIFY(fixture.errors.isEmpty());
 }
 
+void PreviewWidgetTest::canvasColorBlendsTransparentPreview()
+{
+    Fixture fixture;
+    const QColor light("#F8FAFC"), surrounding("#D4D7DC");
+    fixture.view->setCanvasColor(light);
+    fixture.view->setSurroundingColor(surrounding);
+    fixture.window.show();
+    QTRY_VERIFY(fixture.session.isRunning());
+    QCOMPARE(sample(fixture.view, fixture.view->grabFramebuffer(), .5, .5), light);
+    QImage image = solid(Qt::transparent);
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 16; x < 32; ++x) image.setPixelColor(x, y, QColor(0, 0, 255, 128));
+        for (int x = 32; x < 48; ++x) image.setPixelColor(x, y, Qt::black);
+        for (int x = 48; x < 64; ++x) image.setPixelColor(x, y, Qt::green);
+    }
+    QVERIFY(fixture.session.submit({{image}}, QSize(64, 32)));
+    QTRY_VERIFY(fixture.view->displayedFrameToken() != 0);
+    const auto token = fixture.view->displayedFrameToken();
+    QPointer<QOpenGLContext> context = fixture.view->context();
+    QSignalSpy painted(fixture.view, &QOpenGLWidget::frameSwapped);
+    for (const auto &size : {QSize(640, 240), QSize(240, 420)}) {
+        fixture.window.resize(size);
+        QTRY_COMPARE(fixture.view->size(), size);
+        for (const auto &color : {QColor(Qt::black), light}) {
+            painted.clear();
+            fixture.view->setCanvasColor(color);
+            QTRY_VERIFY(!painted.isEmpty());
+            const auto frame = fixture.view->grabFramebuffer();
+            QVERIFY(!frame.isNull());
+            QCOMPARE(frame.pixelColor(1, 1), surrounding);
+            QCOMPARE(sample(fixture.view, frame, .125, .5), color);
+            const QColor blended = color == light ? QColor(124, 125, 254) : QColor(0, 0, 128);
+            QVERIFY(near(sample(fixture.view, frame, .375, .5), blended));
+            QCOMPARE(sample(fixture.view, frame, .625, .5), QColor(Qt::black));
+            QCOMPARE(sample(fixture.view, frame, .875, .5), QColor(Qt::green));
+            QCOMPARE(fixture.view->displayedFrameToken(), token);
+            QCOMPARE(fixture.view->context(), context.data());
+            QVERIFY(frame.save(artifact(QString("canvas-%1-%2").arg(color.name().mid(1)).arg(size.width()), fixture.view)));
+        }
+    }
+    QVERIFY(fixture.session.submit({}, QSize(64, 32)));
+    QTRY_VERIFY(fixture.view->displayedFrameToken() != token);
+    QCOMPARE(sample(fixture.view, fixture.view->grabFramebuffer(), .5, .5), light);
+    QVERIFY(fixture.view->setSession(nullptr));
+    QCOMPARE(sample(fixture.view, fixture.view->grabFramebuffer(), .5, .5), light);
+    QCOMPARE(fixture.view->displayedFrameToken(), quint64(0));
+    QVERIFY(fixture.errors.isEmpty());
+}
+
 void PreviewWidgetTest::repaintReplacementAndDetach()
 {
     Fixture fixture;
@@ -235,6 +285,7 @@ void PreviewWidgetTest::repaintReplacementAndDetach()
 void PreviewWidgetTest::reparentRecreatesContext()
 {
     Fixture fixture;
+    fixture.view->setCanvasColor(QColor("#F8FAFC"));
     fixture.window.show();
     QTRY_VERIFY(fixture.session.isRunning());
     QVERIFY(fixture.session.submit({{solid(Qt::red)}}, QSize(64, 32)));
@@ -250,6 +301,7 @@ void PreviewWidgetTest::reparentRecreatesContext()
     // new top-level window exercises Qt's context destruction/reinitialization.
     QTRY_VERIFY(fixture.readyCount >= 2);
     QVERIFY(fixture.releaseCount >= 1);
+    QCOMPARE(fixture.view->canvasColor(), QColor("#F8FAFC"));
     QTRY_VERIFY(fixture.session.isRunning());
     QVERIFY(fixture.session.submit({{solid(Qt::blue)}}, QSize(64, 32)));
     QTRY_VERIFY(fixture.view->displayedFrameToken() != 0 && fixture.view->displayedFrameToken() != oldToken);

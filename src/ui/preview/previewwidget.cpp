@@ -3,6 +3,7 @@
 
 #include <QOpenGLContext>
 #include <QOpenGLExtraFunctions>
+#include <QOpenGLTextureBlitter>
 
 namespace {
 bool fail(QString *error, const QString &message)
@@ -62,6 +63,13 @@ void PreviewWidget::setSurroundingColor(const QColor &color)
     update();
 }
 
+void PreviewWidget::setCanvasColor(const QColor &color)
+{
+    if (!color.isValid() || color == m_canvasColor) return;
+    m_canvasColor = color;
+    update();
+}
+
 void PreviewWidget::reportError(const QString &message)
 {
     if (message.isEmpty() || message == m_lastError) return;
@@ -75,13 +83,13 @@ void PreviewWidget::initializeGL()
         reportError(tr("预览需要桌面 OpenGL 3.3 或更高版本。"));
         return;
     }
-    m_gl = context()->extraFunctions();
-    m_gl->glGenFramebuffers(1, &m_readFramebuffer);
-    if (!m_readFramebuffer) {
-        m_gl = nullptr;
-        reportError(tr("无法创建预览帧缓冲。"));
+    auto blitter = std::make_unique<QOpenGLTextureBlitter>();
+    if (!blitter->create()) {
+        reportError(tr("无法创建预览纹理绘制资源。"));
         return;
     }
+    m_blitter = std::move(blitter);
+    m_gl = context()->extraFunctions();
     m_cleanupConnection = connect(context(), &QOpenGLContext::aboutToBeDestroyed, this, [this] {
         QString error;
         if (!releaseGraphics(&error)) reportError(error);
@@ -120,8 +128,8 @@ bool PreviewWidget::releaseGraphics(QString *error)
     makeCurrent();
     if (QOpenGLContext::currentContext() != context())
         return fail(error, tr("无法激活预览上下文以清理资源。"));
-    m_gl->glDeleteFramebuffers(1, &m_readFramebuffer);
-    m_readFramebuffer = 0;
+    m_blitter->destroy();
+    m_blitter.reset();
     m_gl = nullptr;
     disconnect(m_cleanupConnection);
     // Direct GUI-thread handler must stop the producer before this anchor dies.
@@ -162,29 +170,33 @@ void PreviewWidget::paintGL()
     const int top = pixelHeight - qRound(rect.top() * scale);
     m_gl->glEnable(GL_SCISSOR_TEST);
     m_gl->glScissor(left, bottom, right - left, top - bottom);
-    m_gl->glClearColor(0, 0, 0, 1);
+    m_gl->glClearColor(m_canvasColor.redF(), m_canvasColor.greenF(), m_canvasColor.blueF(), 1);
     m_gl->glClear(GL_COLOR_BUFFER_BIT);
     m_gl->glDisable(GL_SCISSOR_TEST);
     if (!m_frame.token) return;
 
-    // Consumer-local FBO; shared texture is rebound AFTER acquire's GPU wait.
-    m_gl->glBindFramebuffer(GL_READ_FRAMEBUFFER, m_readFramebuffer);
-    m_gl->glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                                GL_TEXTURE_2D, m_frame.texture, 0);
-    const bool complete = m_gl->glCheckFramebufferStatus(GL_READ_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
-    if (complete) {
-        m_gl->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
-        m_gl->glBlitFramebuffer(0, 0, m_frame.size.width(), m_frame.size.height(),
-                               left, bottom, right, top, GL_COLOR_BUFFER_BIT, GL_LINEAR);
-    }
-    // Detach: no hidden consumer binding should retain a returned texture.
-    m_gl->glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
-    m_gl->glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
-    if (!complete) {
-        m_displayedToken = 0;
-        reportError(tr("无法读取共享合成纹理。"));
+    if (!m_frame.previewTexture) {
+        reportError(tr("合成帧缺少透明预览纹理。"));
         return;
     }
+    // Read only after acquire's GPU wait. The output texture stays untouched.
+    m_gl->glDisable(GL_DEPTH_TEST);
+    m_gl->glDisable(GL_CULL_FACE);
+    m_gl->glActiveTexture(GL_TEXTURE0);
+    m_gl->glBindTexture(GL_TEXTURE_2D, m_frame.previewTexture);
+    m_gl->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    m_gl->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    m_blitter->bind();
+    m_gl->glEnable(GL_BLEND);
+    m_gl->glBlendEquation(GL_FUNC_ADD);
+    m_gl->glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA); // Premultiplied RGBA.
+    const auto transform = QOpenGLTextureBlitter::targetTransform(
+        QRectF(left, pixelHeight - top, right - left, top - bottom), QRect(0, 0, pixelWidth, pixelHeight));
+    m_blitter->blit(m_frame.previewTexture, transform, QOpenGLTextureBlitter::OriginBottomLeft);
+    m_gl->glDisable(GL_BLEND);
+    m_blitter->release();
+    // No hidden consumer binding should retain a returned texture.
+    m_gl->glBindTexture(GL_TEXTURE_2D, 0);
     m_displayedToken = m_frame.token;
     m_lastError.clear();
 }
