@@ -4,10 +4,11 @@ import QtQuick.Layouts
 
 Rectangle {
     id: root
+    readonly property var themeColors: uiTheme.colors
     objectName: "sourceRemovalDialogContent"
     implicitWidth: 460
     implicitHeight: 220
-    color: "#1d1d1d"
+    color: root.themeColors.background.panel
     required property var state
     required property string sceneId
     required property string sourceId
@@ -25,11 +26,14 @@ Rectangle {
     component ActionButton: Button {
         implicitWidth: 88
         implicitHeight: 32
-        palette.buttonText: "#d6d6d6"
+        hoverEnabled: true
+        palette.buttonText: enabled ? root.themeColors.text.primary : root.themeColors.text.disabled
         Accessible.name: text
         background: Rectangle {
-            color: parent.down ? "#383838" : (parent.hovered ? "#333333" : "#2b2b2b")
-            border.color: parent.activeFocus ? "#6b8db5" : "#3a3a3a"
+            color: !parent.enabled ? root.themeColors.button.background.disabled
+                : (parent.down ? root.themeColors.button.background.pressed
+                    : (parent.hovered ? root.themeColors.button.background.hovered : root.themeColors.button.background.normal))
+            border.color: parent.enabled && parent.activeFocus ? root.themeColors.border.focus : root.themeColors.border.default
             radius: 2
         }
     }
@@ -44,14 +48,15 @@ Rectangle {
             text: qsTr("确定移除来源“%1”吗？").arg(root.sourceName)
             textFormat: Text.PlainText
             wrapMode: Text.WrapAnywhere
-            color: "#d6d6d6"
+            color: root.themeColors.text.primary
         }
         Label {
             Layout.fillWidth: true
+            objectName: "sourceRemovalHint"
             text: qsTr("仅从此场景移除，不会删除磁盘上的文件。")
             textFormat: Text.PlainText
             wrapMode: Text.WordWrap
-            color: "#8c8c8c"
+            color: root.themeColors.text.secondary
         }
         Label {
             objectName: "sourceRemovalError"
@@ -59,7 +64,7 @@ Rectangle {
             text: root.errorText
             textFormat: Text.PlainText
             wrapMode: Text.WordWrap
-            color: "#ee9b9b"
+            color: root.themeColors.status.error
         }
         Item { Layout.fillHeight: true }
         RowLayout {

@@ -4,10 +4,11 @@ import QtQuick.Layouts
 
 Rectangle {
     id: root
+    readonly property var themeColors: uiTheme.colors
     objectName: "sourceAddDialogContent"
     implicitWidth: 520
     implicitHeight: 300
-    color: "#1d1d1d"
+    color: root.themeColors.background.panel
     required property var state
     required property string sceneId
     property string initialName: qsTr("图像")
@@ -32,27 +33,30 @@ Rectangle {
 
     component FormInput: TextField {
         implicitHeight: 32
-        color: "#d6d6d6"
-        placeholderTextColor: "#8c8c8c"
-        selectedTextColor: "#ffffff"
-        selectionColor: "#31445b"
+        color: root.themeColors.text.primary
+        placeholderTextColor: root.themeColors.text.secondary
+        selectedTextColor: root.themeColors.text.primary
+        selectionColor: root.themeColors.background.selected
         selectByMouse: true
         onTextEdited: root.errorText = ""
         onAccepted: root.submit()
         background: Rectangle {
-            color: "#232323"
-            border.color: parent.activeFocus ? "#6b8db5" : "#3a3a3a"
+            color: root.themeColors.background.input
+            border.color: parent.enabled && parent.activeFocus ? root.themeColors.border.focus : root.themeColors.border.default
             radius: 2
         }
     }
     component ActionButton: Button {
         implicitWidth: 76
         implicitHeight: 32
-        palette.buttonText: enabled ? "#d6d6d6" : "#666666"
+        hoverEnabled: true
+        palette.buttonText: enabled ? root.themeColors.text.primary : root.themeColors.text.disabled
         Accessible.name: text
         background: Rectangle {
-            color: parent.down ? "#383838" : (parent.hovered ? "#333333" : "#2b2b2b")
-            border.color: parent.activeFocus ? "#6b8db5" : "#3a3a3a"
+            color: !parent.enabled ? root.themeColors.button.background.disabled
+                : (parent.down ? root.themeColors.button.background.pressed
+                    : (parent.hovered ? root.themeColors.button.background.hovered : root.themeColors.button.background.normal))
+            border.color: parent.enabled && parent.activeFocus ? root.themeColors.border.focus : root.themeColors.border.default
             radius: 2
         }
     }
@@ -62,7 +66,7 @@ Rectangle {
         id: imageConfiguration
         RowLayout {
             spacing: 10
-            Label { text: qsTr("图像文件"); color: "#d6d6d6"; Layout.preferredWidth: 64 }
+            Label { text: qsTr("图像文件"); color: root.themeColors.text.primary; Layout.preferredWidth: 64 }
             FormInput {
                 objectName: "sourceFileInput"
                 Layout.fillWidth: true
@@ -92,26 +96,38 @@ Rectangle {
             columnSpacing: 10
             rowSpacing: 12
             Layout.fillWidth: true
-            Label { text: qsTr("来源类型"); color: "#d6d6d6"; Layout.preferredWidth: 64 }
+            Label { text: qsTr("来源类型"); color: root.themeColors.text.primary; Layout.preferredWidth: 64 }
             ComboBox {
+                id: sourceType
                 objectName: "sourceTypeInput"
                 Layout.fillWidth: true
                 implicitHeight: 32
                 model: [qsTr("图像")]
                 Accessible.name: qsTr("来源类型")
-                palette.buttonText: "#d6d6d6"
-                palette.text: "#d6d6d6"
-                palette.base: "#232323"
-                palette.window: "#232323"
+                hoverEnabled: true
+                palette.buttonText: enabled ? root.themeColors.text.primary : root.themeColors.text.disabled
+                palette.text: enabled ? root.themeColors.text.primary : root.themeColors.text.disabled
+                palette.base: root.themeColors.background.input
+                palette.window: root.themeColors.background.input
+                palette.highlight: root.themeColors.background.selected
+                palette.highlightedText: root.themeColors.text.primary
+                palette.light: root.themeColors.background.selected
+                palette.midlight: root.themeColors.background.hovered
+                palette.mid: root.themeColors.border.default
+                palette.dark: root.themeColors.border.focus
                 indicator: Canvas {
+                    readonly property color arrowColor: sourceType.enabled
+                        ? root.themeColors.icon.primary : root.themeColors.icon.disabled
                     width: 10
                     height: 6
                     anchors.right: parent.right
                     anchors.rightMargin: 10
                     anchors.verticalCenter: parent.verticalCenter
+                    onArrowColorChanged: requestPaint()
                     onPaint: {
                         const ctx = getContext("2d")
-                        ctx.fillStyle = "#d6d6d6"
+                        ctx.clearRect(0, 0, width, height)
+                        ctx.fillStyle = arrowColor
                         ctx.beginPath()
                         ctx.moveTo(0, 0)
                         ctx.lineTo(width, 0)
@@ -120,9 +136,16 @@ Rectangle {
                         ctx.fill()
                     }
                 }
-                background: Rectangle { color: "#232323"; border.color: "#3a3a3a"; radius: 2 }
+                background: Rectangle {
+                    color: !sourceType.enabled ? root.themeColors.button.background.disabled
+                        : (sourceType.down ? root.themeColors.button.background.pressed
+                            : (sourceType.hovered ? root.themeColors.background.hovered : root.themeColors.background.input))
+                    border.color: sourceType.enabled && sourceType.activeFocus
+                        ? root.themeColors.border.focus : root.themeColors.border.default
+                    radius: 2
+                }
             }
-            Label { text: qsTr("名称"); color: "#d6d6d6" }
+            Label { text: qsTr("名称"); color: root.themeColors.text.primary }
             FormInput {
                 id: nameInput
                 objectName: "sourceNameInput"
@@ -146,7 +169,7 @@ Rectangle {
             text: root.errorText
             textFormat: Text.PlainText
             wrapMode: Text.WrapAnywhere
-            color: "#ee9b9b"
+            color: root.themeColors.status.error
         }
         Item { Layout.fillHeight: true }
         RowLayout {

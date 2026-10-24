@@ -943,7 +943,7 @@ void MainWindowTest::basicDialogThemes_data()
     QTest::addColumn<QString>("dialogName");
     QTest::addColumn<QString>("themeId");
     for (const auto &theme : {QString("dark"), QString("light")})
-        for (const auto &name : {QString("AboutDialog"), QString("SceneNameDialog"), QString("SceneRemovalDialog")})
+        for (const auto &name : {QString("AboutDialog"), QString("SceneNameDialog"), QString("SceneRemovalDialog"), QString("SourceAddDialog"), QString("SourceRemovalDialog")})
             QTest::newRow(qPrintable(name + "-" + theme)) << name << theme;
 }
 
@@ -961,7 +961,13 @@ void MainWindowTest::basicDialogThemes()
         properties = {{"productName", "OpenLive Studio"}, {"versionText", "Development"}, {"qtVersion", qVersion()}};
     } else {
         properties = {{"state", QVariant::fromValue(state)}, {"sceneId", state->currentSceneId()}};
-        properties.insert(dialogName == "SceneNameDialog" ? "initialName" : "sceneName", "Theme sample");
+        if (dialogName.startsWith("Source")) {
+            if (dialogName == "SourceAddDialog") properties.insert("initialName", "Theme sample");
+            else {
+                properties.insert("sourceId", "fixed-source-id");
+                properties.insert("sourceName", "Theme sample");
+            }
+        } else properties.insert(dialogName == "SceneNameDialog" ? "initialName" : "sceneName", "Theme sample");
     }
     const QUrl url(QString("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(dialogName));
     for (int opening = 0; opening < 2; ++opening) {
@@ -978,7 +984,11 @@ void MainWindowTest::basicDialogThemes()
             dialog->activateWindow();
             QTRY_VERIFY(dialog->isActiveWindow());
         }
-        auto *input = root->findChild<QQuickItem *>("sceneNameInput");
+        auto *input = root->findChild<QQuickItem *>(dialogName == "SourceAddDialog" ? "sourceNameInput" : "sceneNameInput");
+        auto *file = root->findChild<QQuickItem *>("sourceFileInput");
+        if (file) root->setProperty("filePath", "C:/Images/unsaved image.png");
+        const auto sceneId = root->property("sceneId");
+        const auto sourceId = root->property("sourceId");
         if (input) {
             input->setProperty("text", "Unsaved name");
             QVERIFY(QMetaObject::invokeMethod(input, "selectAll"));
@@ -988,6 +998,12 @@ void MainWindowTest::basicDialogThemes()
         for (const auto &id : {themeId, themeId == "dark" ? QString("light") : QString("dark")}) {
             QVERIFY(m_theme->setTheme(id));
             QCOMPARE(view->rootObject(), root.data());
+            QCOMPARE(root->property("sceneId"), sceneId);
+            QCOMPARE(root->property("sourceId"), sourceId);
+            if (file) {
+                QCOMPARE(file->property("text").toString(), "C:/Images/unsaved image.png");
+                QCOMPARE(file->property("placeholderTextColor").value<QColor>(), m_theme->color("text.secondary"));
+            }
             QTRY_COMPARE(root->property("color").value<QColor>(), m_theme->color("background.panel"));
             if (input) {
                 QCOMPARE(input->property("text").toString(), "Unsaved name");
@@ -1004,13 +1020,63 @@ void MainWindowTest::basicDialogThemes()
                 if (!item->isVisible() || !item->property("text").isValid() || !item->property("color").isValid()) continue;
                 const auto name = item->objectName();
                 const auto token = name.endsWith("Error") ? "status.error"
-                    : (name == "aboutVersion" || name == "aboutQtVersion" ? "text.secondary" : "text.primary");
+                    : (name == "aboutVersion" || name == "aboutQtVersion" || name == "sourceRemovalHint" ? "text.secondary" : "text.primary");
                 QCOMPARE(item->property("color").value<QColor>(), m_theme->color(token));
                 if (name.endsWith("Error")) QCOMPARE(item->property("text").toString(), "Validation sample");
             }
         }
+        if (auto *type = root->findChild<QQuickItem *>("sourceTypeInput")) {
+            auto *popup = type->property("popup").value<QObject *>();
+            auto *indicator = type->property("indicator").value<QQuickItem *>();
+            QVERIFY(popup && indicator);
+            auto *list = popup->property("contentItem").value<QQuickItem *>();
+            auto *popupBackground = popup->property("background").value<QQuickItem *>();
+            QVERIFY(list && popupBackground);
+            type->forceActiveFocus(Qt::TabFocusReason);
+            QTest::keyClick(view, Qt::Key_Space);
+            QTRY_VERIFY(popup->property("opened").toBool());
+            QTest::keyClick(view, Qt::Key_Down);
+            for (const auto &id : {themeId, themeId == "dark" ? QString("light") : QString("dark")}) {
+                QVERIFY(m_theme->setTheme(id));
+                QVERIFY(popup->property("opened").toBool());
+                QCOMPARE(type->property("currentIndex").toInt(), 0);
+                QCOMPARE(indicator->property("arrowColor").value<QColor>(), m_theme->color("icon.primary"));
+                QTRY_COMPARE(popupBackground->property("color").value<QColor>(), m_theme->color("background.input"));
+                QQuickItem *item = nullptr;
+                QTRY_VERIFY((item = list->property("currentItem").value<QQuickItem *>()));
+                auto *label = item->property("contentItem").value<QQuickItem *>();
+                auto *itemBackground = item->property("background").value<QQuickItem *>();
+                QVERIFY(label && itemBackground);
+                QTRY_COMPARE(label->property("color").value<QColor>(), m_theme->color("text.primary"));
+                QTRY_COMPARE(itemBackground->property("color").value<QColor>(), m_theme->color("background.selected"));
+                // Verify the Canvas actually repainted, rather than only its bound property.
+                const QRect arrowRect = indicator->mapRectToScene(indicator->boundingRect()).toAlignedRect();
+                const auto arrowHasThemeColor = [&] {
+                    const auto frame = view->grabFramebuffer();
+                    const qreal scale = qreal(frame.width()) / view->width();
+                    const auto arrow = frame.copy(QRect(arrowRect.topLeft() * scale,
+                        arrowRect.size() * scale)).convertToFormat(QImage::Format_RGB32);
+                    for (int y = 0; y < arrow.height(); ++y)
+                        for (int x = 0; x < arrow.width(); ++x)
+                            if (arrow.pixelColor(x, y) == m_theme->color("icon.primary")) return true;
+                    return false;
+                };
+                QTRY_VERIFY(arrowHasThemeColor());
+                QVERIFY(view->grabFramebuffer().save(QString("theme-dialog-popup-%1.png").arg(id)));
+            }
+            QTest::keyClick(view, Qt::Key_Escape);
+            QTRY_VERIFY(!popup->property("visible").toBool());
+            QVERIFY(dialog);
+            QCOMPARE(file->property("text").toString(), "C:/Images/unsaved image.png");
+            QCOMPARE(root->property("errorText").toString(), "Validation sample");
+            type->setEnabled(false);
+            QCOMPARE(indicator->property("arrowColor").value<QColor>(), m_theme->color("icon.disabled"));
+            type->setEnabled(true);
+        }
         auto *button = root->findChild<QQuickItem *>(dialogName == "AboutDialog" ? "closeAboutButton"
-            : (dialogName == "SceneNameDialog" ? "cancelSceneNameButton" : "cancelSceneRemovalButton"));
+            : (dialogName == "SceneNameDialog" ? "cancelSceneNameButton"
+                : (dialogName == "SourceAddDialog" ? "cancelSourceAddButton"
+                    : (dialogName == "SourceRemovalDialog" ? "cancelSourceRemovalButton" : "cancelSceneRemovalButton"))));
         QVERIFY(button);
         auto *background = button->property("background").value<QQuickItem *>();
         QVERIFY(background);
@@ -1038,7 +1104,7 @@ void MainWindowTest::basicDialogThemes()
         QCOMPARE(QQmlProperty::read(button, "palette.buttonText").value<QColor>(), m_theme->color("text.disabled"));
         button->setEnabled(true);
         QVERIFY(!view->grabFramebuffer().isNull());
-        QVERIFY(view->grabFramebuffer().save(QString("theme-3d1-%1-%2.png").arg(dialogName, m_theme->themeId())));
+        QVERIFY(view->grabFramebuffer().save(QString("theme-dialog-%1-%2.png").arg(dialogName, m_theme->themeId())));
         QTest::keyClick(dialog, Qt::Key_Escape);
         QTRY_VERIFY(dialog.isNull());
         QVERIFY(root.isNull());
