@@ -77,6 +77,16 @@ qt_add_resources(OpenLiveStudio "icons"
     FILES ${OPENLIVE_STUDIO_ICON_FILES}
 )
 
+set(OPENLIVE_STUDIO_THEME_FILES
+    "${PROJECT_SOURCE_DIR}/assets/themes/dark.json"
+    "${PROJECT_SOURCE_DIR}/assets/themes/light.json"
+)
+qt_add_resources(OpenLiveStudio "themes"
+    PREFIX "/"
+    BASE "${PROJECT_SOURCE_DIR}"
+    FILES ${OPENLIVE_STUDIO_THEME_FILES}
+)
+
 target_include_directories(OpenLiveStudio PRIVATE
     "${PROJECT_SOURCE_DIR}/src/app"
     "${PROJECT_SOURCE_DIR}/src/ui/widgets"

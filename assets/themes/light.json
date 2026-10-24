@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "id": "light",
+  "colors": {
+    "text": {
+      "primary": "#202936",
+      "secondary": "#566579",
+      "disabled": "#8491A2",
+      "onAccent": "#FFFFFF"
+    },
+    "background": {
+      "window": "#E9EDF2",
+      "panel": "#F8FAFC",
+      "header": "#F0F3F7",
+      "input": "#FFFFFF",
+      "hovered": "#E4EAF2",
+      "selected": "#DBE9FF"
+    },
+    "border": {
+      "default": "#B8C2CF",
+      "subtle": "#D6DEE8",
+      "focus": "#245FBB"
+    },
+    "icon": {
+      "primary": "#202936",
+      "secondary": "#566579",
+      "disabled": "#8491A2"
+    },
+    "button": {
+      "background": {
+        "normal": "#F0F3F7",
+        "hovered": "#E4EAF2",
+        "pressed": "#D6DFEB",
+        "disabled": "#EDF0F4",
+        "accent": "#245FBB"
+      }
+    },
+    "scrollbar": {
+      "thumb": {
+        "normal": "#8491A2",
+        "hovered": "#65758B",
+        "pressed": "#4D607A"
+      }
+    },
+    "slider": {
+      "track": "#D6DEE8",
+      "handle": "#566579",
+      "handleDisabled": "#8491A2"
+    },
+    "status": {
+      "success": "#197349",
+      "warning": "#8B5C0A",
+      "error": "#B72C3C"
+    },
+    "recording": {
+      "indicator": "#B72C3C"
+    },
+    "streaming": {
+      "indicator": "#197349"
+    },
+    "preview": {
+      "canvas": "#000000"
+    }
+  }
+}
