@@ -168,6 +168,8 @@ set_tests_properties(core.studiostate PROPERTIES LABELS "core;smoke" TIMEOUT 10)
 
 qt_add_executable(tst_mainwindow
     tst_mainwindow.cpp
+    ../src/ui/theme/thememanager.cpp
+    ../src/ui/theme/thememanager.h
     ../src/app/scenesnapshotbuilder.cpp
     ../src/app/scenesnapshotbuilder.h
     ../src/ui/preview/previewwidget.cpp
@@ -185,6 +187,7 @@ qt_add_executable(tst_mainwindow
 )
 
 target_include_directories(tst_mainwindow PRIVATE
+    "${PROJECT_SOURCE_DIR}/src/ui/theme"
     "${PROJECT_SOURCE_DIR}/src/app"
     "${PROJECT_SOURCE_DIR}/src/ui/preview"
     "${PROJECT_SOURCE_DIR}/src/graphics/composition"
@@ -208,6 +211,12 @@ qt_add_resources(tst_mainwindow "test_icons"
     PREFIX "/"
     BASE "${PROJECT_SOURCE_DIR}"
     FILES ${OPENLIVE_STUDIO_ICON_FILES}
+)
+
+qt_add_resources(tst_mainwindow "mainwindow_themes"
+    PREFIX "/"
+    BASE "${PROJECT_SOURCE_DIR}"
+    FILES ${OPENLIVE_STUDIO_THEME_FILES}
 )
 
 # This smoke test needs no desktop; future GPU tests need real GL.

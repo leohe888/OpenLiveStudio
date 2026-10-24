@@ -3,8 +3,11 @@
 #include "scenesnapshotbuilder.h"
 #include "compositionsession.h"
 #include "previewwidget.h"
+#include "thememanager.h"
 
 #include <QAction>
+#include <QAbstractButton>
+#include <QApplication>
 #include <QCoreApplication>
 #include <QDebug>
 #include <QDialog>
@@ -13,6 +16,7 @@
 #include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
+#include <QPainter>
 #include <QQmlComponent>
 #include <QQmlContext>
 #include <QQmlError>
@@ -27,6 +31,45 @@
 #include <memory>
 
 namespace {
+// Preserve Qt's title-bar glyphs and actions, but tint their pixmaps because
+// native Windows styles can return black icons regardless of the palette.
+class ThemedDockWidget final : public QDockWidget
+{
+public:
+    ThemedDockWidget(const QString &title, ThemeManager &theme, QWidget *parent)
+        : QDockWidget(title, parent), m_theme(theme) {}
+protected:
+    bool event(QEvent *event) override
+    {
+        const bool handled = QDockWidget::event(event);
+        if (!m_refreshing && (event->type() == QEvent::StyleChange
+            || event->type() == QEvent::PaletteChange || event->type() == QEvent::Show)) {
+            m_refreshing = true;
+            for (auto *button : findChildren<QAbstractButton *>(QString(), Qt::FindDirectChildrenOnly)) {
+                const auto original = button->icon();
+                if (original.isNull()) continue;
+                QIcon tinted;
+                for (auto mode : {QIcon::Normal, QIcon::Disabled}) {
+                    auto pixmap = original.pixmap(button->iconSize(), button->devicePixelRatioF());
+                    {
+                        QPainter painter(&pixmap);
+                        painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+                        painter.fillRect(pixmap.rect(), m_theme.color(mode == QIcon::Disabled
+                            ? QStringLiteral("icon.disabled") : QStringLiteral("icon.primary")));
+                    }
+                    tinted.addPixmap(pixmap, mode);
+                }
+                button->setIcon(tinted);
+            }
+            m_refreshing = false;
+        }
+        return handled;
+    }
+private:
+    ThemeManager &m_theme;
+    bool m_refreshing = false;
+};
+
 // QOpenGLWidget can fail before initializeGL(), so observe its first visible paint.
 class MainPreview final : public PreviewWidget
 {
@@ -45,9 +88,12 @@ protected:
 };
 }
 
-MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent)
+MainWindow::MainWindow(ThemeManager &theme, QWidget *parent)
+    : QMainWindow(parent), m_theme(theme)
 {
+    Q_ASSERT(m_theme.isReady());
+    applyTheme();
+    connect(&m_theme, &ThemeManager::themeChanged, this, &MainWindow::applyTheme);
     m_studioState = new StudioState;
     setWindowTitle(QStringLiteral("OpenLive Studio"));
     setMinimumSize(960, 640);
@@ -66,6 +112,9 @@ MainWindow::MainWindow(QWidget *parent)
     updateStatusLayout();
     // Destroy the dock QML contexts before their shared state.
     m_studioState->setParent(this);
+    applyTheme();
+    if (!m_theme.lastError().isEmpty())
+        statusBar()->showMessage(tr("主题配置提示：%1").arg(m_theme.lastError()));
 }
 
 MainWindow::~MainWindow()
@@ -77,10 +126,68 @@ MainWindow::~MainWindow()
     delete findChild<CompositionSession *>();
 }
 
+void MainWindow::applyTheme()
+{
+    const auto color = [this](const char *key) { return m_theme.color(QLatin1String(key)); };
+    QPalette colors = QApplication::palette();
+    colors.setColor(QPalette::Window, color("background.window"));
+    colors.setColor(QPalette::WindowText, color("text.primary"));
+    colors.setColor(QPalette::Base, color("background.input"));
+    colors.setColor(QPalette::AlternateBase, color("background.panel"));
+    colors.setColor(QPalette::Text, color("text.primary"));
+    colors.setColor(QPalette::PlaceholderText, color("text.secondary"));
+    colors.setColor(QPalette::Button, color("button.background.normal"));
+    colors.setColor(QPalette::ButtonText, color("text.primary"));
+    colors.setColor(QPalette::Highlight, color("background.selected"));
+    colors.setColor(QPalette::HighlightedText, color("text.primary"));
+    colors.setColor(QPalette::ToolTipBase, color("background.header"));
+    colors.setColor(QPalette::ToolTipText, color("text.primary"));
+    colors.setColor(QPalette::Link, color("border.focus"));
+    for (auto role : {QPalette::WindowText, QPalette::Text, QPalette::ButtonText})
+        colors.setColor(QPalette::Disabled, role, color("text.disabled"));
+    const auto hex = [&color](const char *key) { return color(key).name(); };
+    setStyleSheet(QStringLiteral(
+        "QMenuBar, QStatusBar { background-color: %1; color: %2; }"
+        "QMenu { background-color: %3; color: %2; border: 1px solid %4; }"
+        "QMenuBar::item:selected, QMenu::item:selected { background-color: %5; color: %2; }"
+        "QMenuBar::item:pressed { background-color: %6; }"
+        "QMenu::item:disabled { color: %7; }"
+        "QMenu::separator { background-color: %4; height: 1px; }"
+        "QDockWidget { color: %2; }"
+        "QDockWidget::title { background-color: %1; }"
+        "QMainWindow::separator { background-color: %4; }"
+        "QMainWindow::separator:hover { background-color: %8; }"
+        "QStatusBar::item { border: none; }"
+        "QLabel { color: %2; }"
+        "QLabel:disabled { color: %7; }"
+        "QLabel[themeError=\"true\"] { color: %9; background-color: %3; }"
+        "QLabel#previewUnavailable { border: 1px solid %4; }")
+        .arg(hex("background.header"), hex("text.primary"), hex("background.panel"),
+             hex("border.default"), hex("background.hovered"), hex("background.selected"),
+             hex("text.disabled"), hex("border.focus"), hex("status.error")));
+    // Style-sheet repolishing restores cached palettes. Apply the new palette
+    // afterwards, including child windows (floating docks and dialogs).
+    // Keep the application's global palette untouched.
+    setPalette(colors);
+    for (auto *dock : findChildren<QDockWidget *>()) dock->setPalette(colors);
+    for (auto *dialog : findChildren<QDialog *>()) dialog->setPalette(colors);
+}
+
+void MainWindow::configureQuickWidget(QQuickWidget *view)
+{
+    auto *theme = &m_theme;
+    view->rootContext()->setContextProperty(QStringLiteral("uiTheme"), theme);
+    view->setClearColor(theme->color(QStringLiteral("background.panel")));
+    connect(theme, &ThemeManager::themeChanged, view, [theme, view] {
+        view->setClearColor(theme->color(QStringLiteral("background.panel")));
+    });
+}
+
 void MainWindow::showDialog(const QUrl &source, const QString &title,
                             const QVariantMap &properties)
 {
     auto *dialog = new QDialog(this);
+    dialog->setPalette(palette());
     dialog->setObjectName(QStringLiteral("qmlDialog"));
     dialog->setProperty("qmlSource", source);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
@@ -93,10 +200,11 @@ void MainWindow::showDialog(const QUrl &source, const QString &title,
     auto *view = new QQuickWidget(pages);
     view->setObjectName(QStringLiteral("dialogQuickWidget"));
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
-    view->setClearColor(QColor(QStringLiteral("#1d1d1d")));
+    configureQuickWidget(view);
     pages->addWidget(view);
     auto *errorLabel = new QLabel(tr("对话框加载失败，请查看日志。"), pages);
     errorLabel->setObjectName(QStringLiteral("dialogLoadError"));
+    errorLabel->setProperty("themeError", true);
     errorLabel->setAlignment(Qt::AlignCenter);
     errorLabel->setWordWrap(true);
     pages->addWidget(errorLabel);
@@ -303,8 +411,7 @@ void MainWindow::setupPreview()
     failure->setTextFormat(Qt::PlainText);
     failure->setAlignment(Qt::AlignCenter);
     failure->setWordWrap(true);
-    failure->setStyleSheet(QStringLiteral(
-        "background: #000000; color: #8c8c8c; border: 1px solid #2e2e2e;"));
+    failure->setProperty("themeError", true);
     pages->addWidget(failure);
     setCentralWidget(container);
     if (QGuiApplication::platformName() == QStringLiteral("offscreen")
@@ -399,7 +506,7 @@ void MainWindow::setupStatusBar()
 
 void MainWindow::setupScenesDock()
 {
-    auto *dock = new QDockWidget(tr("场景"), this);
+    auto *dock = new ThemedDockWidget(tr("场景"), m_theme, this);
     dock->setObjectName(QStringLiteral("scenesDock"));
     dock->setMinimumWidth(180);
 
@@ -408,11 +515,12 @@ void MainWindow::setupScenesDock()
     view->setObjectName(QStringLiteral("scenesQuickWidget"));
     view->rootContext()->setContextProperty(QStringLiteral("studioState"), m_studioState);
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
-    view->setClearColor(QColor(QStringLiteral("#1d1d1d")));
+    configureQuickWidget(view);
     pages->addWidget(view);
 
     auto *errorLabel = new QLabel(tr("场景面板加载失败，请查看日志。"), pages);
     errorLabel->setObjectName(QStringLiteral("scenesLoadError"));
+    errorLabel->setProperty("themeError", true);
     errorLabel->setAlignment(Qt::AlignCenter);
     errorLabel->setWordWrap(true);
     pages->addWidget(errorLabel);
@@ -451,7 +559,7 @@ void MainWindow::setupScenesDock()
 
 void MainWindow::setupSourcesDock()
 {
-    auto *dock = new QDockWidget(tr("来源"), this);
+    auto *dock = new ThemedDockWidget(tr("来源"), m_theme, this);
     dock->setObjectName(QStringLiteral("sourcesDock"));
     dock->setMinimumWidth(220);
 
@@ -460,11 +568,12 @@ void MainWindow::setupSourcesDock()
     view->setObjectName(QStringLiteral("sourcesQuickWidget"));
     view->rootContext()->setContextProperty(QStringLiteral("studioState"), m_studioState);
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
-    view->setClearColor(QColor(QStringLiteral("#1d1d1d")));
+    configureQuickWidget(view);
     pages->addWidget(view);
 
     auto *errorLabel = new QLabel(tr("来源面板加载失败，请查看日志。"), pages);
     errorLabel->setObjectName(QStringLiteral("sourcesLoadError"));
+    errorLabel->setProperty("themeError", true);
     errorLabel->setAlignment(Qt::AlignCenter);
     errorLabel->setWordWrap(true);
     pages->addWidget(errorLabel);
@@ -503,7 +612,7 @@ void MainWindow::setupSourcesDock()
 
 void MainWindow::setupMixerDock()
 {
-    auto *dock = new QDockWidget(tr("混音器"), this);
+    auto *dock = new ThemedDockWidget(tr("混音器"), m_theme, this);
     dock->setObjectName(QStringLiteral("mixerDock"));
     dock->setMinimumWidth(200);
 
@@ -511,11 +620,12 @@ void MainWindow::setupMixerDock()
     auto *view = new QQuickWidget(pages);
     view->setObjectName(QStringLiteral("mixerQuickWidget"));
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
-    view->setClearColor(QColor(QStringLiteral("#1d1d1d")));
+    configureQuickWidget(view);
     pages->addWidget(view);
 
     auto *errorLabel = new QLabel(tr("混音器面板加载失败，请查看日志。"), pages);
     errorLabel->setObjectName(QStringLiteral("mixerLoadError"));
+    errorLabel->setProperty("themeError", true);
     errorLabel->setAlignment(Qt::AlignCenter);
     errorLabel->setWordWrap(true);
     pages->addWidget(errorLabel);
@@ -550,7 +660,7 @@ void MainWindow::setupMixerDock()
 
 void MainWindow::setupControlsDock()
 {
-    auto *dock = new QDockWidget(tr("控制"), this);
+    auto *dock = new ThemedDockWidget(tr("控制"), m_theme, this);
     dock->setObjectName(QStringLiteral("controlsDock"));
     dock->setMinimumWidth(200);
 
@@ -559,11 +669,12 @@ void MainWindow::setupControlsDock()
     view->setObjectName(QStringLiteral("controlsQuickWidget"));
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
     view->setMinimumHeight(124);
-    view->setClearColor(QColor(QStringLiteral("#232323")));
+    configureQuickWidget(view);
     pages->addWidget(view);
 
     auto *errorLabel = new QLabel(tr("控制面板加载失败，请查看日志。"), pages);
     errorLabel->setObjectName(QStringLiteral("controlsLoadError"));
+    errorLabel->setProperty("themeError", true);
     errorLabel->setAlignment(Qt::AlignCenter);
     errorLabel->setWordWrap(true);
     pages->addWidget(errorLabel);

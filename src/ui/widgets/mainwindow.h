@@ -8,14 +8,17 @@
 class QLabel;
 class QMenu;
 class QResizeEvent;
+class QQuickWidget;
 class StudioState;
+class ThemeManager;
 
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
 
 public:
-    explicit MainWindow(QWidget *parent = nullptr);
+    // The caller owns theme and must keep it alive until this window is destroyed.
+    explicit MainWindow(ThemeManager &theme, QWidget *parent = nullptr);
     ~MainWindow() override;
 
     void showDialog(const QUrl &source, const QString &title,
@@ -31,6 +34,8 @@ private slots:
     void showSourceRemovalDialog(const QString &sceneId, const QString &sourceId);
 
 private:
+    void applyTheme();
+    void configureQuickWidget(QQuickWidget *view);
     void setupMenuBar();
     void setupPreview();
     void setupStatusBar();
@@ -48,5 +53,6 @@ private:
     QMenu *m_viewMenu = nullptr;
     QMenu *m_helpMenu = nullptr;
     StudioState *m_studioState = nullptr;
+    ThemeManager &m_theme;
 };
 #endif // MAINWINDOW_H

@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "thememanager.h"
 #include "studiostate.h"
 #include "scenesnapshotbuilder.h"
 #include "compositionsession.h"
@@ -9,6 +10,7 @@
 #include <QApplication>
 
 #include <QAction>
+#include <QAbstractButton>
 #include <QDockWidget>
 #include <QDialog>
 #include <QFile>
@@ -37,11 +39,15 @@
 class MainWindowTest : public QObject
 {
     Q_OBJECT
+    std::unique_ptr<QTemporaryDir> m_settings;
+    std::unique_ptr<ThemeManager> m_theme;
 
 private slots:
     void init();
     void canShowAndClose();
     void hasWindowShell();
+    void themeRestoresAndUpdatesOuterWidgets();
+    void dialogsShareThemeAndReleaseBeforeIt();
     void panelsShareStateAcrossReloadsAndReleaseItWithWindow();
     void panelsFollowSceneAndSourceSelection();
     void imageScenesSwitchIndependently_data();
@@ -96,13 +102,18 @@ private slots:
 
 void MainWindowTest::init()
 {
+    m_theme.reset();
+    m_settings = std::make_unique<QTemporaryDir>();
+    QVERIFY(m_settings->isValid());
+    m_theme = std::make_unique<ThemeManager>(m_settings->filePath("settings.ini"));
+    QVERIFY(m_theme->isReady());
     // A ready QML root can still have unstable layout bindings.
     QTest::failOnWarning(QRegularExpression(QStringLiteral("Binding loop detected")));
 }
 
 void MainWindowTest::canShowAndClose()
 {
-    MainWindow window;
+    MainWindow window(*m_theme);
     QVERIFY(!window.isVisible());
 
     window.show();
@@ -114,7 +125,7 @@ void MainWindowTest::canShowAndClose()
 
 void MainWindowTest::panelsShareStateAcrossReloadsAndReleaseItWithWindow()
 {
-    auto window = std::make_unique<MainWindow>();
+    auto window = std::make_unique<MainWindow>(*m_theme);
     window->show();
     QPointer<StudioState> state = window->findChild<StudioState *>();
     QVERIFY(state);
@@ -258,7 +269,7 @@ void MainWindowTest::imageScenesSwitchIndependently()
     QImage image(20, 12, QImage::Format_ARGB32);
     image.fill(Qt::green);
     QVERIFY(image.save(path));
-    MainWindow window;
+    MainWindow window(*m_theme);
     window.show();
     auto *state = window.findChild<StudioState *>();
     QVERIFY(state);
@@ -587,7 +598,7 @@ void MainWindowTest::listScrollBarsHandleOverflow()
 
 void MainWindowTest::hasWindowShell()
 {
-    MainWindow window;
+    MainWindow window(*m_theme);
     window.show();
 
     QVERIFY(window.centralWidget());
@@ -602,6 +613,105 @@ void MainWindowTest::hasWindowShell()
     QVERIFY(!window.findChild<PreviewWidget *>());
     QVERIFY(!window.findChild<CompositionSession *>());
     QVERIFY(!window.findChild<SceneSnapshotBuilder *>());
+}
+
+void MainWindowTest::themeRestoresAndUpdatesOuterWidgets()
+{
+    const QPalette applicationPalette = QApplication::palette();
+    QVERIFY(m_theme->setTheme("light"));
+    m_theme = std::make_unique<ThemeManager>(m_settings->filePath("settings.ini"));
+    QCOMPARE(m_theme->themeId(), "light");
+    MainWindow window(*m_theme);
+    window.show();
+    QCOMPARE(window.palette().color(QPalette::Window), m_theme->color("background.window"));
+    QCOMPARE(window.palette().color(QPalette::Text), m_theme->color("text.primary"));
+    const auto views = window.findChildren<QQuickWidget *>();
+    QCOMPARE(views.size(), 4);
+    QList<QPointer<QQuickItem>> roots;
+    for (auto *view : views) {
+        QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+        QCOMPARE(view->rootContext()->contextProperty("uiTheme").value<QObject *>(), m_theme.get());
+        QCOMPARE(view->quickWindow()->color(), m_theme->color("background.panel"));
+        roots.append(view->rootObject());
+    }
+    // Exercise an actual QML binding to the nested QColor values, not just the
+    // context pointer. The existing panel internals migrate in later steps.
+    QQmlComponent probe(views.first()->engine());
+    probe.setData("import QtQuick\nQtObject { property color themedColor: uiTheme.colors.text.primary }", QUrl());
+    QTRY_COMPARE(probe.status(), QQmlComponent::Ready);
+    std::unique_ptr<QObject> binding(probe.create(views.first()->rootContext()));
+    QVERIFY(binding);
+    QCOMPARE(binding->property("themedColor").value<QColor>(), m_theme->color("text.primary"));
+    auto *dock = window.findChild<QDockWidget *>("sourcesDock");
+    QVERIFY(dock);
+    dock->setFloating(true);
+    QTRY_VERIFY(dock->isFloating());
+    QVERIFY(m_theme->setTheme("dark"));
+    QTRY_COMPARE(binding->property("themedColor").value<QColor>(), m_theme->color("text.primary"));
+    QCOMPARE(window.palette().color(QPalette::Window), m_theme->color("background.window"));
+    QCOMPARE(dock->palette().color(QPalette::Window), m_theme->color("background.window"));
+    QCOMPARE(window.palette().color(QPalette::Disabled, QPalette::Text), m_theme->color("text.disabled"));
+    auto *metrics = window.findChild<QLabel *>("outputMetrics");
+    QVERIFY(metrics);
+    QTRY_COMPARE(metrics->palette().color(QPalette::WindowText), m_theme->color("text.primary"));
+    for (int i = 0; i < views.size(); ++i) {
+        QCOMPARE(views[i]->rootObject(), roots[i].data());
+        QCOMPARE(views[i]->quickWindow()->color(), m_theme->color("background.panel"));
+    }
+    auto *failure = window.findChild<QLabel *>("previewUnavailable");
+    QVERIFY(failure);
+    QTRY_COMPARE(failure->palette().color(QPalette::WindowText), m_theme->color("status.error"));
+    dock->setFloating(false);
+    const auto titleButtons = dock->findChildren<QAbstractButton *>(QString(), Qt::FindDirectChildrenOnly);
+    QVERIFY(!titleButtons.isEmpty());
+    for (auto *button : titleButtons) {
+        for (auto mode : {QIcon::Normal, QIcon::Disabled}) {
+            const auto icon = button->icon().pixmap(16, 16, mode).toImage();
+            QVERIFY(!icon.isNull());
+            QColor strongest;
+            for (int y = 0; y < icon.height(); ++y)
+                for (int x = 0; x < icon.width(); ++x)
+                    if (!strongest.isValid() || icon.pixelColor(x, y).alpha() > strongest.alpha())
+                        strongest = icon.pixelColor(x, y);
+            QVERIFY(strongest.alpha() > 0);
+            strongest.setAlpha(255);
+            QCOMPARE(strongest.rgba(), m_theme->color(mode == QIcon::Disabled ? "icon.disabled" : "icon.primary").rgba());
+        }
+    }
+    QCOMPARE(QApplication::palette(), applicationPalette);
+}
+
+void MainWindowTest::dialogsShareThemeAndReleaseBeforeIt()
+{
+    auto window = std::make_unique<MainWindow>(*m_theme);
+    window->show();
+    auto *action = window->findChild<QAction *>("aboutAction");
+    QVERIFY(action);
+    QPointer<ThemeManager> theme = m_theme.get();
+    for (int i = 0; i < 2; ++i) {
+        action->trigger();
+        QPointer<QDialog> dialog = window->findChild<QDialog *>("qmlDialog");
+        QVERIFY(dialog);
+        QPointer<QQuickWidget> view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
+        QVERIFY(view);
+        QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+        QCOMPARE(view->rootContext()->contextProperty("uiTheme").value<QObject *>(), theme.data());
+        QVERIFY(m_theme->setTheme(i == 0 ? "light" : "dark"));
+        QCOMPARE(view->quickWindow()->color(), m_theme->color("background.panel"));
+        QCOMPARE(dialog->palette().color(QPalette::Window), m_theme->color("background.window"));
+        if (i == 0) {
+            dialog->close();
+            QTRY_VERIFY(dialog.isNull());
+        } else {
+            window.reset();
+            QVERIFY(dialog.isNull());
+        }
+        QVERIFY(view.isNull());
+        QVERIFY(theme);
+        QVERIFY(!theme->parent());
+    }
+    // All view-owned connections have disconnected; the service remains usable.
+    QVERIFY(m_theme->setTheme("light"));
 }
 
 void MainWindowTest::qmlDialogReceivesInitialPropertiesAndCloses()
@@ -622,7 +732,7 @@ Rectangle {
 })";
     QCOMPARE(file.write(qml), qint64(qml.size()));
     file.close();
-    MainWindow window;
+    MainWindow window(*m_theme);
     window.show();
     window.showDialog(QUrl::fromLocalFile(file.fileName()), QStringLiteral("Test dialog"),
                       {{QStringLiteral("message"), QStringLiteral("Initial value")}});
@@ -654,7 +764,7 @@ Rectangle {
     QTest::keyClick(dialog, Qt::Key_Escape);
     QTRY_VERIFY(dialog.isNull());
 
-    auto owner = std::make_unique<MainWindow>();
+    auto owner = std::make_unique<MainWindow>(*m_theme);
     owner->showDialog(QUrl::fromLocalFile(file.fileName()), QStringLiteral("Owned dialog"),
                       {{QStringLiteral("message"), QStringLiteral("Owned value")}});
     dialog = owner->findChild<QDialog *>(QStringLiteral("qmlDialog"));
@@ -684,7 +794,7 @@ void MainWindowTest::qmlDialogShowsLoadErrors()
         QCOMPARE(file.write(qml), qint64(qml.size()));
         file.close();
     }
-    MainWindow window;
+    MainWindow window(*m_theme);
     window.show();
     window.showDialog(QUrl::fromLocalFile(file.fileName()), QStringLiteral("Load error"));
     QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
@@ -700,7 +810,7 @@ void MainWindowTest::qmlDialogShowsLoadErrors()
 
 void MainWindowTest::aboutActionShowsProjectInfoAndReusesDialog()
 {
-    MainWindow window;
+    MainWindow window(*m_theme);
     window.show();
     auto *action = window.findChild<QAction *>(QStringLiteral("aboutAction"));
     QVERIFY(action);
@@ -769,7 +879,7 @@ void MainWindowTest::sourcePanelCanBrowseAndAdd()
     QImage image(19, 11, QImage::Format_ARGB32);
     image.fill(Qt::red);
     QVERIFY(image.save(path));
-    MainWindow window;
+    MainWindow window(*m_theme);
     window.show();
     auto *state = window.findChild<StudioState *>();
     auto *panel = window.findChild<QQuickWidget *>(QStringLiteral("sourcesQuickWidget"));
@@ -870,7 +980,7 @@ void MainWindowTest::sourceAddDialogHandlesInput()
     QImage image(19, 11, QImage::Format_ARGB32);
     image.fill(Qt::transparent);
     QVERIFY(image.save(path));
-    MainWindow window;
+    MainWindow window(*m_theme);
     window.show();
     auto *state = window.findChild<StudioState *>();
     QVERIFY(state);
@@ -1000,7 +1110,7 @@ void MainWindowTest::sceneNameDialogValidatesAndSaves_data()
 void MainWindowTest::sceneNameDialogValidatesAndSaves()
 {
     QFETCH(bool, rename);
-    MainWindow window;
+    MainWindow window(*m_theme);
     window.show();
     auto *state = window.findChild<StudioState *>();
     QVERIFY(state);
@@ -1070,7 +1180,7 @@ void MainWindowTest::sceneNameDialogCancelsWithoutChanges_data()
 void MainWindowTest::sceneNameDialogCancelsWithoutChanges()
 {
     QFETCH(QString, method);
-    MainWindow window;
+    MainWindow window(*m_theme);
     window.show();
     auto *state = window.findChild<StudioState *>();
     QVERIFY(state);
@@ -1109,7 +1219,7 @@ void MainWindowTest::sceneNameDialogCancelsWithoutChanges()
 
 void MainWindowTest::scenePanelCanAddAndRenameAfterReload()
 {
-    MainWindow window;
+    MainWindow window(*m_theme);
     window.show();
     auto *state = window.findChild<StudioState *>();
     auto *panel = window.findChild<QQuickWidget *>(QStringLiteral("scenesQuickWidget"));
@@ -1211,7 +1321,7 @@ void MainWindowTest::sourcePanelCanRemove()
     QImage image(19, 11, QImage::Format_ARGB32);
     image.fill(Qt::red);
     QVERIFY(image.save(path));
-    MainWindow window;
+    MainWindow window(*m_theme);
     window.show();
     auto *state = window.findChild<StudioState *>();
     auto *panel = window.findChild<QQuickWidget *>(QStringLiteral("sourcesQuickWidget"));
@@ -1327,7 +1437,7 @@ void MainWindowTest::sourceRemovalDialogHandlesConfirmation()
     StudioState state(QList<StudioState::SceneData>{
         {"target", "Target", sources}, {"other", "Other", {{"shared", "Other image"}}}});
     QVERIFY(state.selectSource("shared"));
-    MainWindow window;
+    MainWindow window(*m_theme);
     window.show();
     window.showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceRemovalDialog.qml")),
         QStringLiteral("Remove source"), {{"state", QVariant::fromValue(&state)},
@@ -1410,7 +1520,7 @@ void MainWindowTest::sceneRemovalDialogHandlesConfirmation_data()
 void MainWindowTest::sceneRemovalDialogHandlesConfirmation()
 {
     QFETCH(QString, action);
-    MainWindow window;
+    MainWindow window(*m_theme);
     window.show();
     auto *state = window.findChild<StudioState *>();
     QVERIFY(state);
@@ -1492,7 +1602,7 @@ void MainWindowTest::scenePanelCanRemoveAndMove_data()
 void MainWindowTest::scenePanelCanRemoveAndMove()
 {
     QFETCH(bool, reload);
-    MainWindow window;
+    MainWindow window(*m_theme);
     window.show();
     auto *state = window.findChild<StudioState *>();
     auto *panel = window.findChild<QQuickWidget *>(QStringLiteral("scenesQuickWidget"));
@@ -1599,7 +1709,7 @@ void MainWindowTest::scenePanelCanRemoveAndMove()
 
 void MainWindowTest::keepsOutputStatusVisibleWhenResized()
 {
-    MainWindow window;
+    MainWindow window(*m_theme);
     auto *output = window.findChild<QLabel *>(QStringLiteral("outputStatus"));
     auto *metrics = window.findChild<QLabel *>(QStringLiteral("outputMetrics"));
     QVERIFY(output);
@@ -1849,7 +1959,7 @@ void MainWindowTest::loadsControlsPanelWithVerticalButtons()
 
 void MainWindowTest::embedsScenePanelInLeftDock()
 {
-    MainWindow window;
+    MainWindow window(*m_theme);
     window.show();
     auto *dock = window.findChild<QDockWidget *>(QStringLiteral("scenesDock"));
     auto *view = window.findChild<QQuickWidget *>(QStringLiteral("scenesQuickWidget"));
@@ -1871,7 +1981,7 @@ void MainWindowTest::embedsScenePanelInLeftDock()
 
 void MainWindowTest::embedsSourcePanelBelowSceneDock()
 {
-    MainWindow window;
+    MainWindow window(*m_theme);
     window.show();
     auto *scenesDock = window.findChild<QDockWidget *>(QStringLiteral("scenesDock"));
     auto *dock = window.findChild<QDockWidget *>(QStringLiteral("sourcesDock"));
@@ -1909,7 +2019,7 @@ void MainWindowTest::embedsSourcePanelBelowSceneDock()
 
 void MainWindowTest::embedsMixerPanelBelowPreview()
 {
-    MainWindow window;
+    MainWindow window(*m_theme);
     window.show();
     auto *dock = window.findChild<QDockWidget *>(QStringLiteral("mixerDock"));
     auto *view = window.findChild<QQuickWidget *>(QStringLiteral("mixerQuickWidget"));
@@ -1937,7 +2047,7 @@ void MainWindowTest::embedsMixerPanelBelowPreview()
 
 void MainWindowTest::hasNoTransitionsDock()
 {
-    MainWindow window;
+    MainWindow window(*m_theme);
     window.show();
     QCOMPARE(window.findChildren<QDockWidget *>().size(), 4);
     QVERIFY(!window.findChild<QDockWidget *>(QStringLiteral("transitionsDock")));
@@ -1950,7 +2060,7 @@ void MainWindowTest::hasNoTransitionsDock()
 
 void MainWindowTest::embedsControlsPanelAtBottomRight()
 {
-    MainWindow window;
+    MainWindow window(*m_theme);
     window.show();
     auto *dock = window.findChild<QDockWidget *>(QStringLiteral("controlsDock"));
     auto *view = window.findChild<QQuickWidget *>(QStringLiteral("controlsQuickWidget"));
@@ -2010,7 +2120,7 @@ void MainWindowTest::panelDockCanFloatRedockAndClose()
 {
     QFETCH(QString, panelId);
     QFETCH(Qt::DockWidgetArea, dockArea);
-    MainWindow window;
+    MainWindow window(*m_theme);
     window.show();
     auto *dock = window.findChild<QDockWidget *>(panelId + QStringLiteral("Dock"));
     auto *view = window.findChild<QQuickWidget *>(panelId + QStringLiteral("QuickWidget"));
@@ -2066,7 +2176,7 @@ void MainWindowTest::panelDockCanFloatRedockAndClose()
 
 void MainWindowTest::viewMenuCanRestoreAllHiddenDocks()
 {
-    MainWindow window;
+    MainWindow window(*m_theme);
     window.show();
     auto *viewMenu = window.findChild<QMenu *>(QStringLiteral("viewMenu"));
     QVERIFY(viewMenu);
@@ -2098,7 +2208,7 @@ void MainWindowTest::resetLayoutRestoresDocksWithoutReload_data()
 void MainWindowTest::resetLayoutRestoresDocksWithoutReload()
 {
     QFETCH(QSize, windowSize);
-    MainWindow window;
+    MainWindow window(*m_theme);
     window.resize(windowSize);
     window.show();
     auto *resetAction = window.findChild<QAction *>(QStringLiteral("resetLayoutAction"));
@@ -2172,7 +2282,7 @@ void MainWindowTest::panelDockShowsLoadErrorAndRecovers()
 {
     QFETCH(QString, panelId);
     QFETCH(QString, qmlName);
-    MainWindow window;
+    MainWindow window(*m_theme);
     window.show();
     auto *view = window.findChild<QQuickWidget *>(panelId + QStringLiteral("QuickWidget"));
     auto *errorLabel = window.findChild<QLabel *>(panelId + QStringLiteral("LoadError"));
@@ -2329,12 +2439,56 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
 class MainWindowGraphicsTest : public QObject
 {
     Q_OBJECT
+    std::unique_ptr<QTemporaryDir> m_settings;
+    std::unique_ptr<ThemeManager> m_theme;
     static QColor centerPixel(PreviewWidget *view)
     {
         const auto image = view->grabFramebuffer();
         return image.isNull() ? QColor() : image.pixelColor(image.width() / 2, image.height() / 2);
     }
 private slots:
+    void init()
+    {
+        m_theme.reset();
+        m_settings = std::make_unique<QTemporaryDir>();
+        QVERIFY(m_settings->isValid());
+        m_theme = std::make_unique<ThemeManager>(m_settings->filePath("settings.ini"));
+        QVERIFY(m_theme->isReady());
+    }
+
+    void themeChangesKeepPreviewAndQmlAlive()
+    {
+        MainWindow window(*m_theme);
+        window.show();
+        window.hide();
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        auto *view = window.findChild<PreviewWidget *>();
+        QVERIFY(view);
+        QTRY_VERIFY(view->displayedFrameToken() != 0);
+        QTRY_COMPARE(centerPixel(view), QColor(Qt::black));
+        const auto panels = window.findChildren<QQuickWidget *>();
+        QList<QPointer<QQuickItem>> roots;
+        for (auto *panel : panels) {
+            QTRY_COMPARE(panel->status(), QQuickWidget::Ready);
+            roots.append(panel->rootObject());
+        }
+        QPointer<QOpenGLContext> context = view->context();
+        for (const auto &id : {"light", "dark"}) {
+            QVERIFY(m_theme->setTheme(id));
+            QTRY_COMPARE(window.palette().color(QPalette::Window), m_theme->color("background.window"));
+            QTRY_COMPARE(centerPixel(view), QColor(Qt::black));
+            QCOMPARE(view->context(), context.data());
+            for (int i = 0; i < panels.size(); ++i) {
+                QCOMPARE(panels[i]->rootObject(), roots[i].data());
+                QCOMPARE(panels[i]->quickWindow()->color(), m_theme->color("background.panel"));
+            }
+            QTest::qWait(100);
+            QVERIFY(window.grab().save(QCoreApplication::applicationDirPath()
+                + QStringLiteral("/theme-3a-%1.png").arg(id)));
+        }
+    }
+
     void sceneCompositionAndRecovery()
     {
         QTemporaryDir directory;
@@ -2347,7 +2501,7 @@ private slots:
         QImage blue(1920, 1080, QImage::Format_ARGB32);
         blue.fill(QColor(0, 0, 255, 128));
         QVERIFY(blue.save(bluePath));
-        MainWindow window;
+        MainWindow window(*m_theme);
         auto *state = window.findChild<StudioState *>();
         auto *view = window.findChild<PreviewWidget *>();
         auto *status = window.findChild<QLabel *>("previewStatus");
@@ -2459,7 +2613,7 @@ private slots:
     void repeatedShutdown()
     {
         for (int i = 0; i < 3; ++i) {
-            auto window = std::make_unique<MainWindow>();
+            auto window = std::make_unique<MainWindow>(*m_theme);
             QPointer<StudioState> state = window->findChild<StudioState *>();
             QPointer<PreviewWidget> view = window->findChild<PreviewWidget *>();
             QPointer<CompositionSession> session = window->findChild<CompositionSession *>();
