@@ -4,10 +4,11 @@ import QtQuick.Layouts
 
 Rectangle {
     id: root
+    readonly property var themeColors: uiTheme.colors
     objectName: "scenesPanel"
     implicitWidth: 238
     implicitHeight: 260
-    color: "#1d1d1d"
+    color: themeColors.background.panel
     readonly property var state: typeof studioState !== "undefined" ? studioState : null
     signal sceneNameDialogRequested(string sceneId, string initialName)
     signal sceneRemovalDialogRequested(string sceneId)
@@ -43,10 +44,11 @@ Rectangle {
                         implicitWidth: 8
                         implicitHeight: 24
                         radius: 4
-                        color: sceneScrollBar.pressed ? "#9a9a9a"
-                            : (sceneScrollBar.hovered ? "#808080" : "#606060")
+                        color: sceneScrollBar.pressed ? root.themeColors.scrollbar.thumb.pressed
+                            : (sceneScrollBar.hovered ? root.themeColors.scrollbar.thumb.hovered
+                                : root.themeColors.scrollbar.thumb.normal)
                     }
-                    background: Rectangle { color: "#232323" }
+                    background: Rectangle { color: root.themeColors.background.header }
                 }
 
                 delegate: Rectangle {
@@ -57,7 +59,7 @@ Rectangle {
                     objectName: "sceneRow_" + sceneId
                     width: sceneList.width - (sceneScrollBar.visible ? sceneScrollBar.width : 0)
                     height: 32
-                    color: selected ? "#31445b" : "transparent"
+                    color: selected ? root.themeColors.background.selected : "transparent"
                     Accessible.role: Accessible.ListItem
                     Accessible.name: sceneName
                     Accessible.selected: selected
@@ -70,7 +72,7 @@ Rectangle {
                         text: sceneName
                         textFormat: Text.PlainText
                         elide: Text.ElideRight
-                        color: "#d6d6d6"
+                        color: root.themeColors.text.primary
                     }
                     TapHandler {
                         onTapped: root.state.selectScene(sceneId)
@@ -83,7 +85,7 @@ Rectangle {
                 objectName: "emptyScenesLabel"
                 anchors.centerIn: parent
                 text: qsTr("暂无场景")
-                color: "#8c8c8c"
+                color: root.themeColors.text.secondary
                 visible: sceneList.count === 0
             }
         }
@@ -91,13 +93,13 @@ Rectangle {
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: 1
-            color: "#2e2e2e"
+            color: root.themeColors.border.subtle
         }
 
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: 32
-            color: "#232323"
+            color: root.themeColors.background.header
 
             Row {
                 objectName: "sceneActions"
@@ -114,6 +116,8 @@ Rectangle {
                     ]
 
                     delegate: ToolButton {
+                        id: sceneButton
+                        hoverEnabled: true
                         required property var modelData
                         objectName: modelData.name
                         width: 30
@@ -123,7 +127,9 @@ Rectangle {
                         icon.source: modelData.icon
                         icon.width: 16
                         icon.height: 16
-                        icon.color: enabled ? "#d6d6d6" : "#666666"
+                        icon.color: enabled ? root.themeColors.icon.primary : root.themeColors.icon.disabled
+                        palette.toolTipBase: root.themeColors.background.header
+                        palette.toolTipText: root.themeColors.text.primary
                         enabled: {
                             if (!root.state) return false
                             switch (modelData.name) {
@@ -145,7 +151,14 @@ Rectangle {
                         Accessible.name: modelData.label
                         ToolTip.text: modelData.label
 
-                        background: Item {}
+                        background: Rectangle {
+                            radius: 2
+                            color: !sceneButton.enabled ? "transparent"
+                                : (sceneButton.down ? root.themeColors.button.background.pressed
+                                    : (sceneButton.hovered ? root.themeColors.button.background.hovered : "transparent"))
+                            border.color: sceneButton.enabled && sceneButton.activeFocus
+                                ? root.themeColors.border.focus : "transparent"
+                        }
                     }
                 }
             }

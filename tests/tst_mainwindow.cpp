@@ -19,10 +19,12 @@
 #include <QLabel>
 #include <QMenuBar>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QPointer>
 #include <QQmlComponent>
 #include <QQmlContext>
 #include <QQmlExpression>
+#include <QQmlProperty>
 #include <QQmlError>
 #include <QQuickItem>
 #include <QQuickWidget>
@@ -48,6 +50,8 @@ private slots:
     void hasWindowShell();
     void themeRestoresAndUpdatesOuterWidgets();
     void dialogsShareThemeAndReleaseBeforeIt();
+    void sceneAndSourceThemes_data();
+    void sceneAndSourceThemes();
     void panelsShareStateAcrossReloadsAndReleaseItWithWindow();
     void panelsFollowSceneAndSourceSelection();
     void imageScenesSwitchIndependently_data();
@@ -108,7 +112,7 @@ void MainWindowTest::init()
     m_theme = std::make_unique<ThemeManager>(m_settings->filePath("settings.ini"));
     QVERIFY(m_theme->isReady());
     // A ready QML root can still have unstable layout bindings.
-    QTest::failOnWarning(QRegularExpression(QStringLiteral("Binding loop detected")));
+    QTest::failOnWarning(QRegularExpression(QStringLiteral("Binding loop detected|ReferenceError: uiTheme")));
 }
 
 void MainWindowTest::canShowAndClose()
@@ -184,7 +188,9 @@ void MainWindowTest::panelsFollowSceneAndSourceSelection()
         {"second", "Scene", {{"b", "Image"}}},
         {"empty", "Empty", {}}});
     QQuickWidget scenes;
+    scenes.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
     QQuickWidget sources;
+    sources.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
     for (auto *view : {&scenes, &sources}) {
         view->setResizeMode(QQuickWidget::SizeRootObjectToView);
         view->resize(238, 260);
@@ -397,6 +403,7 @@ void MainWindowTest::sourcePanelCanMoveAndToggle()
         {"first", "First", {{"a", "Foreground"}, {"b", "Background"}, {"c", "Logo"}}},
         {"second", "Second", {{"b", "Other scene image"}}}, {"empty", "Empty", {}}});
     QQuickWidget panel;
+    panel.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(280, 220);
     panel.rootContext()->setContextProperty(QStringLiteral("studioState"), &state);
@@ -543,6 +550,7 @@ void MainWindowTest::listScrollBarsHandleOverflow()
     StudioState shortState(QList<StudioState::SceneData>{{"only", "Only", {{"one", "One"}}}});
     QVERIFY(state.selectSource("0"));
     QQuickWidget panel;
+    panel.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(238, 150);
     panel.rootContext()->setContextProperty(QStringLiteral("studioState"), &state);
@@ -679,6 +687,128 @@ void MainWindowTest::themeRestoresAndUpdatesOuterWidgets()
         }
     }
     QCOMPARE(QApplication::palette(), applicationPalette);
+}
+
+void MainWindowTest::sceneAndSourceThemes_data()
+{
+    QTest::addColumn<QString>("panelName");
+    QTest::addColumn<QString>("prefix");
+    QTest::addColumn<QString>("themeId");
+    for (const auto &theme : {QString("dark"), QString("light")}) {
+        QTest::newRow(qPrintable("scenes-" + theme)) << QString("ScenesPanel") << QString("scene") << theme;
+        QTest::newRow(qPrintable("sources-" + theme)) << QString("SourcesPanel") << QString("source") << theme;
+    }
+}
+
+void MainWindowTest::sceneAndSourceThemes()
+{
+    QFETCH(QString, panelName);
+    QFETCH(QString, prefix);
+    QFETCH(QString, themeId);
+    QVERIFY(m_theme->setTheme(themeId));
+    QList<StudioState::SourceData> sources;
+    QList<StudioState::SceneData> scenes;
+    for (int i = 0; i < 24; ++i)
+        sources.append({QString::number(i), QString("Source %1").arg(i), {}, {}, {}, i != 0, i == 0});
+    for (int i = 0; i < 24; ++i)
+        scenes.append({QString::number(i), QString("Scene %1").arg(i), sources});
+    StudioState state(scenes);
+    QVERIFY(state.selectSource("0"));
+    QQuickWidget panel;
+    panel.rootContext()->setContextProperty("uiTheme", m_theme.get());
+    panel.rootContext()->setContextProperty("studioState", &state);
+    panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
+    panel.resize(280, 220);
+    const QUrl url(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(panelName));
+    panel.setSource(url);
+    QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
+    panel.show();
+    const auto find = [&panel](const QString &name) {
+        const auto visit = [&name](auto &&self, QQuickItem *item) -> QQuickItem * {
+            if (item->objectName() == name) return item;
+            for (auto *child : item->childItems())
+                if (auto *found = self(self, child)) return found;
+            return nullptr;
+        };
+        return visit(visit, panel.rootObject());
+    };
+    // QWidget QTest::mouseMove uses the OS cursor when no button is pressed,
+    // which does not deliver hover events to the offscreen platform.
+    const auto moveMouse = [&panel](const QPoint &position) {
+        QMouseEvent event(QEvent::MouseMove, position, panel.mapToGlobal(position),
+                          Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(&panel, &event);
+    };
+    QTRY_VERIFY(find(prefix + "Row_0"));
+    QPointer<QQuickItem> originalRoot = panel.rootObject();
+    for (const auto &id : {themeId, themeId == "dark" ? QString("light") : QString("dark")}) {
+        QVERIFY(m_theme->setTheme(id));
+        QCOMPARE(panel.rootObject(), originalRoot.data());
+        QTRY_COMPARE(panel.rootObject()->property("color").value<QColor>(), m_theme->color("background.panel"));
+        auto *row = find(prefix + "Row_0");
+        QVERIFY(row);
+        QCOMPARE(row->property("color").value<QColor>(), m_theme->color("background.selected"));
+        const auto labelText = prefix == "scene" ? QString("Scene 0") : QString("Source 0");
+        bool foundLabel = false;
+        for (auto *label : row->findChildren<QQuickItem *>()) {
+            if (label->property("text").toString() == labelText) {
+                QCOMPARE(label->property("color").value<QColor>(), m_theme->color("text.primary"));
+                foundLabel = true;
+            }
+        }
+        QVERIFY(foundLabel);
+        auto *add = find(prefix == "scene" ? "addSceneButton" : "addSourceButton");
+        QVERIFY(add && add->isEnabled());
+        QCOMPARE(QQmlProperty::read(add, "icon.color").value<QColor>(), m_theme->color("icon.primary"));
+        auto *background = add->property("background").value<QQuickItem *>();
+        QVERIFY(background);
+        add->forceActiveFocus(Qt::TabFocusReason);
+        QTRY_VERIFY(add->hasActiveFocus());
+        QCOMPARE(QQmlProperty::read(background, "border.color").value<QColor>(), m_theme->color("border.focus"));
+        const QPoint position = add->mapToScene(add->boundingRect().center()).toPoint();
+        moveMouse(position);
+        QTRY_VERIFY(add->property("hovered").toBool());
+        QTRY_COMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.hovered"));
+        QTest::mousePress(&panel, Qt::LeftButton, Qt::NoModifier, position);
+        QTRY_COMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.pressed"));
+        QTest::mouseRelease(&panel, Qt::LeftButton, Qt::NoModifier, position);
+        auto *bar = find(prefix + "ScrollBar");
+        QVERIFY(bar && bar->isVisible());
+        auto *thumb = bar->property("contentItem").value<QQuickItem *>();
+        QVERIFY(thumb);
+        moveMouse(QPoint(2, 2));
+        QTRY_COMPARE(thumb->property("color").value<QColor>(), m_theme->color("scrollbar.thumb.normal"));
+        const QPoint thumbPosition = thumb->mapToScene(thumb->boundingRect().center()).toPoint();
+        moveMouse(thumbPosition);
+        QTRY_COMPARE(thumb->property("color").value<QColor>(), m_theme->color("scrollbar.thumb.hovered"));
+        QTest::mousePress(&panel, Qt::LeftButton, Qt::NoModifier, thumbPosition);
+        QTRY_COMPARE(thumb->property("color").value<QColor>(), m_theme->color("scrollbar.thumb.pressed"));
+        QTest::mouseRelease(&panel, Qt::LeftButton, Qt::NoModifier, thumbPosition);
+        if (prefix == "source") {
+            auto *filters = find("sourceFiltersButton");
+            QVERIFY(filters && !filters->isEnabled());
+            QCOMPARE(QQmlProperty::read(filters, "icon.color").value<QColor>(), m_theme->color("icon.disabled"));
+            QVERIFY(find("sourceVisibilityButton")->property("checked").toBool() == false);
+            QVERIFY(find("sourceLockButton")->property("checked").toBool());
+        }
+        QCOMPARE(state.currentSceneId(), "0");
+        QCOMPARE(state.currentSourceId(), "0");
+    }
+    panel.setSource(QUrl());
+    panel.setSource(url);
+    QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
+    QTRY_VERIFY(find(prefix + "Row_0"));
+    QCOMPARE(find(prefix + "Row_0")->property("color").value<QColor>(), m_theme->color("background.selected"));
+    QCOMPARE(state.currentSceneId(), "0");
+    QCOMPARE(state.currentSourceId(), "0");
+    if (prefix == "source") {
+        const auto empty = state.addScene("Empty");
+        QVERIFY(state.selectScene(empty));
+        auto *label = find("emptySourcesLabel");
+        QVERIFY(label);
+        QTRY_VERIFY(label->isVisible());
+        QCOMPARE(label->property("color").value<QColor>(), m_theme->color("text.secondary"));
+    }
 }
 
 void MainWindowTest::dialogsShareThemeAndReleaseBeforeIt()
@@ -1731,6 +1861,7 @@ void MainWindowTest::keepsOutputStatusVisibleWhenResized()
 void MainWindowTest::loadsScenePanelWithEmptyState()
 {
     QQuickWidget panel;
+    panel.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(238, 260);
     panel.setSource(QUrl(QStringLiteral(
@@ -1778,6 +1909,7 @@ void MainWindowTest::loadsScenePanelWithEmptyState()
 void MainWindowTest::loadsSourcePanelWithEmptyState()
 {
     QQuickWidget panel;
+    panel.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(238, 320);
     panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml")));
@@ -1819,6 +1951,7 @@ void MainWindowTest::loadsSourcePanelWithEmptyState()
 void MainWindowTest::loadsMixerPanelWithUnavailableChannels()
 {
     QQuickWidget panel;
+    panel.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(238, 260);
     panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/MixerPanel.qml")));
@@ -1890,6 +2023,7 @@ void MainWindowTest::loadsMixerPanelWithUnavailableChannels()
 void MainWindowTest::loadsControlsPanelWithVerticalButtons()
 {
     QQuickWidget panel;
+    panel.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(286, 174);
     panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ControlsPanel.qml")));
@@ -2331,11 +2465,15 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates_data()
     QTest::addColumn<QString>("panelName");
     QTest::addColumn<int>("expectedButtons");
     QTest::addColumn<bool>("alternateSourceState");
-    QTest::newRow("scenes") << QStringLiteral("ScenesPanel") << 4 << false;
-    QTest::newRow("sources") << QStringLiteral("SourcesPanel") << 8 << false;
-    QTest::newRow("sources-hidden-locked") << QStringLiteral("SourcesPanel") << 8 << true;
-    QTest::newRow("mixer") << QStringLiteral("MixerPanel") << 4 << false;
-    QTest::newRow("controls") << QStringLiteral("ControlsPanel") << 2 << false;
+    QTest::addColumn<QString>("themeId");
+    QTest::newRow("scenes-dark") << QStringLiteral("ScenesPanel") << 4 << false << QString("dark");
+    QTest::newRow("scenes-light") << QStringLiteral("ScenesPanel") << 4 << false << QString("light");
+    QTest::newRow("sources-dark") << QStringLiteral("SourcesPanel") << 8 << false << QString("dark");
+    QTest::newRow("sources-light") << QStringLiteral("SourcesPanel") << 8 << false << QString("light");
+    QTest::newRow("sources-hidden-locked-dark") << QStringLiteral("SourcesPanel") << 8 << true << QString("dark");
+    QTest::newRow("sources-hidden-locked-light") << QStringLiteral("SourcesPanel") << 8 << true << QString("light");
+    QTest::newRow("mixer") << QStringLiteral("MixerPanel") << 4 << false << QString("dark");
+    QTest::newRow("controls") << QStringLiteral("ControlsPanel") << 2 << false << QString("dark");
 }
 
 void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
@@ -2343,7 +2481,10 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
     QFETCH(QString, panelName);
     QFETCH(int, expectedButtons);
     QFETCH(bool, alternateSourceState);
+    QFETCH(QString, themeId);
+    QVERIFY(m_theme->setTheme(themeId));
     QQuickWidget panel;
+    panel.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(238, 260);
     if (panelName == QStringLiteral("ControlsPanel"))
@@ -2410,7 +2551,8 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
     int checkedButtons = 0;
     for (auto *button : buttons) {
         // Isolate icons from button text and borders for rendering checks.
-        const bool isolateIcon = panelName == QStringLiteral("SourcesPanel")
+        const bool isolateIcon = panelName == QStringLiteral("ScenesPanel")
+            || panelName == QStringLiteral("SourcesPanel")
             || panelName == QStringLiteral("ControlsPanel");
         const QVariant originalDisplay = button->property("display");
         auto *background = button->property("background").value<QQuickItem *>();
@@ -2458,7 +2600,20 @@ private slots:
 
     void themeChangesKeepPreviewAndQmlAlive()
     {
+        QTemporaryDir images;
+        QVERIFY(images.isValid());
+        QImage transparent(64, 36, QImage::Format_ARGB32);
+        transparent.fill(Qt::transparent);
+        const auto path = images.filePath("transparent.png");
+        QVERIFY(transparent.save(path));
         MainWindow window(*m_theme);
+        auto *state = window.findChild<StudioState *>();
+        QVERIFY(state);
+        const auto source = state->addImageSource(state->currentSceneId(), "Logo", path);
+        QVERIFY(!source.isEmpty());
+        QVERIFY(state->setSourceVisible(state->currentSceneId(), source, false));
+        QVERIFY(state->setSourceLocked(state->currentSceneId(), source, true));
+        QVERIFY(state->selectSource(source));
         window.show();
         window.hide();
         window.show();
@@ -2485,7 +2640,7 @@ private slots:
             }
             QTest::qWait(100);
             QVERIFY(window.grab().save(QCoreApplication::applicationDirPath()
-                + QStringLiteral("/theme-3a-%1.png").arg(id)));
+                + QStringLiteral("/theme-3b-%1.png").arg(id)));
         }
     }
 
