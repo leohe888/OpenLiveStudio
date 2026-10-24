@@ -314,7 +314,7 @@ applicable; third_party is not a requirement to move the icon notices.
 
 ### Existing paths and incremental adoption
 
-The current entry point is src/app/main.cpp, MainWindow is in src/ui, QML files are
+The current entry point is src/app/main.cpp, MainWindow is in src/ui/widgets, QML files are
 in the top-level qml directory, StudioState is in src/scene, and ImageLoader is
 in src/media. These locations remain valid until a scoped implementation or
 explicit migration updates their build, resource and test references together.

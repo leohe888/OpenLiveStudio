@@ -7,7 +7,7 @@ are not installed with the application.
 ## Source layout
 
 Application C++ files live under `src/`: `app/main.cpp` is the entry point,
-`ui/` contains MainWindow, `scene/` contains StudioState, and `media/` contains
+`ui/widgets/` contains MainWindow, `scene/` contains StudioState, and `media/` contains
 ImageLoader. Headers stay beside their implementations. Test cases remain in
 this directory; `tests/CMakeLists.txt` lists the production sources and adds
 only the module include directories needed by each target.
@@ -32,6 +32,11 @@ Qt 6.12.0 / MSVC 2022 x64 Ninja Debug configure and build in
 `build/directory-layout-Debug` passed. Complete CTest passed 3/3 in 36.01 seconds
 (ui.mainwindow: 34.42 seconds). UI checks use offscreen software rendering;
 native desktop and real GPU behavior were not verified by this path migration.
+
+MainWindow was then moved to `src/ui/widgets` with both files unchanged. The
+application and test source/include paths were updated. The same Debug build
+passed, followed by complete CTest 3/3 in 30.88 seconds
+(ui.mainwindow: 30.59 seconds).
 
 ## Build and run
 

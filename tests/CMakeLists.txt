@@ -37,8 +37,8 @@ set_tests_properties(core.studiostate PROPERTIES LABELS "core;smoke" TIMEOUT 10)
 
 qt_add_executable(tst_mainwindow
     tst_mainwindow.cpp
-    ../src/ui/mainwindow.cpp
-    ../src/ui/mainwindow.h
+    ../src/ui/widgets/mainwindow.cpp
+    ../src/ui/widgets/mainwindow.h
     ../src/scene/studiostate.cpp
     ../src/scene/studiostate.h
     ../src/media/imageloader.cpp
@@ -46,7 +46,7 @@ qt_add_executable(tst_mainwindow
 )
 
 target_include_directories(tst_mainwindow PRIVATE
-    "${PROJECT_SOURCE_DIR}/src/ui"
+    "${PROJECT_SOURCE_DIR}/src/ui/widgets"
     "${PROJECT_SOURCE_DIR}/src/media"
     "${PROJECT_SOURCE_DIR}/src/scene"
 )
