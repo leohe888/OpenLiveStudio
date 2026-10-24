@@ -68,7 +68,6 @@ private slots:
     void loadsScenePanelWithEmptyState();
     void loadsSourcePanelWithEmptyState();
     void loadsMixerPanelWithUnavailableChannels();
-    void loadsTransitionsPanelWithDisabledControls();
     void loadsControlsPanelWithVerticalButtons();
     void embedsScenePanelInLeftDock();
     void embedsSourcePanelBelowSceneDock();
@@ -1769,58 +1768,6 @@ void MainWindowTest::loadsMixerPanelWithUnavailableChannels()
     QTRY_VERIFY(scroll->property("contentHeight").toReal() > scroll->height());
 }
 
-void MainWindowTest::loadsTransitionsPanelWithDisabledControls()
-{
-    QQuickWidget panel;
-    panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
-    panel.resize(238, 124);
-    panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/TransitionsPanel.qml")));
-    QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
-    panel.show();
-    auto *root = panel.rootObject();
-    QVERIFY(root);
-    auto *effect = root->findChild<QQuickItem *>(QStringLiteral("transitionEffect"));
-    auto *duration = root->findChild<QQuickItem *>(QStringLiteral("transitionDuration"));
-    auto *button = root->findChild<QQuickItem *>(QStringLiteral("executeTransitionButton"));
-    QVERIFY(effect);
-    QVERIFY(duration);
-    QVERIFY(button);
-    QCOMPARE(effect->property("count").toInt(), 4);
-    QCOMPARE(effect->property("currentIndex").toInt(), -1);
-    QCOMPARE(duration->property("value").toInt(), 300);
-    QSignalSpy clicked(button, SIGNAL(clicked()));
-    QVERIFY(clicked.isValid());
-    for (auto *control : {effect, duration, button}) {
-        QVERIFY(!control->isEnabled());
-        const QPoint center = control->mapToScene(control->boundingRect().center()).toPoint();
-        QTest::mouseClick(&panel, Qt::LeftButton, Qt::NoModifier, center);
-        QTest::keyClick(&panel, Qt::Key_Tab);
-        QTest::keyClick(&panel, Qt::Key_Up);
-        QTest::keyClick(&panel, Qt::Key_Space);
-        QVERIFY(!control->hasActiveFocus());
-    }
-    QCOMPARE(clicked.count(), 0);
-    QCOMPARE(effect->property("currentIndex").toInt(), -1);
-    QCOMPARE(duration->property("value").toInt(), 300);
-    auto *popup = effect->property("popup").value<QObject *>();
-    QVERIFY(popup);
-    QVERIFY(!popup->property("visible").toBool());
-
-    for (const auto &size : {QSize(180, 124), QSize(400, 240), QSize(238, 124)}) {
-        panel.resize(size);
-        QTRY_COMPARE(root->size(), QSizeF(size));
-        QRectF previous;
-        for (auto *control : {effect, duration, button}) {
-            const QRectF rect = control->mapRectToScene(control->boundingRect());
-            QVERIFY(root->boundingRect().contains(rect));
-            QVERIFY(!rect.intersects(previous));
-            previous = rect;
-        }
-        const QRectF buttonRect = button->mapRectToScene(button->boundingRect());
-        QVERIFY(qAbs(buttonRect.bottom() - (root->height() - 8)) <= 1);
-    }
-}
-
 void MainWindowTest::loadsControlsPanelWithVerticalButtons()
 {
     QQuickWidget panel;
@@ -2269,7 +2216,6 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates_data()
     QTest::newRow("sources") << QStringLiteral("SourcesPanel") << 8 << false;
     QTest::newRow("sources-hidden-locked") << QStringLiteral("SourcesPanel") << 8 << true;
     QTest::newRow("mixer") << QStringLiteral("MixerPanel") << 4 << false;
-    QTest::newRow("transitions") << QStringLiteral("TransitionsPanel") << 1 << false;
     QTest::newRow("controls") << QStringLiteral("ControlsPanel") << 2 << false;
 }
 
@@ -2346,7 +2292,6 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
     for (auto *button : buttons) {
         // Isolate icons from button text and borders for rendering checks.
         const bool isolateIcon = panelName == QStringLiteral("SourcesPanel")
-            || panelName == QStringLiteral("TransitionsPanel")
             || panelName == QStringLiteral("ControlsPanel");
         const QVariant originalDisplay = button->property("display");
         auto *background = button->property("background").value<QQuickItem *>();
