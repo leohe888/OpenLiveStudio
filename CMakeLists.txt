@@ -20,6 +20,8 @@ qt_add_executable(OpenLiveStudio
     src/sources/imageloader.h
     src/graphics/composition/imagecompositor.cpp
     src/graphics/composition/imagecompositor.h
+    src/graphics/composition/compositionsession.cpp
+    src/graphics/composition/compositionsession.h
 )
 
 set(OPENLIVE_STUDIO_QML_FILES
