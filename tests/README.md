@@ -185,12 +185,12 @@ the source ordering/visibility/lock behavior completed in B5.
 
 `ui.mainwindow` covers window lifecycle and structure, output status visibility
 on resize, scene and source QML loading and empty states, source panel resizing,
-and mixer QML loading with two unavailable channel slots. Transition panel
-checks cover loading, unselected effects, the prototype duration default,
-disabled controls ignoring mouse and keyboard input, and resizing. Layout
+and mixer QML loading with two unavailable channel slots. The removed transition
+dock, transition QQuickWidget and view-menu action are checked for absence. Its standalone
+QML loading and icon-rendering cases were removed with the QML resource. Layout
 checks cover the vertically arranged scene and source docks on the left and
-the left column extending to the bottom, with mixer, transitions and controls
-arranged left to right beneath the preview. All five docks are checked
+the left column extending to the bottom, with mixer and controls
+arranged left to right beneath the preview. All four docks are checked
 for floating, redocking, closing, load failure and recovery, including isolation
 from the other panels. Icon checks cover decoding all fourteen SVG resources and
 rendering the panel buttons in enabled and disabled states. Source row checks
@@ -198,7 +198,7 @@ use test-only model data. Mixer checks also cover disabled sliders ignoring
 clicks, compact panel height, scrollable content at small sizes, and fixed-width
 channels staying grouped on the left as the panel grows. The application still has no
 media capture, audio or transition backend; mixer meters remain empty and
-unconnected controls disabled. Rendering checks isolate source, transition,
+unconnected controls disabled. Rendering checks isolate source,
 recording and streaming icons from button text and backgrounds. Source rendering
 covers eye/eye-off and lock/lock-open in enabled and disabled states. State icons
 use neutral colors and transparent button backgrounds; selection highlights
@@ -210,8 +210,7 @@ Controls panel checks cover exactly the recording, streaming and settings
 entries, all disabled and arranged vertically with fixed heights at the top.
 A bottom spacer takes up remaining height; short panels can scroll to the last
 button. The exit entry, exit signal and panel duration labels have been removed.
-REC/LIVE duration placeholders remain in the main window status bar. Transition
-checks also verify that the transition button stays at the bottom of its panel.
+REC/LIVE duration placeholders remain in the main window status bar.
 Recording, streaming, timers and the settings dialog remain unimplemented.
 
 View-menu checks cover hiding and restoring every panel, check-state sync for
@@ -284,6 +283,45 @@ tests and limitations of the offscreen platform are not treated as binding loops
 ```powershell
 ctest --test-dir $buildDir -L smoke --output-on-failure
 ```
+
+### Transition panel removal validation (2026-10-24)
+
+The application and HTML prototype now have four docks: scenes, sources, mixer
+and controls. The bottom row contains mixer followed by controls. Scene changes
+use the existing immediate switch behavior; the prototype no longer offers a
+transition effect, duration or fade animation. Transition features are deferred.
+
+Both removal steps passed a Qt 6.12.0, MSVC 2022 x64 Ninja Debug build in
+`build/remove-transitions-Debug`. The initial attempt in `build/qt-ninja-Debug`
+could not replace the running application executable (LNK1168), so validation
+used the separate build directory without closing the running application.
+Complete CTest passed 3/3 after each step: the first run took 31.93 seconds
+(ui.mainwindow: 31.55 seconds), and the final run after QML/resource cleanup
+took 30.81 seconds (ui.mainwindow: 30.44 seconds). These UI checks use the
+offscreen platform and software Qt Quick backend.
+
+Node checks passed script syntax, direct switching between scenes, clearing
+source selection on a different scene, preserving it for the current scene or
+an invalid target, four dock/menu entries, resetting four panels, and removal
+of transition-script references. These checks exercise extracted functions
+with controlled substitutes; they do not establish browser rendering or full
+DOM interaction. The browser tool rejected the local `file://` URL under its
+security policy. Actual browser display and interaction, native desktop layout
+and GPU rendering after this change remain unverified.
+
+Manual acceptance:
+
+1. Run the rebuilt application; confirm the bottom row is mixer then controls,
+   and the View menu has only the four remaining dock entries.
+2. Float, close and restore panels, then reset the layout at default and minimum
+   window sizes; verify all four panels return without overlap.
+3. Add two scenes with distinct image entries. Switching scenes must update the
+   source list immediately and clear source selection; clicking the current
+   scene must preserve it. The central preview is still a placeholder.
+4. Open `docs/openlive-studio-prototype.html` in a browser. Confirm no transition
+   panel or menu entry remains, scene changes have no fade, panel closing and
+   restoration work, and layout reset restores the four panels. Check for
+   script errors. Prototype media remain simulated.
 
 ## Adding tests with features
 
