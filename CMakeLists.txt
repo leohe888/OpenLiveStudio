@@ -20,16 +20,31 @@ qt_add_executable(OpenLiveStudio
     src/sources/imageloader.h
 )
 
+set(OPENLIVE_STUDIO_QML_FILES
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/ScenesPanel.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/SourcesPanel.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/MixerPanel.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/ControlsPanel.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/AboutDialog.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/SceneNameDialog.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/SceneRemovalDialog.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/SourceAddDialog.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/SourceRemovalDialog.qml"
+)
+
+# Preserve the existing qrc:/OpenLiveStudio/Ui/qml/<name>.qml URLs.
+foreach(qml_file IN LISTS OPENLIVE_STUDIO_QML_FILES)
+    get_filename_component(qml_name "${qml_file}" NAME)
+    set_source_files_properties("${qml_file}" PROPERTIES
+        QT_RESOURCE_ALIAS "qml/${qml_name}"
+    )
+endforeach()
+
 qt_add_qml_module(OpenLiveStudio
     URI OpenLiveStudio.Ui
     VERSION 1.0
     RESOURCE_PREFIX "/"
-    QML_FILES qml/ScenesPanel.qml qml/SourcesPanel.qml qml/MixerPanel.qml
-              qml/ControlsPanel.qml qml/AboutDialog.qml
-              qml/SceneNameDialog.qml
-              qml/SceneRemovalDialog.qml
-              qml/SourceAddDialog.qml
-              qml/SourceRemovalDialog.qml
+    QML_FILES ${OPENLIVE_STUDIO_QML_FILES}
 )
 
 set(OPENLIVE_STUDIO_ICON_FILES

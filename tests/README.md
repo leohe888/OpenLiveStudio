@@ -12,6 +12,11 @@ ImageLoader. Headers stay beside their implementations. Test cases remain in
 this directory; `tests/CMakeLists.txt` lists the production sources and adds
 only the module include directories needed by each target.
 
+QML panels and dialogs live in `src/ui/qml`. The application and UI test share
+`OPENLIVE_STUDIO_QML_FILES`; application resource aliases and the test resource
+base preserve `qrc:/OpenLiveStudio/Ui/qml/<name>.qml`. The QML module remains
+`OpenLiveStudio.Ui`.
+
 Run CMake from the repository root. The application target and CTest names,
 QML module URI, QML/icon resource URLs and CI configure commands are unchanged.
 When checking a path migration, also configure a new build directory so stale
@@ -41,6 +46,20 @@ passed, followed by complete CTest 3/3 in 30.88 seconds
 ImageLoader was moved to `src/sources` with both files unchanged and application
 and test references updated. The Debug build passed; complete CTest passed 3/3
 in 31.41 seconds (ui.mainwindow: 30.97 seconds).
+
+Finally, all nine QML files were moved to `src/ui/qml` without content changes.
+A fresh configure and build in `build/directory-layout-final-Debug` passed;
+complete CTest passed 3/3 in 30.13 seconds (ui.mainwindow: 29.66 seconds).
+Generated application/test resource manifests contain the same nine original
+QML URLs, and the generated qmldir retains `OpenLiveStudio.Ui` and its original
+relative QML paths. No new empty media-module directories or build libraries
+were introduced. Native desktop interaction and real GPU rendering remain
+unverified; these tests use offscreen software rendering.
+
+Manual acceptance for the completed migration: run the rebuilt application,
+check all four panels and the About dialog, add/rename/remove scenes and image
+entries, and exercise panel close/restore and reset. The central preview remains
+a placeholder. These actions should behave as before the path migration.
 
 ## Build and run
 

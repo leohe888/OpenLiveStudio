@@ -314,12 +314,15 @@ applicable; third_party is not a requirement to move the icon notices.
 
 ### Existing paths and incremental adoption
 
-The current entry point is src/app/main.cpp, MainWindow is in src/ui/widgets, QML files are
-in the top-level qml directory, StudioState is in src/scene, and ImageLoader is
-in src/sources. These locations remain valid until a scoped implementation or
-explicit migration updates their build, resource and test references together.
-ImageLoader now resides under sources; media is reserved for shared media types
-when needed. C1 should introduce only
+The current entry point is src/app/main.cpp, MainWindow is in src/ui/widgets,
+QML files are in src/ui/qml, StudioState is in src/scene, and ImageLoader is in
+src/sources. Application and test build references follow these paths. QML
+resource aliases preserve the existing qrc:/OpenLiveStudio/Ui/qml URLs and the
+OpenLiveStudio.Ui module URI. Application and test resources use the same QML
+file list. These moves preserve the contents of the C++ and QML files.
+
+Only populated directories have been migrated; media is reserved for shared
+media types when needed. C1 should introduce only
 the directories needed for its approved composition/preview subset. Capture,
 audio, output and configuration directories follow their scheduled features.
 

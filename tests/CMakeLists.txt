@@ -57,16 +57,8 @@ target_link_libraries(tst_mainwindow PRIVATE
 # Embed the same source at the application's resource URL.
 qt_add_resources(tst_mainwindow "test_ui"
     PREFIX "/OpenLiveStudio/Ui"
-    BASE "${PROJECT_SOURCE_DIR}"
-    FILES "${PROJECT_SOURCE_DIR}/qml/ScenesPanel.qml"
-          "${PROJECT_SOURCE_DIR}/qml/SourcesPanel.qml"
-          "${PROJECT_SOURCE_DIR}/qml/MixerPanel.qml"
-          "${PROJECT_SOURCE_DIR}/qml/ControlsPanel.qml"
-          "${PROJECT_SOURCE_DIR}/qml/AboutDialog.qml"
-          "${PROJECT_SOURCE_DIR}/qml/SceneNameDialog.qml"
-          "${PROJECT_SOURCE_DIR}/qml/SceneRemovalDialog.qml"
-          "${PROJECT_SOURCE_DIR}/qml/SourceAddDialog.qml"
-          "${PROJECT_SOURCE_DIR}/qml/SourceRemovalDialog.qml"
+    BASE "${PROJECT_SOURCE_DIR}/src/ui"
+    FILES ${OPENLIVE_STUDIO_QML_FILES}
 )
 
 qt_add_resources(tst_mainwindow "test_icons"
