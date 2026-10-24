@@ -50,6 +50,8 @@ private slots:
     void hasWindowShell();
     void themeRestoresAndUpdatesOuterWidgets();
     void dialogsShareThemeAndReleaseBeforeIt();
+    void basicDialogThemes_data();
+    void basicDialogThemes();
     void sceneAndSourceThemes_data();
     void sceneAndSourceThemes();
     void mixerAndControlThemes_data();
@@ -934,6 +936,113 @@ void MainWindowTest::mixerAndControlThemes()
     panel.setSource(url);
     QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
     QCOMPARE(panel.rootObject()->property("color").value<QColor>(), m_theme->color("background.panel"));
+}
+
+void MainWindowTest::basicDialogThemes_data()
+{
+    QTest::addColumn<QString>("dialogName");
+    QTest::addColumn<QString>("themeId");
+    for (const auto &theme : {QString("dark"), QString("light")})
+        for (const auto &name : {QString("AboutDialog"), QString("SceneNameDialog"), QString("SceneRemovalDialog")})
+            QTest::newRow(qPrintable(name + "-" + theme)) << name << theme;
+}
+
+void MainWindowTest::basicDialogThemes()
+{
+    QFETCH(QString, dialogName);
+    QFETCH(QString, themeId);
+    QVERIFY(m_theme->setTheme(themeId));
+    MainWindow window(*m_theme);
+    window.show();
+    auto *state = window.findChild<StudioState *>();
+    QVERIFY(state);
+    QVariantMap properties;
+    if (dialogName == "AboutDialog") {
+        properties = {{"productName", "OpenLive Studio"}, {"versionText", "Development"}, {"qtVersion", qVersion()}};
+    } else {
+        properties = {{"state", QVariant::fromValue(state)}, {"sceneId", state->currentSceneId()}};
+        properties.insert(dialogName == "SceneNameDialog" ? "initialName" : "sceneName", "Theme sample");
+    }
+    const QUrl url(QString("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(dialogName));
+    for (int opening = 0; opening < 2; ++opening) {
+        window.showDialog(url, dialogName, properties);
+        QPointer<QDialog> dialog = window.findChild<QDialog *>("qmlDialog");
+        QVERIFY(dialog);
+        auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
+        QVERIFY(view);
+        QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+        QPointer<QQuickItem> root = view->rootObject();
+        QVERIFY(root);
+        if (QGuiApplication::platformName() != "offscreen") {
+            dialog->raise();
+            dialog->activateWindow();
+            QTRY_VERIFY(dialog->isActiveWindow());
+        }
+        auto *input = root->findChild<QQuickItem *>("sceneNameInput");
+        if (input) {
+            input->setProperty("text", "Unsaved name");
+            QVERIFY(QMetaObject::invokeMethod(input, "selectAll"));
+            input->forceActiveFocus();
+        }
+        if (dialogName != "AboutDialog") root->setProperty("errorText", "Validation sample");
+        for (const auto &id : {themeId, themeId == "dark" ? QString("light") : QString("dark")}) {
+            QVERIFY(m_theme->setTheme(id));
+            QCOMPARE(view->rootObject(), root.data());
+            QTRY_COMPARE(root->property("color").value<QColor>(), m_theme->color("background.panel"));
+            if (input) {
+                QCOMPARE(input->property("text").toString(), "Unsaved name");
+                QCOMPARE(input->property("selectedText").toString(), "Unsaved name");
+                QVERIFY(input->hasActiveFocus());
+                QCOMPARE(input->property("selectionColor").value<QColor>(), m_theme->color("background.selected"));
+                QCOMPARE(input->property("selectedTextColor").value<QColor>(), m_theme->color("text.primary"));
+                auto *background = input->property("background").value<QQuickItem *>();
+                QVERIFY(background);
+                QCOMPARE(background->property("color").value<QColor>(), m_theme->color("background.input"));
+                QCOMPARE(QQmlProperty::read(background, "border.color").value<QColor>(), m_theme->color("border.focus"));
+            }
+            for (auto *item : root->findChildren<QQuickItem *>()) {
+                if (!item->isVisible() || !item->property("text").isValid() || !item->property("color").isValid()) continue;
+                const auto name = item->objectName();
+                const auto token = name.endsWith("Error") ? "status.error"
+                    : (name == "aboutVersion" || name == "aboutQtVersion" ? "text.secondary" : "text.primary");
+                QCOMPARE(item->property("color").value<QColor>(), m_theme->color(token));
+                if (name.endsWith("Error")) QCOMPARE(item->property("text").toString(), "Validation sample");
+            }
+        }
+        auto *button = root->findChild<QQuickItem *>(dialogName == "AboutDialog" ? "closeAboutButton"
+            : (dialogName == "SceneNameDialog" ? "cancelSceneNameButton" : "cancelSceneRemovalButton"));
+        QVERIFY(button);
+        auto *background = button->property("background").value<QQuickItem *>();
+        QVERIFY(background);
+        button->forceActiveFocus();
+        QTRY_VERIFY(button->hasActiveFocus());
+        QCOMPARE(QQmlProperty::read(background, "border.color").value<QColor>(), m_theme->color("border.focus"));
+        if (input) {
+            auto *inputBackground = input->property("background").value<QQuickItem *>();
+            QCOMPARE(QQmlProperty::read(inputBackground, "border.color").value<QColor>(), m_theme->color("border.default"));
+        }
+        const QPoint position = button->mapToScene(button->boundingRect().center()).toPoint();
+        const auto moveMouse = [view](const QPoint &point) {
+            QMouseEvent event(QEvent::MouseMove, point, view->mapToGlobal(point), Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+            QCoreApplication::sendEvent(view, &event);
+        };
+        moveMouse(QPoint(2, 2));
+        QTRY_COMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.normal"));
+        moveMouse(position);
+        QTRY_COMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.hovered"));
+        QTest::mousePress(view, Qt::LeftButton, Qt::NoModifier, position);
+        QTRY_COMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.pressed"));
+        QTest::mouseRelease(view, Qt::LeftButton, Qt::NoModifier, QPoint(2, 2));
+        button->setEnabled(false);
+        QTRY_COMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.disabled"));
+        QCOMPARE(QQmlProperty::read(button, "palette.buttonText").value<QColor>(), m_theme->color("text.disabled"));
+        button->setEnabled(true);
+        QVERIFY(!view->grabFramebuffer().isNull());
+        QVERIFY(view->grabFramebuffer().save(QString("theme-3d1-%1-%2.png").arg(dialogName, m_theme->themeId())));
+        QTest::keyClick(dialog, Qt::Key_Escape);
+        QTRY_VERIFY(dialog.isNull());
+        QVERIFY(root.isNull());
+    }
 }
 
 void MainWindowTest::dialogsShareThemeAndReleaseBeforeIt()

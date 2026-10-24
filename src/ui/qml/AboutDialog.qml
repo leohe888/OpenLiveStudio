@@ -4,10 +4,11 @@ import QtQuick.Layouts
 
 Rectangle {
     id: root
+    readonly property var themeColors: uiTheme.colors
     objectName: "aboutDialogContent"
     implicitWidth: 420
     implicitHeight: 240
-    color: "#1d1d1d"
+    color: root.themeColors.background.panel
     required property string productName
     required property string versionText
     required property string qtVersion
@@ -25,7 +26,7 @@ Rectangle {
             textFormat: Text.PlainText
             wrapMode: Text.WordWrap
             font.pixelSize: 22
-            color: "#d6d6d6"
+            color: root.themeColors.text.primary
         }
         Label {
             objectName: "aboutVersion"
@@ -33,13 +34,13 @@ Rectangle {
             text: qsTr("版本：%1").arg(root.versionText)
             textFormat: Text.PlainText
             wrapMode: Text.WordWrap
-            color: "#b9b9b9"
+            color: root.themeColors.text.secondary
         }
         Label {
             objectName: "aboutQtVersion"
             Layout.fillWidth: true
             text: "Qt " + root.qtVersion
-            color: "#b9b9b9"
+            color: root.themeColors.text.secondary
         }
         Item { Layout.fillHeight: true }
         Button {
@@ -48,12 +49,15 @@ Rectangle {
             implicitWidth: 88
             implicitHeight: 32
             text: qsTr("关闭")
-            palette.buttonText: "#d6d6d6"
+            hoverEnabled: true
+            palette.buttonText: enabled ? root.themeColors.text.primary : root.themeColors.text.disabled
             Accessible.name: text
             onClicked: root.closeRequested()
             background: Rectangle {
-                color: parent.down ? "#383838" : (parent.hovered ? "#333333" : "#2b2b2b")
-                border.color: parent.activeFocus ? "#6b8db5" : "#3a3a3a"
+                color: !parent.enabled ? root.themeColors.button.background.disabled
+                    : (parent.down ? root.themeColors.button.background.pressed
+                        : (parent.hovered ? root.themeColors.button.background.hovered : root.themeColors.button.background.normal))
+                border.color: parent.enabled && parent.activeFocus ? root.themeColors.border.focus : root.themeColors.border.default
                 radius: 2
             }
         }

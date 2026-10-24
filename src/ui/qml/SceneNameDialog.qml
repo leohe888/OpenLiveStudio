@@ -4,10 +4,11 @@ import QtQuick.Layouts
 
 Rectangle {
     id: root
+    readonly property var themeColors: uiTheme.colors
     objectName: "sceneNameDialogContent"
     implicitWidth: 420
     implicitHeight: 200
-    color: "#1d1d1d"
+    color: root.themeColors.background.panel
     required property var state
     required property string initialName
     property string sceneId: ""
@@ -34,11 +35,14 @@ Rectangle {
     component ActionButton: Button {
         implicitWidth: 88
         implicitHeight: 32
-        palette.buttonText: "#d6d6d6"
+        hoverEnabled: true
+        palette.buttonText: enabled ? root.themeColors.text.primary : root.themeColors.text.disabled
         Accessible.name: text
         background: Rectangle {
-            color: parent.down ? "#383838" : (parent.hovered ? "#333333" : "#2b2b2b")
-            border.color: parent.activeFocus ? "#6b8db5" : "#3a3a3a"
+            color: !parent.enabled ? root.themeColors.button.background.disabled
+                : (parent.down ? root.themeColors.button.background.pressed
+                    : (parent.hovered ? root.themeColors.button.background.hovered : root.themeColors.button.background.normal))
+            border.color: parent.enabled && parent.activeFocus ? root.themeColors.border.focus : root.themeColors.border.default
             radius: 2
         }
     }
@@ -49,16 +53,16 @@ Rectangle {
         spacing: 10
         Label {
             text: qsTr("场景名称")
-            color: "#d6d6d6"
+            color: root.themeColors.text.primary
         }
         TextField {
             id: nameInput
             objectName: "sceneNameInput"
             Layout.fillWidth: true
             text: root.initialName
-            color: "#d6d6d6"
-            selectedTextColor: "#ffffff"
-            selectionColor: "#31445b"
+            color: root.themeColors.text.primary
+            selectedTextColor: root.themeColors.text.primary
+            selectionColor: root.themeColors.background.selected
             Accessible.name: qsTr("场景名称")
             selectByMouse: true
             onTextEdited: root.errorText = ""
@@ -68,8 +72,8 @@ Rectangle {
                 selectAll()
             }
             background: Rectangle {
-                color: "#232323"
-                border.color: nameInput.activeFocus ? "#6b8db5" : "#3a3a3a"
+                color: root.themeColors.background.input
+                border.color: nameInput.activeFocus ? root.themeColors.border.focus : root.themeColors.border.default
                 radius: 2
             }
         }
@@ -79,7 +83,7 @@ Rectangle {
             text: root.errorText
             textFormat: Text.PlainText
             wrapMode: Text.WordWrap
-            color: "#ee9b9b"
+            color: root.themeColors.status.error
         }
         Item { Layout.fillHeight: true }
         RowLayout {
