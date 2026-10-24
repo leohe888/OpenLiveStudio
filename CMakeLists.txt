@@ -16,8 +16,8 @@ qt_add_executable(OpenLiveStudio
     mainwindow.h
     studiostate.cpp
     studiostate.h
-    imageloader.cpp
-    imageloader.h
+    src/media/imageloader.cpp
+    src/media/imageloader.h
 )
 
 qt_add_qml_module(OpenLiveStudio
@@ -53,6 +53,8 @@ qt_add_resources(OpenLiveStudio "icons"
     BASE "${PROJECT_SOURCE_DIR}"
     FILES ${OPENLIVE_STUDIO_ICON_FILES}
 )
+
+target_include_directories(OpenLiveStudio PRIVATE "${PROJECT_SOURCE_DIR}/src/media")
 
 target_link_libraries(OpenLiveStudio
     PRIVATE
