@@ -2,7 +2,7 @@
 
 > 以 [UI 原型](openlive-studio-prototype.html) 为布局和交互参考，对应 [项目方案](openlive-studio-plan.md)。
 > 只描述目标、改动边界和验收结果；具体技术设计在执行相应步骤时说明。
-> 概念、数据流与模块职责见 [架构说明](openlive-studio-architecture.md)，具体类与接口随对应步骤确认。
+> 概念、数据流与模块职责见 [架构说明](openlive-studio-architecture.md)，具体类与接口随对应步骤确认。渲染方向已确定为独立离屏 OpenGL 合成与 QOpenGLWidget 预览，按功能逐步接入。
 
 ## 1. 协作规则与当前起点
 
@@ -51,6 +51,8 @@ B1 至 B5 已完成并提交：来源增删、逐项层级调整、显隐与锁�
 阶段验收：用本地图像建立两套独立的场景内容，直接切换时来源列表与选择正确，各场景的条目及状态互不影响；管理真实文件引用。实际布局显示、摆放与编辑留到阶段 C，跨场景来源复用不作为本阶段验收条件。
 
 ## 4. 阶段 C：合成画布与编辑
+
+遵循 [OpenGL 合成与预览架构](openlive-studio-architecture.md#opengl-composition-and-preview-architecture)：C++ 场景状态向独立合成线程提供快照，`QOffscreenSurface + QOpenGLContext` 产生干净画面，`QOpenGLWidget` 通过共享纹理与同步显示结果并处理画布交互；编辑标记仅进入预览。QML 面板继续通过 C++ 状态交互，与预览统一 OpenGL 图形后端。C1 方案需明确本步依赖、上下文与纹理生命周期、线程交接和真实图形验证范围；如需拆分则先明确子步骤，不提前实现 D 至 H 的媒体功能。离屏软件 UI 测试不能替代真实 OpenGL 合成、共享纹理、窗口缩放与资源清理验证；最小化后持续输出随 G、H 验证。
 
 | 步骤 | 本步目标 | 可审核的交付与验收 |
 | --- | --- | --- |

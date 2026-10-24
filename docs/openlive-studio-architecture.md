@@ -70,15 +70,97 @@ start/stop state, errors, elapsed time and statistics. Stopping one must not sto
 the other. Preview visibility, dock visibility and window minimization must not
 control the lifetime of active media processing.
 
+## OpenGL composition and preview architecture
+
+The agreed rendering direction is an independent offscreen OpenGL compositor
+with a QOpenGLWidget preview. This is a future implementation decision; the
+current preview is still a placeholder. It preserves the Widgets shell and QML
+panels without moving media processing into the UI render loop.
+
+```mermaid
+flowchart TB
+    Q["QML panels / dialogs"] -->|Operations| S["C++ scene state / StudioState"]
+    P["QOpenGLWidget preview / editing overlays"] -->|Editing operations| S
+    S -->|Notifications| Q
+    S -->|Scene snapshots| C["Offscreen OpenGL composition thread"]
+    V["Image / text / camera / display frames"] --> C
+    C --> T["Clean composition textures"]
+    T -->|Shared textures and GPU synchronization| P
+    T --> R["Readback / pixel format conversion"]
+    R --> O["Recording / streaming output sessions"]
+    A["Audio capture / mixing"] --> O
+```
+
+### UI and scene state
+
+Widgets own the main window and dock containers. QML owns panel/dialog
+presentation and form interaction. QOpenGLWidget owns preview display, editing
+overlays and canvas input. It maps mouse coordinates to output-canvas coordinates
+and invokes C++ editing operations; it does not keep a second authoritative scene.
+Selection outlines and handles are drawn only over the preview.
+
+StudioState and Qt models remain on the GUI thread. Rendering receives snapshots
+of the required scene data, including source identity, layer, visibility,
+placement and filter parameters as those features are introduced. The worker
+must not read or mutate live GUI models. Media resources, rendering resources
+and output sessions remain owned by their respective modules.
+
+### Offscreen processing and shared preview
+
+A dedicated processing thread uses QOpenGLContext with QOffscreenSurface to
+upload/update source textures, apply per-source filters and compose sources by
+placement, size, alpha and layer into output-canvas textures. Qt surface creation
+and destruction follow GUI-thread requirements; the processing context is used
+only on its owning thread. Context format, sharing and startup/cleanup order
+must be specified when this integration is implemented.
+
+The preview uses its own sharing context to display completed composition
+textures in paintGL(). Texture sharing does not provide synchronization by
+itself: buffered result textures, GPU completion synchronization and consumer
+ownership must prevent reading an unfinished frame or reusing a texture while
+preview/output still consumes it. A slow or hidden preview may skip frames
+without blocking media output. Exact buffer counts and handoff APIs are decided
+and tested with implementation.
+
+Composition scheduling and lifetime are independent of paintGL(), window
+visibility and UI animation. While outputs are active, minimizing the window or
+hiding the preview must not stop composition. The initial output route reads back
+clean composition frames and converts their pixel format for encoding; sharing
+textures avoids preview readback but does not imply zero-copy encoding.
+
+QQuickWidget panels and QOpenGLWidget in the same top-level window must use a
+compatible OpenGL graphics backend. Configure the Qt Quick backend before
+creating the first QQuickWidget. Software-rendered UI tests alone do not verify
+this integration. See Qt's [graphics API restrictions](https://doc.qt.io/qt-6/qquickwidget.html#graphics-api-support)
+and [OpenGL widget threading guidance](https://doc.qt.io/qt-6/qopenglwidget.html#threading).
+
+### Audio, outputs and incremental delivery
+
+Audio capture and mixing run independently of preview rendering. Recording and
+streaming consume the same clean composition and mix using a common timing
+basis, with independent session state, elapsed time and errors. Whether encoders
+can be shared is decided with output implementation; one blocked output must
+not indefinitely hold shared buffers or stall the healthy output.
+
+This direction does not require C1 to implement capture, filters, mixing or
+encoding in advance. Each implementation proposal defines its files, Qt
+dependencies, resource ownership and cleanup, and the subset being delivered.
+Graphics acceptance must cover offscreen composition, shared-texture display,
+resize/recreation and safe shutdown on a real graphics backend. Continued media
+processing while minimized and output isolation are verified when those outputs
+exist. Until verified, these remain design requirements rather than completed
+capabilities.
+
 ## Responsibility boundaries
 
 | Area | Owns |
 | --- | --- |
 | Widgets / MainWindow | Window and dock containers, menus, layout, native window operations and the shared dialog entry |
 | QML | Presentation, interaction and temporary form input; confirmed business state comes from C++ |
+| QOpenGLWidget preview | Display completed composition textures, map canvas input to C++ operations, and draw preview-only editing overlays |
 | Scene editing / StudioState | Scene content, source references, current scene and source selection, editing rules and list updates |
 | Source implementations | Loading or capture, source configuration, media resources, availability and failures |
-| Composition and audio processing | Rendering resources, frame processing, mixing and processing buffers |
+| Composition and audio processing | Offscreen OpenGL resources and scheduling, frame processing, synchronized result buffers, mixing and audio buffers |
 | Outputs | Recording and streaming sessions, encoding/output resources, errors, timing and statistics |
 | Application coordination | Operations that span scene data, sources and outputs; object assembly and lifetime coordination as needed |
 | Configuration storage | Reading and writing the data required to restore user configuration |
