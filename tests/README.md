@@ -6,7 +6,7 @@ are not installed with the application.
 
 ## Source layout
 
-Application C++ files live under `src/`: `main.cpp` is the entry point,
+Application C++ files live under `src/`: `app/main.cpp` is the entry point,
 `ui/` contains MainWindow, `scene/` contains StudioState, and `media/` contains
 ImageLoader. Headers stay beside their implementations. Test cases remain in
 this directory; `tests/CMakeLists.txt` lists the production sources and adds
@@ -24,6 +24,14 @@ CTest (3/3). After moving the entry point, a fresh configure and build in
 37.46 seconds (ui.mainwindow: 37.14 seconds). All seven moved C++ files retain
 their original contents. UI verification used offscreen software rendering;
 this path-only change has not been verified on a native desktop or real GPU.
+
+### Target directory migration (2026-10-24)
+
+The entry point was moved to `src/app/main.cpp` without content changes. A fresh
+Qt 6.12.0 / MSVC 2022 x64 Ninja Debug configure and build in
+`build/directory-layout-Debug` passed. Complete CTest passed 3/3 in 36.01 seconds
+(ui.mainwindow: 34.42 seconds). UI checks use offscreen software rendering;
+native desktop and real GPU behavior were not verified by this path migration.
 
 ## Build and run
 
