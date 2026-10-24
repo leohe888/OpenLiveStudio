@@ -22,6 +22,8 @@
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPointer>
+#include <QProxyStyle>
+#include <QStyleFactory>
 #include <QQmlComponent>
 #include <QQmlContext>
 #include <QQmlExpression>
@@ -49,6 +51,7 @@ private slots:
     void init();
     void canShowAndClose();
     void hasWindowShell();
+    void dockTitlesStayVerticallyCentered();
     void themeRestoresAndUpdatesOuterWidgets();
     void themeMenuSwitchesAndRestoresPreference();
     void themeMenuRecoversFromSaveFailure();
@@ -628,6 +631,49 @@ void MainWindowTest::hasWindowShell()
     QVERIFY(!window.findChild<PreviewWidget *>());
     QVERIFY(!window.findChild<CompositionSession *>());
     QVERIFY(!window.findChild<SceneSnapshotBuilder *>());
+}
+
+void MainWindowTest::dockTitlesStayVerticallyCentered()
+{
+    // Observe the alignment passed to Qt's text renderer, without depending on
+    // font glyph pixels or title-bar dimensions at a particular DPI.
+    class TitleStyle final : public QProxyStyle {
+    public:
+        explicit TitleStyle(QStyle *base) : QProxyStyle(base) {}
+        QStringList titles;
+        mutable QMap<QString, int> alignments;
+        void drawItemText(QPainter *painter, const QRect &rect, int flags,
+                          const QPalette &palette, bool enabled, const QString &text,
+                          QPalette::ColorRole role = QPalette::NoRole) const override
+        {
+            if (titles.contains(text)) alignments.insert(text, flags);
+            QProxyStyle::drawItemText(painter, rect, flags, palette, enabled, text, role);
+        }
+    };
+    auto *base = QStyleFactory::create(QApplication::style()->objectName());
+    QVERIFY(base);
+    TitleStyle style(base);
+    MainWindow window(*m_theme);
+    window.show();
+    const auto docks = window.findChildren<QDockWidget *>();
+    QCOMPARE(docks.size(), 4);
+    for (auto *dock : docks) {
+        QVERIFY(!dock->titleBarWidget());
+        style.titles.append(dock->windowTitle());
+        dock->setStyle(&style);
+    }
+    for (const auto *theme : {"dark", "light"}) {
+        QVERIFY(m_theme->setTheme(theme));
+        style.alignments.clear();
+        for (auto *dock : docks) {
+            QVERIFY(!dock->grab().isNull());
+            QVERIFY(style.alignments.contains(dock->windowTitle()));
+            const int flags = style.alignments.value(dock->windowTitle());
+            QCOMPARE(flags & int(Qt::AlignVertical_Mask), int(Qt::AlignVCenter));
+            QCOMPARE(flags & int(Qt::AlignHorizontal_Mask), int(Qt::AlignLeft));
+            QVERIFY(!dock->titleBarWidget());
+        }
+    }
 }
 
 void MainWindowTest::themeMenuSwitchesAndRestoresPreference()

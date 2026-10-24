@@ -156,7 +156,7 @@ void MainWindow::applyTheme()
         "QMenu::item:disabled { color: %7; }"
         "QMenu::separator { background-color: %4; height: 1px; }"
         "QDockWidget { color: %2; }"
-        "QDockWidget::title { background-color: %1; }"
+        "QDockWidget::title { background-color: %1; text-align: left center; }"
         "QMainWindow::separator { background-color: %4; }"
         "QMainWindow::separator:hover { background-color: %8; }"
         "QStatusBar::item { border: none; }"
