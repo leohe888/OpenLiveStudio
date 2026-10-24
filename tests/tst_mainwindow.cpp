@@ -10,6 +10,7 @@
 #include <QApplication>
 
 #include <QAction>
+#include <QActionGroup>
 #include <QAbstractButton>
 #include <QDockWidget>
 #include <QDialog>
@@ -49,6 +50,8 @@ private slots:
     void canShowAndClose();
     void hasWindowShell();
     void themeRestoresAndUpdatesOuterWidgets();
+    void themeMenuSwitchesAndRestoresPreference();
+    void themeMenuRecoversFromSaveFailure();
     void dialogsShareThemeAndReleaseBeforeIt();
     void basicDialogThemes_data();
     void basicDialogThemes();
@@ -616,7 +619,7 @@ void MainWindowTest::hasWindowShell()
     QVERIFY(window.centralWidget());
     QVERIFY(window.centralWidget()->isVisible());
     QVERIFY(window.menuBar()->isVisible());
-    QCOMPARE(window.menuBar()->actions().size(), 2);
+    QCOMPARE(window.menuBar()->actions().size(), 3);
     QVERIFY(window.findChildren<QToolBar *>().isEmpty());
     QVERIFY(window.statusBar()->isVisible());
     auto *unavailable = window.findChild<QLabel *>(QStringLiteral("previewUnavailable"));
@@ -625,6 +628,89 @@ void MainWindowTest::hasWindowShell()
     QVERIFY(!window.findChild<PreviewWidget *>());
     QVERIFY(!window.findChild<CompositionSession *>());
     QVERIFY(!window.findChild<SceneSnapshotBuilder *>());
+}
+
+void MainWindowTest::themeMenuSwitchesAndRestoresPreference()
+{
+    QVERIFY(m_theme->setTheme("light"));
+    ThemeManager restored(m_theme->settingsFile());
+    MainWindow window(restored);
+    window.show();
+    auto *menu = window.findChild<QMenu *>("themeMenu");
+    auto *dark = window.findChild<QAction *>("darkThemeAction");
+    auto *light = window.findChild<QAction *>("lightThemeAction");
+    QVERIFY(menu && dark && light);
+    QCOMPARE(window.menuBar()->actions()[1]->menu(), menu);
+    QCOMPARE(window.menuBar()->actions()[0]->menu(), window.findChild<QMenu *>("viewMenu"));
+    QCOMPARE(menu->actions(), QList<QAction *>({dark, light}));
+    QVERIFY(dark->isCheckable() && light->isCheckable());
+    QVERIFY(dark->actionGroup() && dark->actionGroup() == light->actionGroup());
+    QVERIFY(dark->actionGroup()->isExclusive());
+    QVERIFY(light->isChecked() && !dark->isChecked());
+    auto *viewMenu = window.findChild<QMenu *>("viewMenu");
+    QVERIFY(!viewMenu->actions().contains(dark) && !viewMenu->actions().contains(light));
+    const auto panels = window.findChildren<QQuickWidget *>();
+    QList<QPointer<QQuickItem>> roots;
+    for (auto *panel : panels) {
+        QTRY_COMPARE(panel->status(), QQuickWidget::Ready);
+        roots.append(panel->rootObject());
+    }
+    QSignalSpy changed(&restored, &ThemeManager::themeChanged);
+    for (auto *action : {dark, dark, light}) {
+        action->trigger();
+        QCOMPARE(restored.themeId(), action->data().toString());
+        QVERIFY(action->isChecked());
+        QVERIFY(dark->isChecked() != light->isChecked());
+        ThemeManager saved(restored.settingsFile());
+        QCOMPARE(saved.themeId(), restored.themeId());
+        for (int i = 0; i < panels.size(); ++i) {
+            QCOMPARE(panels[i]->rootObject(), roots[i].data());
+            QTRY_COMPARE(roots[i]->property("color").value<QColor>(), restored.color("background.panel"));
+        }
+    }
+    QCOMPARE(changed.size(), 2); // Re-selecting the active theme keeps it selected.
+    QVERIFY(restored.setTheme("dark"));
+    QVERIFY(dark->isChecked() && !light->isChecked());
+    ThemeManager restarted(restored.settingsFile());
+    MainWindow reopened(restarted);
+    QVERIFY(reopened.findChild<QAction *>("darkThemeAction")->isChecked());
+    QVERIFY(!reopened.findChild<QAction *>("lightThemeAction")->isChecked());
+}
+
+void MainWindowTest::themeMenuRecoversFromSaveFailure()
+{
+    const auto blocker = m_settings->filePath("blocker");
+    {
+        QFile file(blocker);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        QCOMPARE(file.write("keep"), qint64(4));
+    }
+    ThemeManager theme(blocker + "/settings.ini");
+    MainWindow window(theme);
+    window.show();
+    auto *dark = window.findChild<QAction *>("darkThemeAction");
+    auto *light = window.findChild<QAction *>("lightThemeAction");
+    QVERIFY(dark && light);
+    const auto colors = theme.colors();
+    const auto palette = window.palette();
+    QSignalSpy changed(&theme, &ThemeManager::themeChanged);
+    light->trigger();
+    QVERIFY(!theme.lastError().isEmpty());
+    QVERIFY(window.statusBar()->currentMessage().contains(theme.lastError()));
+    QCOMPARE(theme.themeId(), "dark");
+    QCOMPARE(theme.colors(), colors);
+    QCOMPARE(window.palette(), palette);
+    QVERIFY(dark->isChecked() && !light->isChecked());
+    QCOMPARE(changed.size(), 0);
+    QVERIFY(QFile::remove(blocker));
+    light->trigger();
+    QCOMPARE(theme.themeId(), "light");
+    QVERIFY(light->isChecked() && !dark->isChecked());
+    QVERIFY(theme.lastError().isEmpty());
+    QVERIFY(window.statusBar()->currentMessage().isEmpty());
+    QCOMPARE(changed.size(), 1);
+    ThemeManager restored(theme.settingsFile());
+    QCOMPARE(restored.themeId(), "light");
 }
 
 void MainWindowTest::themeRestoresAndUpdatesOuterWidgets()
@@ -2932,7 +3018,11 @@ private slots:
         }
         QPointer<QOpenGLContext> context = view->context();
         for (const auto &id : {"light", "dark"}) {
-            QVERIFY(m_theme->setTheme(id));
+            auto *action = window.findChild<QAction *>(QLatin1String(id) + QStringLiteral("ThemeAction"));
+            QVERIFY(action);
+            action->trigger();
+            QCOMPARE(m_theme->themeId(), QString::fromLatin1(id));
+            QVERIFY(action->isChecked());
             QTRY_COMPARE(window.palette().color(QPalette::Window), m_theme->color("background.window"));
             QTRY_COMPARE(centerPixel(view), QColor(Qt::black));
             QCOMPARE(view->context(), context.data());
@@ -2943,7 +3033,14 @@ private slots:
             }
             QTest::qWait(100);
             QVERIFY(window.grab().save(QCoreApplication::applicationDirPath()
-                + QStringLiteral("/theme-3c-%1.png").arg(id)));
+                + QStringLiteral("/theme-menu-%1.png").arg(id)));
+            auto *menu = window.findChild<QMenu *>("themeMenu");
+            QVERIFY(menu);
+            menu->popup(window.menuBar()->mapToGlobal(window.menuBar()->actionGeometry(menu->menuAction()).bottomLeft()));
+            QTRY_VERIFY(menu->isVisible());
+            QVERIFY(menu->grab().save(QCoreApplication::applicationDirPath()
+                + QStringLiteral("/theme-menu-popup-%1.png").arg(id)));
+            menu->hide();
         }
     }
 

@@ -6,6 +6,7 @@
 #include "thememanager.h"
 
 #include <QAction>
+#include <QActionGroup>
 #include <QAbstractButton>
 #include <QApplication>
 #include <QCoreApplication>
@@ -107,6 +108,7 @@ MainWindow::MainWindow(ThemeManager &theme, QWidget *parent)
     setupMixerDock();
     setupControlsDock();
     setupViewActions();
+    setupThemeActions();
     setupHelpActions();
     resetDockLayout();
     updateStatusLayout();
@@ -321,7 +323,37 @@ void MainWindow::setupMenuBar()
     m_viewMenu = menuBar()->addMenu(tr("视图"));
     m_viewMenu->setObjectName(QStringLiteral("viewMenu"));
 
+    m_themeMenu = menuBar()->addMenu(tr("主题"));
+    m_themeMenu->setObjectName(QStringLiteral("themeMenu"));
+
     m_helpMenu = menuBar()->addMenu(tr("帮助"));
+}
+
+void MainWindow::setupThemeActions()
+{
+    auto *group = new QActionGroup(m_themeMenu);
+    group->setExclusive(true);
+    for (const auto *id : {"dark", "light"}) {
+        auto *action = m_themeMenu->addAction(QLatin1String(id) == QLatin1String("dark") ? tr("深色") : tr("浅色"));
+        action->setObjectName(QLatin1String(id) + QStringLiteral("ThemeAction"));
+        action->setData(QString::fromLatin1(id));
+        action->setCheckable(true);
+        group->addAction(action);
+    }
+    const auto syncSelection = [this, group] {
+        for (auto *action : group->actions())
+            action->setChecked(action->data().toString() == m_theme.themeId());
+    };
+    syncSelection();
+    connect(&m_theme, &ThemeManager::themeChanged, group, syncSelection);
+    connect(group, &QActionGroup::triggered, this, [this, syncSelection](QAction *action) {
+        if (m_theme.setTheme(action->data().toString()))
+            statusBar()->clearMessage();
+        else
+            statusBar()->showMessage(tr("无法切换主题：%1").arg(m_theme.lastError()));
+        // QAction checks itself before triggered(); failed saves emit no themeChanged.
+        syncSelection();
+    });
 }
 
 void MainWindow::setupViewActions()

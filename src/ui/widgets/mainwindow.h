@@ -44,6 +44,7 @@ private:
     void setupMixerDock();
     void setupControlsDock();
     void setupViewActions();
+    void setupThemeActions();
     void setupHelpActions();
     void resetDockLayout();
     void updateStatusLayout();
@@ -51,6 +52,7 @@ private:
     QLabel *m_outputStatus = nullptr;
     QLabel *m_outputMetrics = nullptr;
     QMenu *m_viewMenu = nullptr;
+    QMenu *m_themeMenu = nullptr;
     QMenu *m_helpMenu = nullptr;
     StudioState *m_studioState = nullptr;
     ThemeManager &m_theme;
