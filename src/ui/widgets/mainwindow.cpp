@@ -399,37 +399,6 @@ void MainWindow::setupThemeActions()
     });
 }
 
-void MainWindow::resetDockLayout()
-{
-    const QList<QDockWidget *> docks{m_scenesDock, m_sourcesDock,
-                                     m_mixerDock, m_controlsDock};
-
-    const bool wasUpdating = updatesEnabled();
-    setUpdatesEnabled(false);
-    // Remove old splits and tab groups while preserving each dock and QML root.
-    for (auto *dock : docks) {
-        Q_ASSERT(dock);
-        dock->setFloating(false);
-        removeDockWidget(dock);
-    }
-    setCorner(Qt::BottomLeftCorner, Qt::LeftDockWidgetArea);
-    setCorner(Qt::BottomRightCorner, Qt::BottomDockWidgetArea);
-    addDockWidget(Qt::LeftDockWidgetArea, m_scenesDock);
-    addDockWidget(Qt::LeftDockWidgetArea, m_sourcesDock);
-    splitDockWidget(m_scenesDock, m_sourcesDock, Qt::Vertical);
-    addDockWidget(Qt::BottomDockWidgetArea, m_mixerDock);
-    addDockWidget(Qt::BottomDockWidgetArea, m_controlsDock);
-    splitDockWidget(m_mixerDock, m_controlsDock, Qt::Horizontal);
-    for (auto *dock : docks)
-        dock->show();
-    resizeDocks({m_scenesDock}, {238}, Qt::Horizontal);
-    resizeDocks({m_scenesDock, m_sourcesDock}, {220, 440}, Qt::Vertical);
-    resizeDocks({m_mixerDock, m_controlsDock},
-                {qMax(200, width() - 238 - 286 - 12), 286}, Qt::Horizontal);
-    resizeDocks({m_mixerDock}, {198}, Qt::Vertical);
-    setUpdatesEnabled(wasUpdating);
-}
-
 void MainWindow::setupPreview()
 {
     auto *container = new QWidget(this);
@@ -740,6 +709,38 @@ void MainWindow::setupControlsDock()
 
     m_controlsDock->setWidget(pages);
     view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ControlsPanel.qml")));
+}
+
+void MainWindow::resetDockLayout()
+{
+    const QList<QDockWidget *> docks{m_scenesDock, m_sourcesDock,
+                                     m_mixerDock, m_controlsDock};
+
+    const bool wasUpdating = updatesEnabled();
+    setUpdatesEnabled(false);
+    // Remove old splits and tab groups while preserving each dock and QML root.
+    for (auto *dock : docks) {
+        Q_ASSERT(dock);
+        dock->setFloating(false);
+        removeDockWidget(dock);
+    }
+    setCorner(Qt::BottomLeftCorner, Qt::LeftDockWidgetArea);
+    setCorner(Qt::BottomRightCorner, Qt::BottomDockWidgetArea);
+    addDockWidget(Qt::LeftDockWidgetArea, m_scenesDock);
+    addDockWidget(Qt::LeftDockWidgetArea, m_sourcesDock);
+    splitDockWidget(m_scenesDock, m_sourcesDock, Qt::Vertical);
+    addDockWidget(Qt::BottomDockWidgetArea, m_mixerDock);
+    addDockWidget(Qt::BottomDockWidgetArea, m_controlsDock);
+    splitDockWidget(m_mixerDock, m_controlsDock, Qt::Horizontal);
+    for (auto *dock : docks)
+        dock->show();
+    resizeDocks({m_scenesDock}, {238}, Qt::Horizontal);
+    // Equal weights: Qt distributes the available height evenly between the two docks.
+    resizeDocks({m_scenesDock, m_sourcesDock}, {1, 1}, Qt::Vertical);
+    resizeDocks({m_mixerDock, m_controlsDock},
+                {qMax(200, width() - 238 - 286 - 12), 286}, Qt::Horizontal);
+    resizeDocks({m_mixerDock}, {198}, Qt::Vertical);
+    setUpdatesEnabled(wasUpdating);
 }
 
 void MainWindow::resizeEvent(QResizeEvent *event)

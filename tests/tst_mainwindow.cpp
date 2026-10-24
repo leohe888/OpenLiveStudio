@@ -2580,6 +2580,7 @@ void MainWindowTest::embedsSourcePanelBelowSceneDock()
         QVERIFY(view->isVisible());
         QVERIFY(scenesDock->isVisible());
         QTRY_VERIFY(scenesDock->geometry().bottom() < dock->geometry().top());
+        QTRY_VERIFY(qAbs(scenesDock->height() - dock->height()) <= 1);
         QVERIFY(!dock->geometry().intersects(window.centralWidget()->geometry()));
         QTRY_COMPARE(view->rootObject()->size(), QSizeF(view->size()));
         auto *actions = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("sourceActions"));
@@ -2838,6 +2839,7 @@ void MainWindowTest::resetLayoutRestoresDocksWithoutReload()
             QCOMPARE(views[i]->status(), QQuickWidget::Ready);
         }
         QTRY_VERIFY(docks[0]->geometry().bottom() < docks[1]->geometry().top());
+        QTRY_VERIFY(qAbs(docks[0]->height() - docks[1]->height()) <= 1);
         QTRY_VERIFY(docks[2]->geometry().right() < docks[3]->geometry().left());
         for (int i = 2; i < docks.size(); ++i) {
             QVERIFY(docks[i]->geometry().top() > window.centralWidget()->geometry().bottom());
