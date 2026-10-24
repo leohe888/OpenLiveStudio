@@ -35,7 +35,6 @@ MainWindow::MainWindow(QWidget *parent)
     setupScenesDock();
     setupSourcesDock();
     setupMixerDock();
-    setupTransitionsDock();
     setupControlsDock();
     setupDockViewActions();
     resetDockLayout();
@@ -211,7 +210,7 @@ void MainWindow::setupMenusAndToolBar()
 void MainWindow::setupDockViewActions()
 {
     for (const auto *name : {"scenesDock", "sourcesDock", "mixerDock",
-                             "transitionsDock", "controlsDock"}) {
+                             "controlsDock"}) {
         auto *dock = findChild<QDockWidget *>(QLatin1String(name));
         Q_ASSERT(dock);
         // The dock owns this action and keeps its checked state in sync.
@@ -230,9 +229,8 @@ void MainWindow::resetDockLayout()
     auto *scenes = findChild<QDockWidget *>(QStringLiteral("scenesDock"));
     auto *sources = findChild<QDockWidget *>(QStringLiteral("sourcesDock"));
     auto *mixer = findChild<QDockWidget *>(QStringLiteral("mixerDock"));
-    auto *transitions = findChild<QDockWidget *>(QStringLiteral("transitionsDock"));
     auto *controls = findChild<QDockWidget *>(QStringLiteral("controlsDock"));
-    const QList<QDockWidget *> docks{scenes, sources, mixer, transitions, controls};
+    const QList<QDockWidget *> docks{scenes, sources, mixer, controls};
 
     const bool wasUpdating = updatesEnabled();
     setUpdatesEnabled(false);
@@ -248,16 +246,14 @@ void MainWindow::resetDockLayout()
     addDockWidget(Qt::LeftDockWidgetArea, sources);
     splitDockWidget(scenes, sources, Qt::Vertical);
     addDockWidget(Qt::BottomDockWidgetArea, mixer);
-    addDockWidget(Qt::BottomDockWidgetArea, transitions);
-    splitDockWidget(mixer, transitions, Qt::Horizontal);
     addDockWidget(Qt::BottomDockWidgetArea, controls);
-    splitDockWidget(transitions, controls, Qt::Horizontal);
+    splitDockWidget(mixer, controls, Qt::Horizontal);
     for (auto *dock : docks)
         dock->show();
     resizeDocks({scenes}, {238}, Qt::Horizontal);
     resizeDocks({scenes, sources}, {220, 440}, Qt::Vertical);
-    resizeDocks({mixer, transitions, controls},
-                {qMax(200, width() - 238 - 224 - 286 - 12), 224, 286}, Qt::Horizontal);
+    resizeDocks({mixer, controls},
+                {qMax(200, width() - 238 - 286 - 12), 286}, Qt::Horizontal);
     resizeDocks({mixer}, {198}, Qt::Vertical);
     setUpdatesEnabled(wasUpdating);
 }
@@ -444,54 +440,6 @@ void MainWindow::setupMixerDock()
 
     dock->setWidget(pages);
     view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/MixerPanel.qml")));
-}
-
-void MainWindow::setupTransitionsDock()
-{
-    auto *dock = new QDockWidget(tr("场景转场"), this);
-    dock->setObjectName(QStringLiteral("transitionsDock"));
-    dock->setMinimumWidth(200);
-
-    auto *pages = new QStackedWidget(dock);
-    auto *view = new QQuickWidget(pages);
-    view->setObjectName(QStringLiteral("transitionsQuickWidget"));
-    view->setResizeMode(QQuickWidget::SizeRootObjectToView);
-    view->setMinimumHeight(124);
-    view->setClearColor(QColor(QStringLiteral("#1d1d1d")));
-    pages->addWidget(view);
-
-    auto *errorLabel = new QLabel(tr("场景转场面板加载失败，请查看日志。"), pages);
-    errorLabel->setObjectName(QStringLiteral("transitionsLoadError"));
-    errorLabel->setAlignment(Qt::AlignCenter);
-    errorLabel->setWordWrap(true);
-    pages->addWidget(errorLabel);
-
-    const auto showError = [this, pages, errorLabel](const QString &details) {
-        qWarning().noquote() << tr("场景转场面板加载失败：") << details;
-        errorLabel->setToolTip(details);
-        pages->setCurrentWidget(errorLabel);
-        statusBar()->showMessage(tr("场景转场面板加载失败，请查看日志。"));
-    };
-    connect(view, &QQuickWidget::statusChanged, this,
-            [this, view, pages, errorLabel, showError](QQuickWidget::Status status) {
-        if (status == QQuickWidget::Error) {
-            QStringList errors;
-            for (const auto &error : view->errors())
-                errors.append(error.toString());
-            showError(errors.join('\n'));
-        } else if (status == QQuickWidget::Ready) {
-            if (pages->currentWidget() == errorLabel)
-                statusBar()->showMessage(tr("场景转场面板已加载"), 3000);
-            pages->setCurrentWidget(view);
-        }
-    });
-    connect(view, &QQuickWidget::sceneGraphError, this,
-            [showError](QQuickWindow::SceneGraphError, const QString &message) {
-        showError(message);
-    });
-
-    dock->setWidget(pages);
-    view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/TransitionsPanel.qml")));
 }
 
 void MainWindow::setupControlsDock()

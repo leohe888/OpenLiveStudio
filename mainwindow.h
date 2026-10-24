@@ -37,7 +37,6 @@ private:
     void setupScenesDock();
     void setupSourcesDock();
     void setupMixerDock();
-    void setupTransitionsDock();
     void setupControlsDock();
     void setupDockViewActions();
     void resetDockLayout();

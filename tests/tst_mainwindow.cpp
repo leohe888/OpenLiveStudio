@@ -73,7 +73,7 @@ private slots:
     void embedsScenePanelInLeftDock();
     void embedsSourcePanelBelowSceneDock();
     void embedsMixerPanelBelowPreview();
-    void embedsTransitionsPanelBesideMixerDock();
+    void hasNoTransitionsDock();
     void embedsControlsPanelAtBottomRight();
     void panelDockCanFloatRedockAndClose_data();
     void panelDockCanFloatRedockAndClose();
@@ -1979,43 +1979,17 @@ void MainWindowTest::embedsMixerPanelBelowPreview()
     }
 }
 
-void MainWindowTest::embedsTransitionsPanelBesideMixerDock()
+void MainWindowTest::hasNoTransitionsDock()
 {
     MainWindow window;
     window.show();
-    auto *mixerDock = window.findChild<QDockWidget *>(QStringLiteral("mixerDock"));
-    auto *dock = window.findChild<QDockWidget *>(QStringLiteral("transitionsDock"));
-    auto *view = window.findChild<QQuickWidget *>(QStringLiteral("transitionsQuickWidget"));
-    auto *errorLabel = window.findChild<QLabel *>(QStringLiteral("transitionsLoadError"));
-    QVERIFY(mixerDock);
-    QVERIFY(dock);
-    QVERIFY(view);
-    QVERIFY(errorLabel);
-    QCOMPARE(window.dockWidgetArea(dock), Qt::BottomDockWidgetArea);
-    QVERIFY(dock->isAncestorOf(view));
-    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-    QVERIFY(view->rootObject());
-    QCOMPARE(view->rootObject()->objectName(), QStringLiteral("transitionsPanel"));
-
-    for (const auto &size : {QSize(1280, 800), window.minimumSize(), QSize(1280, 800)}) {
-        window.resize(size);
-        QTRY_VERIFY(dock->isVisible());
-        QVERIFY(view->isVisible());
-        QVERIFY(mixerDock->isVisible());
-        QVERIFY(!errorLabel->isVisible());
-        QTRY_VERIFY(mixerDock->geometry().right() < dock->geometry().left());
-        QCOMPARE(mixerDock->geometry().top(), dock->geometry().top());
-        QVERIFY(dock->geometry().top() > window.centralWidget()->geometry().bottom());
-        QVERIFY(window.rect().contains(dock->geometry()));
-        QTRY_COMPARE(view->rootObject()->size(), QSizeF(view->size()));
-        for (const auto *name : {"transitionEffect", "transitionDuration", "executeTransitionButton"}) {
-            auto *control = view->rootObject()->findChild<QQuickItem *>(QLatin1String(name));
-            QVERIFY(control);
-            QVERIFY(!control->isEnabled());
-            QVERIFY(view->rootObject()->boundingRect().contains(
-                control->mapRectToScene(control->boundingRect())));
-        }
-    }
+    QCOMPARE(window.findChildren<QDockWidget *>().size(), 4);
+    QVERIFY(!window.findChild<QDockWidget *>(QStringLiteral("transitionsDock")));
+    QVERIFY(!window.findChild<QQuickWidget *>(QStringLiteral("transitionsQuickWidget")));
+    QVERIFY(!window.findChild<QAction *>(QStringLiteral("transitionsDockViewAction")));
+    auto *viewMenu = window.findChild<QMenu *>(QStringLiteral("viewMenu"));
+    QVERIFY(viewMenu);
+    QCOMPARE(viewMenu->actions().size(), 6); // Four docks, separator and reset.
 }
 
 void MainWindowTest::embedsControlsPanelAtBottomRight()
@@ -2072,8 +2046,6 @@ void MainWindowTest::panelDockCanFloatRedockAndClose_data()
         << Qt::LeftDockWidgetArea << QStringLiteral("SourcesPanel");
     QTest::newRow("mixer") << QStringLiteral("mixer")
         << Qt::BottomDockWidgetArea << QStringLiteral("MixerPanel");
-    QTest::newRow("transitions") << QStringLiteral("transitions")
-        << Qt::BottomDockWidgetArea << QStringLiteral("TransitionsPanel");
     QTest::newRow("controls") << QStringLiteral("controls")
         << Qt::BottomDockWidgetArea << QStringLiteral("ControlsPanel");
 }
@@ -2143,7 +2115,7 @@ void MainWindowTest::viewMenuCanRestoreAllHiddenDocks()
     auto *viewMenu = window.findChild<QMenu *>(QStringLiteral("viewMenu"));
     QVERIFY(viewMenu);
     const auto docks = window.findChildren<QDockWidget *>();
-    QCOMPARE(docks.size(), 5);
+    QCOMPARE(docks.size(), 4);
     for (auto *dock : docks) {
         QVERIFY(dock->close());
         QTRY_VERIFY(!dock->isVisible());
@@ -2180,8 +2152,8 @@ void MainWindowTest::resetLayoutRestoresDocksWithoutReload()
     QList<QQuickWidget *> views;
     QList<QPointer<QQuickItem>> roots;
     const QList<Qt::DockWidgetArea> areas{Qt::LeftDockWidgetArea, Qt::LeftDockWidgetArea,
-        Qt::BottomDockWidgetArea, Qt::BottomDockWidgetArea, Qt::BottomDockWidgetArea};
-    for (const auto *id : {"scenes", "sources", "mixer", "transitions", "controls"}) {
+        Qt::BottomDockWidgetArea, Qt::BottomDockWidgetArea};
+    for (const auto *id : {"scenes", "sources", "mixer", "controls"}) {
         auto *dock = window.findChild<QDockWidget *>(QLatin1String(id) + QStringLiteral("Dock"));
         auto *view = window.findChild<QQuickWidget *>(QLatin1String(id) + QStringLiteral("QuickWidget"));
         QVERIFY(dock);
@@ -2201,8 +2173,7 @@ void MainWindowTest::resetLayoutRestoresDocksWithoutReload()
             docks[3]->setFloating(true);
             docks[3]->move(-10000, -10000);
             docks[0]->close();
-            docks[4]->setFloating(true);
-            docks[4]->close();
+            docks[3]->close();
         } else if (pass == 1) {
             for (auto *dock : docks) {
                 dock->setFloating(true);
@@ -2211,8 +2182,8 @@ void MainWindowTest::resetLayoutRestoresDocksWithoutReload()
         }
         resetAction->trigger();
         QTRY_COMPARE(window.size(), windowSize);
-        QCOMPARE(window.findChildren<QDockWidget *>().size(), 5);
-        QCOMPARE(window.findChildren<QQuickWidget *>().size(), 5);
+        QCOMPARE(window.findChildren<QDockWidget *>().size(), 4);
+        QCOMPARE(window.findChildren<QQuickWidget *>().size(), 4);
         for (int i = 0; i < docks.size(); ++i) {
             QVERIFY(!docks[i]->isFloating());
             QTRY_VERIFY(docks[i]->isVisible());
@@ -2225,8 +2196,7 @@ void MainWindowTest::resetLayoutRestoresDocksWithoutReload()
         }
         QTRY_VERIFY(docks[0]->geometry().bottom() < docks[1]->geometry().top());
         QTRY_VERIFY(docks[2]->geometry().right() < docks[3]->geometry().left());
-        QTRY_VERIFY(docks[3]->geometry().right() < docks[4]->geometry().left());
-        for (int i = 2; i < 5; ++i) {
+        for (int i = 2; i < docks.size(); ++i) {
             QVERIFY(docks[i]->geometry().top() > window.centralWidget()->geometry().bottom());
             QCOMPARE(docks[i]->geometry().top(), docks[2]->geometry().top());
             QCOMPARE(docks[i]->geometry().bottom(), docks[1]->geometry().bottom());
