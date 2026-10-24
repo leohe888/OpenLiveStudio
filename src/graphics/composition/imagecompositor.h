@@ -9,39 +9,56 @@
 
 class QOffscreenSurface;
 class QOpenGLContext;
-class QOpenGLFramebufferObject;
 
-// No GUI models or file access: callers supply an immutable pixel snapshot.
-// All methods and destruction must run on the thread that calls initialize().
+// Input pixels are immutable snapshots, independent of GUI models or files.
+// initialize/render/texture/readback/release/destruction belong to the producer
+// thread. Only acquireFrame/returnFrame may run on a consumer thread.
 class ImageCompositor
 {
 public:
     struct Layer { QImage image; bool visible = true; };
+    struct Frame {
+        unsigned int texture = 0;
+        QSize size;
+        quint64 token = 0;
+    };
+    static constexpr int BufferCount = 3;
 
     ImageCompositor();
     ~ImageCompositor();
     ImageCompositor(const ImageCompositor &) = delete;
     ImageCompositor &operator=(const ImageCompositor &) = delete;
 
-    // The caller creates/destroys the surface on the GUI thread and keeps it
-    // alive until release(). The context is created on the calling thread.
-    bool initialize(QOffscreenSurface *surface, QString *error = nullptr);
-    // Topmost layer first; each image fits the canvas, centered without cropping.
-    // A failed render invalidates texture(). Null hidden images are allowed.
+    // Surface creation/destruction belongs to the GUI thread. It and the optional
+    // sharing context must outlive this session. Sharing requires GL sync support.
+    bool initialize(QOffscreenSurface *surface, QString *error = nullptr,
+                    QOpenGLContext *shareContext = nullptr);
+    // Topmost first, fit/center without cropping. False with an empty error means
+    // all buffers are in use: skip production, without waiting or allocating more.
+    // Invalid input invalidates texture()/readback(), not already acquired frames.
     bool render(const QList<Layer> &layers, const QSize &canvas = QSize(1920, 1080),
                 QString *error = nullptr);
-    // Borrowed GL name, valid until next render/release; no cross-context sync yet.
+    // Producer diagnostics only; borrowed until next render/release.
     unsigned int texture() const;
-    // Diagnostic/test readback only. Production preview must use shared textures.
     QImage readback(QString *error = nullptr);
-    void release();
+
+    // A compatible sharing context must be CURRENT on this thread. Acquires the
+    // latest unconsumed frame and queues a GPU wait (never a CPU completion wait).
+    // Bind the texture in the consumer AFTER acquiring it. Zero token with empty
+    // error means no new frame. One consumer per frame.
+    Frame acquireFrame(QString *error = nullptr);
+    // Call after all reads have been submitted, with the SAME consumer context
+    // current. Inserts and flushes a completion fence; no further use of this token.
+    // Copies of Frame do not extend ownership; stale/double returns are rejected.
+    bool returnFrame(const Frame &frame, QString *error = nullptr);
+    // Stop consumption and return every acquired frame first. Outstanding leases
+    // cause a recoverable failure; destruction with outstanding leases is an error.
+    bool release(QString *error = nullptr);
 
 private:
     bool makeCurrent(QString *error);
-    QOffscreenSurface *m_surface = nullptr;
-    std::unique_ptr<QOpenGLContext> m_context;
-    std::unique_ptr<QOpenGLFramebufferObject> m_framebuffer;
-    bool m_hasFrame = false;
+    class Private;
+    std::unique_ptr<Private> d;
 };
 
 #endif // IMAGECOMPOSITOR_H

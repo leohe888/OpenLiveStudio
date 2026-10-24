@@ -4,6 +4,9 @@
 #include <QOffscreenSurface>
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
+#include <QOpenGLExtraFunctions>
+#include <QOpenGLFramebufferObject>
+#include <QSemaphore>
 #include <QThread>
 #include <QtTest>
 
@@ -22,6 +25,61 @@ bool near(const QColor &actual, const QColor &expected)
         && qAbs(actual.blue() - expected.blue()) <= 2
         && actual.alpha() == expected.alpha();
 }
+
+// Read the shared texture through a CONSUMER-LOCAL FBO. FBO names are not shared.
+// Optional return occurs immediately after the GPU read command is submitted,
+// before CPU readback, so its fence covers queued texture consumption.
+QImage consume(const ImageCompositor::Frame &frame, ImageCompositor *returnTo = nullptr)
+{
+    if (!frame.token) return {};
+    auto *gl = QOpenGLContext::currentContext()->extraFunctions();
+    QOpenGLFramebufferObject output(frame.size);
+    GLuint input = 0;
+    gl->glGenFramebuffers(1, &input);
+    gl->glBindFramebuffer(GL_READ_FRAMEBUFFER, input);
+    gl->glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                               GL_TEXTURE_2D, frame.texture, 0);
+    const bool complete = gl->glCheckFramebufferStatus(GL_READ_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+    if (complete) {
+        gl->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, output.handle());
+        gl->glBlitFramebuffer(0, 0, frame.size.width(), frame.size.height(),
+                              0, 0, frame.size.width(), frame.size.height(), GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
+    gl->glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    gl->glDeleteFramebuffers(1, &input);
+    if (returnTo && !returnTo->returnFrame(frame)) return {};
+    return complete ? output.toImage() : QImage();
+}
+
+// Cleanup still returns all leases when a Qt assertion exits a test early.
+struct SharedSession {
+    QOpenGLContext consumer;
+    ImageCompositor compositor;
+    QOffscreenSurface *surface = nullptr;
+    QList<ImageCompositor::Frame> leases;
+
+    bool initialize(QOffscreenSurface *value, QString *error)
+    {
+        surface = value;
+        consumer.setFormat(surface->format());
+        return consumer.create() && compositor.initialize(surface, error, &consumer);
+    }
+    ImageCompositor::Frame acquire(QString *error = nullptr)
+    {
+        if (!consumer.makeCurrent(surface)) return {};
+        const auto frame = compositor.acquireFrame(error);
+        if (frame.token) leases.append(frame);
+        return frame;
+    }
+    ~SharedSession()
+    {
+        if (surface && consumer.makeCurrent(surface)) {
+            for (const auto &frame : leases) compositor.returnFrame(frame);
+            consumer.doneCurrent();
+        }
+        compositor.release();
+    }
+};
 }
 
 class ImageCompositorTest : public QObject
@@ -36,6 +94,10 @@ private slots:
     void failuresAndRecovery();
     void resizeAndRepeatedRelease();
     void workerThread();
+    void sharedPixelsAndLatestFrame();
+    void boundedBuffersAndResize();
+    void invalidConsumersAndTokens();
+    void sharedAcrossThreads();
 
 private:
     QOffscreenSurface m_surface;
@@ -196,6 +258,185 @@ void ImageCompositorTest::workerThread()
     QVERIFY2(error.isEmpty(), qPrintable(error));
     QVERIFY(!frame.isNull());
     QCOMPARE(frame.pixelColor(16, 16), QColor(Qt::blue));
+}
+
+void ImageCompositorTest::sharedPixelsAndLatestFrame()
+{
+    SharedSession session;
+    QString error;
+    QVERIFY2(session.initialize(&m_surface, &error), qPrintable(error));
+    const auto red = solid(QSize(40, 20), Qt::red);
+    QImage overlay = solid(QSize(40, 20), Qt::transparent);
+    overlay.setPixelColor(20, 2, QColor(0, 0, 255, 128));
+    overlay.setPixelColor(20, 17, Qt::green);
+    // Supersede many unconsumed frames without growing an output queue.
+    for (int i = 0; i < 20; ++i)
+        QVERIFY(session.compositor.render({{solid(QSize(4, 4), Qt::blue)}}, QSize(8, 8)));
+    QVERIFY(session.compositor.render({{overlay}, {red}}, QSize(40, 40)));
+    const auto frame = session.acquire(&error);
+    QVERIFY2(frame.token, qPrintable(error));
+    QCOMPARE(frame.size, QSize(40, 40));
+    const QImage pixels = consume(frame, &session.compositor);
+    QVERIFY(!pixels.isNull());
+    QCOMPARE(pixels.pixelColor(20, 5), QColor(Qt::black));
+    QCOMPARE(pixels.pixelColor(5, 15), QColor(Qt::red));
+    QVERIFY(near(pixels.pixelColor(20, 12), QColor(127, 0, 128)));
+    QCOMPARE(pixels.pixelColor(20, 27), QColor(Qt::green));
+    QCOMPARE(session.compositor.acquireFrame(&error).token, quint64(0));
+    QVERIFY(error.isEmpty());
+}
+
+void ImageCompositorTest::boundedBuffersAndResize()
+{
+    SharedSession session;
+    QString error;
+    QVERIFY2(session.initialize(&m_surface, &error), qPrintable(error));
+    QList<ImageCompositor::Frame> held;
+    const QList<QColor> colors{Qt::red, Qt::green, Qt::blue};
+    QSet<unsigned int> textures;
+    for (int i = 0; i < ImageCompositor::BufferCount; ++i) {
+        const QSize size(32 + i * 8, 24 + i * 8);
+        QVERIFY(session.compositor.render({{solid(size, colors[i])}}, size));
+        const auto frame = session.acquire(&error);
+        QVERIFY2(frame.token, qPrintable(error));
+        held.append(frame);
+        textures.insert(frame.texture);
+    }
+    QCOMPARE(textures.size(), ImageCompositor::BufferCount);
+    for (int i = 0; i < 20; ++i) {
+        error = "previous error";
+        QVERIFY(!session.compositor.render({}, QSize(200, 100), &error));
+        QVERIFY(error.isEmpty()); // Backpressure is a skip, not an error.
+    }
+    QVERIFY(!session.compositor.release(&error));
+    QVERIFY(!error.isEmpty());
+    QVERIFY(session.consumer.makeCurrent(&m_surface));
+    for (int i = 0; i < held.size(); ++i) {
+        const QImage pixels = consume(held[i]);
+        QCOMPARE(pixels.size(), held[i].size);
+        QCOMPARE(pixels.pixelColor(5, 5), colors[i]);
+    }
+    QVERIFY(session.compositor.returnFrame(held[0], &error));
+    // Completion polling is nonblocking; retry until the real fence signals.
+    bool rendered = false;
+    QTRY_VERIFY((rendered = session.compositor.render(
+        {{solid(QSize(200, 100), Qt::yellow)}}, QSize(200, 100), &error)) || !error.isEmpty());
+    QVERIFY2(rendered, qPrintable(error));
+    const auto resized = session.acquire(&error);
+    QVERIFY2(resized.token, qPrintable(error));
+    QCOMPARE(resized.size, QSize(200, 100));
+    textures.insert(resized.texture);
+    QCOMPARE(consume(resized, &session.compositor).pixelColor(5, 5), QColor(Qt::yellow));
+    // Resizing a returned slot must preserve the other two outstanding frames.
+    for (int i = 1; i < held.size(); ++i) {
+        const QImage pixels = consume(held[i], &session.compositor);
+        QCOMPARE(pixels.size(), held[i].size);
+        QCOMPARE(pixels.pixelColor(5, 5), colors[i]);
+    }
+    QVERIFY(session.compositor.release(&error));
+    QVERIFY(error.isEmpty());
+    QVERIFY(session.compositor.release());
+    QVERIFY(session.consumer.makeCurrent(&m_surface));
+    for (const auto texture : textures)
+        QVERIFY(!session.consumer.functions()->glIsTexture(texture));
+    session.consumer.doneCurrent();
+    // Restart may reuse GL names, but an old token must never become valid again.
+    QVERIFY(session.compositor.initialize(&m_surface, &error, &session.consumer));
+    QVERIFY(session.compositor.render({}, QSize(16, 16)));
+    const auto restarted = session.acquire();
+    QVERIFY(restarted.token != held[0].token);
+    QVERIFY(!session.compositor.returnFrame(held[0], &error));
+    QVERIFY(!error.isEmpty());
+}
+
+void ImageCompositorTest::invalidConsumersAndTokens()
+{
+    SharedSession session;
+    QString error;
+    QOpenGLContext invalid;
+    QVERIFY(!session.compositor.initialize(&m_surface, &error, &invalid));
+    QVERIFY(!error.isEmpty());
+    QVERIFY(session.initialize(&m_surface, &error));
+    QVERIFY(session.compositor.render({}, QSize(16, 16)));
+    QVERIFY(!QOpenGLContext::currentContext());
+    QCOMPARE(session.compositor.acquireFrame(&error).token, quint64(0));
+    QVERIFY(!error.isEmpty());
+    QOpenGLContext foreign;
+    foreign.setFormat(m_surface.format());
+    QVERIFY(foreign.create());
+    QVERIFY(foreign.makeCurrent(&m_surface));
+    QCOMPARE(session.compositor.acquireFrame(&error).token, quint64(0));
+    QVERIFY(!error.isEmpty());
+    foreign.doneCurrent();
+    const auto frame = session.acquire(&error);
+    QVERIFY2(frame.token, qPrintable(error));
+    auto changed = frame;
+    changed.texture = 0;
+    QVERIFY(!session.compositor.returnFrame(changed, &error));
+    QVERIFY(!error.isEmpty());
+    ImageCompositor another;
+    QVERIFY(another.initialize(&m_surface, &error, &session.consumer));
+    QVERIFY(another.render({}, QSize(16, 16)));
+    QVERIFY(session.consumer.makeCurrent(&m_surface));
+    QVERIFY(!another.returnFrame(frame, &error));
+    QVERIFY(!error.isEmpty());
+    QOpenGLContext sibling;
+    sibling.setFormat(m_surface.format());
+    sibling.setShareContext(&session.consumer);
+    QVERIFY(sibling.create());
+    QVERIFY(sibling.makeCurrent(&m_surface));
+    QVERIFY(!session.compositor.returnFrame(frame, &error));
+    QVERIFY(!error.isEmpty()); // Sharing alone does not own the lease.
+    QVERIFY(session.consumer.makeCurrent(&m_surface));
+    QVERIFY(session.compositor.returnFrame(frame, &error));
+    QVERIFY(!session.compositor.returnFrame(frame, &error));
+    QVERIFY(!error.isEmpty());
+}
+
+void ImageCompositorTest::sharedAcrossThreads()
+{
+    QOpenGLContext consumer;
+    consumer.setFormat(m_surface.format());
+    QVERIFY(consumer.create());
+    ImageCompositor compositor;
+    QSemaphore produced, resume;
+    QString workerError;
+    bool firstRendered = false, secondRendered = false, released = false;
+    auto *worker = QThread::create([&] {
+        firstRendered = compositor.initialize(&m_surface, &workerError, &consumer)
+            && compositor.render({{solid(QSize(32, 32), Qt::red)}}, QSize(32, 32), &workerError);
+        produced.release();
+        resume.acquire();
+        if (firstRendered)
+            secondRendered = compositor.render({{solid(QSize(48, 24), Qt::blue)}},
+                                                QSize(48, 24), &workerError);
+        produced.release();
+        resume.acquire();
+        released = compositor.release(&workerError);
+    });
+    worker->start();
+    // No assertions/early exits until both leases are returned and worker joined.
+    produced.acquire();
+    consumer.makeCurrent(&m_surface);
+    const auto first = compositor.acquireFrame();
+    consumer.doneCurrent();
+    resume.release();
+    produced.acquire();
+    consumer.makeCurrent(&m_surface);
+    const auto second = compositor.acquireFrame();
+    const QImage oldPixels = consume(first, &compositor);
+    const QImage newPixels = consume(second, &compositor);
+    consumer.doneCurrent();
+    resume.release();
+    worker->wait();
+    delete worker;
+    QVERIFY2(workerError.isEmpty(), qPrintable(workerError));
+    QVERIFY(firstRendered && secondRendered && released);
+    QVERIFY(first.texture != second.texture);
+    QVERIFY(!oldPixels.isNull() && !newPixels.isNull());
+    QCOMPARE(oldPixels.pixelColor(16, 16), QColor(Qt::red));
+    QCOMPARE(newPixels.size(), QSize(48, 24));
+    QCOMPARE(newPixels.pixelColor(24, 12), QColor(Qt::blue));
 }
 
 QTEST_MAIN(ImageCompositorTest)

@@ -380,6 +380,86 @@ Manual acceptance:
    restoration work, and layout reset restores the four panels. Check for
    script errors. Prototype media remain simulated.
 
+## Static image composition and shared frame handoff
+
+C1.1 added real offscreen OpenGL image composition. C1.2a adds optional context
+sharing and a fixed pool of three result buffers. This is a graphics-module
+capability: the application preview is still a placeholder. A production worker,
+scene-to-pixel snapshot assembly, QOpenGLWidget integration and unified Qt Quick
+OpenGL startup remain subsequent work.
+
+`ImageCompositor` takes immutable decoded image layers, topmost first. Images fit
+the canvas without cropping, preserve transparency and compose over black.
+Hidden layers are omitted. Initialization, rendering, diagnostic texture access
+and readback, release and destruction belong to the producer thread. The GUI
+thread creates/destroys the QOffscreenSurface. Keep the surface and sharing
+context alive until the compositor is released.
+
+With sharing enabled, `acquireFrame()` requires a compatible sharing context
+current on the consumer thread. It takes the latest unconsumed result and queues
+a GPU wait for the producer's flushed completion fence. Bind the shared texture
+after acquisition; FBO objects themselves are not shared. A frame has one owner;
+copying its descriptor does not extend ownership. After submitting all reads,
+call `returnFrame()` with the same consumer context current. It inserts and
+flushes a consumer completion fence. Do not use the descriptor again.
+
+The producer polls returned fences with zero timeout, never overwrites acquired
+buffers and replaces obsolete unconsumed results. Rendering returns false with
+an empty error when all three buffers remain occupied; this is normal
+backpressure, not an allocation failure. Acquisition returns a zero token with
+an empty error when there is no new result. Invalid operations return errors.
+CPU metadata is protected by a mutex, not an unbounded frame queue; drawing runs
+outside that mutex. These APIs do not wait for GPU completion on the CPU.
+
+Stop consumer activity and return every acquired frame before shutdown.
+`release()` refuses outstanding acquisitions so the caller can return them and
+retry. Once returned, it orders cleanup after consumer GPU work, releases GL
+resources on the producer thread and permits restart. Destroying a compositor
+before release can succeed is a fatal lifecycle error. Stale, foreign, modified
+or double-returned tokens and returns from a different consumer context are
+rejected.
+
+### Build and manual acceptance
+
+In a Qt/MSVC developer terminal, configure with
+`-DBUILD_TESTING=ON -DOPENLIVE_STUDIO_GL_TESTS=ON`, then build. The graphics test
+option defaults to OFF; when enabled, `graphics.imagecompositor` uses the native
+Windows platform, not the UI smoke test's offscreen software backend.
+
+```powershell
+cmake --build build/c1-image-compositor-Debug --parallel
+ctest --test-dir build/c1-image-compositor-Debug -R graphics.imagecompositor --output-on-failure
+ctest --test-dir build/c1-image-compositor-Debug --output-on-failure
+```
+
+For a detailed native test log, use the Qt kit's runtime environment and run
+`tst_imagecompositor.exe -o graphics-results.txt,txt` from the build directory.
+The log includes GL vendor, renderer and version. A missing OpenGL context is
+a test failure, not a silently skipped graphics check.
+
+Review the buffer ownership and fence ordering in `imagecompositor.cpp`, then
+run the tests above. Controlled pixels verify orientation, aspect ratio, alpha,
+layering and hidden layers. Shared-context checks read textures through local
+consumer FBOs; ownership checks hold all three frames while production attempts
+are skipped, then return one and resize its replacement without changing the
+other two. Tests also cover latest-result selection, pending GPU reads before
+return, cross-thread sharing, invalid contexts/tokens, shutdown refusal,
+deletion of output texture names and restart. Readback is a diagnostic test
+operation, not the future production preview path.
+
+On 2026-10-24, C1.2a passed a Qt 6.12.0 / MSVC 2022 x64 Ninja Debug build.
+The native graphics executable passed 13 cases (including initialization and
+cleanup), with zero failures or skips, on NVIDIA GeForce RTX 4060 Ti,
+OpenGL 4.6.0, driver 566.14. Complete CTest passed 4/4 in 28.98 seconds
+(ui.mainwindow: 26.77 seconds).
+Detailed local logs are `build/c1-image-compositor-Debug/c12a-graphics.txt`
+and `build/c1-image-compositor-Debug/c12a-results.xml`.
+This verifies the module on that graphics backend. Other drivers,
+unsupported-sync hardware and forced context loss remain
+unverified. Window display/resize/context recreation, production scheduling,
+minimized continuous media output and device/media output are not established
+by these tests.
+
 ## Adding tests with features
 
 - Add tests for meaningful behavior as each feature is implemented, rather than
