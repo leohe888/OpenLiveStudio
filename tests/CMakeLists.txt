@@ -17,12 +17,16 @@ set_tests_properties(core.imageloader PROPERTIES LABELS "core;smoke" TIMEOUT 10)
 
 qt_add_executable(tst_studiostate
     tst_studiostate.cpp
-    ../studiostate.cpp
-    ../studiostate.h
+    ../src/scene/studiostate.cpp
+    ../src/scene/studiostate.h
     ../src/media/imageloader.cpp
     ../src/media/imageloader.h
 )
-target_include_directories(tst_studiostate PRIVATE "${PROJECT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/src/media")
+target_include_directories(tst_studiostate PRIVATE
+    "${PROJECT_SOURCE_DIR}"
+    "${PROJECT_SOURCE_DIR}/src/media"
+    "${PROJECT_SOURCE_DIR}/src/scene"
+)
 target_link_libraries(tst_studiostate PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
 add_test(NAME core.studiostate
     COMMAND "${CMAKE_COMMAND}" -E env
@@ -36,13 +40,17 @@ qt_add_executable(tst_mainwindow
     tst_mainwindow.cpp
     ../mainwindow.cpp
     ../mainwindow.h
-    ../studiostate.cpp
-    ../studiostate.h
+    ../src/scene/studiostate.cpp
+    ../src/scene/studiostate.h
     ../src/media/imageloader.cpp
     ../src/media/imageloader.h
 )
 
-target_include_directories(tst_mainwindow PRIVATE "${PROJECT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/src/media")
+target_include_directories(tst_mainwindow PRIVATE
+    "${PROJECT_SOURCE_DIR}"
+    "${PROJECT_SOURCE_DIR}/src/media"
+    "${PROJECT_SOURCE_DIR}/src/scene"
+)
 target_link_libraries(tst_mainwindow PRIVATE
     Qt6::Widgets Qt6::Test Qt6::QuickWidgets Qt6::QuickControls2 Qt6::Svg
 )
