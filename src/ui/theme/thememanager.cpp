@@ -105,8 +105,7 @@ bool ThemeManager::loadTheme(const QString &id, QVariantMap *colors, QString *er
         || object.size() != 3 || object.value("schemaVersion").toDouble(-1) != 1
         || object.value("id").toString() != id || !object.value("colors").isObject()
         || !decodeColors(object.value("colors").toObject(), {}, &decoded, &paths)
-        || paths != required
-        || decoded.value("preview").toMap().value("canvas").value<QColor>() != QColor(Qt::black)) {
+        || paths != required) {
         *error = tr("内置主题格式或颜色定义无效：%1").arg(id);
         return false;
     }

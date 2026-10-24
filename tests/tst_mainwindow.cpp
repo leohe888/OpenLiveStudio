@@ -3010,6 +3010,7 @@ private slots:
         QVERIFY(view);
         QTRY_VERIFY(view->displayedFrameToken() != 0);
         QTRY_COMPARE(centerPixel(view), QColor(Qt::black));
+        QCOMPARE(view->canvasColor(), m_theme->color("preview.canvas"));
         QCOMPARE(view->surroundingColor(), m_theme->color("preview.surrounding"));
         const auto panels = window.findChildren<QQuickWidget *>();
         QList<QPointer<QQuickItem>> roots;
@@ -3028,7 +3029,8 @@ private slots:
             QCOMPARE(view->surroundingColor(), m_theme->color("preview.surrounding"));
             QVERIFY(!view->canvasRect().contains(QPointF(1, 1)));
             QTRY_COMPARE(view->grabFramebuffer().pixelColor(1, 1), m_theme->color("preview.surrounding"));
-            QTRY_COMPARE(centerPixel(view), QColor(Qt::black));
+            QCOMPARE(view->canvasColor(), m_theme->color("preview.canvas"));
+            QTRY_COMPARE(centerPixel(view), m_theme->color("preview.canvas"));
             QCOMPARE(view->context(), context.data());
             for (int i = 0; i < panels.size(); ++i) {
                 QCOMPARE(panels[i]->rootObject(), roots[i].data());
@@ -3045,6 +3047,59 @@ private slots:
             QVERIFY(menu->grab().save(QCoreApplication::applicationDirPath()
                 + QStringLiteral("/theme-menu-popup-%1.png").arg(id)));
             menu->hide();
+        }
+    }
+
+    void canvasThemeBlendsTransparentSource()
+    {
+        QVERIFY(m_theme->setTheme("light"));
+        m_theme = std::make_unique<ThemeManager>(m_theme->settingsFile());
+        QCOMPARE(m_theme->themeId(), "light");
+        QTemporaryDir images;
+        QVERIFY(images.isValid());
+        QImage image(64, 36, QImage::Format_ARGB32);
+        image.fill(QColor(0, 0, 255, 128));
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < 16; ++x) image.setPixelColor(x, y, Qt::transparent);
+            for (int x = 48; x < 64; ++x) image.setPixelColor(x, y, Qt::black);
+        }
+        const auto path = images.filePath("alpha.png");
+        QVERIFY(image.save(path));
+        MainWindow window(*m_theme);
+        auto *state = window.findChild<StudioState *>();
+        auto *view = window.findChild<PreviewWidget *>();
+        QVERIFY(state && view);
+        QCOMPARE(view->canvasColor(), QColor("#F8FAFC"));
+        QVERIFY(!state->addImageSource(state->currentSceneId(), "Alpha sample", path).isEmpty());
+        window.show();
+        window.hide();
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        const auto pixel = [view](qreal x) {
+            const auto frame = view->grabFramebuffer();
+            if (frame.isNull()) return QColor();
+            const auto rect = view->canvasRect();
+            const qreal scale = qreal(frame.width()) / view->width();
+            return frame.pixelColor(qFloor((rect.left() + rect.width() * x) * scale),
+                                    qFloor(rect.center().y() * scale));
+        };
+        QTRY_VERIFY(view->displayedFrameToken() != 0);
+        QTRY_COMPARE(pixel(.875), QColor(Qt::black));
+        auto *context = view->context();
+        const auto token = view->displayedFrameToken();
+        for (const auto *id : {"dark", "light", "dark"}) {
+            auto *action = window.findChild<QAction *>(QLatin1String(id) + QStringLiteral("ThemeAction"));
+            QVERIFY(action);
+            action->trigger();
+            QCOMPARE(m_theme->themeId(), QString::fromLatin1(id));
+            QTRY_COMPARE(pixel(.125), m_theme->color("preview.canvas"));
+            QTRY_COMPARE(pixel(.875), QColor(Qt::black));
+            const QColor expected = m_theme->themeId() == "light" ? QColor(124, 125, 254) : QColor(0, 0, 128);
+            QTRY_VERIFY(qAbs(centerPixel(view).red() - expected.red()) <= 2
+                && qAbs(centerPixel(view).green() - expected.green()) <= 2
+                && qAbs(centerPixel(view).blue() - expected.blue()) <= 2);
+            QCOMPARE(view->displayedFrameToken(), token);
+            QCOMPARE(view->context(), context);
         }
     }
 
