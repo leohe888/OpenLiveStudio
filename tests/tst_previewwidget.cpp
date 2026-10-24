@@ -90,6 +90,7 @@ class PreviewWidgetTest : public QObject
 private slots:
     void initTestCase();
     void sharedPixelsAndCanvasFit();
+    void paletteChangesKeepCanvasAndFrame();
     void repaintReplacementAndDetach();
     void reparentRecreatesContext();
     void repeatedCreationAndDestruction();
@@ -116,12 +117,15 @@ void PreviewWidgetTest::initTestCase()
 void PreviewWidgetTest::sharedPixelsAndCanvasFit()
 {
     Fixture fixture;
+    auto palette = fixture.window.palette();
+    palette.setColor(QPalette::Window, QColor("#181A1D"));
+    fixture.window.setPalette(palette);
     fixture.window.show();
     QTRY_VERIFY(fixture.session.isRunning());
     const QImage empty = fixture.view->grabFramebuffer();
     QVERIFY(!empty.isNull());
     QCOMPARE(sample(fixture.view, empty, .5, .5), QColor(Qt::black));
-    QCOMPARE(empty.pixelColor(1, 1), QColor(29, 29, 29));
+    QCOMPARE(empty.pixelColor(1, 1), fixture.view->palette().color(QPalette::Window));
     QVERIFY(qAbs(fixture.view->canvasRect().width() / fixture.view->canvasRect().height() - 16. / 9) < .001);
 
     QImage base = solid(Qt::red), overlay = solid(Qt::transparent);
@@ -154,6 +158,53 @@ void PreviewWidgetTest::sharedPixelsAndCanvasFit()
     QVERIFY(rect.right() <= fixture.view->width() && rect.bottom() <= fixture.view->height());
     QVERIFY(qAbs(rect.width() / rect.height() - 2) < .001);
     QVERIFY(resized.save(artifact("portrait", fixture.view)));
+    QVERIFY(fixture.errors.isEmpty());
+}
+
+void PreviewWidgetTest::paletteChangesKeepCanvasAndFrame()
+{
+    Fixture fixture;
+    fixture.window.show();
+    QTRY_VERIFY(fixture.session.isRunning());
+    QPointer<QOpenGLContext> context = fixture.view->context();
+    QSignalSpy painted(fixture.view, &QOpenGLWidget::frameSwapped);
+    for (const auto &size : {QSize(640, 240), QSize(240, 420)}) {
+        fixture.window.resize(size);
+        QTRY_COMPARE(fixture.view->size(), size);
+        for (const auto &colors : {qMakePair(QColor("#181A1D"), QColor("#181A1D")),
+                                   qMakePair(QColor("#E9EDF2"), QColor("#D4D7DC"))}) {
+            const QColor color = colors.first;
+            auto palette = fixture.window.palette();
+            palette.setColor(QPalette::Window, color);
+            painted.clear();
+            fixture.window.setPalette(palette);
+            QTRY_COMPARE(fixture.view->palette().color(QPalette::Window), color);
+            QTRY_VERIFY(!painted.isEmpty()); // A palette change schedules a real repaint.
+            const auto frame = fixture.view->grabFramebuffer();
+            QVERIFY(!frame.isNull());
+            QVERIFY(near(frame.pixelColor(1, 1), colors.second));
+            QCOMPARE(sample(fixture.view, frame, .5, .5), QColor(Qt::black));
+            QCOMPARE(fixture.view->context(), context.data());
+            QVERIFY(frame.save(artifact(QString("surrounding-%1-%2").arg(color.name().mid(1)).arg(size.width()), fixture.view)));
+        }
+    }
+    QVERIFY(fixture.session.submit({{solid(Qt::red)}}, QSize(64, 32)));
+    QTRY_VERIFY(fixture.view->displayedFrameToken() != 0);
+    const auto token = fixture.view->displayedFrameToken();
+    for (const auto &colors : {qMakePair(QColor("#181A1D"), QColor("#181A1D")),
+                               qMakePair(QColor("#E9EDF2"), QColor("#D4D7DC"))}) {
+        const QColor color = colors.first;
+        auto palette = fixture.window.palette();
+        palette.setColor(QPalette::Window, color);
+        painted.clear();
+        fixture.window.setPalette(palette);
+        QTRY_VERIFY(!painted.isEmpty());
+        const auto frame = fixture.view->grabFramebuffer();
+        QVERIFY(near(frame.pixelColor(1, 1), colors.second));
+        QCOMPARE(sample(fixture.view, frame, .5, .5), QColor(Qt::red));
+        QCOMPARE(fixture.view->displayedFrameToken(), token);
+        QCOMPARE(fixture.view->context(), context.data());
+    }
     QVERIFY(fixture.errors.isEmpty());
 }
 

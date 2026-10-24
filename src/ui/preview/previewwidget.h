@@ -31,6 +31,7 @@ signals:
     void graphicsError(const QString &message);
 
 protected:
+    void changeEvent(QEvent *event) override;
     void initializeGL() override;
     void paintGL() override;
 

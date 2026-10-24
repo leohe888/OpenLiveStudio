@@ -1,6 +1,7 @@
 #include "previewwidget.h"
 #include "compositionsession.h"
 
+#include <QEvent>
 #include <QOpenGLContext>
 #include <QOpenGLExtraFunctions>
 
@@ -53,6 +54,13 @@ QRectF PreviewWidget::canvasRect() const
     const QSize canvas = m_frame.token ? m_frame.size : QSize(1920, 1080);
     const QSizeF fitted = QSizeF(canvas).scaled(QSizeF(size()), Qt::KeepAspectRatio);
     return QRectF(QPointF((width() - fitted.width()) / 2, (height() - fitted.height()) / 2), fitted);
+}
+
+void PreviewWidget::changeEvent(QEvent *event)
+{
+    QOpenGLWidget::changeEvent(event);
+    if (event->type() == QEvent::PaletteChange || event->type() == QEvent::StyleChange)
+        update();
 }
 
 void PreviewWidget::reportError(const QString &message)
@@ -132,7 +140,13 @@ void PreviewWidget::paintGL()
     m_gl->glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
     m_gl->glDisable(GL_SCISSOR_TEST);
     m_gl->glViewport(0, 0, pixelWidth, pixelHeight);
-    m_gl->glClearColor(29.f / 255, 29.f / 255, 29.f / 255, 1);
+    // Style sheets can leave a child with a cached palette; use the window's
+    // actual theme. Darken light backgrounds slightly to distinguish the preview
+    // area from its container without changing the canvas or output pixels.
+    const QColor windowColor = window()->palette().color(QPalette::Window);
+    const QColor surrounding = windowColor.lightnessF() > .5
+        ? windowColor.darker(110) : windowColor;
+    m_gl->glClearColor(surrounding.redF(), surrounding.greenF(), surrounding.blueF(), 1);
     m_gl->glClear(GL_COLOR_BUFFER_BIT);
 
     if (m_session && m_session->isRunning()) {
