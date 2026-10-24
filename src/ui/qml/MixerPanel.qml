@@ -3,23 +3,44 @@ import QtQuick.Controls.Basic
 import QtQuick.Layouts
 
 Rectangle {
+    id: root
+    readonly property var themeColors: uiTheme.colors
     objectName: "mixerPanel"
     implicitWidth: 238
     implicitHeight: 178
-    color: "#1d1d1d"
+    color: themeColors.background.panel
+
+    // Retain Basic's thumb geometry, visibility and fade behavior.
+    component PanelScrollBar: ScrollBar {
+        hoverEnabled: true
+        palette.mid: hovered ? root.themeColors.scrollbar.thumb.hovered : root.themeColors.scrollbar.thumb.normal
+        palette.dark: root.themeColors.scrollbar.thumb.pressed
+        palette.text: root.themeColors.text.primary
+    }
 
     component MixerButton: ToolButton {
+        id: mixerButton
+        hoverEnabled: true
         implicitWidth: 22
         implicitHeight: 18
         padding: 1
         display: AbstractButton.IconOnly
         icon.width: 16
         icon.height: 16
-        icon.color: enabled ? "#d6d6d6" : "#666666"
+        icon.color: enabled ? root.themeColors.icon.primary : root.themeColors.icon.disabled
+        palette.toolTipBase: root.themeColors.background.header
+        palette.toolTipText: root.themeColors.text.primary
         enabled: false
         Accessible.name: text
         ToolTip.text: text
-        background: Item {}
+        background: Rectangle {
+            radius: 2
+            color: !mixerButton.enabled ? "transparent"
+                : (mixerButton.down ? root.themeColors.button.background.pressed
+                    : (mixerButton.hovered ? root.themeColors.button.background.hovered : "transparent"))
+            border.color: mixerButton.enabled && mixerButton.activeFocus
+                ? root.themeColors.border.focus : "transparent"
+        }
     }
 
     ScrollView {
@@ -29,6 +50,22 @@ Rectangle {
         clip: true
         contentWidth: Math.max(availableWidth, 180)
         contentHeight: channels.implicitHeight + 12
+        ScrollBar.horizontal: PanelScrollBar {
+            objectName: "mixerHorizontalScrollBar"
+            parent: scroll
+            x: scroll.leftPadding
+            y: scroll.height - height
+            width: scroll.availableWidth
+            active: scroll.ScrollBar.vertical.active
+        }
+        ScrollBar.vertical: PanelScrollBar {
+            objectName: "mixerVerticalScrollBar"
+            parent: scroll
+            x: scroll.mirrored ? 0 : scroll.width - width
+            y: scroll.topPadding
+            height: scroll.availableHeight
+            active: scroll.ScrollBar.horizontal.active
+        }
 
         RowLayout {
             id: channels
@@ -78,8 +115,8 @@ Rectangle {
                                 objectName: "levelTrack"
                                 width: 6
                                 height: 92
-                                color: "#0c0c0c"
-                                border.color: "#000000"
+                                color: root.themeColors.background.input
+                                border.color: root.themeColors.border.subtle
                                 // Empty until real channel levels are available.
                             }
                         }
@@ -99,8 +136,8 @@ Rectangle {
                                 y: volumeSlider.topPadding
                                 width: 4
                                 height: volumeSlider.availableHeight
-                                color: "#111111"
-                                border.color: "#3a3a3a"
+                                color: root.themeColors.slider.track
+                                border.color: root.themeColors.border.default
                             }
                             handle: Rectangle {
                                 x: (volumeSlider.width - width) / 2
@@ -109,8 +146,9 @@ Rectangle {
                                 width: 14
                                 height: 16
                                 radius: 1
-                                color: volumeSlider.enabled ? "#b8b8b8" : "#666666"
-                                border.color: "#444444"
+                                color: volumeSlider.enabled ? root.themeColors.slider.handle : root.themeColors.slider.handleDisabled
+                                border.color: volumeSlider.enabled && volumeSlider.activeFocus
+                                    ? root.themeColors.border.focus : root.themeColors.border.default
                             }
                         }
                     }
@@ -121,21 +159,21 @@ Rectangle {
                         font.pixelSize: 10
                         horizontalAlignment: Text.AlignHCenter
                         elide: Text.ElideRight
-                        color: "#b9b9b9"
+                        color: root.themeColors.text.primary
                     }
                     Label {
                         objectName: "channelStatus"
                         Layout.alignment: Qt.AlignHCenter
                         text: qsTr("未接入")
                         font.pixelSize: 10
-                        color: "#8c8c8c"
+                        color: root.themeColors.text.secondary
                     }
                     Label {
                         objectName: "channelValue"
                         Layout.alignment: Qt.AlignHCenter
                         text: "—"
                         font.pixelSize: 10
-                        color: "#8c8c8c"
+                        color: root.themeColors.text.secondary
                     }
                 }
             }

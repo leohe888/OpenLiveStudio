@@ -4,24 +4,38 @@ import QtQuick.Layouts
 
 Rectangle {
     id: root
+    readonly property var themeColors: uiTheme.colors
     objectName: "controlsPanel"
     implicitWidth: 286
     implicitHeight: 174
-    color: "#232323"
+    color: themeColors.background.panel
+
+    // Retain Basic's thumb geometry, visibility and fade behavior.
+    component PanelScrollBar: ScrollBar {
+        hoverEnabled: true
+        palette.mid: hovered ? root.themeColors.scrollbar.thumb.hovered : root.themeColors.scrollbar.thumb.normal
+        palette.dark: root.themeColors.scrollbar.thumb.pressed
+        palette.text: root.themeColors.text.primary
+    }
 
     component ControlButton: Button {
+        id: controlButton
+        hoverEnabled: true
         implicitHeight: 32
         Layout.maximumHeight: 32
         enabled: false
         display: AbstractButton.TextBesideIcon
         icon.width: 16
         icon.height: 16
-        icon.color: enabled ? "#d6d6d6" : "#666666"
-        palette.buttonText: enabled ? "#d6d6d6" : "#666666"
+        icon.color: enabled ? root.themeColors.icon.primary : root.themeColors.icon.disabled
+        palette.buttonText: enabled ? root.themeColors.text.primary : root.themeColors.text.disabled
         Accessible.name: text + qsTr("（未接入）")
         background: Rectangle {
-            color: parent.enabled && parent.down ? "#383838" : "#2b2b2b"
-            border.color: "#3a3a3a"
+            color: !controlButton.enabled ? root.themeColors.button.background.disabled
+                : (controlButton.down ? root.themeColors.button.background.pressed
+                    : (controlButton.hovered ? root.themeColors.button.background.hovered : root.themeColors.button.background.normal))
+            border.color: controlButton.enabled && controlButton.activeFocus
+                ? root.themeColors.border.focus : root.themeColors.border.default
             radius: 2
         }
     }
@@ -34,6 +48,22 @@ Rectangle {
         // Keep viewport sizing independent of the layout it sizes.
         contentWidth: Math.max(root.width, 180)
         contentHeight: Math.max(root.height, 130)
+        ScrollBar.horizontal: PanelScrollBar {
+            objectName: "controlsHorizontalScrollBar"
+            parent: scroll
+            x: scroll.leftPadding
+            y: scroll.height - height
+            width: scroll.availableWidth
+            active: scroll.ScrollBar.vertical.active
+        }
+        ScrollBar.vertical: PanelScrollBar {
+            objectName: "controlsVerticalScrollBar"
+            parent: scroll
+            x: scroll.mirrored ? 0 : scroll.width - width
+            y: scroll.topPadding
+            height: scroll.availableHeight
+            active: scroll.ScrollBar.horizontal.active
+        }
 
         ColumnLayout {
             id: controls

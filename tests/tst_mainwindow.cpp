@@ -52,6 +52,8 @@ private slots:
     void dialogsShareThemeAndReleaseBeforeIt();
     void sceneAndSourceThemes_data();
     void sceneAndSourceThemes();
+    void mixerAndControlThemes_data();
+    void mixerAndControlThemes();
     void panelsShareStateAcrossReloadsAndReleaseItWithWindow();
     void panelsFollowSceneAndSourceSelection();
     void imageScenesSwitchIndependently_data();
@@ -809,6 +811,129 @@ void MainWindowTest::sceneAndSourceThemes()
         QTRY_VERIFY(label->isVisible());
         QCOMPARE(label->property("color").value<QColor>(), m_theme->color("text.secondary"));
     }
+}
+
+void MainWindowTest::mixerAndControlThemes_data()
+{
+    QTest::addColumn<QString>("panelName");
+    QTest::addColumn<QString>("prefix");
+    QTest::addColumn<QString>("themeId");
+    for (const auto &theme : {QString("dark"), QString("light")}) {
+        QTest::newRow(qPrintable("mixer-" + theme)) << QString("MixerPanel") << QString("mixer") << theme;
+        QTest::newRow(qPrintable("controls-" + theme)) << QString("ControlsPanel") << QString("controls") << theme;
+    }
+}
+
+void MainWindowTest::mixerAndControlThemes()
+{
+    QFETCH(QString, panelName);
+    QFETCH(QString, prefix);
+    QFETCH(QString, themeId);
+    QVERIFY(m_theme->setTheme(themeId));
+    QQuickWidget panel;
+    panel.rootContext()->setContextProperty("uiTheme", m_theme.get());
+    panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
+    panel.resize(286, 220);
+    const QUrl url(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(panelName));
+    panel.setSource(url);
+    QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
+    panel.show();
+    QPointer<QQuickItem> root = panel.rootObject();
+    QList<QQuickItem *> buttons, sliders, tracks;
+    const auto inspect = [&](auto &&self, QQuickItem *item) -> void {
+        if (item->objectName().endsWith("Button")) buttons.append(item);
+        if (item->objectName().endsWith("VolumeSlider")) sliders.append(item);
+        if (item->objectName() == "levelTrack") tracks.append(item);
+        for (auto *child : item->childItems()) self(self, child);
+    };
+    inspect(inspect, root);
+    QCOMPARE(buttons.size(), prefix == "mixer" ? 4 : 3);
+    QCOMPARE(sliders.size(), prefix == "mixer" ? 2 : 0);
+    QCOMPARE(tracks.size(), prefix == "mixer" ? 4 : 0);
+    const auto moveMouse = [&panel](const QPoint &position) {
+        QMouseEvent event(QEvent::MouseMove, position, panel.mapToGlobal(position),
+                          Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(&panel, &event);
+    };
+    for (const auto &id : {themeId, themeId == "dark" ? QString("light") : QString("dark")}) {
+        QVERIFY(m_theme->setTheme(id));
+        QCOMPARE(panel.rootObject(), root.data());
+        QTRY_COMPARE(root->property("color").value<QColor>(), m_theme->color("background.panel"));
+        for (auto *button : buttons) {
+            QVERIFY(!button->isEnabled());
+            QCOMPARE(QQmlProperty::read(button, "icon.color").value<QColor>(), m_theme->color("icon.disabled"));
+            if (prefix == "controls") {
+                auto *background = button->property("background").value<QQuickItem *>();
+                QVERIFY(background);
+                QCOMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.disabled"));
+                QCOMPARE(QQmlProperty::read(button, "palette.buttonText").value<QColor>(), m_theme->color("text.disabled"));
+            }
+        }
+        for (auto *track : tracks) {
+            QCOMPARE(track->property("color").value<QColor>(), m_theme->color("background.input"));
+            QCOMPARE(QQmlProperty::read(track, "border.color").value<QColor>(), m_theme->color("border.subtle"));
+            QVERIFY(track->childItems().isEmpty()); // No simulated level fill.
+        }
+        for (auto *slider : sliders) {
+            QVERIFY(!slider->isEnabled());
+            QCOMPARE(slider->property("value").toReal(), .5);
+            auto *handle = slider->property("handle").value<QQuickItem *>();
+            auto *background = slider->property("background").value<QQuickItem *>();
+            QVERIFY(handle && background);
+            QCOMPARE(background->property("color").value<QColor>(), m_theme->color("slider.track"));
+            QCOMPARE(handle->property("color").value<QColor>(), m_theme->color("slider.handleDisabled"));
+            // Enable presentation only; there is still no audio gain connection.
+            slider->setEnabled(true);
+            slider->forceActiveFocus(Qt::TabFocusReason);
+            QTRY_COMPARE(handle->property("color").value<QColor>(), m_theme->color("slider.handle"));
+            QCOMPARE(QQmlProperty::read(handle, "border.color").value<QColor>(), m_theme->color("border.focus"));
+            slider->setEnabled(false);
+        }
+        for (auto *label : root->findChildren<QQuickItem *>()) {
+            if (label->objectName() == "channelStatus" || label->objectName() == "channelValue")
+                QCOMPARE(label->property("color").value<QColor>(), m_theme->color("text.secondary"));
+        }
+        // Check enabled presentation without enabling any production feature.
+        auto *button = buttons.first();
+        auto *background = button->property("background").value<QQuickItem *>();
+        QVERIFY(background);
+        button->setEnabled(true);
+        moveMouse(QPoint(1, 1));
+        QCOMPARE(QQmlProperty::read(button, "icon.color").value<QColor>(), m_theme->color("icon.primary"));
+        button->forceActiveFocus(Qt::TabFocusReason);
+        QTRY_COMPARE(QQmlProperty::read(background, "border.color").value<QColor>(), m_theme->color("border.focus"));
+        const QPoint position = button->mapToScene(button->boundingRect().center()).toPoint();
+        moveMouse(position);
+        QTRY_COMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.hovered"));
+        QTest::mousePress(&panel, Qt::LeftButton, Qt::NoModifier, position);
+        QTRY_COMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.pressed"));
+        QTest::mouseRelease(&panel, Qt::LeftButton, Qt::NoModifier, position);
+        button->setEnabled(false);
+        panel.resize(140, 100);
+        QTRY_COMPARE(root->size(), QSizeF(panel.size()));
+        for (const auto &axis : {QString("Horizontal"), QString("Vertical")}) {
+            auto *bar = root->findChild<QQuickItem *>(prefix + axis + "ScrollBar");
+            QVERIFY(bar);
+            QTRY_VERIFY(bar->property("size").toReal() < 1);
+            auto *thumb = bar->property("contentItem").value<QQuickItem *>();
+            QVERIFY(thumb);
+            moveMouse(QPoint(1, 1));
+            QTRY_COMPARE(thumb->property("color").value<QColor>(), m_theme->color("scrollbar.thumb.normal"));
+            const auto point = thumb->mapToScene(thumb->boundingRect().center()).toPoint();
+            moveMouse(point);
+            QTRY_COMPARE(thumb->property("color").value<QColor>(), m_theme->color("scrollbar.thumb.hovered"));
+            QTest::mousePress(&panel, Qt::LeftButton, Qt::NoModifier, point);
+            QTRY_COMPARE(thumb->property("color").value<QColor>(), m_theme->color("scrollbar.thumb.pressed"));
+            QTest::mouseRelease(&panel, Qt::LeftButton, Qt::NoModifier, point);
+        }
+        panel.resize(286, 220);
+        QTRY_COMPARE(root->size(), QSizeF(panel.size()));
+    }
+    panel.setSource(QUrl());
+    QVERIFY(root.isNull());
+    panel.setSource(url);
+    QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
+    QCOMPARE(panel.rootObject()->property("color").value<QColor>(), m_theme->color("background.panel"));
 }
 
 void MainWindowTest::dialogsShareThemeAndReleaseBeforeIt()
@@ -2472,8 +2597,10 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates_data()
     QTest::newRow("sources-light") << QStringLiteral("SourcesPanel") << 8 << false << QString("light");
     QTest::newRow("sources-hidden-locked-dark") << QStringLiteral("SourcesPanel") << 8 << true << QString("dark");
     QTest::newRow("sources-hidden-locked-light") << QStringLiteral("SourcesPanel") << 8 << true << QString("light");
-    QTest::newRow("mixer") << QStringLiteral("MixerPanel") << 4 << false << QString("dark");
-    QTest::newRow("controls") << QStringLiteral("ControlsPanel") << 2 << false << QString("dark");
+    QTest::newRow("mixer-dark") << QStringLiteral("MixerPanel") << 4 << false << QString("dark");
+    QTest::newRow("mixer-light") << QStringLiteral("MixerPanel") << 4 << false << QString("light");
+    QTest::newRow("controls-dark") << QStringLiteral("ControlsPanel") << 2 << false << QString("dark");
+    QTest::newRow("controls-light") << QStringLiteral("ControlsPanel") << 2 << false << QString("light");
 }
 
 void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
@@ -2637,10 +2764,11 @@ private slots:
             for (int i = 0; i < panels.size(); ++i) {
                 QCOMPARE(panels[i]->rootObject(), roots[i].data());
                 QCOMPARE(panels[i]->quickWindow()->color(), m_theme->color("background.panel"));
+                QCOMPARE(panels[i]->rootObject()->property("color").value<QColor>(), m_theme->color("background.panel"));
             }
             QTest::qWait(100);
             QVERIFY(window.grab().save(QCoreApplication::applicationDirPath()
-                + QStringLiteral("/theme-3b-%1.png").arg(id)));
+                + QStringLiteral("/theme-3c-%1.png").arg(id)));
         }
     }
 
