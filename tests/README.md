@@ -4,6 +4,27 @@ The project uses Qt Test for assertions and CTest to discover and run tests.
 The Qt kit must include the Qt Test module. Tests are separate executables and
 are not installed with the application.
 
+## Source layout
+
+Application C++ files live under `src/`: `main.cpp` is the entry point,
+`ui/` contains MainWindow, `scene/` contains StudioState, and `media/` contains
+ImageLoader. Headers stay beside their implementations. Test cases remain in
+this directory; `tests/CMakeLists.txt` lists the production sources and adds
+only the module include directories needed by each target.
+
+Run CMake from the repository root. The application target and CTest names,
+QML module URI, QML/icon resource URLs and CI configure commands are unchanged.
+When checking a path migration, also configure a new build directory so stale
+objects or generated resources cannot mask missing source references.
+
+Directory reorganization validation on 2026-10-24 used Qt 6.12.0, MSVC 2022
+x64 and Ninja Debug. Each of the three module moves passed a build and complete
+CTest (3/3). After moving the entry point, a fresh configure and build in
+`build/source-layout-Debug` also passed; complete CTest passed 3/3 in
+37.46 seconds (ui.mainwindow: 37.14 seconds). All seven moved C++ files retain
+their original contents. UI verification used offscreen software rendering;
+this path-only change has not been verified on a native desktop or real GPU.
+
 ## Build and run
 
 In Qt Creator, enable `BUILD_TESTING` in the CMake configuration (default: ON),

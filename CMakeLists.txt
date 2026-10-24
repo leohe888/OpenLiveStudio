@@ -11,7 +11,7 @@ endif()
 
 qt_add_executable(OpenLiveStudio
     WIN32 MACOSX_BUNDLE
-    main.cpp
+    src/main.cpp
     src/ui/mainwindow.cpp
     src/ui/mainwindow.h
     src/scene/studiostate.cpp
