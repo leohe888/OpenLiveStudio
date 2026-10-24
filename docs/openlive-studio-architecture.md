@@ -316,10 +316,10 @@ applicable; third_party is not a requirement to move the icon notices.
 
 The current entry point is src/app/main.cpp, MainWindow is in src/ui/widgets, QML files are
 in the top-level qml directory, StudioState is in src/scene, and ImageLoader is
-in src/media. These locations remain valid until a scoped implementation or
+in src/sources. These locations remain valid until a scoped implementation or
 explicit migration updates their build, resource and test references together.
-The target places ImageLoader under sources and reserves media for shared media
-types, but this documentation change moves no files. C1 should introduce only
+ImageLoader now resides under sources; media is reserved for shared media types
+when needed. C1 should introduce only
 the directories needed for its approved composition/preview subset. Capture,
 audio, output and configuration directories follow their scheduled features.
 

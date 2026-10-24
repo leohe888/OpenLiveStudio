@@ -7,7 +7,7 @@ are not installed with the application.
 ## Source layout
 
 Application C++ files live under `src/`: `app/main.cpp` is the entry point,
-`ui/widgets/` contains MainWindow, `scene/` contains StudioState, and `media/` contains
+`ui/widgets/` contains MainWindow, `scene/` contains StudioState, and `sources/` contains
 ImageLoader. Headers stay beside their implementations. Test cases remain in
 this directory; `tests/CMakeLists.txt` lists the production sources and adds
 only the module include directories needed by each target.
@@ -37,6 +37,10 @@ MainWindow was then moved to `src/ui/widgets` with both files unchanged. The
 application and test source/include paths were updated. The same Debug build
 passed, followed by complete CTest 3/3 in 30.88 seconds
 (ui.mainwindow: 30.59 seconds).
+
+ImageLoader was moved to `src/sources` with both files unchanged and application
+and test references updated. The Debug build passed; complete CTest passed 3/3
+in 31.41 seconds (ui.mainwindow: 30.97 seconds).
 
 ## Build and run
 

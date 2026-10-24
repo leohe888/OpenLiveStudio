@@ -2,10 +2,10 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
 
 qt_add_executable(tst_imageloader
     tst_imageloader.cpp
-    ../src/media/imageloader.cpp
-    ../src/media/imageloader.h
+    ../src/sources/imageloader.cpp
+    ../src/sources/imageloader.h
 )
-target_include_directories(tst_imageloader PRIVATE "${PROJECT_SOURCE_DIR}/src/media")
+target_include_directories(tst_imageloader PRIVATE "${PROJECT_SOURCE_DIR}/src/sources")
 target_link_libraries(tst_imageloader PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
 add_test(NAME core.imageloader
     COMMAND "${CMAKE_COMMAND}" -E env
@@ -19,11 +19,11 @@ qt_add_executable(tst_studiostate
     tst_studiostate.cpp
     ../src/scene/studiostate.cpp
     ../src/scene/studiostate.h
-    ../src/media/imageloader.cpp
-    ../src/media/imageloader.h
+    ../src/sources/imageloader.cpp
+    ../src/sources/imageloader.h
 )
 target_include_directories(tst_studiostate PRIVATE
-    "${PROJECT_SOURCE_DIR}/src/media"
+    "${PROJECT_SOURCE_DIR}/src/sources"
     "${PROJECT_SOURCE_DIR}/src/scene"
 )
 target_link_libraries(tst_studiostate PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
@@ -41,13 +41,13 @@ qt_add_executable(tst_mainwindow
     ../src/ui/widgets/mainwindow.h
     ../src/scene/studiostate.cpp
     ../src/scene/studiostate.h
-    ../src/media/imageloader.cpp
-    ../src/media/imageloader.h
+    ../src/sources/imageloader.cpp
+    ../src/sources/imageloader.h
 )
 
 target_include_directories(tst_mainwindow PRIVATE
     "${PROJECT_SOURCE_DIR}/src/ui/widgets"
-    "${PROJECT_SOURCE_DIR}/src/media"
+    "${PROJECT_SOURCE_DIR}/src/sources"
     "${PROJECT_SOURCE_DIR}/src/scene"
 )
 target_link_libraries(tst_mainwindow PRIVATE
