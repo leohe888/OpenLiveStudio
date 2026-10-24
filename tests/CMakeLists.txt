@@ -1,5 +1,26 @@
 find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
 
+# Opt in on a desktop with real OpenGL; never substitute the smoke UI backend.
+option(OPENLIVE_STUDIO_GL_TESTS "Build and register native OpenGL composition tests" OFF)
+if(OPENLIVE_STUDIO_GL_TESTS)
+    qt_add_executable(tst_imagecompositor
+        tst_imagecompositor.cpp
+        ../src/graphics/composition/imagecompositor.cpp
+        ../src/graphics/composition/imagecompositor.h
+    )
+    target_include_directories(tst_imagecompositor PRIVATE "${PROJECT_SOURCE_DIR}/src/graphics/composition")
+    target_link_libraries(tst_imagecompositor PRIVATE Qt6::OpenGL Qt6::Test)
+    set_target_properties(tst_imagecompositor PROPERTIES WIN32_EXECUTABLE FALSE)
+    add_test(NAME graphics.imagecompositor
+        COMMAND "${CMAKE_COMMAND}" -E env
+            "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
+            "QT_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../plugins"
+            "QT_QPA_PLATFORM=windows"
+            "$<TARGET_FILE:tst_imagecompositor>" -o "-,txt"
+    )
+    set_tests_properties(graphics.imagecompositor PROPERTIES LABELS "graphics" TIMEOUT 30)
+endif()
+
 qt_add_executable(tst_imageloader
     tst_imageloader.cpp
     ../src/sources/imageloader.cpp
