@@ -181,6 +181,70 @@ that media work does not block UI interaction. Threading, resource ownership
 and cleanup are designed and verified with the feature that introduces them;
 the current scene state and Qt models must not be mutated from worker threads.
 
+## Threading plan
+
+Plan execution contexts around ownership, blocking operations and shutdown, not
+a fixed thread-count requirement. The following is a reference arrangement for
+one camera, one display, microphone and desktop audio, with recording and
+streaming active together. It is a future design, not the current implementation.
+
+| Execution context | Reference count | Responsibility |
+| --- | ---: | --- |
+| GUI | 1 | Widgets, QML interaction, StudioState/models, QOpenGLWidget display and canvas input |
+| OpenGL composition | 1 | Source texture updates, filters, composition, synchronized result handoff and readback scheduling |
+| Camera capture | 1 | Read/decode camera frames as needed, assign timestamps and submit frames |
+| Display capture | 1 | Acquire and submit desktop frames |
+| Microphone capture | 1 | Acquire microphone audio |
+| Desktop audio capture | 1 | Acquire playback-device audio |
+| Audio processing/encoding | 1 | Resampling, volume, mute, mixing and audio encoding |
+| Video encoding | 1 | Convert submitted composition frames as required and encode video |
+| Recording writer | 1 | Interleave encoded packets, write the file and finalize it |
+| Streaming writer | 1 | Interleave/send encoded packets, handle network timeout, disconnect and recovery |
+| Total reference count | 10 | Includes the GUI thread; excludes library and driver internal threads |
+
+The table assumes compatible output encoding settings for sharing encoded
+results. Recording and streaming with different video or audio encoding
+requirements may need separate encoding contexts and additional threads. A
+capture backend that supplies callbacks may not need a dedicated application
+capture thread; callback ownership and lifetime must still be explicit. Qt,
+drivers and encoders can create additional internal threads, so the process
+thread count is not an acceptance criterion.
+
+### Incremental introduction
+
+| Stage | Execution contexts introduced as needed |
+| --- | --- |
+| C: static composition | GUI and OpenGL composition: two main application threads; image loading may use temporary tasks |
+| D: camera/display | Capture workers or backend callback contexts for the actual devices |
+| F: audio | Audio capture and mixing/processing; audio encoding is added with output support |
+| G: recording | Video/audio encoding and the recording writer |
+| H: streaming | Independent network writer, plus separate encoding contexts if output settings require them |
+
+Do not create one thread per scene, static image, text item, QML panel or
+preview widget. GUI interactions stay on the GUI thread. Static loading can use
+a bounded task pool when asynchronous loading is introduced. Shared media
+processing remains active while any output needs it; stopping one output must
+not stop resources still used by the other.
+
+### Handoffs, backpressure and shutdown
+
+Use bounded frame/packet handoffs and define ownership at every boundary.
+Capture, composition and preview must not accumulate an unlimited frame history;
+where video frames may be skipped, define the policy and account for drops.
+Audio handoffs require an explicit continuity and overload policy. Queue sizes,
+timestamp rules and overload behavior are specified with each feature, rather
+than assuming that adding threads solves throughput problems.
+
+Recording and streaming have independent writer queues and cancellation/error
+paths. Slow network I/O must not block file writing or indefinitely retain
+shared frames/packets. On normal stop, end that output's input, drain/flush the
+required encoding and writing work, and finalize its resources while preserving
+other active consumers. Application shutdown must cancel blocking device/network
+operations, wake waiting workers and join them before destroying their resources;
+GL resource cleanup requires its owning context, and GUI-owned surfaces are
+destroyed on the GUI thread. Concrete ordering and failure recovery are verified
+when the respective workers are introduced.
+
 ## Directory organization
 
 Use responsibility-based directories with moderate layering. The following tree
