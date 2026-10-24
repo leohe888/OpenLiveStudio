@@ -181,6 +181,84 @@ that media work does not block UI interaction. Threading, resource ownership
 and cleanup are designed and verified with the feature that introduces them;
 the current scene state and Qt models must not be mutated from worker threads.
 
+## Directory organization
+
+Use responsibility-based directories with moderate layering. The following tree
+is the target organization, not an inventory of existing files. Add directories
+only when their features are implemented; it does not authorize a repository-wide
+move or require empty scaffolding before C1.
+
+```text
+OpenLiveStudio/
+├── CMakeLists.txt
+├── README.md
+├── AGENTS.md
+├── LICENSE
+├── cmake/                       # Dependency discovery and build helpers
+├── docs/                        # Plan, architecture, roadmap and prototype
+├── assets/
+│   ├── icons/                   # Shared SVG assets, provenance and licenses
+│   └── shaders/                 # GLSL packaged through Qt resources as needed
+│       ├── composition/
+│       └── filters/
+├── src/
+│   ├── app/                     # Entry point, assembly and lifecycle coordination
+│   ├── ui/
+│   │   ├── widgets/             # MainWindow, docks and native window integration
+│   │   ├── qml/                 # Panels, dialogs and reusable QML components
+│   │   └── preview/             # QOpenGLWidget, coordinates and editing overlays
+│   ├── scene/                   # StudioState, scene/source entry data and models
+│   ├── sources/                 # Image loading, text generation, camera/display capture
+│   ├── graphics/
+│   │   ├── opengl/              # Contexts, textures, FBOs, synchronization and readback
+│   │   ├── composition/         # Render snapshots, layout composition and scheduling
+│   │   └── filters/             # Per-source filter implementations and processing chain
+│   ├── audio/                   # Audio capture, resampling, mixing and levels
+│   ├── output/                  # Recording/streaming sessions, encoding and muxing
+│   ├── config/                  # Configuration storage and validation
+│   └── media/                   # Frame/timestamp types genuinely shared by modules
+├── tests/                       # Tests organized by business module as they grow
+├── scripts/                     # Build, output validation and packaging helpers
+└── third_party/                 # Third-party notices and necessary vendored sources
+```
+
+### Placement and dependency boundaries
+
+| Directory | Responsibility and boundary |
+| --- | --- |
+| scene | Scene content, source entries, selection and editing rules; no OpenGL resources or encoder ownership |
+| sources | Supply images/frames and own loading/capture resources; do not decide canvas placement |
+| graphics | Filters, composition, GPU resources and synchronized result handoff; no access to QML controls or live GUI list models |
+| ui/preview | Display results, editing overlays and input; do not drive continuous composition required by outputs |
+| audio | Own audio device capture and processing; source-related audio routing is coordinated as those capabilities arrive |
+| output | Own encoding, muxing and independent output sessions; do not obtain video by capturing the preview widget |
+| app | Assemble modules and coordinate cross-module operations/shutdown; do not accumulate all business implementations |
+| media | Only types actually shared across modules; OpenGL texture handoff types stay in graphics |
+
+Scene snapshots and source frame handoffs form the processing boundary; adding a
+directory does not justify adding a generic manager or framework. Encoding and
+muxing can stay together in output until their actual complexity calls for
+subdirectories. Directory boundaries do not require separate CMake libraries:
+start with the existing executable and split build targets when testing or reuse
+provides a concrete reason.
+
+Tests may remain flat while small, then follow module responsibilities. Prefer
+small controlled fixtures or generated assets; large recordings, benchmark
+outputs, build products and dependency binaries do not belong in the source
+tree. Preserve third-party provenance and license records beside assets where
+applicable; third_party is not a requirement to move the icon notices.
+
+### Existing paths and incremental adoption
+
+The current entry point is src/main.cpp, MainWindow is in src/ui, QML files are
+in the top-level qml directory, StudioState is in src/scene, and ImageLoader is
+in src/media. These locations remain valid until a scoped implementation or
+explicit migration updates their build, resource and test references together.
+The target places ImageLoader under sources and reserves media for shared media
+types, but this documentation change moves no files. C1 should introduce only
+the directories needed for its approved composition/preview subset. Capture,
+audio, output and configuration directories follow their scheduled features.
+
 ## Current implementation and next boundaries
 
 B1 through B6 are complete and approved. The application has the Widgets shell,
