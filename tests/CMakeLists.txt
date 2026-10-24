@@ -3,6 +3,36 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
 # Opt in on a desktop with real OpenGL; never substitute the smoke UI backend.
 option(OPENLIVE_STUDIO_GL_TESTS "Build and register native OpenGL composition tests" OFF)
 if(OPENLIVE_STUDIO_GL_TESTS)
+    qt_add_executable(tst_previewwidget
+        tst_previewwidget.cpp
+        ../src/ui/preview/previewwidget.cpp
+        ../src/ui/preview/previewwidget.h
+        ../src/graphics/composition/compositionsession.cpp
+        ../src/graphics/composition/compositionsession.h
+        ../src/graphics/composition/imagecompositor.cpp
+        ../src/graphics/composition/imagecompositor.h
+    )
+    target_include_directories(tst_previewwidget PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/ui/preview"
+        "${PROJECT_SOURCE_DIR}/src/graphics/composition"
+    )
+    target_link_libraries(tst_previewwidget PRIVATE Qt6::OpenGLWidgets Qt6::QuickWidgets Qt6::Test)
+    set_target_properties(tst_previewwidget PROPERTIES WIN32_EXECUTABLE FALSE)
+    foreach(scale IN ITEMS 1 2)
+        add_test(NAME graphics.previewwidget.scale${scale}
+            COMMAND "${CMAKE_COMMAND}" -E env
+                "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
+                "QT_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../plugins"
+                "QML_IMPORT_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../qml"
+                "QT_QPA_PLATFORM=windows"
+                "QT_QUICK_BACKEND=rhi"
+                "QSG_RHI_BACKEND=opengl"
+                "QT_SCALE_FACTOR=${scale}"
+                "$<TARGET_FILE:tst_previewwidget>" -o "-,txt"
+        )
+        set_tests_properties(graphics.previewwidget.scale${scale} PROPERTIES LABELS "graphics" TIMEOUT 45)
+    endforeach()
+
     qt_add_executable(tst_compositionsession
         tst_compositionsession.cpp
         ../src/graphics/composition/compositionsession.cpp
