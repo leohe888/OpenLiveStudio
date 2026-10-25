@@ -23,25 +23,6 @@ set_tests_properties(core.thememanager PROPERTIES LABELS "core;smoke" TIMEOUT 15
 # Opt in on a desktop with real OpenGL; never substitute the smoke UI backend.
 option(OPENLIVE_STUDIO_GL_TESTS "Build and register native OpenGL composition tests" OFF)
 if(OPENLIVE_STUDIO_GL_TESTS)
-    qt_add_executable(tst_compositionsession
-        tst_compositionsession.cpp
-        ../src/graphics/composition/compositionsession.cpp
-        ../src/graphics/composition/compositionsession.h
-        ../src/graphics/composition/imagecompositor.cpp
-        ../src/graphics/composition/imagecompositor.h
-    )
-    target_include_directories(tst_compositionsession PRIVATE "${PROJECT_SOURCE_DIR}/src/graphics/composition")
-    target_link_libraries(tst_compositionsession PRIVATE Qt6::OpenGL Qt6::Test)
-    set_target_properties(tst_compositionsession PROPERTIES WIN32_EXECUTABLE FALSE)
-    add_test(NAME graphics.compositionsession
-        COMMAND "${CMAKE_COMMAND}" -E env
-            "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
-            "QT_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../plugins"
-            "QT_QPA_PLATFORM=windows"
-            "$<TARGET_FILE:tst_compositionsession>" -o "-,txt"
-    )
-    set_tests_properties(graphics.compositionsession PROPERTIES LABELS "graphics" TIMEOUT 30)
-
     qt_add_executable(tst_imagecompositor
         tst_imagecompositor.cpp
         ../src/graphics/composition/imagecompositor.cpp
@@ -99,8 +80,6 @@ qt_add_executable(tst_mainwindow
     tst_mainwindow.cpp
     ../src/ui/theme/thememanager.cpp
     ../src/ui/theme/thememanager.h
-    ../src/graphics/composition/compositionsession.cpp
-    ../src/graphics/composition/compositionsession.h
     ../src/graphics/composition/imagecompositor.cpp
     ../src/graphics/composition/imagecompositor.h
     ../src/ui/widgets/mainwindow.cpp
