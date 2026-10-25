@@ -1,5 +1,5 @@
 #include "scenemanager.h"
-#include "imageloader.h"
+#include "imageprobe.h"
 
 #include <QAbstractListModel>
 #include <QFileInfo>
@@ -338,7 +338,7 @@ QString SceneManager::validateImageSource(const QString &sceneId, const QString 
         if (source.name.trimmed().compare(trimmed, Qt::CaseInsensitive) == 0)
             return tr("来源名称已存在。");
     }
-    const auto result = ImageLoader::load(filePath);
+    const auto result = ImageProbe::load(filePath);
     if (!result.isValid())
         return result.error;
     if (size)

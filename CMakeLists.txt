@@ -18,8 +18,8 @@ qt_add_executable(OpenLiveStudio
     src/ui/theme/thememanager.h
     src/scene/scenemanager.cpp
     src/scene/scenemanager.h
-    src/sources/imageloader.cpp
-    src/sources/imageloader.h
+    src/sources/imageprobe.cpp
+    src/sources/imageprobe.h
 )
 
 set(OPENLIVE_STUDIO_QML_FILES

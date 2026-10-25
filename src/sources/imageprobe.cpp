@@ -1,19 +1,19 @@
-#include "imageloader.h"
+#include "imageprobe.h"
 
 #include <QCoreApplication>
 #include <QFileInfo>
 #include <QImageReader>
 
-ImageLoader::Result ImageLoader::load(const QString &filePath)
+ImageProbe::Result ImageProbe::load(const QString &filePath)
 {
     const QFileInfo file(filePath);
     if (filePath.isEmpty() || !file.isFile() || !file.isReadable())
-        return {{}, {}, QCoreApplication::translate("ImageLoader", "请选择存在且可读取的图像文件。")};
+        return {{}, {}, QCoreApplication::translate("ImageProbe", "请选择存在且可读取的图像文件。")};
 
     QImageReader reader(file.absoluteFilePath());
     const QImage image = reader.read();
     if (image.isNull()) {
-        return {{}, {}, QCoreApplication::translate("ImageLoader", "无法读取图像：%1")
+        return {{}, {}, QCoreApplication::translate("ImageProbe", "无法读取图像：%1")
                             .arg(reader.errorString())};
     }
     return {file.absoluteFilePath(), image.size(), {}};

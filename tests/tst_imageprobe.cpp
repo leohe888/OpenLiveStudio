@@ -1,4 +1,4 @@
-#include "imageloader.h"
+#include "imageprobe.h"
 
 #include <QDir>
 #include <QFile>
@@ -6,7 +6,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 
-class ImageLoaderTest : public QObject
+class ImageProbeTest : public QObject
 {
     Q_OBJECT
 private slots:
@@ -16,7 +16,7 @@ private slots:
     void rejectsInvalidFiles();
 };
 
-void ImageLoaderTest::loadsDecodedDimensions_data()
+void ImageProbeTest::loadsDecodedDimensions_data()
 {
     QTest::addColumn<QByteArray>("format");
     QTest::addColumn<QString>("fileName");
@@ -27,7 +27,7 @@ void ImageLoaderTest::loadsDecodedDimensions_data()
     QTest::newRow("relative-unicode-path") << QByteArray("PNG") << QString::fromUtf8("图像 文件.png") << true;
 }
 
-void ImageLoaderTest::loadsDecodedDimensions()
+void ImageProbeTest::loadsDecodedDimensions()
 {
     QFETCH(QByteArray, format);
     QFETCH(QString, fileName);
@@ -39,7 +39,7 @@ void ImageLoaderTest::loadsDecodedDimensions()
     image.fill(Qt::transparent);
     image.setPixelColor(3, 4, Qt::red);
     QVERIFY(image.save(path, format.constData()));
-    const auto result = ImageLoader::load(relativePath ? QDir::current().relativeFilePath(path) : path);
+    const auto result = ImageProbe::load(relativePath ? QDir::current().relativeFilePath(path) : path);
     QVERIFY2(result.isValid(), qPrintable(result.error));
     QVERIFY(result.error.isEmpty());
     QCOMPARE(result.filePath, path);
@@ -47,7 +47,7 @@ void ImageLoaderTest::loadsDecodedDimensions()
     QCOMPARE(result.originalSize, image.size());
 }
 
-void ImageLoaderTest::rejectsInvalidFiles_data()
+void ImageProbeTest::rejectsInvalidFiles_data()
 {
     QTest::addColumn<QString>("failure");
     for (const auto *name : {"empty-path", "missing-file", "directory", "empty-file",
@@ -55,7 +55,7 @@ void ImageLoaderTest::rejectsInvalidFiles_data()
         QTest::newRow(name) << QString::fromLatin1(name);
 }
 
-void ImageLoaderTest::rejectsInvalidFiles()
+void ImageProbeTest::rejectsInvalidFiles()
 {
     QFETCH(QString, failure);
     QTemporaryDir dir;
@@ -78,12 +78,12 @@ void ImageLoaderTest::rejectsInvalidFiles()
         else if (failure == "truncated-image")
             QVERIFY(file.resize(40)); // PNG dimensions exist, but pixels cannot be decoded.
     }
-    const auto result = ImageLoader::load(path);
+    const auto result = ImageProbe::load(path);
     QVERIFY(!result.isValid());
     QVERIFY(!result.error.isEmpty());
     QVERIFY(result.filePath.isEmpty());
     QVERIFY(!result.originalSize.isValid());
 }
 
-QTEST_GUILESS_MAIN(ImageLoaderTest)
-#include "tst_imageloader.moc"
+QTEST_GUILESS_MAIN(ImageProbeTest)
+#include "tst_imageprobe.moc"

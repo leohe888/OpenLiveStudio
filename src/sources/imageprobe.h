@@ -1,10 +1,10 @@
-#ifndef IMAGELOADER_H
-#define IMAGELOADER_H
+#ifndef IMAGEPROBE_H
+#define IMAGEPROBE_H
 
 #include <QSize>
 #include <QString>
 
-class ImageLoader
+class ImageProbe
 {
 public:
     struct Result {
@@ -19,4 +19,4 @@ public:
     static Result load(const QString &filePath);
 };
 
-#endif // IMAGELOADER_H
+#endif // IMAGEPROBE_H
