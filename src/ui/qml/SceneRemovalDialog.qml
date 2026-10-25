@@ -9,14 +9,14 @@ Rectangle {
     implicitWidth: 420
     implicitHeight: 200
     color: root.themeColors.background.panel
-    required property var state
+    required property var sceneManager
     required property string sceneId
     required property string sceneName
     property string errorText: ""
     signal closeRequested()
 
     function removeScene() {
-        if (state && state.removeScene(sceneId))
+        if (sceneManager && sceneManager.removeScene(sceneId))
             closeRequested()
         else
             errorText = qsTr("无法删除场景：场景可能已不存在，或只剩最后一个场景。")

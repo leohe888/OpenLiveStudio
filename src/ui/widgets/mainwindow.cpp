@@ -245,7 +245,7 @@ void MainWindow::showSceneNameDialog(const QString &sceneId, const QString &init
 {
     showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SceneNameDialog.qml")),
         sceneId.isEmpty() ? tr("添加场景") : tr("重命名场景"), {
-            {QStringLiteral("state"), QVariant::fromValue(m_sceneManager)},
+            {QStringLiteral("sceneManager"), QVariant::fromValue(m_sceneManager)},
             {QStringLiteral("initialName"), sceneId.isEmpty() ? m_sceneManager->suggestedSceneName() : initialName},
             {QStringLiteral("sceneId"), sceneId}
         });
@@ -259,7 +259,7 @@ void MainWindow::showSceneRemovalDialog(const QString &sceneId)
         if (index.data(SceneManager::IdRole).toString() != sceneId)
             continue;
         showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SceneRemovalDialog.qml")),
-            tr("删除场景"), {{QStringLiteral("state"), QVariant::fromValue(m_sceneManager)},
+            tr("删除场景"), {{QStringLiteral("sceneManager"), QVariant::fromValue(m_sceneManager)},
             {QStringLiteral("sceneId"), sceneId},
             {QStringLiteral("sceneName"), index.data(SceneManager::NameRole)}});
         return;
@@ -272,7 +272,7 @@ void MainWindow::showSourceAddDialog(const QString &sceneId)
     if (initialName.isEmpty())
         return;
     showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml")),
-        tr("添加来源"), {{QStringLiteral("state"), QVariant::fromValue(m_sceneManager)},
+        tr("添加来源"), {{QStringLiteral("sceneManager"), QVariant::fromValue(m_sceneManager)},
                        {QStringLiteral("sceneId"), sceneId},
                        {QStringLiteral("initialName"), initialName}});
 }
@@ -287,7 +287,7 @@ void MainWindow::showSourceRemovalDialog(const QString &sceneId, const QString &
         if (index.data(SceneManager::IdRole).toString() != sourceId)
             continue;
         showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceRemovalDialog.qml")),
-            tr("移除来源"), {{QStringLiteral("state"), QVariant::fromValue(m_sceneManager)},
+            tr("移除来源"), {{QStringLiteral("sceneManager"), QVariant::fromValue(m_sceneManager)},
                            {QStringLiteral("sceneId"), sceneId},
                            {QStringLiteral("sourceId"), sourceId},
                            {QStringLiteral("sourceName"), index.data(SceneManager::NameRole)}});

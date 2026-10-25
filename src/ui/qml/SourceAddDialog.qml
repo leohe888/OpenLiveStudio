@@ -9,7 +9,7 @@ Rectangle {
     implicitWidth: 520
     implicitHeight: 300
     color: root.themeColors.background.panel
-    required property var state
+    required property var sceneManager
     required property string sceneId
     property string initialName: qsTr("图像")
     property string filePath: ""
@@ -18,14 +18,14 @@ Rectangle {
     signal browseImageFileRequested()
 
     function submit() {
-        if (!state) {
+        if (!sceneManager) {
             errorText = qsTr("来源状态不可用。")
             return
         }
-        errorText = state.imageSourceError(sceneId, nameInput.text, filePath)
+        errorText = sceneManager.imageSourceError(sceneId, nameInput.text, filePath)
         if (errorText.length > 0)
             return
-        if (state.addImageSource(sceneId, nameInput.text, filePath).length > 0)
+        if (sceneManager.addImageSource(sceneId, nameInput.text, filePath).length > 0)
             closeRequested()
         else
             errorText = qsTr("无法添加图像来源，请重试。")

@@ -9,23 +9,23 @@ Rectangle {
     implicitWidth: 420
     implicitHeight: 200
     color: root.themeColors.background.panel
-    required property var state
+    required property var sceneManager
     required property string initialName
     property string sceneId: ""
     property string errorText: ""
     signal closeRequested()
 
     function submit() {
-        if (!state) {
+        if (!sceneManager) {
             errorText = qsTr("场景状态不可用。")
             return
         }
-        errorText = state.sceneNameError(nameInput.text, sceneId)
+        errorText = sceneManager.sceneNameError(nameInput.text, sceneId)
         if (errorText.length > 0)
             return
         const succeeded = sceneId.length > 0
-            ? state.renameScene(sceneId, nameInput.text)
-            : state.addScene(nameInput.text).length > 0
+            ? sceneManager.renameScene(sceneId, nameInput.text)
+            : sceneManager.addScene(nameInput.text).length > 0
         if (succeeded)
             closeRequested()
         else

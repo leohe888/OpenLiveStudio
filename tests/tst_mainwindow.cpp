@@ -1097,7 +1097,7 @@ void MainWindowTest::basicDialogThemes()
     if (dialogName == "AboutDialog") {
         properties = {{"productName", "OpenLive Studio"}, {"versionText", "Development"}, {"qtVersion", qVersion()}};
     } else {
-        properties = {{"state", QVariant::fromValue(state)}, {"sceneId", state->currentSceneId()}};
+        properties = {{"sceneManager", QVariant::fromValue(state)}, {"sceneId", state->currentSceneId()}};
         if (dialogName.startsWith("Source")) {
             if (dialogName == "SourceAddDialog") properties.insert("initialName", "Theme sample");
             else {
@@ -1555,7 +1555,7 @@ void MainWindowTest::sourceAddDialogHandlesInput()
     const QString existingId = state->addImageSource(sceneId, "Existing", path);
     QVERIFY(!existingId.isEmpty());
     window.showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml")),
-        QStringLiteral("Add source"), {{"state", QVariant::fromValue(state)}, {"sceneId", sceneId}});
+        QStringLiteral("Add source"), {{"sceneManager", QVariant::fromValue(state)}, {"sceneId", sceneId}});
     QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
     QVERIFY(dialog);
     auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
@@ -1687,7 +1687,7 @@ void MainWindowTest::sceneNameDialogValidatesAndSaves()
     const QString initial = rename ? state->sceneModel()->index(0, 0).data(SceneManager::NameRole).toString()
                                    : state->suggestedSceneName();
     window.showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SceneNameDialog.qml")),
-        QStringLiteral("Scene name"), {{"state", QVariant::fromValue(state)},
+        QStringLiteral("Scene name"), {{"sceneManager", QVariant::fromValue(state)},
         {"initialName", initial}, {"sceneId", rename ? originalId : QString()}});
     QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
     QVERIFY(dialog);
@@ -1754,7 +1754,7 @@ void MainWindowTest::sceneNameDialogCancelsWithoutChanges()
     const QString originalId = state->currentSceneId();
     const QString originalName = state->sceneModel()->index(0, 0).data(SceneManager::NameRole).toString();
     window.showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SceneNameDialog.qml")),
-        QStringLiteral("Scene name"), {{"state", QVariant::fromValue(state)},
+        QStringLiteral("Scene name"), {{"sceneManager", QVariant::fromValue(state)},
         {"initialName", originalName}, {"sceneId", originalId}});
     QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
     QVERIFY(dialog);
@@ -2007,7 +2007,7 @@ void MainWindowTest::sourceRemovalDialogHandlesConfirmation()
     MainWindow window(*m_theme);
     window.show();
     window.showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceRemovalDialog.qml")),
-        QStringLiteral("Remove source"), {{"state", QVariant::fromValue(&state)},
+        QStringLiteral("Remove source"), {{"sceneManager", QVariant::fromValue(&state)},
         {"sceneId", "target"}, {"sourceId", "shared"}, {"sourceName", name}});
     QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
     QVERIFY(dialog);
@@ -2098,7 +2098,7 @@ void MainWindowTest::sceneRemovalDialogHandlesConfirmation()
     QVERIFY(state->selectScene(targetId));
     const int originalCount = state->sceneModel()->rowCount();
     window.showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SceneRemovalDialog.qml")),
-        QStringLiteral("Remove scene"), {{"state", QVariant::fromValue(state)},
+        QStringLiteral("Remove scene"), {{"sceneManager", QVariant::fromValue(state)},
         {"sceneId", targetId}, {"sceneName", name}});
     QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
     QVERIFY(dialog);
