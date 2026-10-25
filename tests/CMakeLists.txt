@@ -20,50 +20,9 @@ add_test(NAME core.thememanager
 )
 set_tests_properties(core.thememanager PROPERTIES LABELS "core;smoke" TIMEOUT 15)
 
-qt_add_executable(tst_scenesnapshotbuilder
-    tst_scenesnapshotbuilder.cpp
-    ../src/app/scenesnapshotbuilder.cpp
-    ../src/app/scenesnapshotbuilder.h
-    ../src/scene/studiostate.cpp
-    ../src/scene/studiostate.h
-    ../src/sources/imageloader.cpp
-    ../src/sources/imageloader.h
-    ../src/graphics/composition/compositionsession.cpp
-    ../src/graphics/composition/compositionsession.h
-    ../src/graphics/composition/imagecompositor.cpp
-    ../src/graphics/composition/imagecompositor.h
-)
-target_include_directories(tst_scenesnapshotbuilder PRIVATE
-    "${PROJECT_SOURCE_DIR}/src/app"
-    "${PROJECT_SOURCE_DIR}/src/scene"
-    "${PROJECT_SOURCE_DIR}/src/sources"
-    "${PROJECT_SOURCE_DIR}/src/graphics/composition"
-)
-target_link_libraries(tst_scenesnapshotbuilder PRIVATE Qt6::OpenGL Qt6::Test)
-set_target_properties(tst_scenesnapshotbuilder PROPERTIES WIN32_EXECUTABLE FALSE)
-add_test(NAME core.scenesnapshotbuilder
-    COMMAND "${CMAKE_COMMAND}" -E env
-        "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
-        "QT_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../plugins"
-        "QT_QPA_PLATFORM=offscreen"
-        "$<TARGET_FILE:tst_scenesnapshotbuilder>"
-        initialAndOrdering visibilitySelectionAndRemoval sceneIsolationAndEmpty
-        decodeErrorsAndRecovery latestRequestWins stateDestructionAndShutdown signalReentrancy
-        -o "-,txt"
-)
-set_tests_properties(core.scenesnapshotbuilder PROPERTIES LABELS "core;smoke" TIMEOUT 30)
-
 # Opt in on a desktop with real OpenGL; never substitute the smoke UI backend.
 option(OPENLIVE_STUDIO_GL_TESTS "Build and register native OpenGL composition tests" OFF)
 if(OPENLIVE_STUDIO_GL_TESTS)
-    add_test(NAME graphics.scenesnapshotbuilder
-        COMMAND "${CMAKE_COMMAND}" -E env
-            "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
-            "QT_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../plugins"
-            "QT_QPA_PLATFORM=windows"
-            "$<TARGET_FILE:tst_scenesnapshotbuilder>" sceneToComposition -o "-,txt"
-    )
-    set_tests_properties(graphics.scenesnapshotbuilder PROPERTIES LABELS "graphics" TIMEOUT 30)
     qt_add_executable(tst_compositionsession
         tst_compositionsession.cpp
         ../src/graphics/composition/compositionsession.cpp
@@ -140,8 +99,6 @@ qt_add_executable(tst_mainwindow
     tst_mainwindow.cpp
     ../src/ui/theme/thememanager.cpp
     ../src/ui/theme/thememanager.h
-    ../src/app/scenesnapshotbuilder.cpp
-    ../src/app/scenesnapshotbuilder.h
     ../src/graphics/composition/compositionsession.cpp
     ../src/graphics/composition/compositionsession.h
     ../src/graphics/composition/imagecompositor.cpp
@@ -156,7 +113,6 @@ qt_add_executable(tst_mainwindow
 
 target_include_directories(tst_mainwindow PRIVATE
     "${PROJECT_SOURCE_DIR}/src/ui/theme"
-    "${PROJECT_SOURCE_DIR}/src/app"
     "${PROJECT_SOURCE_DIR}/src/graphics/composition"
     "${PROJECT_SOURCE_DIR}/src/ui/widgets"
     "${PROJECT_SOURCE_DIR}/src/sources"
