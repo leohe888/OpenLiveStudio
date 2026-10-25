@@ -35,25 +35,25 @@ add_test(NAME core.imageloader
 )
 set_tests_properties(core.imageloader PROPERTIES LABELS "core;smoke" TIMEOUT 10)
 
-qt_add_executable(tst_studiostate
-    tst_studiostate.cpp
-    ../src/scene/studiostate.cpp
-    ../src/scene/studiostate.h
+qt_add_executable(tst_scenemanager
+    tst_scenemanager.cpp
+    ../src/scene/scenemanager.cpp
+    ../src/scene/scenemanager.h
     ../src/sources/imageloader.cpp
     ../src/sources/imageloader.h
 )
-target_include_directories(tst_studiostate PRIVATE
+target_include_directories(tst_scenemanager PRIVATE
     "${PROJECT_SOURCE_DIR}/src/sources"
     "${PROJECT_SOURCE_DIR}/src/scene"
 )
-target_link_libraries(tst_studiostate PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
-add_test(NAME core.studiostate
+target_link_libraries(tst_scenemanager PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+add_test(NAME core.scenemanager
     COMMAND "${CMAKE_COMMAND}" -E env
         "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
-        "$<TARGET_FILE:tst_studiostate>"
+        "$<TARGET_FILE:tst_scenemanager>"
         -o "-,txt"
 )
-set_tests_properties(core.studiostate PROPERTIES LABELS "core;smoke" TIMEOUT 10)
+set_tests_properties(core.scenemanager PROPERTIES LABELS "core;smoke" TIMEOUT 10)
 
 qt_add_executable(tst_mainwindow
     tst_mainwindow.cpp
@@ -61,8 +61,8 @@ qt_add_executable(tst_mainwindow
     ../src/ui/theme/thememanager.h
     ../src/ui/widgets/mainwindow.cpp
     ../src/ui/widgets/mainwindow.h
-    ../src/scene/studiostate.cpp
-    ../src/scene/studiostate.h
+    ../src/scene/scenemanager.cpp
+    ../src/scene/scenemanager.h
     ../src/sources/imageloader.cpp
     ../src/sources/imageloader.h
 )

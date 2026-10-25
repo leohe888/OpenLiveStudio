@@ -1,26 +1,27 @@
-#include "studiostate.h"
+#include "scenemanager.h"
 #include "imageloader.h"
 
 #include <QAbstractListModel>
 #include <QFileInfo>
 #include <QUuid>
 
-class StudioState::SceneListModel : public QAbstractListModel
+class SceneManager::SceneListModel : public QAbstractListModel
 {
 public:
-    explicit SceneListModel(StudioState *state) : QAbstractListModel(state), m_state(state) {}
+    explicit SceneListModel(SceneManager *sceneManager)
+        : QAbstractListModel(sceneManager), m_sceneManager(sceneManager) {}
 
     int rowCount(const QModelIndex &parent = {}) const override
     {
-        return parent.isValid() ? 0 : int(m_state->m_scenes.size());
+        return parent.isValid() ? 0 : int(m_sceneManager->m_scenes.size());
     }
 
     QVariant data(const QModelIndex &index, int role) const override
     {
         if (!index.isValid() || index.model() != this || index.column() != 0
-            || index.row() < 0 || index.row() >= m_state->m_scenes.size())
+            || index.row() < 0 || index.row() >= m_sceneManager->m_scenes.size())
             return {};
-        const auto &item = m_state->m_scenes.at(index.row());
+        const auto &item = m_sceneManager->m_scenes.at(index.row());
         if (role == IdRole)
             return item.id;
         if (role == NameRole || role == Qt::DisplayRole)
@@ -34,14 +35,15 @@ public:
     }
 
 private:
-    friend class StudioState;
-    const StudioState *m_state;
+    friend class SceneManager;
+    const SceneManager *m_sceneManager;
 };
 
-class StudioState::SourceListModel : public QAbstractListModel
+class SceneManager::SourceListModel : public QAbstractListModel
 {
 public:
-    explicit SourceListModel(StudioState *state) : QAbstractListModel(state), m_state(state) {}
+    explicit SourceListModel(SceneManager *sceneManager)
+        : QAbstractListModel(sceneManager), m_sceneManager(sceneManager) {}
 
     int rowCount(const QModelIndex &parent = {}) const override
     {
@@ -76,47 +78,47 @@ public:
     }
 
 private:
-    friend class StudioState;
+    friend class SceneManager;
     const QList<SourceData> &sources() const
     {
-        const int row = m_state->sceneRow(m_state->m_currentSceneId);
+        const int row = m_sceneManager->sceneRow(m_sceneManager->m_currentSceneId);
         if (row >= 0)
-            return m_state->m_scenes.at(row).sources;
+            return m_sceneManager->m_scenes.at(row).sources;
         static const QList<SourceData> empty;
         return empty;
     }
 
-    const StudioState *m_state;
+    const SceneManager *m_sceneManager;
 };
 
-StudioState::StudioState(QObject *parent)
-    : StudioState(QList<SceneData>{{QUuid::createUuid().toString(QUuid::WithoutBraces),
+SceneManager::SceneManager(QObject *parent)
+    : SceneManager(QList<SceneData>{{QUuid::createUuid().toString(QUuid::WithoutBraces),
                                   tr("场景"), {}}}, parent)
 {
 }
 
-StudioState::StudioState(const QList<SceneData> &scenes, QObject *parent)
+SceneManager::SceneManager(const QList<SceneData> &scenes, QObject *parent)
     : QObject(parent), m_scenes(scenes),
       m_sceneModel(new SceneListModel(this)),
       m_sourceModel(new SourceListModel(this))
 {
-    connect(this, &StudioState::currentSceneIdChanged, this, &StudioState::sceneMoveAvailabilityChanged);
-    connect(m_sceneModel, &QAbstractItemModel::rowsInserted, this, &StudioState::sceneMoveAvailabilityChanged);
-    connect(m_sceneModel, &QAbstractItemModel::rowsRemoved, this, &StudioState::sceneMoveAvailabilityChanged);
-    connect(m_sceneModel, &QAbstractItemModel::rowsMoved, this, &StudioState::sceneMoveAvailabilityChanged);
-    connect(this, &StudioState::currentSourceIdChanged, this, &StudioState::sourceMoveAvailabilityChanged);
-    connect(m_sourceModel, &QAbstractItemModel::modelReset, this, &StudioState::sourceMoveAvailabilityChanged);
-    connect(m_sourceModel, &QAbstractItemModel::rowsInserted, this, &StudioState::sourceMoveAvailabilityChanged);
-    connect(m_sourceModel, &QAbstractItemModel::rowsRemoved, this, &StudioState::sourceMoveAvailabilityChanged);
-    connect(m_sourceModel, &QAbstractItemModel::rowsMoved, this, &StudioState::sourceMoveAvailabilityChanged);
+    connect(this, &SceneManager::currentSceneIdChanged, this, &SceneManager::sceneMoveAvailabilityChanged);
+    connect(m_sceneModel, &QAbstractItemModel::rowsInserted, this, &SceneManager::sceneMoveAvailabilityChanged);
+    connect(m_sceneModel, &QAbstractItemModel::rowsRemoved, this, &SceneManager::sceneMoveAvailabilityChanged);
+    connect(m_sceneModel, &QAbstractItemModel::rowsMoved, this, &SceneManager::sceneMoveAvailabilityChanged);
+    connect(this, &SceneManager::currentSourceIdChanged, this, &SceneManager::sourceMoveAvailabilityChanged);
+    connect(m_sourceModel, &QAbstractItemModel::modelReset, this, &SceneManager::sourceMoveAvailabilityChanged);
+    connect(m_sourceModel, &QAbstractItemModel::rowsInserted, this, &SceneManager::sourceMoveAvailabilityChanged);
+    connect(m_sourceModel, &QAbstractItemModel::rowsRemoved, this, &SceneManager::sourceMoveAvailabilityChanged);
+    connect(m_sourceModel, &QAbstractItemModel::rowsMoved, this, &SceneManager::sourceMoveAvailabilityChanged);
     if (!m_scenes.isEmpty())
         m_currentSceneId = m_scenes.first().id;
 }
 
-QAbstractItemModel *StudioState::sceneModel() const { return m_sceneModel; }
-QAbstractItemModel *StudioState::sourceModel() const { return m_sourceModel; }
+QAbstractItemModel *SceneManager::sceneModel() const { return m_sceneModel; }
+QAbstractItemModel *SceneManager::sourceModel() const { return m_sourceModel; }
 
-bool StudioState::selectScene(const QString &id)
+bool SceneManager::selectScene(const QString &id)
 {
     for (const auto &scene : m_scenes) {
         if (scene.id != id)
@@ -136,7 +138,7 @@ bool StudioState::selectScene(const QString &id)
     return false;
 }
 
-bool StudioState::selectSource(const QString &id)
+bool SceneManager::selectSource(const QString &id)
 {
     if (!id.isEmpty()) {
         bool found = false;
@@ -156,7 +158,7 @@ bool StudioState::selectSource(const QString &id)
     return true;
 }
 
-QString StudioState::suggestedSceneName() const
+QString SceneManager::suggestedSceneName() const
 {
     const QString base = tr("场景");
     QString candidate = base;
@@ -165,7 +167,7 @@ QString StudioState::suggestedSceneName() const
     return candidate;
 }
 
-QString StudioState::sceneNameError(const QString &name, const QString &excludedSceneId) const
+QString SceneManager::sceneNameError(const QString &name, const QString &excludedSceneId) const
 {
     const QString trimmed = name.trimmed();
     if (trimmed.isEmpty())
@@ -178,7 +180,7 @@ QString StudioState::sceneNameError(const QString &name, const QString &excluded
     return {};
 }
 
-QString StudioState::suggestedSourceName(const QString &sceneId, const QString &baseName) const
+QString SceneManager::suggestedSourceName(const QString &sceneId, const QString &baseName) const
 {
     const int row = sceneRow(sceneId);
     const QString base = baseName.trimmed();
@@ -200,7 +202,7 @@ QString StudioState::suggestedSourceName(const QString &sceneId, const QString &
     }
 }
 
-QString StudioState::addScene(const QString &name)
+QString SceneManager::addScene(const QString &name)
 {
     if (!sceneNameError(name).isEmpty())
         return {};
@@ -217,7 +219,7 @@ QString StudioState::addScene(const QString &name)
     return id;
 }
 
-bool StudioState::renameScene(const QString &id, const QString &name)
+bool SceneManager::renameScene(const QString &id, const QString &name)
 {
     for (int row = 0; row < m_scenes.size(); ++row) {
         auto &scene = m_scenes[row];
@@ -236,7 +238,7 @@ bool StudioState::renameScene(const QString &id, const QString &name)
     return false;
 }
 
-bool StudioState::removeScene(const QString &id)
+bool SceneManager::removeScene(const QString &id)
 {
     if (m_scenes.size() <= 1)
         return false;
@@ -258,7 +260,7 @@ bool StudioState::removeScene(const QString &id)
     return false;
 }
 
-int StudioState::sceneRow(const QString &id) const
+int SceneManager::sceneRow(const QString &id) const
 {
     for (int row = 0; row < m_scenes.size(); ++row) {
         if (m_scenes.at(row).id == id)
@@ -267,18 +269,18 @@ int StudioState::sceneRow(const QString &id) const
     return -1;
 }
 
-bool StudioState::canMoveCurrentSceneUp() const
+bool SceneManager::canMoveCurrentSceneUp() const
 {
     return sceneRow(m_currentSceneId) > 0;
 }
 
-bool StudioState::canMoveCurrentSceneDown() const
+bool SceneManager::canMoveCurrentSceneDown() const
 {
     const int row = sceneRow(m_currentSceneId);
     return row >= 0 && row + 1 < m_scenes.size();
 }
 
-bool StudioState::moveScene(const QString &id, int offset)
+bool SceneManager::moveScene(const QString &id, int offset)
 {
     if (offset != -1 && offset != 1)
         return false;
@@ -292,7 +294,7 @@ bool StudioState::moveScene(const QString &id, int offset)
     return true;
 }
 
-QString StudioState::validateImageSource(const QString &sceneId, const QString &name,
+QString SceneManager::validateImageSource(const QString &sceneId, const QString &name,
                                         const QString &filePath, QSize *size) const
 {
     const int row = sceneRow(sceneId);
@@ -313,13 +315,13 @@ QString StudioState::validateImageSource(const QString &sceneId, const QString &
     return {};
 }
 
-QString StudioState::imageSourceError(const QString &sceneId, const QString &name,
+QString SceneManager::imageSourceError(const QString &sceneId, const QString &name,
                                      const QString &filePath) const
 {
     return validateImageSource(sceneId, name, filePath, nullptr);
 }
 
-QString StudioState::addImageSource(const QString &sceneId, const QString &name,
+QString SceneManager::addImageSource(const QString &sceneId, const QString &name,
                                    const QString &filePath)
 {
     QSize size;
@@ -338,7 +340,7 @@ QString StudioState::addImageSource(const QString &sceneId, const QString &name,
     return source.id;
 }
 
-bool StudioState::removeSource(const QString &sceneId, const QString &sourceId)
+bool SceneManager::removeSource(const QString &sceneId, const QString &sourceId)
 {
     const int scene = sceneRow(sceneId);
     if (scene < 0 || sourceId.isEmpty())
@@ -360,7 +362,7 @@ bool StudioState::removeSource(const QString &sceneId, const QString &sourceId)
     return false;
 }
 
-int StudioState::sourceRow(const QString &sceneId, const QString &sourceId) const
+int SceneManager::sourceRow(const QString &sceneId, const QString &sourceId) const
 {
     const int scene = sceneRow(sceneId);
     if (scene < 0 || sourceId.isEmpty())
@@ -373,18 +375,18 @@ int StudioState::sourceRow(const QString &sceneId, const QString &sourceId) cons
     return -1;
 }
 
-bool StudioState::canMoveCurrentSourceUp() const
+bool SceneManager::canMoveCurrentSourceUp() const
 {
     return sourceRow(m_currentSceneId, m_currentSourceId) > 0;
 }
 
-bool StudioState::canMoveCurrentSourceDown() const
+bool SceneManager::canMoveCurrentSourceDown() const
 {
     const int row = sourceRow(m_currentSceneId, m_currentSourceId);
     return row >= 0 && row + 1 < m_sourceModel->rowCount();
 }
 
-bool StudioState::moveSource(const QString &sceneId, const QString &sourceId, int offset)
+bool SceneManager::moveSource(const QString &sceneId, const QString &sourceId, int offset)
 {
     if (offset != -1 && offset != 1)
         return false;
@@ -404,7 +406,7 @@ bool StudioState::moveSource(const QString &sceneId, const QString &sourceId, in
     return true;
 }
 
-bool StudioState::setSourceFlag(const QString &sceneId, const QString &sourceId, int role, bool value)
+bool SceneManager::setSourceFlag(const QString &sceneId, const QString &sourceId, int role, bool value)
 {
     const int row = sourceRow(sceneId, sourceId);
     if (row < 0)
@@ -421,12 +423,12 @@ bool StudioState::setSourceFlag(const QString &sceneId, const QString &sourceId,
     return true;
 }
 
-bool StudioState::setSourceVisible(const QString &sceneId, const QString &sourceId, bool visible)
+bool SceneManager::setSourceVisible(const QString &sceneId, const QString &sourceId, bool visible)
 {
     return setSourceFlag(sceneId, sourceId, VisibleRole, visible);
 }
 
-bool StudioState::setSourceLocked(const QString &sceneId, const QString &sourceId, bool locked)
+bool SceneManager::setSourceLocked(const QString &sceneId, const QString &sourceId, bool locked)
 {
     return setSourceFlag(sceneId, sourceId, LockedRole, locked);
 }

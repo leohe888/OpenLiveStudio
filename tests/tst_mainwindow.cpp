@@ -1,6 +1,6 @@
 #include "mainwindow.h"
 #include "thememanager.h"
-#include "studiostate.h"
+#include "scenemanager.h"
 #include <QApplication>
 
 #include <QAction>
@@ -135,9 +135,9 @@ void MainWindowTest::panelsShareStateAcrossReloadsAndReleaseItWithWindow()
 {
     auto window = std::make_unique<MainWindow>(*m_theme);
     window->show();
-    QPointer<StudioState> state = window->findChild<StudioState *>();
+    QPointer<SceneManager> state = window->findChild<SceneManager *>();
     QVERIFY(state);
-    QCOMPARE(window->findChildren<StudioState *>().size(), 1);
+    QCOMPARE(window->findChildren<SceneManager *>().size(), 1);
     QCOMPARE(state->parent(), window.get());
     const QString sceneId = state->currentSceneId();
     QVERIFY(!sceneId.isEmpty());
@@ -151,10 +151,10 @@ void MainWindowTest::panelsShareStateAcrossReloadsAndReleaseItWithWindow()
         auto *view = window->findChild<QQuickWidget *>(QLatin1String(panelId) + QStringLiteral("QuickWidget"));
         QVERIFY(view);
         QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-        QCOMPARE(view->rootContext()->contextProperty(QStringLiteral("studioState")).value<QObject *>(), state.data());
+        QCOMPARE(view->rootContext()->contextProperty(QStringLiteral("sceneManager")).value<QObject *>(), state.data());
         // Exercise the QML context and invokable API, rather than just a C++ pointer.
         QQmlExpression expression(view->rootContext(), view->rootObject(),
-            QStringLiteral("studioState.selectScene(studioState.currentSceneId)"));
+            QStringLiteral("sceneManager.selectScene(sceneManager.currentSceneId)"));
         QCOMPARE(expression.evaluate().toBool(), true);
         QVERIFY2(!expression.hasError(), qPrintable(expression.error().toString()));
         QPointer<QQuickItem> oldRoot = view->rootObject();
@@ -164,9 +164,9 @@ void MainWindowTest::panelsShareStateAcrossReloadsAndReleaseItWithWindow()
         QTRY_VERIFY(oldRoot.isNull());
         view->setSource(source);
         QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-        QCOMPARE(view->rootContext()->contextProperty(QStringLiteral("studioState")).value<QObject *>(), state.data());
+        QCOMPARE(view->rootContext()->contextProperty(QStringLiteral("sceneManager")).value<QObject *>(), state.data());
         QQmlExpression reloaded(view->rootContext(), view->rootObject(),
-            QStringLiteral("studioState.currentSceneId"));
+            QStringLiteral("sceneManager.currentSceneId"));
         QCOMPARE(reloaded.evaluate().toString(), sceneId);
         QVERIFY2(!reloaded.hasError(), qPrintable(reloaded.error().toString()));
         QCOMPARE(state->sceneModel(), scenes.data());
@@ -187,7 +187,7 @@ void MainWindowTest::panelsShareStateAcrossReloadsAndReleaseItWithWindow()
 
 void MainWindowTest::panelsFollowSceneAndSourceSelection()
 {
-    StudioState state(QList<StudioState::SceneData>{
+    SceneManager state(QList<SceneManager::SceneData>{
         {"first", "Scene", {{"a", "Image"}}},
         {"second", "Scene", {{"b", "Image"}}},
         {"empty", "Empty", {}}});
@@ -198,7 +198,7 @@ void MainWindowTest::panelsFollowSceneAndSourceSelection()
     for (auto *view : {&scenes, &sources}) {
         view->setResizeMode(QQuickWidget::SizeRootObjectToView);
         view->resize(238, 260);
-        view->rootContext()->setContextProperty(QStringLiteral("studioState"), &state);
+        view->rootContext()->setContextProperty(QStringLiteral("sceneManager"), &state);
     }
     scenes.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ScenesPanel.qml")));
     sources.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml")));
@@ -281,7 +281,7 @@ void MainWindowTest::imageScenesSwitchIndependently()
     QVERIFY(image.save(path));
     MainWindow window(*m_theme);
     window.show();
-    auto *state = window.findChild<StudioState *>();
+    auto *state = window.findChild<SceneManager *>();
     QVERIFY(state);
     const QString first = state->currentSceneId();
     const QString second = state->addScene("Second");
@@ -345,8 +345,8 @@ void MainWindowTest::imageScenesSwitchIndependently()
     click(sources, lock);
     QTRY_VERIFY(!row->property("sourceVisible").toBool());
     QTRY_VERIFY(row->property("sourceLocked").toBool());
-    QTRY_COMPARE(state->sourceModel()->index(0, 0).data(StudioState::IdRole).toString(), a);
-    QSignalSpy changed(state, &StudioState::currentSceneIdChanged);
+    QTRY_COMPARE(state->sourceModel()->index(0, 0).data(SceneManager::IdRole).toString(), a);
+    QSignalSpy changed(state, &SceneManager::currentSceneIdChanged);
     QSignalSpy reset(state->sourceModel(), &QAbstractItemModel::modelReset);
     click(scenes, find(scenes, "sceneRow_" + first), true);
     QCOMPARE(state->currentSourceId(), a); // Reclicking the current scene preserves selection.
@@ -370,7 +370,7 @@ void MainWindowTest::imageScenesSwitchIndependently()
         QVERIFY(!restored->property("sourceVisible").toBool());
         QVERIFY(restored->property("sourceLocked").toBool());
         QVERIFY(!restored->property("selected").toBool());
-        QCOMPARE(state->sourceModel()->index(0, 0).data(StudioState::IdRole).toString(), a);
+        QCOMPARE(state->sourceModel()->index(0, 0).data(SceneManager::IdRole).toString(), a);
     }
     QCOMPARE(changed.count(), 8);
     QCOMPARE(reset.count(), 8);
@@ -403,14 +403,14 @@ void MainWindowTest::sourcePanelCanMoveAndToggle_data()
 void MainWindowTest::sourcePanelCanMoveAndToggle()
 {
     QFETCH(bool, reload);
-    StudioState state(QList<StudioState::SceneData>{
+    SceneManager state(QList<SceneManager::SceneData>{
         {"first", "First", {{"a", "Foreground"}, {"b", "Background"}, {"c", "Logo"}}},
         {"second", "Second", {{"b", "Other scene image"}}}, {"empty", "Empty", {}}});
     QQuickWidget panel;
     panel.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(280, 220);
-    panel.rootContext()->setContextProperty(QStringLiteral("studioState"), &state);
+    panel.rootContext()->setContextProperty(QStringLiteral("sceneManager"), &state);
     const QUrl url(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml"));
     panel.setSource(url);
     QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
@@ -464,12 +464,12 @@ void MainWindowTest::sourcePanelCanMoveAndToggle()
     QTRY_VERIFY(!visibility->property("checked").toBool());
     QTRY_COMPARE(iconSource(visibility), QUrl("qrc:/assets/icons/eye-off.svg"));
     QCOMPARE(state.currentSourceId(), QString("a"));
-    QVERIFY(!state.sourceModel()->index(1, 0).data(StudioState::VisibleRole).toBool());
+    QVERIFY(!state.sourceModel()->index(1, 0).data(SceneManager::VisibleRole).toBool());
     click(lock);
     QTRY_VERIFY(lock->property("checked").toBool());
     QTRY_COMPARE(iconSource(lock), QUrl("qrc:/assets/icons/lock.svg"));
     QCOMPARE(state.currentSourceId(), QString("a"));
-    QVERIFY(state.sourceModel()->index(1, 0).data(StudioState::LockedRole).toBool());
+    QVERIFY(state.sourceModel()->index(1, 0).data(SceneManager::LockedRole).toBool());
     // Model updates must continue to drive presentation after user clicks.
     QVERIFY(state.setSourceVisible("first", "b", true));
     QTRY_VERIFY(visibility->property("checked").toBool());
@@ -488,13 +488,13 @@ void MainWindowTest::sourcePanelCanMoveAndToggle()
     QTRY_VERIFY(up->isEnabled());
     QTRY_VERIFY(down->isEnabled());
     click(up);
-    QTRY_COMPARE(state.sourceModel()->index(0, 0).data(StudioState::IdRole).toString(), QString("b"));
+    QTRY_COMPARE(state.sourceModel()->index(0, 0).data(SceneManager::IdRole).toString(), QString("b"));
     QTRY_VERIFY(!up->isEnabled());
     QCOMPARE(state.currentSourceId(), QString("b"));
     QTRY_VERIFY(find("sourceRow_b")->y() < find("sourceRow_a")->y());
     click(down);
     click(down);
-    QTRY_COMPARE(state.sourceModel()->index(2, 0).data(StudioState::IdRole).toString(), QString("b"));
+    QTRY_COMPARE(state.sourceModel()->index(2, 0).data(SceneManager::IdRole).toString(), QString("b"));
     QTRY_VERIFY(!down->isEnabled());
     click(down);
     QCOMPARE(state.currentSourceId(), QString("b"));
@@ -544,20 +544,20 @@ void MainWindowTest::listScrollBarsHandleOverflow()
 {
     QFETCH(QString, panelName);
     QFETCH(QString, prefix);
-    QList<StudioState::SourceData> sources;
-    QList<StudioState::SceneData> scenes;
+    QList<SceneManager::SourceData> sources;
+    QList<SceneManager::SceneData> scenes;
     for (int i = 0; i < 24; ++i)
         sources.append({QString::number(i), QStringLiteral("Source %1").arg(i)});
     for (int i = 0; i < 24; ++i)
         scenes.append({QString::number(i), QStringLiteral("Scene %1").arg(i), sources});
-    StudioState state(scenes);
-    StudioState shortState(QList<StudioState::SceneData>{{"only", "Only", {{"one", "One"}}}});
+    SceneManager state(scenes);
+    SceneManager shortState(QList<SceneManager::SceneData>{{"only", "Only", {{"one", "One"}}}});
     QVERIFY(state.selectSource("0"));
     QQuickWidget panel;
     panel.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(238, 150);
-    panel.rootContext()->setContextProperty(QStringLiteral("studioState"), &state);
+    panel.rootContext()->setContextProperty(QStringLiteral("sceneManager"), &state);
     panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(panelName)));
     QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
     panel.show();
@@ -603,7 +603,7 @@ void MainWindowTest::listScrollBarsHandleOverflow()
     panel.resize(238, 150);
     QTRY_VERIFY(bar->isVisible());
     // A short list needs no scrollbar even in the smaller panel.
-    panel.rootContext()->setContextProperty(QStringLiteral("studioState"), &shortState);
+    panel.rootContext()->setContextProperty(QStringLiteral("sceneManager"), &shortState);
     QTRY_COMPARE(list->property("count").toInt(), 1);
     QTRY_VERIFY(!bar->isVisible());
 }
@@ -836,17 +836,17 @@ void MainWindowTest::sceneAndSourceThemes()
     QFETCH(QString, prefix);
     QFETCH(QString, themeId);
     QVERIFY(m_theme->setTheme(themeId));
-    QList<StudioState::SourceData> sources;
-    QList<StudioState::SceneData> scenes;
+    QList<SceneManager::SourceData> sources;
+    QList<SceneManager::SceneData> scenes;
     for (int i = 0; i < 24; ++i)
         sources.append({QString::number(i), QString("Source %1").arg(i), {}, {}, {}, i != 0, i == 0});
     for (int i = 0; i < 24; ++i)
         scenes.append({QString::number(i), QString("Scene %1").arg(i), sources});
-    StudioState state(scenes);
+    SceneManager state(scenes);
     QVERIFY(state.selectSource("0"));
     QQuickWidget panel;
     panel.rootContext()->setContextProperty("uiTheme", m_theme.get());
-    panel.rootContext()->setContextProperty("studioState", &state);
+    panel.rootContext()->setContextProperty("sceneManager", &state);
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(280, 220);
     const QUrl url(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(panelName));
@@ -1091,7 +1091,7 @@ void MainWindowTest::basicDialogThemes()
     QVERIFY(m_theme->setTheme(themeId));
     MainWindow window(*m_theme);
     window.show();
-    auto *state = window.findChild<StudioState *>();
+    auto *state = window.findChild<SceneManager *>();
     QVERIFY(state);
     QVariantMap properties;
     if (dialogName == "AboutDialog") {
@@ -1448,7 +1448,7 @@ void MainWindowTest::sourcePanelCanBrowseAndAdd()
     QVERIFY(image.save(path));
     MainWindow window(*m_theme);
     window.show();
-    auto *state = window.findChild<StudioState *>();
+    auto *state = window.findChild<SceneManager *>();
     auto *panel = window.findChild<QQuickWidget *>(QStringLiteral("sourcesQuickWidget"));
     QVERIFY(state && panel);
     if (reload) {
@@ -1508,8 +1508,8 @@ void MainWindowTest::sourcePanelCanBrowseAndAdd()
     QTRY_VERIFY(dialog.isNull());
     QVERIFY(picker.isNull());
     QCOMPARE(state->sourceModel()->rowCount(), 1);
-    QCOMPARE(state->sourceModel()->index(0, 0).data(StudioState::FilePathRole).toString(), path);
-    QCOMPARE(state->currentSourceId(), state->sourceModel()->index(0, 0).data(StudioState::IdRole).toString());
+    QCOMPARE(state->sourceModel()->index(0, 0).data(SceneManager::FilePathRole).toString(), path);
+    QCOMPARE(state->currentSourceId(), state->sourceModel()->index(0, 0).data(SceneManager::IdRole).toString());
     QTest::mouseClick(panel, Qt::LeftButton, Qt::NoModifier,
         add->mapToScene(add->boundingRect().center()).toPoint());
     QTRY_COMPARE(window.findChildren<QDialog *>(QStringLiteral("qmlDialog")).size(), 1);
@@ -1549,7 +1549,7 @@ void MainWindowTest::sourceAddDialogHandlesInput()
     QVERIFY(image.save(path));
     MainWindow window(*m_theme);
     window.show();
-    auto *state = window.findChild<StudioState *>();
+    auto *state = window.findChild<SceneManager *>();
     QVERIFY(state);
     const QString sceneId = state->currentSceneId();
     const QString existingId = state->addImageSource(sceneId, "Existing", path);
@@ -1660,11 +1660,11 @@ void MainWindowTest::sourceAddDialogHandlesInput()
     }
     QCOMPARE(state->sourceModel()->rowCount(), 2);
     const auto added = state->sourceModel()->index(0, 0);
-    QCOMPARE(added.data(StudioState::NameRole).toString(), QString("Logo"));
-    QCOMPARE(added.data(StudioState::FilePathRole).toString(), path);
-    QCOMPARE(added.data(StudioState::OriginalSizeRole).toSize(), image.size());
+    QCOMPARE(added.data(SceneManager::NameRole).toString(), QString("Logo"));
+    QCOMPARE(added.data(SceneManager::FilePathRole).toString(), path);
+    QCOMPARE(added.data(SceneManager::OriginalSizeRole).toSize(), image.size());
     if (method != "switched")
-        QCOMPARE(state->currentSourceId(), added.data(StudioState::IdRole).toString());
+        QCOMPARE(state->currentSourceId(), added.data(SceneManager::IdRole).toString());
 }
 
 void MainWindowTest::sceneNameDialogValidatesAndSaves_data()
@@ -1679,12 +1679,12 @@ void MainWindowTest::sceneNameDialogValidatesAndSaves()
     QFETCH(bool, rename);
     MainWindow window(*m_theme);
     window.show();
-    auto *state = window.findChild<StudioState *>();
+    auto *state = window.findChild<SceneManager *>();
     QVERIFY(state);
     const QString originalId = state->currentSceneId();
     QVERIFY(!state->addScene("Existing").isEmpty());
     QVERIFY(state->selectScene(originalId));
-    const QString initial = rename ? state->sceneModel()->index(0, 0).data(StudioState::NameRole).toString()
+    const QString initial = rename ? state->sceneModel()->index(0, 0).data(SceneManager::NameRole).toString()
                                    : state->suggestedSceneName();
     window.showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SceneNameDialog.qml")),
         QStringLiteral("Scene name"), {{"state", QVariant::fromValue(state)},
@@ -1729,7 +1729,7 @@ void MainWindowTest::sceneNameDialogValidatesAndSaves()
     QTRY_VERIFY(dialog.isNull());
     QVERIFY(root.isNull());
     QCOMPARE(state->sceneModel()->rowCount(), rename ? 2 : 3);
-    QCOMPARE(state->sceneModel()->index(rename ? 0 : 2, 0).data(StudioState::NameRole).toString(), QString("Saved name"));
+    QCOMPARE(state->sceneModel()->index(rename ? 0 : 2, 0).data(SceneManager::NameRole).toString(), QString("Saved name"));
     if (rename)
         QCOMPARE(state->currentSceneId(), originalId);
     else
@@ -1749,10 +1749,10 @@ void MainWindowTest::sceneNameDialogCancelsWithoutChanges()
     QFETCH(QString, method);
     MainWindow window(*m_theme);
     window.show();
-    auto *state = window.findChild<StudioState *>();
+    auto *state = window.findChild<SceneManager *>();
     QVERIFY(state);
     const QString originalId = state->currentSceneId();
-    const QString originalName = state->sceneModel()->index(0, 0).data(StudioState::NameRole).toString();
+    const QString originalName = state->sceneModel()->index(0, 0).data(SceneManager::NameRole).toString();
     window.showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SceneNameDialog.qml")),
         QStringLiteral("Scene name"), {{"state", QVariant::fromValue(state)},
         {"initialName", originalName}, {"sceneId", originalId}});
@@ -1781,14 +1781,14 @@ void MainWindowTest::sceneNameDialogCancelsWithoutChanges()
     QTRY_VERIFY(dialog.isNull());
     QCOMPARE(state->sceneModel()->rowCount(), 1);
     QCOMPARE(state->currentSceneId(), originalId);
-    QCOMPARE(state->sceneModel()->index(0, 0).data(StudioState::NameRole).toString(), originalName);
+    QCOMPARE(state->sceneModel()->index(0, 0).data(SceneManager::NameRole).toString(), originalName);
 }
 
 void MainWindowTest::scenePanelCanAddAndRenameAfterReload()
 {
     MainWindow window(*m_theme);
     window.show();
-    auto *state = window.findChild<StudioState *>();
+    auto *state = window.findChild<SceneManager *>();
     auto *panel = window.findChild<QQuickWidget *>(QStringLiteral("scenesQuickWidget"));
     QVERIFY(state);
     QVERIFY(panel);
@@ -1890,7 +1890,7 @@ void MainWindowTest::sourcePanelCanRemove()
     QVERIFY(image.save(path));
     MainWindow window(*m_theme);
     window.show();
-    auto *state = window.findChild<StudioState *>();
+    auto *state = window.findChild<SceneManager *>();
     auto *panel = window.findChild<QQuickWidget *>(QStringLiteral("sourcesQuickWidget"));
     QVERIFY(state && panel);
     QTRY_COMPARE(panel->status(), QQuickWidget::Ready);
@@ -1999,9 +1999,9 @@ void MainWindowTest::sourceRemovalDialogHandlesConfirmation()
     image.fill(Qt::red);
     QVERIFY(image.save(path));
     const QString name = "<b>Logo & image</b>";
-    QList<StudioState::SourceData> sources{{"shared", name, "image", path, image.size()}};
-    if (action != "last") sources.append(StudioState::SourceData{"remaining", "Remaining"});
-    StudioState state(QList<StudioState::SceneData>{
+    QList<SceneManager::SourceData> sources{{"shared", name, "image", path, image.size()}};
+    if (action != "last") sources.append(SceneManager::SourceData{"remaining", "Remaining"});
+    SceneManager state(QList<SceneManager::SceneData>{
         {"target", "Target", sources}, {"other", "Other", {{"shared", "Other image"}}}});
     QVERIFY(state.selectSource("shared"));
     MainWindow window(*m_theme);
@@ -2089,7 +2089,7 @@ void MainWindowTest::sceneRemovalDialogHandlesConfirmation()
     QFETCH(QString, action);
     MainWindow window(*m_theme);
     window.show();
-    auto *state = window.findChild<StudioState *>();
+    auto *state = window.findChild<SceneManager *>();
     QVERIFY(state);
     const QString targetId = state->currentSceneId();
     const QString name = QStringLiteral("<b>Scene & name</b>");
@@ -2171,7 +2171,7 @@ void MainWindowTest::scenePanelCanRemoveAndMove()
     QFETCH(bool, reload);
     MainWindow window(*m_theme);
     window.show();
-    auto *state = window.findChild<StudioState *>();
+    auto *state = window.findChild<SceneManager *>();
     auto *panel = window.findChild<QQuickWidget *>(QStringLiteral("scenesQuickWidget"));
     QVERIFY(state);
     QVERIFY(panel);
@@ -2221,21 +2221,21 @@ void MainWindowTest::scenePanelCanRemoveAndMove()
     QVERIFY(QMetaObject::invokeMethod(list, "positionViewAtEnd"));
     QTRY_VERIFY(list->property("atYEnd").toBool());
     click(panel, up);
-    QCOMPARE(state->sceneModel()->index(19, 0).data(StudioState::IdRole).toString(), lastId);
+    QCOMPARE(state->sceneModel()->index(19, 0).data(SceneManager::IdRole).toString(), lastId);
     QCOMPARE(state->currentSceneId(), lastId);
     QTRY_VERIFY(down->isEnabled());
     click(panel, down);
-    QCOMPARE(state->sceneModel()->index(20, 0).data(StudioState::IdRole).toString(), lastId);
+    QCOMPARE(state->sceneModel()->index(20, 0).data(SceneManager::IdRole).toString(), lastId);
     QTRY_VERIFY(!down->isEnabled());
     QVERIFY(state->selectScene(firstId));
     QTRY_VERIFY(!up->isEnabled());
     QTRY_VERIFY(down->isEnabled());
     click(panel, down);
-    QCOMPARE(state->sceneModel()->index(1, 0).data(StudioState::IdRole).toString(), firstId);
+    QCOMPARE(state->sceneModel()->index(1, 0).data(SceneManager::IdRole).toString(), firstId);
     QTRY_VERIFY(up->isEnabled());
     click(panel, up);
-    QCOMPARE(state->sceneModel()->index(0, 0).data(StudioState::IdRole).toString(), firstId);
-    const QString nextId = state->sceneModel()->index(1, 0).data(StudioState::IdRole).toString();
+    QCOMPARE(state->sceneModel()->index(0, 0).data(SceneManager::IdRole).toString(), firstId);
+    const QString nextId = state->sceneModel()->index(1, 0).data(SceneManager::IdRole).toString();
     click(panel, remove);
     QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
     QVERIFY(dialog);

@@ -10,7 +10,7 @@ class QLabel;
 class QMenu;
 class QResizeEvent;
 class QQuickWidget;
-class StudioState;
+class SceneManager;
 class ThemeManager;
 
 class MainWindow : public QMainWindow
@@ -59,7 +59,7 @@ private:
     QDockWidget *m_sourcesDock = nullptr;
     QDockWidget *m_mixerDock = nullptr;
     QDockWidget *m_controlsDock = nullptr;
-    StudioState *m_studioState = nullptr;
+    SceneManager *m_sceneManager = nullptr;
     ThemeManager &m_theme;
 };
 #endif // MAINWINDOW_H

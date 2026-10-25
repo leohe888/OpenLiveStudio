@@ -1,5 +1,5 @@
-#ifndef STUDIOSTATE_H
-#define STUDIOSTATE_H
+#ifndef SCENEMANAGER_H
+#define SCENEMANAGER_H
 
 #include <QAbstractItemModel>
 #include <QList>
@@ -7,7 +7,7 @@
 #include <QSize>
 #include <QString>
 
-class StudioState : public QObject
+class SceneManager : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QAbstractItemModel *sceneModel READ sceneModel CONSTANT)
@@ -45,9 +45,9 @@ public:
         LockedRole
     };
 
-    explicit StudioState(QObject *parent = nullptr);
+    explicit SceneManager(QObject *parent = nullptr);
     // Initial IDs must be nonempty and unique within each list.
-    explicit StudioState(const QList<SceneData> &scenes, QObject *parent = nullptr);
+    explicit SceneManager(const QList<SceneData> &scenes, QObject *parent = nullptr);
 
     QAbstractItemModel *sceneModel() const;
     QAbstractItemModel *sourceModel() const;
@@ -108,4 +108,4 @@ private:
     QString m_currentSourceId;
 };
 
-#endif // STUDIOSTATE_H
+#endif // SCENEMANAGER_H

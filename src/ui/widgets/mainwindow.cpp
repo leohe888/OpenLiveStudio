@@ -1,5 +1,5 @@
 #include "mainwindow.h"
-#include "studiostate.h"
+#include "scenemanager.h"
 #include "thememanager.h"
 
 #include <QAction>
@@ -72,7 +72,7 @@ MainWindow::MainWindow(ThemeManager &theme, QWidget *parent)
     Q_ASSERT(m_theme.isReady());
     applyTheme();
     connect(&m_theme, &ThemeManager::themeChanged, this, &MainWindow::applyTheme);
-    m_studioState = new StudioState;
+    m_sceneManager = new SceneManager;
     setWindowTitle(QStringLiteral("OpenLive Studio"));
     setMinimumSize(960, 640);
     resize(1280, 800);
@@ -90,7 +90,7 @@ MainWindow::MainWindow(ThemeManager &theme, QWidget *parent)
     resetDockLayout();
     updateStatusLayout();
     // Destroy the dock QML contexts before their shared state.
-    m_studioState->setParent(this);
+    m_sceneManager->setParent(this);
     applyTheme();
     if (!m_theme.lastError().isEmpty())
         statusBar()->showMessage(tr("主题配置提示：%1").arg(m_theme.lastError()));
@@ -245,52 +245,52 @@ void MainWindow::showSceneNameDialog(const QString &sceneId, const QString &init
 {
     showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SceneNameDialog.qml")),
         sceneId.isEmpty() ? tr("添加场景") : tr("重命名场景"), {
-            {QStringLiteral("state"), QVariant::fromValue(m_studioState)},
-            {QStringLiteral("initialName"), sceneId.isEmpty() ? m_studioState->suggestedSceneName() : initialName},
+            {QStringLiteral("state"), QVariant::fromValue(m_sceneManager)},
+            {QStringLiteral("initialName"), sceneId.isEmpty() ? m_sceneManager->suggestedSceneName() : initialName},
             {QStringLiteral("sceneId"), sceneId}
         });
 }
 
 void MainWindow::showSceneRemovalDialog(const QString &sceneId)
 {
-    auto *model = m_studioState->sceneModel();
+    auto *model = m_sceneManager->sceneModel();
     for (int row = 0; row < model->rowCount(); ++row) {
         const auto index = model->index(row, 0);
-        if (index.data(StudioState::IdRole).toString() != sceneId)
+        if (index.data(SceneManager::IdRole).toString() != sceneId)
             continue;
         showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SceneRemovalDialog.qml")),
-            tr("删除场景"), {{QStringLiteral("state"), QVariant::fromValue(m_studioState)},
+            tr("删除场景"), {{QStringLiteral("state"), QVariant::fromValue(m_sceneManager)},
             {QStringLiteral("sceneId"), sceneId},
-            {QStringLiteral("sceneName"), index.data(StudioState::NameRole)}});
+            {QStringLiteral("sceneName"), index.data(SceneManager::NameRole)}});
         return;
     }
 }
 
 void MainWindow::showSourceAddDialog(const QString &sceneId)
 {
-    const QString initialName = m_studioState->suggestedSourceName(sceneId, tr("图像"));
+    const QString initialName = m_sceneManager->suggestedSourceName(sceneId, tr("图像"));
     if (initialName.isEmpty())
         return;
     showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml")),
-        tr("添加来源"), {{QStringLiteral("state"), QVariant::fromValue(m_studioState)},
+        tr("添加来源"), {{QStringLiteral("state"), QVariant::fromValue(m_sceneManager)},
                        {QStringLiteral("sceneId"), sceneId},
                        {QStringLiteral("initialName"), initialName}});
 }
 
 void MainWindow::showSourceRemovalDialog(const QString &sceneId, const QString &sourceId)
 {
-    if (sceneId != m_studioState->currentSceneId() || sourceId.isEmpty())
+    if (sceneId != m_sceneManager->currentSceneId() || sourceId.isEmpty())
         return;
-    auto *model = m_studioState->sourceModel();
+    auto *model = m_sceneManager->sourceModel();
     for (int row = 0; row < model->rowCount(); ++row) {
         const auto index = model->index(row, 0);
-        if (index.data(StudioState::IdRole).toString() != sourceId)
+        if (index.data(SceneManager::IdRole).toString() != sourceId)
             continue;
         showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceRemovalDialog.qml")),
-            tr("移除来源"), {{QStringLiteral("state"), QVariant::fromValue(m_studioState)},
+            tr("移除来源"), {{QStringLiteral("state"), QVariant::fromValue(m_sceneManager)},
                            {QStringLiteral("sceneId"), sceneId},
                            {QStringLiteral("sourceId"), sourceId},
-                           {QStringLiteral("sourceName"), index.data(StudioState::NameRole)}});
+                           {QStringLiteral("sourceName"), index.data(SceneManager::NameRole)}});
         return;
     }
 }
@@ -411,7 +411,7 @@ void MainWindow::setupScenesDock()
     auto *pages = new QStackedWidget(m_scenesDock);
     auto *view = new QQuickWidget(pages);
     view->setObjectName(QStringLiteral("scenesQuickWidget"));
-    view->rootContext()->setContextProperty(QStringLiteral("studioState"), m_studioState);
+    view->rootContext()->setContextProperty(QStringLiteral("sceneManager"), m_sceneManager);
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
     configureQuickWidget(view);
     pages->addWidget(view);
@@ -464,7 +464,7 @@ void MainWindow::setupSourcesDock()
     auto *pages = new QStackedWidget(m_sourcesDock);
     auto *view = new QQuickWidget(pages);
     view->setObjectName(QStringLiteral("sourcesQuickWidget"));
-    view->rootContext()->setContextProperty(QStringLiteral("studioState"), m_studioState);
+    view->rootContext()->setContextProperty(QStringLiteral("sceneManager"), m_sceneManager);
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
     configureQuickWidget(view);
     pages->addWidget(view);

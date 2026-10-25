@@ -16,8 +16,8 @@ qt_add_executable(OpenLiveStudio
     src/ui/widgets/mainwindow.h
     src/ui/theme/thememanager.cpp
     src/ui/theme/thememanager.h
-    src/scene/studiostate.cpp
-    src/scene/studiostate.h
+    src/scene/scenemanager.cpp
+    src/scene/scenemanager.h
     src/sources/imageloader.cpp
     src/sources/imageloader.h
 )
