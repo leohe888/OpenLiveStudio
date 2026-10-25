@@ -73,9 +73,11 @@ control the lifetime of active media processing.
 ## OpenGL composition and preview architecture
 
 The agreed rendering direction is an independent offscreen OpenGL compositor
-with a QOpenGLWidget preview. This is a future implementation decision; the
-current preview is still a placeholder. It preserves the Widgets shell and QML
-panels without moving media processing into the UI render loop.
+with a QOpenGLWidget preview. C1 implements this path for static images through
+SceneSnapshotBuilder, CompositionSession, ImageCompositor and PreviewWidget.
+Capture, filters, editing interactions, audio and encoding remain future work.
+The implementation preserves the Widgets shell and QML panels without moving
+media processing into the UI render loop.
 
 ```mermaid
 flowchart TB
@@ -94,10 +96,11 @@ flowchart TB
 ### UI and scene state
 
 Widgets own the main window and dock containers. QML owns panel/dialog
-presentation and form interaction. QOpenGLWidget owns preview display, editing
-overlays and canvas input. It maps mouse coordinates to output-canvas coordinates
-and invokes C++ editing operations; it does not keep a second authoritative scene.
-Selection outlines and handles are drawn only over the preview.
+presentation and form interaction. QOpenGLWidget currently owns preview display.
+Canvas input and selection linkage begin at C2; dragging, resizing and transform
+editing follow in C3-C5. Those interactions will map mouse coordinates to the
+output canvas and invoke C++ operations, without a second authoritative scene.
+Future selection outlines and handles belong only to the preview.
 
 StudioState and Qt models remain on the GUI thread. Rendering receives snapshots
 of the required scene data, including source identity, layer, visibility,
@@ -112,15 +115,28 @@ upload/update source textures, apply per-source filters and compose sources by
 placement, size, alpha and layer into output-canvas textures. Qt surface creation
 and destruction follow GUI-thread requirements; the processing context is used
 only on its owning thread. Context format, sharing and startup/cleanup order
-must be specified when this integration is implemented.
+are implemented for C1: the GUI thread owns the offscreen surface, while the
+composition worker creates, uses and releases its sharing context and FBOs.
 
 The preview uses its own sharing context to display completed composition
 textures in paintGL(). Texture sharing does not provide synchronization by
 itself: buffered result textures, GPU completion synchronization and consumer
 ownership must prevent reading an unfinished frame or reusing a texture while
 preview/output still consumes it. A slow or hidden preview may skip frames
-without blocking media output. Exact buffer counts and handoff APIs are decided
-and tested with implementation.
+without blocking the producer. C1 uses three result slots, latest-only delivery,
+producer/consumer GPU fences and explicit frame acquire/return APIs. A slot is
+not reused while its lease is outstanding.
+
+Each slot contains two textures: an opaque black-backed output composition and
+a premultiplied RGBA preview composition retaining transparency. One frame token
+leases both textures; both are checked on return, fenced and released together.
+PreviewWidget reads only the preview texture and blends it on the GPU over
+`preview.canvas`; `preview.surrounding` colors the area outside the fitted canvas.
+ThemeManager owns these JSON colors and MainWindow passes them into the preview.
+Theme changes do not recolor genuine black image pixels or alter the output
+texture. This costs a second render target and composition pass per slot/frame;
+performance has not been benchmarked. Encoding and output consumers are not yet
+implemented.
 
 Composition scheduling and lifetime are independent of paintGL(), window
 visibility and UI animation. While outputs are active, minimizing the window or
@@ -334,7 +350,12 @@ Source descriptions store their type, file path and original image dimensions.
 ImageLoader checks and actually decodes files synchronously, returns metadata or
 an error, and discards the pixels. StudioState still coordinates that call during
 image validation/insertion and owns scene/name rules, selection and list updates.
-There is no asynchronous loading, image cache or composition backend yet.
+SceneSnapshotBuilder separately decodes the current scene on a worker into
+immutable, latest-only image snapshots; it skips hidden sources and reports
+missing/corrupt files while allowing valid layers to render. CompositionSession
+runs ImageCompositor on an independent OpenGL thread and hands shared textures
+to PreviewWidget. There is no file watcher or general image-cache framework;
+scene/source changes trigger rereads, and an active image decode can delay exit.
 
 The add form is QML, with only the image type currently available. MainWindow
 passes an unused name for the captured target scene and hosts a C++ QFileDialog
@@ -361,9 +382,23 @@ and scene-local state isolation, including entries referring to the same file.
 B6 verification is complete and approved: generated-image state tests and
 MainWindow interaction/reload tests pass without changes to business code.
 It adds no reuse APIs/UI, placement editing or transition animation. Shared
-definitions remain deferred. The next step is C1 static-image composition. Transform restrictions and independent placement editing will be
-implemented with the editing features in stage C. Actual
-composition starts at C1. Cross-module
-coordination, media ownership and threading are developed with the relevant
-features, rather than building a complete framework in advance. Media-file
-playback remains outside the scheduled implementation steps.
+definitions remain deferred. C1 static-image composition is complete and
+committed: aspect fit, alpha, topmost-first layers, visibility and scene changes
+are reflected in the native preview. A8 is also complete: an application-owned
+ThemeManager loads semantic JSON colors, shares them with Widgets and QML, and
+persists only the dark/light preference. The separate Theme menu handles
+exclusive selection and save failures.
+
+The next feature is C2 canvas/list selection linkage; it has not started.
+Transform restrictions and independent placement editing remain C3-C5 work.
+Cross-module coordination, media ownership and threading continue to evolve with
+the relevant features. Media-file playback is outside the scheduled steps.
+
+Local native OpenGL tests have passed on an NVIDIA RTX 4060 Ti / WGL backend,
+including alpha preview, context cleanup and Qt Quick coexistence. Intermittent
+WGL context-sharing failures remain unresolved; a passing retry is not a fix.
+Other drivers, forced context loss, capture devices, recording and streaming
+remain unverified. The software UI CTest budget is now 120 seconds; three
+consecutive runs passed in 57.27, 115.82 and 118.28 seconds, leaving little
+headroom in the latter runs. See the [test record](../tests/README.md) for the
+distinction between historical results and current verification limits.

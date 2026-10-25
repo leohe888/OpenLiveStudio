@@ -391,17 +391,22 @@ Widgets own the window, docks and preview; the existing QML panels continue to
 operate on the same C++ state. No duplicate scene model is introduced.
 
 `ImageCompositor` takes immutable decoded image layers, topmost first. Images fit
-the canvas without cropping, preserve transparency and compose over black.
-Hidden layers are omitted. Initialization, rendering, diagnostic texture access
+the canvas without cropping and preserve transparency. Each slot now contains
+an opaque black-backed output texture and a premultiplied RGBA preview texture.
+The preview blends its texture over the configured canvas color; hidden layers
+are omitted. Theme changes do not alter output pixels or genuine black image
+pixels. Initialization, rendering, diagnostic texture access
 and readback, release and destruction belong to the producer thread. The GUI
 thread creates/destroys the QOffscreenSurface. Keep the surface and sharing
 context alive until the compositor is released.
 
 With sharing enabled, `acquireFrame()` requires a compatible sharing context
 current on the consumer thread. It takes the latest unconsumed result and queues
-a GPU wait for the producer's flushed completion fence. Bind the shared texture
-after acquisition; FBO objects themselves are not shared. A frame has one owner;
-copying its descriptor does not extend ownership. After submitting all reads,
+a GPU wait for the producer's flushed completion fence. Bind either shared
+texture after acquisition; FBO objects themselves are not shared. A frame has
+one owner and its token leases both `texture` and `previewTexture`; neither
+handle may be changed on return. Copying its descriptor does not extend ownership.
+After submitting all reads,
 call `returnFrame()` with the same consumer context current. It inserts and
 flushes a consumer completion fence. Do not use the descriptor again.
 
@@ -502,13 +507,15 @@ mode explicitly reports unavailable; native initialization/runtime graphics
 errors replace the preview with their message. Forced driver/context loss,
 other GPU drivers and moving between monitors with different DPI remain
 unverified. An in-progress QImageReader decode can delay shutdown until it ends.
-On the local NVIDIA/WGL backend, moving the live preview between top-level
-windows recreates its context, but sharing can fail
-`wglCreateContextAttribsARB`/`wglShareLists` in either direction. Picture recovery
+On the local NVIDIA/WGL backend, sharing can intermittently fail both during
+artificial reparent/context recreation and during a later native main-window
+suite while establishing context sharing. Reported errors include
+`wglCreateContextAttribsARB`/`wglShareLists`. Picture recovery
 was observed in a direct run; the test also checks the explicit error fallback
 when sharing fails. This artificial
-reparent operation is not exposed by the application UI; automatic recovery
-from that driver failure is not implemented.
+reparent operation is not exposed by the application UI. The sharing failure
+remains unresolved, and automatic recovery from it is not implemented; a passing
+retry does not establish reliability.
 
 On 2026-10-24, the Qt 6.12.0 / MSVC 2022 x64 Ninja Debug build passed.
 Complete CTest passed 10/10 in 53.77 seconds (software UI: 32.13 seconds;
@@ -520,6 +527,52 @@ establish the graphics-error fallback or automatic recovery from driver loss. Lo
 `build/c1-image-compositor-Debug/tests/mainwindow-graphics.txt` and
 `build/c1-image-compositor-Debug/c13c-results.xml`; the actual window screenshot
 is `build/c1-image-compositor-Debug/c13c-mainwindow.png`.
+
+### Current C1 and theme completion record (2026-10-25)
+
+C1 is implemented, reviewed and committed. It covers static-image composition,
+shared frame handoff, the worker, native preview and scene-snapshot/main-window
+integration. A8 is also complete, including the independent Theme menu, startup
+preference restoration, save-failure rollback, four panels and five dialogs.
+C2 canvas/list selection linkage has not started; capture, audio, recording and
+streaming remain unimplemented.
+
+Preview-only JSON colors are now `preview.canvas` (dark `#000000`, light
+`#F8FAFC`) and `preview.surrounding` (dark `#181A1D`, light `#D4D7DC`). The
+compositor produces an additional transparent preview target under the same
+lease as the black-backed output. PreviewWidget blends it entirely on the GPU;
+there is no production CPU readback. This adds a render target and a composition
+pass; no performance benchmark has been completed.
+
+Validation during these changes used Qt 6.12.0 / MSVC 2022 x64 Ninja Debug and
+NVIDIA RTX 4060 Ti / OpenGL 3.3 core:
+
+- Clean rebuild and core/graphics CTest passed 10/10 for transparent texture
+  handoff and preview blending. Pixel tests cover empty/transparent regions,
+  semitransparent layers, real black, order, visibility, retained leases,
+  backpressure, resizing, cross-thread use and release. Output remains black-backed.
+- Preview component suites at actual DPR 1 and 2 each passed nine cases including
+  setup/cleanup. Both theme screenshots and the mixed Widgets/QML preview were
+  inspected. Later dock-title checks passed nine targeted cases; native theme
+  checks at 100% and 200% each passed three cases including setup/cleanup.
+- Theme-canvas integration passed theme loading/restoration, menu switching,
+  transparent/semitransparent/black source pixels and context/frame preservation.
+  The first native suite encountered the WGL failure documented above in the
+  existing scene-composition case; a separate rerun passed all six native cases.
+- On 2026-10-25 the UI CTest limit was increased from 90 to 120 seconds. Three
+  consecutive complete `ui.mainwindow` runs passed in 57.27, 115.82 and 118.28
+  seconds (`build/c1-image-compositor-Debug/ui-timeout-results.xml`). Individual
+  assertion timeouts and failure rules were not relaxed. Timing remains variable;
+  the latter two runs leave little headroom and future timeouts remain possible.
+
+These are separate validation runs, not a claim that all tests passed together
+in one final run. Current native logs/screenshots live under the ignored build
+directory and may be overwritten by subsequent tests. Historical dated records
+above retain their original counts. Other GPU drivers, forced context loss,
+mixed-DPI monitor moves, real devices, media outputs and hosted CI remain
+unverified. For manual review, add transparent PNGs, change ordering/visibility,
+switch scenes and themes, resize/float/restore docks and close/reopen windows;
+check theme-colored preview transparency, genuine black pixels and clean exit.
 
 ## Adding tests with features
 
