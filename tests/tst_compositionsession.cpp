@@ -116,18 +116,32 @@ void CompositionSessionTest::startupAndPixels()
     // Submission is accepted during asynchronous startup. Editing the caller's
     // image afterwards must detach, rather than mutate the submitted snapshot.
     QImage source = solid(Qt::red, QSize(40, 20));
-    QVERIFY(session.submit({{source}}, QSize(80, 80), &fixture.error));
+    const quint64 revision = (quint64(1) << 40) + 7;
+    QVERIFY(session.submit({{source}}, QSize(80, 80), &fixture.error, revision));
     source.fill(Qt::blue);
     QTRY_COMPARE(started.count(), 1);
     QTRY_VERIFY(available.count() > 0);
     QVERIFY(session.isRunning());
     const auto frame = fixture.awaitFrame();
     QVERIFY2(frame.token, qPrintable(fixture.error));
+    QCOMPARE(frame.revision, revision);
     const QImage image = pixels(frame);
     QCOMPARE(image.size(), QSize(80, 80));
     QCOMPARE(image.pixelColor(40, 5), QColor(Qt::black));
     QCOMPARE(image.pixelColor(40, 40), QColor(Qt::red));
     QVERIFY(session.returnFrame(frame, &fixture.error));
+    // Reusing a caller revision still produces a distinct lease and matching pixels.
+    QVERIFY(session.submit({{source}}, QSize(80, 80), &fixture.error, revision));
+    const auto replacement = fixture.awaitFrame();
+    QVERIFY(replacement.token && replacement.token != frame.token);
+    QCOMPARE(replacement.revision, revision);
+    QCOMPARE(pixels(replacement).pixelColor(40, 40), QColor(Qt::blue));
+    QVERIFY(session.returnFrame(replacement));
+    QVERIFY(session.submit({}, QSize(16, 16))); // Existing callers still default to 0.
+    const auto unversioned = fixture.awaitFrame();
+    QVERIFY(unversioned.token);
+    QCOMPARE(unversioned.revision, quint64(0));
+    QVERIFY(session.returnFrame(unversioned));
     QVERIFY(deliveredOnGui);
     QCOMPARE(errors.count(), 0);
 }
@@ -159,18 +173,25 @@ void CompositionSessionTest::invalidRequestsAndRecovery()
     QSignalSpy available(&session, &CompositionSession::frameAvailable);
     // Accepted snapshot; GL size validation must fail on the WORKER and report
     // a real error without emitting a fake successful frame notification.
-    QVERIFY(session.submit({}, QSize(1000000, 16), &error));
+    QVERIFY(session.submit({}, QSize(1000000, 16), &error, 500));
     QTRY_COMPARE(errors.count(), 1);
     QVERIFY(!errors.first().first().toString().isEmpty());
     QCOMPARE(available.count(), 0);
     QVERIFY(session.isRunning());
-    QVERIFY(session.submit({{solid(Qt::green)}}, QSize(32, 32), &error));
+    QVERIFY(session.submit({{solid(Qt::green)}}, QSize(32, 32), &error, 37));
     QVERIFY(error.isEmpty());
+    QVERIFY(!session.submit({}, QSize(0, 16), &error, 999));
+    QVERIFY(!error.isEmpty()); // Invalid input must not replace the valid snapshot.
     const auto frame = fixture.awaitFrame();
     QVERIFY2(frame.token, qPrintable(fixture.error));
     QCOMPARE(pixels(frame).pixelColor(16, 16), QColor(Qt::green));
+    QCOMPARE(frame.revision, quint64(37));
     auto changed = frame;
     changed.texture = 0;
+    QVERIFY(!session.returnFrame(changed, &error));
+    QVERIFY(!error.isEmpty());
+    changed = frame;
+    changed.revision = 999;
     QVERIFY(!session.returnFrame(changed, &error));
     QVERIFY(!error.isEmpty());
     fixture.consumer.doneCurrent();
@@ -203,42 +224,57 @@ void CompositionSessionTest::latestSnapshotAndBackpressure()
     QList<ImageCompositor::Frame> held;
     for (const auto &color : colors) {
         const auto previousCount = available.count();
-        QVERIFY(session.submit({{solid(color)}}, QSize(32, 32)));
+        const quint64 revision = 100 + held.size();
+        QVERIFY(session.submit({{solid(color)}}, QSize(32, 32), nullptr, revision));
         QTRY_VERIFY(available.count() > previousCount);
         const auto frame = fixture.awaitFrame();
         QVERIFY2(frame.token, qPrintable(fixture.error));
+        QCOMPARE(frame.revision, revision);
         held.append(frame);
     }
     const auto beforeFull = available.count();
     for (int i = 0; i < 100; ++i)
-        QVERIFY(session.submit({{solid(Qt::cyan)}}, QSize(64, 32)));
-    QVERIFY(session.submit({{solid(Qt::yellow)}}, QSize(64, 32)));
+        QVERIFY(session.submit({{solid(Qt::cyan)}}, QSize(64, 32), nullptr, 900 + i));
+    // Latest submission wins even when its revision is numerically smaller.
+    QVERIFY(session.submit({{solid(Qt::yellow)}}, QSize(64, 32), nullptr, 77));
     QTest::qWait(40); // Let the worker encounter full buffers and timed retry.
     QVERIFY(fixture.consumer.makeCurrent(&fixture.surface));
-    QCOMPARE(session.acquireFrame().token, quint64(0));
+    const auto unavailable = session.acquireFrame();
+    QCOMPARE(unavailable.token, quint64(0));
+    QCOMPARE(unavailable.revision, quint64(0));
     QCOMPARE(available.count(), beforeFull);
     QString error;
     QVERIFY(!session.stop(&error));
     QVERIFY(!error.isEmpty());
     QVERIFY(session.isRunning());
-    for (int i = 0; i < held.size(); ++i)
+    for (int i = 0; i < held.size(); ++i) {
         QCOMPARE(pixels(held[i]).pixelColor(16, 16), colors[i]);
+        QCOMPARE(held[i].revision, quint64(100 + i));
+    }
     QVERIFY(session.returnFrame(held[0]));
     // No extra submission: a freed slot MUST resume the latest pending work.
     // A snapshot already in flight may finish first; return it and keep polling.
     QImage latest;
+    quint64 latestRevision = 0;
     QElapsedTimer timer;
     timer.start();
     while (timer.elapsed() < 5000) {
         const auto frame = fixture.awaitFrame();
         if (!frame.token) break;
         latest = pixels(frame);
+        QVERIFY(!latest.isNull());
+        latestRevision = frame.revision;
+        if (latest.pixelColor(16, 16) == QColor(Qt::cyan))
+            QVERIFY(frame.revision >= 900 && frame.revision < 1000);
+        else
+            QCOMPARE(frame.revision, quint64(77));
         QVERIFY(session.returnFrame(frame));
         if (latest.pixelColor(16, 16) == QColor(Qt::yellow)) break;
     }
     QVERIFY(!latest.isNull());
     QCOMPARE(latest.size(), QSize(64, 32));
     QCOMPARE(latest.pixelColor(16, 16), QColor(Qt::yellow));
+    QCOMPARE(latestRevision, quint64(77));
     QCOMPARE(pixels(held[1]).pixelColor(16, 16), QColor(Qt::green));
     QCOMPARE(pixels(held[2]).pixelColor(16, 16), QColor(Qt::blue));
     QVERIFY(session.returnFrame(held[1]));
@@ -256,7 +292,7 @@ void CompositionSessionTest::stopRestartAndNotifications()
     QSignalSpy errors(&session, &CompositionSession::errorOccurred);
     for (int cycle = 0; cycle < 5; ++cycle) {
         QVERIFY(session.start(&fixture.consumer));
-        QVERIFY(session.submit({}, QSize(16, 16)));
+        QVERIFY(session.submit({}, QSize(16, 16), nullptr, 500 + cycle));
         // Stop without pumping GUI events: queued callbacks from this generation
         // must never appear after stop or leak into the next start.
         QVERIFY(session.stop());
@@ -273,6 +309,7 @@ void CompositionSessionTest::stopRestartAndNotifications()
         QTRY_COMPARE(started.count(), cycle + 1);
         const auto frame = fixture.awaitFrame();
         QVERIFY2(frame.token, qPrintable(fixture.error));
+        QCOMPARE(frame.revision, quint64(0)); // Canceled pre-restart revisions must not leak.
         QVERIFY(frame.token != stale.token);
         if (stale.token) QVERIFY(!session.returnFrame(stale));
         QVERIFY(session.returnFrame(frame));

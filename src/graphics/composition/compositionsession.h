@@ -22,8 +22,10 @@ public:
     // Accepted during startup or running. Owns the latest pending snapshot only;
     // QImage implicit sharing preserves pixels when normal caller copies detach.
     // Externally owned pixel memory must stay immutable while used by the session.
+    // Revision travels with this snapshot into Frame::revision; 0 is unspecified.
+    // It identifies caller content, not the session's internal restart generation.
     bool submit(const QList<ImageCompositor::Layer> &layers,
-                const QSize &canvas = QSize(1920, 1080), QString *error = nullptr);
+                const QSize &canvas = QSize(1920, 1080), QString *error = nullptr, quint64 revision = 0);
     // Same context/fence/lease rules as ImageCompositor. Notifications coalesce;
     // frameAvailable() means try the latest result, not one queued event per frame.
     ImageCompositor::Frame acquireFrame(QString *error = nullptr);

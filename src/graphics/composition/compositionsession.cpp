@@ -22,7 +22,7 @@ bool fail(QString *error, const QString &message)
 class CompositionSession::Private
 {
 public:
-    struct Snapshot { QList<ImageCompositor::Layer> layers; QSize canvas; };
+    struct Snapshot { QList<ImageCompositor::Layer> layers; QSize canvas; quint64 revision = 0; };
     mutable QMutex mutex;
     QWaitCondition wake;
     std::unique_ptr<QOffscreenSurface> surface;
@@ -85,7 +85,7 @@ bool CompositionSession::isRunning() const
 }
 
 bool CompositionSession::submit(const QList<ImageCompositor::Layer> &layers,
-                                const QSize &canvas, QString *error)
+                                const QSize &canvas, QString *error, quint64 revision)
 {
     if (error) error->clear();
     if (!guiThread(error)) return false;
@@ -97,7 +97,7 @@ bool CompositionSession::submit(const QList<ImageCompositor::Layer> &layers,
     QMutexLocker lock(&d->mutex);
     if (!d->worker || d->stopping || d->failed)
         return fail(error, QStringLiteral("The composition session is not accepting snapshots."));
-    d->pending = Private::Snapshot{layers, canvas};
+    d->pending = Private::Snapshot{layers, canvas, revision};
     d->wake.wakeOne();
     return true;
 }
@@ -178,7 +178,7 @@ void CompositionSession::run(QOffscreenSurface *surface, QOpenGLContext *shareCo
             snapshot = std::move(*d->pending);
             d->pending.reset();
         }
-        const bool rendered = compositor.render(snapshot.layers, snapshot.canvas, &error);
+        const bool rendered = compositor.render(snapshot.layers, snapshot.canvas, &error, snapshot.revision);
         if (rendered || !error.isEmpty()) {
             notify(generation, false, rendered, error);
         } else {
