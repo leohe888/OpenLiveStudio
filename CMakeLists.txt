@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.19)
 project(OpenLiveStudio LANGUAGES CXX)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets QuickWidgets QuickControls2 Svg OpenGL)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets QuickWidgets QuickControls2 Svg)
 
 qt_standard_project_setup()
 
@@ -20,8 +20,6 @@ qt_add_executable(OpenLiveStudio
     src/scene/studiostate.h
     src/sources/imageloader.cpp
     src/sources/imageloader.h
-    src/graphics/composition/imagecompositor.cpp
-    src/graphics/composition/imagecompositor.h
 )
 
 set(OPENLIVE_STUDIO_QML_FILES
@@ -88,7 +86,6 @@ target_include_directories(OpenLiveStudio PRIVATE
     "${PROJECT_SOURCE_DIR}/src/ui/theme"
     "${PROJECT_SOURCE_DIR}/src/sources"
     "${PROJECT_SOURCE_DIR}/src/scene"
-    "${PROJECT_SOURCE_DIR}/src/graphics/composition"
 )
 
 target_link_libraries(OpenLiveStudio
@@ -98,7 +95,6 @@ target_link_libraries(OpenLiveStudio
         Qt::QuickWidgets
         Qt::QuickControls2
         Qt::Svg
-        Qt::OpenGL
 )
 
 install(TARGETS OpenLiveStudio
