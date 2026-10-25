@@ -1,12 +1,6 @@
 #include "mainwindow.h"
 #include "thememanager.h"
 #include "studiostate.h"
-#include "scenesnapshotbuilder.h"
-#include "compositionsession.h"
-#include "previewwidget.h"
-#include <QSurfaceFormat>
-#include <QStackedWidget>
-#include <QOpenGLContext>
 #include <QApplication>
 
 #include <QAction>
@@ -625,12 +619,15 @@ void MainWindowTest::hasWindowShell()
     QCOMPARE(window.menuBar()->actions().size(), 3);
     QVERIFY(window.findChildren<QToolBar *>().isEmpty());
     QVERIFY(window.statusBar()->isVisible());
-    auto *unavailable = window.findChild<QLabel *>(QStringLiteral("previewUnavailable"));
-    QVERIFY(unavailable);
-    QVERIFY(!unavailable->text().isEmpty());
-    QVERIFY(!window.findChild<PreviewWidget *>());
-    QVERIFY(!window.findChild<CompositionSession *>());
-    QVERIFY(!window.findChild<SceneSnapshotBuilder *>());
+    auto *placeholder = window.findChild<QLabel *>(QStringLiteral("previewPlaceholder"));
+    QVERIFY(placeholder && placeholder->isVisible());
+    QVERIFY(!placeholder->text().isEmpty());
+    QVERIFY(!window.findChild<QLabel *>(QStringLiteral("previewStatus")));
+    for (auto *object : window.findChildren<QObject *>()) {
+        QVERIFY(!object->inherits("PreviewWidget"));
+        QVERIFY(!object->inherits("CompositionSession"));
+        QVERIFY(!object->inherits("SceneSnapshotBuilder"));
+    }
 }
 
 void MainWindowTest::dockTitlesStayVerticallyCentered()
@@ -802,9 +799,11 @@ void MainWindowTest::themeRestoresAndUpdatesOuterWidgets()
         QCOMPARE(views[i]->rootObject(), roots[i].data());
         QCOMPARE(views[i]->quickWindow()->color(), m_theme->color("background.panel"));
     }
-    auto *failure = window.findChild<QLabel *>("previewUnavailable");
-    QVERIFY(failure);
-    QTRY_COMPARE(failure->palette().color(QPalette::WindowText), m_theme->color("status.error"));
+    auto *placeholder = window.findChild<QLabel *>("previewPlaceholder");
+    QVERIFY(placeholder);
+    QTRY_COMPARE(placeholder->palette().color(QPalette::WindowText), m_theme->color("text.secondary"));
+    QTRY_COMPARE(placeholder->palette().color(QPalette::Window), m_theme->color("preview.canvas"));
+    QTRY_COMPARE(window.centralWidget()->palette().color(QPalette::Window), m_theme->color("preview.surrounding"));
     dock->setFloating(false);
     const auto titleButtons = dock->findChildren<QAbstractButton *>(QString(), Qt::FindDirectChildrenOnly);
     QVERIFY(!titleButtons.isEmpty());
@@ -3025,310 +3024,11 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
     QCOMPARE(checkedButtons, expectedButtons);
 }
 
-class MainWindowGraphicsTest : public QObject
-{
-    Q_OBJECT
-    std::unique_ptr<QTemporaryDir> m_settings;
-    std::unique_ptr<ThemeManager> m_theme;
-    static QColor centerPixel(PreviewWidget *view)
-    {
-        const auto image = view->grabFramebuffer();
-        return image.isNull() ? QColor() : image.pixelColor(image.width() / 2, image.height() / 2);
-    }
-private slots:
-    void init()
-    {
-        m_theme.reset();
-        m_settings = std::make_unique<QTemporaryDir>();
-        QVERIFY(m_settings->isValid());
-        m_theme = std::make_unique<ThemeManager>(m_settings->filePath("settings.ini"));
-        QVERIFY(m_theme->isReady());
-    }
-
-    void themeChangesKeepPreviewAndQmlAlive()
-    {
-        QTemporaryDir images;
-        QVERIFY(images.isValid());
-        QImage transparent(64, 36, QImage::Format_ARGB32);
-        transparent.fill(Qt::transparent);
-        const auto path = images.filePath("transparent.png");
-        QVERIFY(transparent.save(path));
-        MainWindow window(*m_theme);
-        auto *state = window.findChild<StudioState *>();
-        QVERIFY(state);
-        const auto source = state->addImageSource(state->currentSceneId(), "Logo", path);
-        QVERIFY(!source.isEmpty());
-        QVERIFY(state->setSourceVisible(state->currentSceneId(), source, false));
-        QVERIFY(state->setSourceLocked(state->currentSceneId(), source, true));
-        QVERIFY(state->selectSource(source));
-        window.show();
-        window.hide();
-        window.show();
-        QVERIFY(QTest::qWaitForWindowExposed(&window));
-        auto *view = window.findChild<PreviewWidget *>();
-        QVERIFY(view);
-        QTRY_VERIFY(view->displayedFrameToken() != 0);
-        QTRY_COMPARE(centerPixel(view), QColor(Qt::black));
-        QCOMPARE(view->canvasColor(), m_theme->color("preview.canvas"));
-        QCOMPARE(view->surroundingColor(), m_theme->color("preview.surrounding"));
-        const auto panels = window.findChildren<QQuickWidget *>();
-        QList<QPointer<QQuickItem>> roots;
-        for (auto *panel : panels) {
-            QTRY_COMPARE(panel->status(), QQuickWidget::Ready);
-            roots.append(panel->rootObject());
-        }
-        QPointer<QOpenGLContext> context = view->context();
-        for (const auto &id : {"light", "dark"}) {
-            auto *action = window.findChild<QAction *>(QLatin1String(id) + QStringLiteral("ThemeAction"));
-            QVERIFY(action);
-            action->trigger();
-            QCOMPARE(m_theme->themeId(), QString::fromLatin1(id));
-            QVERIFY(action->isChecked());
-            QTRY_COMPARE(window.palette().color(QPalette::Window), m_theme->color("background.window"));
-            QCOMPARE(view->surroundingColor(), m_theme->color("preview.surrounding"));
-            QVERIFY(!view->canvasRect().contains(QPointF(1, 1)));
-            QTRY_COMPARE(view->grabFramebuffer().pixelColor(1, 1), m_theme->color("preview.surrounding"));
-            QCOMPARE(view->canvasColor(), m_theme->color("preview.canvas"));
-            QTRY_COMPARE(centerPixel(view), m_theme->color("preview.canvas"));
-            QCOMPARE(view->context(), context.data());
-            for (int i = 0; i < panels.size(); ++i) {
-                QCOMPARE(panels[i]->rootObject(), roots[i].data());
-                QCOMPARE(panels[i]->quickWindow()->color(), m_theme->color("background.panel"));
-                QCOMPARE(panels[i]->rootObject()->property("color").value<QColor>(), m_theme->color("background.panel"));
-            }
-            QTest::qWait(100);
-            QVERIFY(window.grab().save(QCoreApplication::applicationDirPath()
-                + QStringLiteral("/theme-menu-%1.png").arg(id)));
-            auto *menu = window.findChild<QMenu *>("themeMenu");
-            QVERIFY(menu);
-            menu->popup(window.menuBar()->mapToGlobal(window.menuBar()->actionGeometry(menu->menuAction()).bottomLeft()));
-            QTRY_VERIFY(menu->isVisible());
-            QVERIFY(menu->grab().save(QCoreApplication::applicationDirPath()
-                + QStringLiteral("/theme-menu-popup-%1.png").arg(id)));
-            menu->hide();
-        }
-    }
-
-    void canvasThemeBlendsTransparentSource()
-    {
-        QVERIFY(m_theme->setTheme("light"));
-        m_theme = std::make_unique<ThemeManager>(m_theme->settingsFile());
-        QCOMPARE(m_theme->themeId(), "light");
-        QTemporaryDir images;
-        QVERIFY(images.isValid());
-        QImage image(64, 36, QImage::Format_ARGB32);
-        image.fill(QColor(0, 0, 255, 128));
-        for (int y = 0; y < image.height(); ++y) {
-            for (int x = 0; x < 16; ++x) image.setPixelColor(x, y, Qt::transparent);
-            for (int x = 48; x < 64; ++x) image.setPixelColor(x, y, Qt::black);
-        }
-        const auto path = images.filePath("alpha.png");
-        QVERIFY(image.save(path));
-        MainWindow window(*m_theme);
-        auto *state = window.findChild<StudioState *>();
-        auto *view = window.findChild<PreviewWidget *>();
-        QVERIFY(state && view);
-        QCOMPARE(view->canvasColor(), QColor("#F8FAFC"));
-        QVERIFY(!state->addImageSource(state->currentSceneId(), "Alpha sample", path).isEmpty());
-        window.show();
-        window.hide();
-        window.show();
-        QVERIFY(QTest::qWaitForWindowExposed(&window));
-        const auto pixel = [view](qreal x) {
-            const auto frame = view->grabFramebuffer();
-            if (frame.isNull()) return QColor();
-            const auto rect = view->canvasRect();
-            const qreal scale = qreal(frame.width()) / view->width();
-            return frame.pixelColor(qFloor((rect.left() + rect.width() * x) * scale),
-                                    qFloor(rect.center().y() * scale));
-        };
-        QTRY_VERIFY(view->displayedFrameToken() != 0);
-        QTRY_COMPARE(pixel(.875), QColor(Qt::black));
-        auto *context = view->context();
-        const auto token = view->displayedFrameToken();
-        for (const auto *id : {"dark", "light", "dark"}) {
-            auto *action = window.findChild<QAction *>(QLatin1String(id) + QStringLiteral("ThemeAction"));
-            QVERIFY(action);
-            action->trigger();
-            QCOMPARE(m_theme->themeId(), QString::fromLatin1(id));
-            QTRY_COMPARE(pixel(.125), m_theme->color("preview.canvas"));
-            QTRY_COMPARE(pixel(.875), QColor(Qt::black));
-            const QColor expected = m_theme->themeId() == "light" ? QColor(124, 125, 254) : QColor(0, 0, 128);
-            QTRY_VERIFY(qAbs(centerPixel(view).red() - expected.red()) <= 2
-                && qAbs(centerPixel(view).green() - expected.green()) <= 2
-                && qAbs(centerPixel(view).blue() - expected.blue()) <= 2);
-            QCOMPARE(view->displayedFrameToken(), token);
-            QCOMPARE(view->context(), context);
-        }
-    }
-
-    void sceneCompositionAndRecovery()
-    {
-        QTemporaryDir directory;
-        QVERIFY(directory.isValid());
-        const auto redPath = directory.filePath("red.png");
-        const auto bluePath = directory.filePath("blue.png");
-        QImage red(1920, 1080, QImage::Format_ARGB32);
-        red.fill(Qt::red);
-        QVERIFY(red.save(redPath));
-        QImage blue(1920, 1080, QImage::Format_ARGB32);
-        blue.fill(QColor(0, 0, 255, 128));
-        QVERIFY(blue.save(bluePath));
-        MainWindow window(*m_theme);
-        auto *state = window.findChild<StudioState *>();
-        auto *view = window.findChild<PreviewWidget *>();
-        auto *status = window.findChild<QLabel *>("previewStatus");
-        QVERIFY(state && view && status);
-        window.show();
-        // CTest's hidden Windows launcher can suppress the first native ShowWindow.
-        window.hide();
-        window.show();
-        QVERIFY(QTest::qWaitForWindowExposed(&window));
-        QTRY_VERIFY(view->isReady());
-        QTRY_VERIFY(view->displayedFrameToken() != 0);
-        for (auto *panel : window.findChildren<QQuickWidget *>()) {
-            QTRY_COMPARE(panel->status(), QQuickWidget::Ready);
-            QVERIFY(panel->rootObject());
-        }
-        qInfo() << "OpenGL" << view->context()->format() << "DPR" << view->devicePixelRatioF();
-        const auto scene = state->currentSceneId();
-        const auto redId = state->addImageSource(scene, "Red", redPath);
-        QVERIFY(!redId.isEmpty());
-        QTRY_VERIFY(centerPixel(view).red() > 250);
-        const auto blueId = state->addImageSource(scene, "<blue>", bluePath);
-        QVERIFY(!blueId.isEmpty());
-        QTRY_VERIFY(qAbs(centerPixel(view).red() - 127) <= 3
-                    && qAbs(centerPixel(view).blue() - 128) <= 3);
-        QVERIFY(state->moveSource(scene, blueId, 1));
-        QTRY_VERIFY(centerPixel(view).red() > 250 && centerPixel(view).blue() < 3);
-        QVERIFY(state->setSourceVisible(scene, redId, false));
-        QTRY_VERIFY(centerPixel(view).red() < 3 && qAbs(centerPixel(view).blue() - 128) <= 3);
-        QVERIFY(state->setSourceVisible(scene, redId, true));
-        QVERIFY(state->moveSource(scene, blueId, -1));
-        QTRY_VERIFY(centerPixel(view).blue() > 120);
-        QVERIFY(QFile::remove(bluePath));
-        QVERIFY(state->setSourceVisible(scene, blueId, false));
-        QVERIFY(state->setSourceVisible(scene, blueId, true));
-        QTRY_VERIFY(status->text().contains("<blue>"));
-        QCOMPARE(status->textFormat(), Qt::PlainText);
-        QTRY_VERIFY(centerPixel(view).red() > 250 && centerPixel(view).blue() < 3);
-        {
-            QFile corrupt(bluePath);
-            QVERIFY(corrupt.open(QIODevice::WriteOnly));
-            QCOMPARE(corrupt.write("invalid image"), qint64(13));
-        }
-        window.findChild<SceneSnapshotBuilder *>()->requestSnapshot();
-        QTRY_VERIFY(!window.findChild<SceneSnapshotBuilder *>()->isLoading());
-        QTRY_VERIFY(status->text().contains("<blue>"));
-        QVERIFY(blue.save(bluePath));
-        QVERIFY(state->setSourceVisible(scene, blueId, false));
-        QVERIFY(state->setSourceVisible(scene, blueId, true));
-        QTRY_VERIFY(status->text().isEmpty());
-        QTRY_VERIFY(centerPixel(view).blue() > 120);
-        const auto empty = state->addScene("Empty");
-        QVERIFY(!empty.isEmpty());
-        QVERIFY(state->selectScene(empty));
-        QTRY_VERIFY(centerPixel(view).red() < 3 && centerPixel(view).blue() < 3);
-        QVERIFY(state->selectScene(scene));
-        QTRY_VERIFY(centerPixel(view).blue() > 120);
-        window.resize(1100, 720);
-        QTRY_VERIFY(qAbs(view->canvasRect().width() / view->canvasRect().height() - 16.0 / 9) < .01);
-        auto *dock = window.findChild<QDockWidget *>("sourcesDock");
-        QVERIFY(dock);
-        dock->setFloating(true);
-        QTRY_VERIFY(dock->isFloating());
-        dock->setFloating(false);
-        dock->close();
-        dock->toggleViewAction()->trigger();
-        QTRY_VERIFY(dock->isVisible());
-        window.showMinimized();
-        QTRY_VERIFY(window.isMinimized());
-        QVERIFY(state->setSourceVisible(scene, blueId, false));
-        window.showNormal();
-        QTRY_VERIFY(!window.isMinimized());
-        QTRY_VERIFY(centerPixel(view).red() > 250 && centerPixel(view).blue() < 3);
-        QVERIFY(window.grab().save(QCoreApplication::applicationDirPath() + "/c13c-mainwindow.png"));
-
-        // A different top-level recreates the widget context when global
-        // context sharing is disabled. The assembly must stop and restart too.
-        QWidget otherWindow;
-        otherWindow.resize(800, 500);
-        auto *pages = qobject_cast<QStackedWidget *>(view->parentWidget());
-        QVERIFY(pages);
-        QSignalSpy released(view, &PreviewWidget::contextAboutToBeReleased);
-        QSignalSpy ready(view, &PreviewWidget::contextReady);
-        view->setParent(&otherWindow);
-        view->resize(otherWindow.size());
-        view->show();
-        otherWindow.show();
-        QVERIFY(QTest::qWaitForWindowExposed(&otherWindow));
-        QTRY_VERIFY(!released.isEmpty() && !ready.isEmpty());
-        auto *failure = window.findChild<QLabel *>("previewUnavailable");
-        QVERIFY(failure);
-        QTRY_VERIFY(!failure->text().isEmpty() || view->displayedFrameToken() != 0);
-        if (failure->text().isEmpty())
-            QTRY_VERIFY(centerPixel(view).red() > 250);
-        pages->addWidget(view);
-        pages->setCurrentWidget(view);
-        view->show();
-        QTRY_VERIFY(released.size() >= 2 && ready.size() >= 2);
-        // Some WGL drivers reject sharing back into the original Qt Quick
-        // top-level. In that case the real error must replace the picture.
-        QTRY_VERIFY(failure->isVisible() || view->displayedFrameToken() != 0);
-        if (failure->isVisible()) {
-            QVERIFY(!failure->text().isEmpty());
-            qInfo().noquote() << "Context recreation fallback:" << failure->text();
-        } else {
-            QTRY_VERIFY(centerPixel(view).red() > 250);
-        }
-    }
-
-    void repeatedShutdown()
-    {
-        for (int i = 0; i < 3; ++i) {
-            auto window = std::make_unique<MainWindow>(*m_theme);
-            QPointer<StudioState> state = window->findChild<StudioState *>();
-            QPointer<PreviewWidget> view = window->findChild<PreviewWidget *>();
-            QPointer<CompositionSession> session = window->findChild<CompositionSession *>();
-            QPointer<SceneSnapshotBuilder> builder = window->findChild<SceneSnapshotBuilder *>();
-            QVERIFY(state && view && session && builder);
-            window->show();
-            QVERIFY(QTest::qWaitForWindowExposed(window.get()));
-            QTRY_VERIFY(view->displayedFrameToken() != 0);
-            builder->requestSnapshot();
-            window.reset();
-            QVERIFY(!state && !view && !session && !builder);
-        }
-    }
-};
-
 int main(int argc, char **argv)
 {
-    QStringList arguments;
-    bool graphics = false;
-    for (int i = 0; i < argc; ++i) {
-        if (QString::fromLocal8Bit(argv[i]) == QStringLiteral("--graphics"))
-            graphics = true;
-        else
-            arguments.append(QString::fromLocal8Bit(argv[i]));
-    }
-    if (graphics) {
-        qRegisterMetaType<QOpenGLContext *>();
-        QSurfaceFormat format;
-        format.setRenderableType(QSurfaceFormat::OpenGL);
-        format.setVersion(3, 3);
-        format.setProfile(QSurfaceFormat::CoreProfile);
-        format.setSamples(0);
-        QSurfaceFormat::setDefaultFormat(format);
-        QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
-    }
     QApplication application(argc, argv);
     application.setQuitOnLastWindowClosed(false);
-    if (graphics) {
-        MainWindowGraphicsTest test;
-        return QTest::qExec(&test, arguments);
-    }
     MainWindowTest test;
-    return QTest::qExec(&test, arguments);
+    return QTest::qExec(&test, argc, argv);
 }
 #include "tst_mainwindow.moc"

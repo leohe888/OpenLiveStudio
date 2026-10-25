@@ -235,18 +235,3 @@ set_tests_properties(ui.mainwindow PROPERTIES
     LABELS "ui;smoke"
     TIMEOUT 120
 )
-
-if(OPENLIVE_STUDIO_GL_TESTS)
-    add_test(NAME graphics.mainwindow
-        COMMAND "${CMAKE_COMMAND}" -E env
-            "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
-            "QT_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../plugins"
-            "QML_IMPORT_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../qml"
-            "QT_QPA_PLATFORM=windows"
-            "QT_QUICK_BACKEND=rhi"
-            "QSG_RHI_BACKEND=opengl"
-            "$<TARGET_FILE:tst_mainwindow>" --graphics
-            -o "${CMAKE_CURRENT_BINARY_DIR}/mainwindow-graphics.txt,txt"
-    )
-    set_tests_properties(graphics.mainwindow PROPERTIES LABELS "graphics" TIMEOUT 60)
-endif()
