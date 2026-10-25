@@ -24,6 +24,9 @@ public:
         // Premultiplied RGBA preview, with the same size/orientation as texture.
         // Both textures belong to this single lease and must be returned together.
         unsigned int previewTexture = 0;
+        // Caller-supplied snapshot identity, independent of the unique lease token.
+        // Zero means unspecified; revisions need not be unique or increasing.
+        quint64 revision = 0;
     };
     static constexpr int BufferCount = 3;
 
@@ -39,8 +42,10 @@ public:
     // Topmost first, fit/center without cropping. False with an empty error means
     // all buffers are in use: skip production, without waiting or allocating more.
     // Invalid input invalidates texture()/readback(), not already acquired frames.
+    // A successful result carries revision unchanged with both textures. Failed
+    // or backpressured submissions do not publish a revision. Existing callers use 0.
     bool render(const QList<Layer> &layers, const QSize &canvas = QSize(1920, 1080),
-                QString *error = nullptr);
+                QString *error = nullptr, quint64 revision = 0);
     // Producer diagnostics only; borrowed until next render/release.
     unsigned int texture() const;
     QImage readback(QString *error = nullptr);

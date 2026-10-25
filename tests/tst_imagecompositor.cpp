@@ -272,18 +272,24 @@ void ImageCompositorTest::sharedPixelsAndLatestFrame()
     overlay.setPixelColor(20, 17, Qt::green);
     // Supersede many unconsumed frames without growing an output queue.
     for (int i = 0; i < 20; ++i)
-        QVERIFY(session.compositor.render({{solid(QSize(4, 4), Qt::blue)}}, QSize(8, 8)));
-    QVERIFY(session.compositor.render({{overlay}, {red}}, QSize(40, 40)));
+        QVERIFY(session.compositor.render({{solid(QSize(4, 4), Qt::blue)}}, QSize(8, 8), nullptr, 100 + i));
+    // Revisions identify submissions; the latest submission wins, not the largest number.
+    QVERIFY(session.compositor.render({{overlay}, {red}}, QSize(40, 40), nullptr, 77));
+    QVERIFY(!session.compositor.render({}, QSize(), &error, 999));
+    QVERIFY(!error.isEmpty()); // A rejected submission must not relabel the ready result.
     const auto frame = session.acquire(&error);
     QVERIFY2(frame.token, qPrintable(error));
     QCOMPARE(frame.size, QSize(40, 40));
+    QCOMPARE(frame.revision, quint64(77));
     const QImage pixels = consume(frame, &session.compositor);
     QVERIFY(!pixels.isNull());
     QCOMPARE(pixels.pixelColor(20, 5), QColor(Qt::black));
     QCOMPARE(pixels.pixelColor(5, 15), QColor(Qt::red));
     QVERIFY(near(pixels.pixelColor(20, 12), QColor(127, 0, 128)));
     QCOMPARE(pixels.pixelColor(20, 27), QColor(Qt::green));
-    QCOMPARE(session.compositor.acquireFrame(&error).token, quint64(0));
+    const auto noFrame = session.compositor.acquireFrame(&error);
+    QCOMPARE(noFrame.token, quint64(0));
+    QCOMPARE(noFrame.revision, quint64(0));
     QVERIFY(error.isEmpty());
 }
 
@@ -349,9 +355,10 @@ void ImageCompositorTest::boundedBuffersAndResize()
     QSet<unsigned int> textures;
     for (int i = 0; i < ImageCompositor::BufferCount; ++i) {
         const QSize size(32 + i * 8, 24 + i * 8);
-        QVERIFY(session.compositor.render({{solid(size, colors[i])}}, size));
+        QVERIFY(session.compositor.render({{solid(size, colors[i])}}, size, nullptr, 1000 + i));
         const auto frame = session.acquire(&error);
         QVERIFY2(frame.token, qPrintable(error));
+        QCOMPARE(frame.revision, quint64(1000 + i));
         held.append(frame);
         textures.insert(frame.texture);
         textures.insert(frame.previewTexture);
@@ -359,7 +366,7 @@ void ImageCompositorTest::boundedBuffersAndResize()
     QCOMPARE(textures.size(), ImageCompositor::BufferCount * 2);
     for (int i = 0; i < 20; ++i) {
         error = "previous error";
-        QVERIFY(!session.compositor.render({}, QSize(200, 100), &error));
+        QVERIFY(!session.compositor.render({}, QSize(200, 100), &error, 9000 + i));
         QVERIFY(error.isEmpty()); // Backpressure is a skip, not an error.
     }
     QVERIFY(!session.compositor.release(&error));
@@ -370,16 +377,18 @@ void ImageCompositorTest::boundedBuffersAndResize()
         QCOMPARE(pixels.size(), held[i].size);
         QCOMPARE(pixels.pixelColor(5, 5), colors[i]);
         QCOMPARE(consume(held[i], nullptr, true).pixelColor(5, 5), colors[i]);
+        QCOMPARE(held[i].revision, quint64(1000 + i));
     }
     QVERIFY(session.compositor.returnFrame(held[0], &error));
     // Completion polling is nonblocking; retry until the real fence signals.
     bool rendered = false;
     QTRY_VERIFY((rendered = session.compositor.render(
-        {{solid(QSize(200, 100), Qt::yellow)}}, QSize(200, 100), &error)) || !error.isEmpty());
+        {{solid(QSize(200, 100), Qt::yellow)}}, QSize(200, 100), &error, 2000)) || !error.isEmpty());
     QVERIFY2(rendered, qPrintable(error));
     const auto resized = session.acquire(&error);
     QVERIFY2(resized.token, qPrintable(error));
     QCOMPARE(resized.size, QSize(200, 100));
+    QCOMPARE(resized.revision, quint64(2000));
     textures.insert(resized.texture);
     textures.insert(resized.previewTexture);
     QCOMPARE(consume(resized, nullptr, true).pixelColor(5, 5), QColor(Qt::yellow));
@@ -402,6 +411,8 @@ void ImageCompositorTest::boundedBuffersAndResize()
     QVERIFY(session.compositor.initialize(&m_surface, &error, &session.consumer));
     QVERIFY(session.compositor.render({}, QSize(16, 16)));
     const auto restarted = session.acquire();
+    QVERIFY(restarted.token);
+    QCOMPARE(restarted.revision, quint64(0)); // Legacy submission after restart has no stale revision.
     QVERIFY(restarted.token != held[0].token);
     QVERIFY(!session.compositor.returnFrame(held[0], &error));
     QVERIFY(!error.isEmpty());
@@ -428,12 +439,17 @@ void ImageCompositorTest::invalidConsumersAndTokens()
     foreign.doneCurrent();
     const auto frame = session.acquire(&error);
     QVERIFY2(frame.token, qPrintable(error));
+    QCOMPARE(frame.revision, quint64(0));
     auto changed = frame;
     changed.texture = 0;
     QVERIFY(!session.compositor.returnFrame(changed, &error));
     QVERIFY(!error.isEmpty());
     changed = frame;
     changed.previewTexture = 0;
+    QVERIFY(!session.compositor.returnFrame(changed, &error));
+    QVERIFY(!error.isEmpty());
+    changed = frame;
+    changed.revision = 123;
     QVERIFY(!session.compositor.returnFrame(changed, &error));
     QVERIFY(!error.isEmpty());
     ImageCompositor another;
@@ -466,12 +482,12 @@ void ImageCompositorTest::sharedAcrossThreads()
     bool firstRendered = false, secondRendered = false, released = false;
     auto *worker = QThread::create([&] {
         firstRendered = compositor.initialize(&m_surface, &workerError, &consumer)
-            && compositor.render({{solid(QSize(32, 32), Qt::red)}}, QSize(32, 32), &workerError);
+            && compositor.render({{solid(QSize(32, 32), Qt::red)}}, QSize(32, 32), &workerError, (quint64(1) << 40) + 7);
         produced.release();
         resume.acquire();
         if (firstRendered)
             secondRendered = compositor.render({{solid(QSize(48, 24), Qt::blue)}},
-                                                QSize(48, 24), &workerError);
+                                                QSize(48, 24), &workerError, (quint64(1) << 40) + 8);
         produced.release();
         resume.acquire();
         released = compositor.release(&workerError);
@@ -497,6 +513,8 @@ void ImageCompositorTest::sharedAcrossThreads()
     QVERIFY2(workerError.isEmpty(), qPrintable(workerError));
     QVERIFY(firstRendered && secondRendered && released);
     QVERIFY(first.texture != second.texture);
+    QCOMPARE(first.revision, (quint64(1) << 40) + 7);
+    QCOMPARE(second.revision, (quint64(1) << 40) + 8);
     QVERIFY(!oldPixels.isNull() && !newPixels.isNull());
     QCOMPARE(oldPixels.pixelColor(16, 16), QColor(Qt::red));
     QCOMPARE(newPixels.size(), QSize(48, 24));

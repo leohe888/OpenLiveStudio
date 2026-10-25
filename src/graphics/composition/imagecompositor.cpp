@@ -39,6 +39,7 @@ public:
         GLsync fence = nullptr;
         State state = Idle;
         quint64 token = 0;
+        quint64 revision = 0;
         QOpenGLContext *consumer = nullptr;
     };
     QMutex mutex;
@@ -106,7 +107,7 @@ bool ImageCompositor::makeCurrent(QString *error)
     return true;
 }
 
-bool ImageCompositor::render(const QList<Layer> &layers, const QSize &canvas, QString *error)
+bool ImageCompositor::render(const QList<Layer> &layers, const QSize &canvas, QString *error, quint64 revision)
 {
     if (error) error->clear();
     // Check thread ownership before touching producer-only diagnostic state.
@@ -219,6 +220,7 @@ bool ImageCompositor::render(const QList<Layer> &layers, const QSize &canvas, QS
         }
         slot.fence = readyFence;
         slot.token = nextToken.fetch_add(1);
+        slot.revision = revision;
         slot.state = Private::Ready;
         d->ready = target;
         d->last = target;
@@ -260,7 +262,7 @@ ImageCompositor::Frame ImageCompositor::acquireFrame(QString *error)
     slot.consumer = current;
     slot.state = Private::Acquired;
     d->ready = -1;
-    return {slot.fbo->texture(), slot.fbo->size(), slot.token, slot.previewFbo->texture()};
+    return {slot.fbo->texture(), slot.fbo->size(), slot.token, slot.previewFbo->texture(), slot.revision};
 }
 
 bool ImageCompositor::returnFrame(const Frame &frame, QString *error)
@@ -272,7 +274,8 @@ bool ImageCompositor::returnFrame(const Frame &frame, QString *error)
         if (slot.state != Private::Acquired || slot.token != frame.token) continue;
         auto *current = QOpenGLContext::currentContext();
         if (slot.consumer != current || frame.texture != slot.fbo->texture()
-            || frame.size != slot.fbo->size() || frame.previewTexture != slot.previewFbo->texture())
+            || frame.size != slot.fbo->size() || frame.previewTexture != slot.previewFbo->texture()
+            || frame.revision != slot.revision)
             return fail(error, QStringLiteral("Frame must be returned unchanged by its acquiring context."));
         auto *gl = current->extraFunctions();
         slot.fence = gl->glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
@@ -307,6 +310,7 @@ bool ImageCompositor::release(QString *error)
         slot.fence = nullptr;
         slot.state = Private::Idle;
         slot.token = 0;
+        slot.revision = 0;
     }
     gl->glFlush();
     d->context->doneCurrent();
