@@ -1,5 +1,6 @@
 #include "studiostate.h"
 
+#include <QAbstractItemModelTester>
 #include <QPersistentModelIndex>
 #include <QFile>
 #include <QImage>
@@ -14,6 +15,8 @@ class StudioStateTest : public QObject
 private slots:
     void startsWithOneEmptyScene();
     void exposesSeparateSceneAndSourceRoles();
+    void modelsNotifyBeforeAndAfterDataChanges();
+    void modelsReadSharedDataAfterSceneChanges();
     void switchesSourcesAndClearsSelection();
     void rejectsInvalidSelectionAndIgnoresRepeatedSelection();
     void supportsEmptyInitialState();
@@ -110,6 +113,95 @@ void StudioStateTest::exposesSeparateSceneAndSourceRoles()
     QVERIFY(!sceneModel->data(source, StudioState::IdRole).isValid());
     QVERIFY(!sourceModel->data({}, StudioState::IdRole).isValid());
     QVERIFY(!source.data(Qt::UserRole + 100).isValid());
+}
+
+void StudioStateTest::modelsNotifyBeforeAndAfterDataChanges()
+{
+    StudioState state(scenes());
+    auto ids = [](QAbstractItemModel *model) {
+        QStringList result;
+        for (int row = 0; row < model->rowCount(); ++row)
+            result.append(model->index(row, 0).data(StudioState::IdRole).toString());
+        return result;
+    };
+    auto *sceneModel = state.sceneModel();
+    auto *sourceModel = state.sourceModel();
+    QList<QStringList> sceneSnapshots, sourceSnapshots;
+    auto watch = [&](QAbstractItemModel *model, QList<QStringList> &snapshots) {
+        auto record = [&, model] { snapshots.append(ids(model)); };
+        connect(model, &QAbstractItemModel::rowsAboutToBeInserted, &state, record);
+        connect(model, &QAbstractItemModel::rowsInserted, &state, record);
+        connect(model, &QAbstractItemModel::rowsAboutToBeRemoved, &state, record);
+        connect(model, &QAbstractItemModel::rowsRemoved, &state, record);
+        connect(model, &QAbstractItemModel::rowsAboutToBeMoved, &state, record);
+        connect(model, &QAbstractItemModel::rowsMoved, &state, record);
+        connect(model, &QAbstractItemModel::modelAboutToBeReset, &state, record);
+        connect(model, &QAbstractItemModel::modelReset, &state, record);
+    };
+    watch(sceneModel, sceneSnapshots);
+    watch(sourceModel, sourceSnapshots);
+
+    const QString added = state.addScene("New scene");
+    QVERIFY(!added.isEmpty());
+    QVERIFY(state.moveScene(added, -1));
+    QVERIFY(state.removeScene(added));
+    const QList<QStringList> expectedScenes{
+        {"first", "second", "empty"}, {"first", "second", "empty", added},
+        {"first", "second", "empty", added}, {"first", "second", added, "empty"},
+        {"first", "second", added, "empty"}, {"first", "second", "empty"}};
+    QCOMPARE(sceneSnapshots, expectedScenes);
+
+    // Switching must expose the old sources until modelAboutToBeReset returns.
+    QVERIFY(state.selectScene("first"));
+    sourceSnapshots.clear();
+    QVERIFY(state.moveSource("first", "a", 1));
+    QVERIFY(state.removeSource("first", "shared"));
+    QVERIFY(state.selectScene("second"));
+    const QList<QStringList> expectedSources{
+        {"a", "shared"}, {"shared", "a"},
+        {"shared", "a"}, {"a"}, {"a"}, {"b", "shared"}};
+    QCOMPARE(sourceSnapshots, expectedSources);
+}
+
+void StudioStateTest::modelsReadSharedDataAfterSceneChanges()
+{
+    StudioState state(scenes());
+    QAbstractItemModelTester sceneTester(state.sceneModel(),
+                                        QAbstractItemModelTester::FailureReportingMode::QtTest);
+    QAbstractItemModelTester sourceTester(state.sourceModel(),
+                                         QAbstractItemModelTester::FailureReportingMode::QtTest);
+    QPersistentModelIndex source(state.sourceModel()->index(0, 0));
+    QVERIFY(state.selectSource("a"));
+    QVERIFY(state.moveScene("first", 1));
+    QVERIFY(state.removeScene("second"));
+    QVERIFY(state.renameScene("first", "Renamed"));
+    QCOMPARE(source.data(StudioState::IdRole).toString(), QString("a"));
+    QCOMPARE(state.currentSourceId(), QString("a"));
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QImage image(8, 4, QImage::Format_RGB32);
+    image.fill(Qt::red);
+    const QString path = dir.filePath("image.png");
+    QVERIFY(image.save(path));
+    const QString added = state.addImageSource("first", "Logo", path);
+    QVERIFY(!added.isEmpty());
+    QCOMPARE(source.row(), 1);
+    QVERIFY(state.setSourceVisible("first", added, false));
+    QVERIFY(state.setSourceLocked("first", added, true));
+    QVERIFY(state.moveSource("first", added, 1));
+    QVERIFY(state.selectScene("empty"));
+    QVERIFY(!source.isValid());
+    QVERIFY(state.removeSource("first", "a"));
+    QVERIFY(state.selectScene("first"));
+    const auto restored = state.sourceModel()->index(0, 0);
+    QCOMPARE(restored.data(StudioState::IdRole).toString(), added);
+    QCOMPARE(restored.data(StudioState::OriginalSizeRole).toSize(), image.size());
+    QVERIFY(!restored.data(StudioState::VisibleRole).toBool());
+    QVERIFY(restored.data(StudioState::LockedRole).toBool());
+    QVERIFY(state.removeSource("first", added));
+    QVERIFY(state.removeScene("first"));
+    QCOMPARE(state.sourceModel()->rowCount(), 0);
 }
 
 void StudioStateTest::switchesSourcesAndClearsSelection()

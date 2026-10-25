@@ -8,24 +8,19 @@
 class StudioState::SceneListModel : public QAbstractListModel
 {
 public:
-    struct Item {
-        QString id;
-        QString name;
-    };
-
-    explicit SceneListModel(QObject *parent) : QAbstractListModel(parent) {}
+    explicit SceneListModel(StudioState *state) : QAbstractListModel(state), m_state(state) {}
 
     int rowCount(const QModelIndex &parent = {}) const override
     {
-        return parent.isValid() ? 0 : int(m_items.size());
+        return parent.isValid() ? 0 : int(m_state->m_scenes.size());
     }
 
     QVariant data(const QModelIndex &index, int role) const override
     {
         if (!index.isValid() || index.model() != this || index.column() != 0
-            || index.row() < 0 || index.row() >= m_items.size())
+            || index.row() < 0 || index.row() >= m_state->m_scenes.size())
             return {};
-        const auto &item = m_items.at(index.row());
+        const auto &item = m_state->m_scenes.at(index.row());
         if (role == IdRole)
             return item.id;
         if (role == NameRole || role == Qt::DisplayRole)
@@ -38,61 +33,28 @@ public:
         return {{IdRole, "sceneId"}, {NameRole, "sceneName"}};
     }
 
-    void replace(const QList<Item> &items)
-    {
-        beginResetModel();
-        m_items = items;
-        endResetModel();
-    }
-
-    void append(const Item &item)
-    {
-        const int row = int(m_items.size());
-        beginInsertRows({}, row, row);
-        m_items.append(item);
-        endInsertRows();
-    }
-
-    void rename(int row, const QString &name)
-    {
-        m_items[row].name = name;
-        emit dataChanged(index(row, 0), index(row, 0), {NameRole, Qt::DisplayRole});
-    }
-
-    void remove(int row)
-    {
-        beginRemoveRows({}, row, row);
-        m_items.removeAt(row);
-        endRemoveRows();
-    }
-
-    void move(int from, int to)
-    {
-        beginMoveRows({}, from, from, {}, to > from ? to + 1 : to);
-        m_items.move(from, to);
-        endMoveRows();
-    }
-
 private:
-    QList<Item> m_items;
+    friend class StudioState;
+    const StudioState *m_state;
 };
 
 class StudioState::SourceListModel : public QAbstractListModel
 {
 public:
-    explicit SourceListModel(QObject *parent) : QAbstractListModel(parent) {}
+    explicit SourceListModel(StudioState *state) : QAbstractListModel(state), m_state(state) {}
 
     int rowCount(const QModelIndex &parent = {}) const override
     {
-        return parent.isValid() ? 0 : int(m_items.size());
+        return parent.isValid() ? 0 : int(sources().size());
     }
 
     QVariant data(const QModelIndex &index, int role) const override
     {
+        const auto &items = sources();
         if (!index.isValid() || index.model() != this || index.column() != 0
-            || index.row() < 0 || index.row() >= m_items.size())
+            || index.row() < 0 || index.row() >= items.size())
             return {};
-        const auto &item = m_items.at(index.row());
+        const auto &item = items.at(index.row());
         switch (role) {
         case IdRole: return item.id;
         case NameRole:
@@ -113,45 +75,18 @@ public:
                 {VisibleRole, "sourceVisible"}, {LockedRole, "sourceLocked"}};
     }
 
-    void replace(const QList<SourceData> &items)
-    {
-        beginResetModel();
-        m_items = items;
-        endResetModel();
-    }
-
-    void prepend(const SourceData &item)
-    {
-        beginInsertRows({}, 0, 0);
-        m_items.prepend(item);
-        endInsertRows();
-    }
-
-    void remove(int row)
-    {
-        beginRemoveRows({}, row, row);
-        m_items.removeAt(row);
-        endRemoveRows();
-    }
-
-    void move(int from, int to)
-    {
-        beginMoveRows({}, from, from, {}, to > from ? to + 1 : to);
-        m_items.move(from, to);
-        endMoveRows();
-    }
-
-    void setFlag(int row, int role, bool value)
-    {
-        if (role == VisibleRole)
-            m_items[row].visible = value;
-        else
-            m_items[row].locked = value;
-        emit dataChanged(index(row, 0), index(row, 0), {role});
-    }
-
 private:
-    QList<SourceData> m_items;
+    friend class StudioState;
+    const QList<SourceData> &sources() const
+    {
+        const int row = m_state->sceneRow(m_state->m_currentSceneId);
+        if (row >= 0)
+            return m_state->m_scenes.at(row).sources;
+        static const QList<SourceData> empty;
+        return empty;
+    }
+
+    const StudioState *m_state;
 };
 
 StudioState::StudioState(QObject *parent)
@@ -174,14 +109,8 @@ StudioState::StudioState(const QList<SceneData> &scenes, QObject *parent)
     connect(m_sourceModel, &QAbstractItemModel::rowsInserted, this, &StudioState::sourceMoveAvailabilityChanged);
     connect(m_sourceModel, &QAbstractItemModel::rowsRemoved, this, &StudioState::sourceMoveAvailabilityChanged);
     connect(m_sourceModel, &QAbstractItemModel::rowsMoved, this, &StudioState::sourceMoveAvailabilityChanged);
-    QList<SceneListModel::Item> sceneItems;
-    for (const auto &scene : m_scenes)
-        sceneItems.append({scene.id, scene.name});
-    m_sceneModel->replace(sceneItems);
-    if (!m_scenes.isEmpty()) {
+    if (!m_scenes.isEmpty())
         m_currentSceneId = m_scenes.first().id;
-        m_sourceModel->replace(m_scenes.first().sources);
-    }
 }
 
 QAbstractItemModel *StudioState::sceneModel() const { return m_sceneModel; }
@@ -195,9 +124,10 @@ bool StudioState::selectScene(const QString &id)
         if (m_currentSceneId == id)
             return true;
         const bool hadSourceSelection = !m_currentSourceId.isEmpty();
+        m_sourceModel->beginResetModel();
         m_currentSceneId = id;
         m_currentSourceId.clear();
-        m_sourceModel->replace(scene.sources);
+        m_sourceModel->endResetModel();
         emit currentSceneIdChanged();
         if (hadSourceSelection)
             emit currentSourceIdChanged();
@@ -277,8 +207,10 @@ QString StudioState::addScene(const QString &name)
     const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     const QString trimmed = name.trimmed();
     const bool couldRemove = canRemoveCurrentScene();
+    const int row = int(m_scenes.size());
+    m_sceneModel->beginInsertRows({}, row, row);
     m_scenes.append({id, trimmed, {}});
-    m_sceneModel->append({id, trimmed});
+    m_sceneModel->endInsertRows();
     selectScene(id);
     if (couldRemove != canRemoveCurrentScene())
         emit canRemoveCurrentSceneChanged();
@@ -296,7 +228,8 @@ bool StudioState::renameScene(const QString &id, const QString &name)
         const QString trimmed = name.trimmed();
         if (scene.name != trimmed) {
             scene.name = trimmed;
-            m_sceneModel->rename(row, trimmed);
+            const auto index = m_sceneModel->index(row, 0);
+            emit m_sceneModel->dataChanged(index, index, {NameRole, Qt::DisplayRole});
         }
         return true;
     }
@@ -315,8 +248,9 @@ bool StudioState::removeScene(const QString &id)
             const int nextRow = row + 1 < m_scenes.size() ? row + 1 : row - 1;
             selectScene(m_scenes.at(nextRow).id);
         }
+        m_sceneModel->beginRemoveRows({}, row, row);
         m_scenes.removeAt(row);
-        m_sceneModel->remove(row);
+        m_sceneModel->endRemoveRows();
         if (couldRemove != canRemoveCurrentScene())
             emit canRemoveCurrentSceneChanged();
         return true;
@@ -352,8 +286,9 @@ bool StudioState::moveScene(const QString &id, int offset)
     const int to = from + offset;
     if (from < 0 || to < 0 || to >= m_scenes.size())
         return false;
+    m_sceneModel->beginMoveRows({}, from, from, {}, to > from ? to + 1 : to);
     m_scenes.move(from, to);
-    m_sceneModel->move(from, to);
+    m_sceneModel->endMoveRows();
     return true;
 }
 
@@ -392,9 +327,12 @@ QString StudioState::addImageSource(const QString &sceneId, const QString &name,
         return {};
     const SourceData source{QUuid::createUuid().toString(QUuid::WithoutBraces), name.trimmed(),
                             QStringLiteral("image"), QFileInfo(filePath).absoluteFilePath(), size};
+    const bool isCurrentScene = sceneId == m_currentSceneId;
+    if (isCurrentScene)
+        m_sourceModel->beginInsertRows({}, 0, 0);
     m_scenes[sceneRow(sceneId)].sources.prepend(source);
-    if (sceneId == m_currentSceneId) {
-        m_sourceModel->prepend(source);
+    if (isCurrentScene) {
+        m_sourceModel->endInsertRows();
         selectSource(source.id);
     }
     return source.id;
@@ -412,9 +350,11 @@ bool StudioState::removeSource(const QString &sceneId, const QString &sourceId)
         const bool isCurrentScene = sceneId == m_currentSceneId;
         if (isCurrentScene && sourceId == m_currentSourceId)
             selectSource({});
+        if (isCurrentScene)
+            m_sourceModel->beginRemoveRows({}, row, row);
         sources.removeAt(row);
         if (isCurrentScene)
-            m_sourceModel->remove(row);
+            m_sourceModel->endRemoveRows();
         return true;
     }
     return false;
@@ -455,9 +395,12 @@ bool StudioState::moveSource(const QString &sceneId, const QString &sourceId, in
     const int to = from + offset;
     if (to < 0 || to >= sources.size())
         return false;
+    const bool isCurrentScene = sceneId == m_currentSceneId;
+    if (isCurrentScene)
+        m_sourceModel->beginMoveRows({}, from, from, {}, to > from ? to + 1 : to);
     sources.move(from, to);
-    if (sceneId == m_currentSceneId)
-        m_sourceModel->move(from, to);
+    if (isCurrentScene)
+        m_sourceModel->endMoveRows();
     return true;
 }
 
@@ -470,8 +413,10 @@ bool StudioState::setSourceFlag(const QString &sceneId, const QString &sourceId,
     bool &flag = role == VisibleRole ? source.visible : source.locked;
     if (flag != value) {
         flag = value;
-        if (sceneId == m_currentSceneId)
-            m_sourceModel->setFlag(row, role, value);
+        if (sceneId == m_currentSceneId) {
+            const auto index = m_sourceModel->index(row, 0);
+            emit m_sourceModel->dataChanged(index, index, {role});
+        }
     }
     return true;
 }
