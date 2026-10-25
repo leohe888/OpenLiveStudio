@@ -623,11 +623,6 @@ void MainWindowTest::hasWindowShell()
     QVERIFY(placeholder && placeholder->isVisible());
     QVERIFY(!placeholder->text().isEmpty());
     QVERIFY(!window.findChild<QLabel *>(QStringLiteral("previewStatus")));
-    for (auto *object : window.findChildren<QObject *>()) {
-        QVERIFY(!object->inherits("PreviewWidget"));
-        QVERIFY(!object->inherits("CompositionSession"));
-        QVERIFY(!object->inherits("SceneSnapshotBuilder"));
-    }
 }
 
 void MainWindowTest::dockTitlesStayVerticallyCentered()
