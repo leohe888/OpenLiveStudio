@@ -839,7 +839,8 @@ void MainWindowTest::sceneAndSourceThemes()
     QList<SceneManager::SourceData> sources;
     QList<SceneManager::SceneData> scenes;
     for (int i = 0; i < 24; ++i)
-        sources.append({QString::number(i), QString("Source %1").arg(i), {}, {}, {}, i != 0, i == 0});
+        sources.append({QString::number(i), QString("Source %1").arg(i),
+                        SceneManager::ImageConfig{}, {}, i != 0, i == 0});
     for (int i = 0; i < 24; ++i)
         scenes.append({QString::number(i), QString("Scene %1").arg(i), sources});
     SceneManager state(scenes);
@@ -1999,7 +2000,8 @@ void MainWindowTest::sourceRemovalDialogHandlesConfirmation()
     image.fill(Qt::red);
     QVERIFY(image.save(path));
     const QString name = "<b>Logo & image</b>";
-    QList<SceneManager::SourceData> sources{{"shared", name, "image", path, image.size()}};
+    QList<SceneManager::SourceData> sources{
+        {"shared", name, SceneManager::ImageConfig{path}, {image.size()}}};
     if (action != "last") sources.append(SceneManager::SourceData{"remaining", "Remaining"});
     SceneManager state(QList<SceneManager::SceneData>{
         {"target", "Target", sources}, {"other", "Other", {{"shared", "Other image"}}}});

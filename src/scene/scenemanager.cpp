@@ -4,6 +4,26 @@
 #include <QAbstractListModel>
 #include <QFileInfo>
 #include <QUuid>
+#include <type_traits>
+
+SceneManager::SourceType SceneManager::SourceData::type() const
+{
+    return std::visit([](const auto &config) {
+        using Config = std::decay_t<decltype(config)>;
+        if constexpr (std::is_same_v<Config, DisplayCaptureConfig>)
+            return SourceType::DisplayCapture;
+        else if constexpr (std::is_same_v<Config, WindowCaptureConfig>)
+            return SourceType::WindowCapture;
+        else if constexpr (std::is_same_v<Config, CameraConfig>)
+            return SourceType::Camera;
+        else if constexpr (std::is_same_v<Config, ImageConfig>)
+            return SourceType::Image;
+        else {
+            static_assert(std::is_same_v<Config, TextConfig>);
+            return SourceType::Text;
+        }
+    }, config);
+}
 
 class SceneManager::SceneListModel : public QAbstractListModel
 {
@@ -61,9 +81,20 @@ public:
         case IdRole: return item.id;
         case NameRole:
         case Qt::DisplayRole: return item.name;
-        case TypeRole: return item.type;
-        case FilePathRole: return item.filePath;
-        case OriginalSizeRole: return item.originalSize;
+        case TypeRole:
+            switch (item.type()) {
+            case SourceType::DisplayCapture: return QStringLiteral("displayCapture");
+            case SourceType::WindowCapture: return QStringLiteral("windowCapture");
+            case SourceType::Camera: return QStringLiteral("camera");
+            case SourceType::Image: return QStringLiteral("image");
+            case SourceType::Text: return QStringLiteral("text");
+            }
+            return {};
+        case FilePathRole:
+            if (const auto *image = std::get_if<ImageConfig>(&item.config))
+                return image->filePath;
+            return {};
+        case OriginalSizeRole: return item.runtime.originalSize;
         case VisibleRole: return item.visible;
         case LockedRole: return item.locked;
         default: return {};
@@ -328,7 +359,7 @@ QString SceneManager::addImageSource(const QString &sceneId, const QString &name
     if (!validateImageSource(sceneId, name, filePath, &size).isEmpty())
         return {};
     const SourceData source{QUuid::createUuid().toString(QUuid::WithoutBraces), name.trimmed(),
-                            QStringLiteral("image"), QFileInfo(filePath).absoluteFilePath(), size};
+                            ImageConfig{QFileInfo(filePath).absoluteFilePath()}, {size}};
     const bool isCurrentScene = sceneId == m_currentSceneId;
     if (isCurrentScene)
         m_sourceModel->beginInsertRows({}, 0, 0);

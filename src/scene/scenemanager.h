@@ -2,10 +2,13 @@
 #define SCENEMANAGER_H
 
 #include <QAbstractItemModel>
+#include <QColor>
+#include <QFont>
 #include <QList>
 #include <QObject>
 #include <QSize>
 #include <QString>
+#include <variant>
 
 class SceneManager : public QObject
 {
@@ -21,14 +24,60 @@ class SceneManager : public QObject
     Q_PROPERTY(bool canMoveCurrentSourceDown READ canMoveCurrentSourceDown NOTIFY sourceMoveAvailabilityChanged)
 
 public:
+    enum class SourceType {
+        DisplayCapture,
+        WindowCapture,
+        Camera,
+        Image,
+        Text
+    };
+    Q_ENUM(SourceType)
+
+    struct DisplayCaptureConfig {
+        QString displayId;
+        bool captureCursor = true;
+    };
+    struct WindowCaptureConfig {
+        QString executablePath;
+        QString windowClass;
+        QString windowTitle;
+        bool captureCursor = true;
+    };
+    struct CameraConfig {
+        QString deviceId;
+        // Invalid size and zero frame rate mean no explicit preference.
+        QSize requestedResolution;
+        int requestedFrameRate = 0;
+    };
+    struct ImageConfig {
+        QString filePath;
+    };
+    struct TextConfig {
+        QString text;
+        QFont font;
+        QColor color = Qt::white;
+    };
+    using SourceConfig = std::variant<
+        DisplayCaptureConfig,
+        WindowCaptureConfig,
+        CameraConfig,
+        ImageConfig,
+        TextConfig
+    >;
+
+    struct SourceRuntimeInfo {
+        // Invalid until loading, capture, or rendering supplies the actual size.
+        QSize originalSize;
+    };
     struct SourceData {
         QString id;
         QString name;
-        QString type;
-        QString filePath;
-        QSize originalSize;
+        SourceConfig config = ImageConfig{};
+        SourceRuntimeInfo runtime;
         bool visible = true;
-        bool locked = false;
+        bool locked = false;        
+
+        SourceType type() const;
     };
     struct SceneData {
         QString id;

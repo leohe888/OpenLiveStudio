@@ -15,6 +15,7 @@ class SceneManagerTest : public QObject
 private slots:
     void startsWithOneEmptyScene();
     void exposesSeparateSceneAndSourceRoles();
+    void supportsAllSourceConfigurations();
     void modelsNotifyBeforeAndAfterDataChanges();
     void modelsReadSharedDataAfterSceneChanges();
     void switchesSourcesAndClearsSelection();
@@ -80,8 +81,8 @@ void SceneManagerTest::startsWithOneEmptyScene()
 
 void SceneManagerTest::exposesSeparateSceneAndSourceRoles()
 {
-    SceneManager state({{"scene", "Scene", {{"source", "Image", "image", "fixture.png",
-                                           QSize(64, 32), false, true}}}});
+    SceneManager state({{"scene", "Scene", {{"source", "Image",
+        SceneManager::ImageConfig{"fixture.png"}, {QSize(64, 32)}, false, true}}}});
     auto *sceneModel = state.sceneModel();
     auto *sourceModel = state.sourceModel();
     const QHash<int, QByteArray> sceneRoles{{SceneManager::IdRole, "sceneId"},
@@ -113,6 +114,56 @@ void SceneManagerTest::exposesSeparateSceneAndSourceRoles()
     QVERIFY(!sceneModel->data(source, SceneManager::IdRole).isValid());
     QVERIFY(!sourceModel->data({}, SceneManager::IdRole).isValid());
     QVERIFY(!source.data(Qt::UserRole + 100).isValid());
+}
+
+void SceneManagerTest::supportsAllSourceConfigurations()
+{
+    using Manager = SceneManager;
+    QList<Manager::SourceData> sources{
+        {"display", "Display", Manager::DisplayCaptureConfig{"monitor-1", false}},
+        {"window", "Window", Manager::WindowCaptureConfig{
+            "program.exe", "WindowClass", "Window title", true}},
+        {"camera", "Camera", Manager::CameraConfig{"camera-1", QSize(1280, 720), 30}},
+        {"image", "Image", Manager::ImageConfig{"fixture.png"}, {QSize(64, 32)}},
+        {"text", "Text", Manager::TextConfig{"Caption", QFont("Arial", 24), Qt::yellow}}};
+    const QList<Manager::SourceType> types{
+        Manager::SourceType::DisplayCapture, Manager::SourceType::WindowCapture,
+        Manager::SourceType::Camera, Manager::SourceType::Image, Manager::SourceType::Text};
+    const QStringList typeNames{"displayCapture", "windowCapture", "camera", "image", "text"};
+    Manager state({{"first", "First", sources}, {"second", "Second", sources}});
+    auto *model = state.sourceModel();
+    QAbstractItemModelTester tester(model, QAbstractItemModelTester::FailureReportingMode::QtTest);
+    for (int row = 0; row < sources.size(); ++row) {
+        QCOMPARE(sources.at(row).type(), types.at(row));
+        const auto index = model->index(row, 0);
+        QCOMPARE(index.data(Manager::TypeRole).toString(), typeNames.at(row));
+        if (types.at(row) == Manager::SourceType::Image) {
+            QCOMPARE(index.data(Manager::FilePathRole).toString(), QString("fixture.png"));
+            QCOMPARE(index.data(Manager::OriginalSizeRole).toSize(), QSize(64, 32));
+        } else {
+            QVERIFY(!index.data(Manager::FilePathRole).isValid());
+            QVERIFY(!index.data(Manager::OriginalSizeRole).toSize().isValid());
+        }
+        QVERIFY(state.selectSource(sources.at(row).id));
+        QVERIFY(state.setSourceVisible("first", sources.at(row).id, false));
+        QVERIFY(state.setSourceLocked("first", sources.at(row).id, true));
+    }
+    // Type follows config replacement; it cannot retain an independently stored value.
+    sources[0].config = Manager::ImageConfig{"replacement.png"};
+    QCOMPARE(sources.at(0).type(), Manager::SourceType::Image);
+    QCOMPARE(model->index(0, 0).data(Manager::TypeRole).toString(), QString("displayCapture"));
+    QVERIFY(state.moveSource("first", "text", -1));
+    QVERIFY(state.selectScene("second"));
+    QVERIFY(model->index(0, 0).data(Manager::VisibleRole).toBool());
+    QVERIFY(!model->index(0, 0).data(Manager::LockedRole).toBool());
+    QVERIFY(state.selectScene("first"));
+    QCOMPARE(model->index(3, 0).data(Manager::TypeRole).toString(), QString("text"));
+    for (int row = 0; row < model->rowCount(); ++row) {
+        QVERIFY(!model->index(row, 0).data(Manager::VisibleRole).toBool());
+        QVERIFY(model->index(row, 0).data(Manager::LockedRole).toBool());
+    }
+    QVERIFY(state.removeSource("first", "text"));
+    QCOMPARE(model->index(3, 0).data(Manager::TypeRole).toString(), QString("image"));
 }
 
 void SceneManagerTest::modelsNotifyBeforeAndAfterDataChanges()
