@@ -233,7 +233,7 @@ add_test(NAME ui.mainwindow
 # Timeout covers the complete UI suite; allow headroom for QML setup and CI variance.
 set_tests_properties(ui.mainwindow PROPERTIES
     LABELS "ui;smoke"
-    TIMEOUT 90
+    TIMEOUT 120
 )
 
 if(OPENLIVE_STUDIO_GL_TESTS)

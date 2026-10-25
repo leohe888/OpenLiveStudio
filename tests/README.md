@@ -303,7 +303,7 @@ The original 30-second CTest limit applied to the entire UI executable, includin
 all data rows. A diagnostic run passed all 88 cases in 30.07 seconds, with the
 slowest case taking about 0.78 seconds; no individual case was stuck. Repeated
 window/QML setup, rendering and asynchronous event handling accumulate across
-the suite. The UI executable now has a 90-second limit to allow setup and CI
+the suite. The UI executable now has a 120-second limit to allow setup and CI
 variance. Both core executables retain their 10-second limits; individual test
 assertion rules are unchanged. The complete CTest run at that checkpoint passed
 3/3, with
@@ -315,7 +315,7 @@ JUnit report. CI's Qt 6.8.3 installation and the GitHub-hosted workflow remain
 unverified.
 UI checks use Qt's `offscreen` platform plugin and the
 software Qt Quick backend. The CTest command supplies Qt DLL, plugin and QML
-import paths and gives the entire UI executable a 90-second timeout. Software-rendered screenshots of
+import paths and gives the entire UI executable a 120-second timeout. Software-rendered screenshots of
 the default scene, source empty state, selected test source, name-dialog
 normal/error states, overflowing lists with scrollbars, removal-dialog
 confirmation/error states and movement button states before and after ordering
