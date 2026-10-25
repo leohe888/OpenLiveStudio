@@ -11,27 +11,27 @@ endif()
 
 qt_add_executable(OpenLiveStudio
     WIN32 MACOSX_BUNDLE
-    src/app/main.cpp
-    src/ui/widgets/mainwindow.cpp
-    src/ui/widgets/mainwindow.h
-    src/ui/theme/thememanager.cpp
-    src/ui/theme/thememanager.h
-    src/scene/scenemanager.cpp
-    src/scene/scenemanager.h
+    src/main.cpp
+    src/mainwindow.cpp
+    src/mainwindow.h
+    src/core/thememanager.cpp
+    src/core/thememanager.h
+    src/core/scenemanager.cpp
+    src/core/scenemanager.h
     src/sources/imageprobe.cpp
     src/sources/imageprobe.h
 )
 
 set(OPENLIVE_STUDIO_QML_FILES
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/ScenesPanel.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/SourcesPanel.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/MixerPanel.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/ControlsPanel.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/AboutDialog.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/SceneNameDialog.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/SceneRemovalDialog.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/SourceAddDialog.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/SourceRemovalDialog.qml"
+    "${PROJECT_SOURCE_DIR}/src/qml/ScenesPanel.qml"
+    "${PROJECT_SOURCE_DIR}/src/qml/SourcesPanel.qml"
+    "${PROJECT_SOURCE_DIR}/src/qml/MixerPanel.qml"
+    "${PROJECT_SOURCE_DIR}/src/qml/ControlsPanel.qml"
+    "${PROJECT_SOURCE_DIR}/src/qml/AboutDialog.qml"
+    "${PROJECT_SOURCE_DIR}/src/qml/SceneNameDialog.qml"
+    "${PROJECT_SOURCE_DIR}/src/qml/SceneRemovalDialog.qml"
+    "${PROJECT_SOURCE_DIR}/src/qml/SourceAddDialog.qml"
+    "${PROJECT_SOURCE_DIR}/src/qml/SourceRemovalDialog.qml"
 )
 
 # Preserve the existing qrc:/OpenLiveStudio/Ui/qml/<name>.qml URLs.
@@ -82,10 +82,9 @@ qt_add_resources(OpenLiveStudio "themes"
 )
 
 target_include_directories(OpenLiveStudio PRIVATE
-    "${PROJECT_SOURCE_DIR}/src/ui/widgets"
-    "${PROJECT_SOURCE_DIR}/src/ui/theme"
+    "${PROJECT_SOURCE_DIR}/src"
+    "${PROJECT_SOURCE_DIR}/src/core"
     "${PROJECT_SOURCE_DIR}/src/sources"
-    "${PROJECT_SOURCE_DIR}/src/scene"
 )
 
 target_link_libraries(OpenLiveStudio

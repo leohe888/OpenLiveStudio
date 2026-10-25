@@ -2,10 +2,10 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
 
 qt_add_executable(tst_thememanager
     tst_thememanager.cpp
-    ../src/ui/theme/thememanager.cpp
-    ../src/ui/theme/thememanager.h
+    ../src/core/thememanager.cpp
+    ../src/core/thememanager.h
 )
-target_include_directories(tst_thememanager PRIVATE "${PROJECT_SOURCE_DIR}/src/ui/theme")
+target_include_directories(tst_thememanager PRIVATE "${PROJECT_SOURCE_DIR}/src/core")
 target_link_libraries(tst_thememanager PRIVATE Qt6::Gui Qt6::Test)
 set_target_properties(tst_thememanager PROPERTIES WIN32_EXECUTABLE FALSE)
 qt_add_resources(tst_thememanager "test_themes"
@@ -37,14 +37,14 @@ set_tests_properties(core.imageprobe PROPERTIES LABELS "core;smoke" TIMEOUT 10)
 
 qt_add_executable(tst_scenemanager
     tst_scenemanager.cpp
-    ../src/scene/scenemanager.cpp
-    ../src/scene/scenemanager.h
+    ../src/core/scenemanager.cpp
+    ../src/core/scenemanager.h
     ../src/sources/imageprobe.cpp
     ../src/sources/imageprobe.h
 )
 target_include_directories(tst_scenemanager PRIVATE
     "${PROJECT_SOURCE_DIR}/src/sources"
-    "${PROJECT_SOURCE_DIR}/src/scene"
+    "${PROJECT_SOURCE_DIR}/src/core"
 )
 target_link_libraries(tst_scenemanager PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
 add_test(NAME core.scenemanager
@@ -57,21 +57,20 @@ set_tests_properties(core.scenemanager PROPERTIES LABELS "core;smoke" TIMEOUT 10
 
 qt_add_executable(tst_mainwindow
     tst_mainwindow.cpp
-    ../src/ui/theme/thememanager.cpp
-    ../src/ui/theme/thememanager.h
-    ../src/ui/widgets/mainwindow.cpp
-    ../src/ui/widgets/mainwindow.h
-    ../src/scene/scenemanager.cpp
-    ../src/scene/scenemanager.h
+    ../src/core/thememanager.cpp
+    ../src/core/thememanager.h
+    ../src/mainwindow.cpp
+    ../src/mainwindow.h
+    ../src/core/scenemanager.cpp
+    ../src/core/scenemanager.h
     ../src/sources/imageprobe.cpp
     ../src/sources/imageprobe.h
 )
 
 target_include_directories(tst_mainwindow PRIVATE
-    "${PROJECT_SOURCE_DIR}/src/ui/theme"
-    "${PROJECT_SOURCE_DIR}/src/ui/widgets"
+    "${PROJECT_SOURCE_DIR}/src/core"
+    "${PROJECT_SOURCE_DIR}/src"
     "${PROJECT_SOURCE_DIR}/src/sources"
-    "${PROJECT_SOURCE_DIR}/src/scene"
 )
 target_link_libraries(tst_mainwindow PRIVATE
     Qt6::Widgets Qt6::Test Qt6::QuickWidgets Qt6::QuickControls2 Qt6::Svg
@@ -81,7 +80,7 @@ set_target_properties(tst_mainwindow PROPERTIES WIN32_EXECUTABLE FALSE)
 # Embed the same source at the application's resource URL.
 qt_add_resources(tst_mainwindow "test_ui"
     PREFIX "/OpenLiveStudio/Ui"
-    BASE "${PROJECT_SOURCE_DIR}/src/ui"
+    BASE "${PROJECT_SOURCE_DIR}/src"
     FILES ${OPENLIVE_STUDIO_QML_FILES}
 )
 

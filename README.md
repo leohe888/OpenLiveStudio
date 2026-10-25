@@ -7,10 +7,11 @@
 ```text
 src/
   main.cpp          应用入口
-  ui/               Widgets 主窗口与界面组装
-  scene/            场景、来源条目与选择状态
-  media/            图像加载等媒体能力
-qml/                QML 面板和对话框
+  mainwindow.h      Widgets 主窗口声明
+  mainwindow.cpp    Widgets 主窗口与界面组装
+  core/             场景、来源条目、选择状态与主题管理
+  sources/          图片探测等来源能力
+  qml/              QML 面板和对话框
 assets/icons/       共用 SVG 图标及来源声明
 tests/              Qt Test、CTest 配置与验证记录
 docs/               项目方案、路线、架构说明和 HTML 原型
