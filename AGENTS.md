@@ -1,7 +1,5 @@
 # OpenLive Studio 项目协作规则
 
-适用于本仓库中的 AI 辅助开发。功能范围与界面以 [项目方案](docs/openlive-studio-plan.md)、[实施路线](docs/openlive-studio-roadmap.md) 和 [UI 原型](docs/openlive-studio-prototype.html) 为依据。
-
 ## 1. 执行前先给方案
 
 - 开始一个新的实施步骤、功能、修复或重构时，先检查相关文件和当前工作区，再说明方案；此阶段只读，不修改代码。
