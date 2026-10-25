@@ -30,9 +30,20 @@ public:
         bool visible = true;
         bool locked = false;
     };
-    struct SceneData { QString id; QString name; QList<SourceData> sources; };
-    enum Role { IdRole = Qt::UserRole + 1, NameRole, TypeRole, FilePathRole, OriginalSizeRole,
-                VisibleRole, LockedRole };
+    struct SceneData {
+        QString id;
+        QString name;
+        QList<SourceData> sources;
+    };
+    enum Role {
+        IdRole = Qt::UserRole + 1,
+        NameRole,
+        TypeRole,
+        FilePathRole,
+        OriginalSizeRole,
+        VisibleRole,
+        LockedRole
+    };
 
     explicit StudioState(QObject *parent = nullptr);
     // Initial IDs must be nonempty and unique within each list.
@@ -83,15 +94,16 @@ signals:
     void sourceMoveAvailabilityChanged();
 
 private:
-    class ListModel;
+    class SceneListModel;
+    class SourceListModel;
     int sceneRow(const QString &id) const;
     int sourceRow(const QString &sceneId, const QString &sourceId) const;
     bool setSourceFlag(const QString &sceneId, const QString &sourceId, int role, bool value);
     QString validateImageSource(const QString &sceneId, const QString &name,
                                 const QString &filePath, QSize *size) const;
     QList<SceneData> m_scenes;
-    ListModel *m_sceneModel;
-    ListModel *m_sourceModel;
+    SceneListModel *m_sceneModel;
+    SourceListModel *m_sourceModel;
     QString m_currentSceneId;
     QString m_currentSourceId;
 };

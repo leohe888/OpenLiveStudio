@@ -5,20 +5,15 @@
 #include <QFileInfo>
 #include <QUuid>
 
-class StudioState::ListModel : public QAbstractListModel
+class StudioState::SceneListModel : public QAbstractListModel
 {
 public:
-    ListModel(const QByteArray &idRole, const QByteArray &nameRole, QObject *parent)
-        : QAbstractListModel(parent), m_roles{{IdRole, idRole}, {NameRole, nameRole}}
-    {
-        if (idRole == "sourceId") {
-            m_roles.insert(TypeRole, "sourceType");
-            m_roles.insert(FilePathRole, "sourceFilePath");
-            m_roles.insert(OriginalSizeRole, "sourceOriginalSize");
-            m_roles.insert(VisibleRole, "sourceVisible");
-            m_roles.insert(LockedRole, "sourceLocked");
-        }
-    }
+    struct Item {
+        QString id;
+        QString name;
+    };
+
+    explicit SceneListModel(QObject *parent) : QAbstractListModel(parent) {}
 
     int rowCount(const QModelIndex &parent = {}) const override
     {
@@ -35,31 +30,22 @@ public:
             return item.id;
         if (role == NameRole || role == Qt::DisplayRole)
             return item.name;
-        if (m_roles.contains(role)) {
-            if (role == TypeRole)
-                return item.type;
-            if (role == FilePathRole)
-                return item.filePath;
-            if (role == OriginalSizeRole)
-                return item.originalSize;
-            if (role == VisibleRole)
-                return item.visible;
-            if (role == LockedRole)
-                return item.locked;
-        }
         return {};
     }
 
-    QHash<int, QByteArray> roleNames() const override { return m_roles; }
+    QHash<int, QByteArray> roleNames() const override
+    {
+        return {{IdRole, "sceneId"}, {NameRole, "sceneName"}};
+    }
 
-    void replace(const QList<SourceData> &items)
+    void replace(const QList<Item> &items)
     {
         beginResetModel();
         m_items = items;
         endResetModel();
     }
 
-    void append(const SourceData &item)
+    void append(const Item &item)
     {
         const int row = int(m_items.size());
         beginInsertRows({}, row, row);
@@ -71,6 +57,67 @@ public:
     {
         m_items[row].name = name;
         emit dataChanged(index(row, 0), index(row, 0), {NameRole, Qt::DisplayRole});
+    }
+
+    void remove(int row)
+    {
+        beginRemoveRows({}, row, row);
+        m_items.removeAt(row);
+        endRemoveRows();
+    }
+
+    void move(int from, int to)
+    {
+        beginMoveRows({}, from, from, {}, to > from ? to + 1 : to);
+        m_items.move(from, to);
+        endMoveRows();
+    }
+
+private:
+    QList<Item> m_items;
+};
+
+class StudioState::SourceListModel : public QAbstractListModel
+{
+public:
+    explicit SourceListModel(QObject *parent) : QAbstractListModel(parent) {}
+
+    int rowCount(const QModelIndex &parent = {}) const override
+    {
+        return parent.isValid() ? 0 : int(m_items.size());
+    }
+
+    QVariant data(const QModelIndex &index, int role) const override
+    {
+        if (!index.isValid() || index.model() != this || index.column() != 0
+            || index.row() < 0 || index.row() >= m_items.size())
+            return {};
+        const auto &item = m_items.at(index.row());
+        switch (role) {
+        case IdRole: return item.id;
+        case NameRole:
+        case Qt::DisplayRole: return item.name;
+        case TypeRole: return item.type;
+        case FilePathRole: return item.filePath;
+        case OriginalSizeRole: return item.originalSize;
+        case VisibleRole: return item.visible;
+        case LockedRole: return item.locked;
+        default: return {};
+        }
+    }
+
+    QHash<int, QByteArray> roleNames() const override
+    {
+        return {{IdRole, "sourceId"}, {NameRole, "sourceName"}, {TypeRole, "sourceType"},
+                {FilePathRole, "sourceFilePath"}, {OriginalSizeRole, "sourceOriginalSize"},
+                {VisibleRole, "sourceVisible"}, {LockedRole, "sourceLocked"}};
+    }
+
+    void replace(const QList<SourceData> &items)
+    {
+        beginResetModel();
+        m_items = items;
+        endResetModel();
     }
 
     void prepend(const SourceData &item)
@@ -104,7 +151,6 @@ public:
     }
 
 private:
-    QHash<int, QByteArray> m_roles;
     QList<SourceData> m_items;
 };
 
@@ -116,8 +162,8 @@ StudioState::StudioState(QObject *parent)
 
 StudioState::StudioState(const QList<SceneData> &scenes, QObject *parent)
     : QObject(parent), m_scenes(scenes),
-      m_sceneModel(new ListModel("sceneId", "sceneName", this)),
-      m_sourceModel(new ListModel("sourceId", "sourceName", this))
+      m_sceneModel(new SceneListModel(this)),
+      m_sourceModel(new SourceListModel(this))
 {
     connect(this, &StudioState::currentSceneIdChanged, this, &StudioState::sceneMoveAvailabilityChanged);
     connect(m_sceneModel, &QAbstractItemModel::rowsInserted, this, &StudioState::sceneMoveAvailabilityChanged);
@@ -128,7 +174,7 @@ StudioState::StudioState(const QList<SceneData> &scenes, QObject *parent)
     connect(m_sourceModel, &QAbstractItemModel::rowsInserted, this, &StudioState::sourceMoveAvailabilityChanged);
     connect(m_sourceModel, &QAbstractItemModel::rowsRemoved, this, &StudioState::sourceMoveAvailabilityChanged);
     connect(m_sourceModel, &QAbstractItemModel::rowsMoved, this, &StudioState::sourceMoveAvailabilityChanged);
-    QList<SourceData> sceneItems;
+    QList<SceneListModel::Item> sceneItems;
     for (const auto &scene : m_scenes)
         sceneItems.append({scene.id, scene.name});
     m_sceneModel->replace(sceneItems);

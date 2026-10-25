@@ -13,6 +13,7 @@ class StudioStateTest : public QObject
     Q_OBJECT
 private slots:
     void startsWithOneEmptyScene();
+    void exposesSeparateSceneAndSourceRoles();
     void switchesSourcesAndClearsSelection();
     void rejectsInvalidSelectionAndIgnoresRepeatedSelection();
     void supportsEmptyInitialState();
@@ -72,6 +73,43 @@ void StudioStateTest::startsWithOneEmptyScene()
     QVERIFY(state.currentSourceId().isEmpty());
     QVERIFY(!model->data(QModelIndex(), StudioState::NameRole).isValid());
     QVERIFY(!model->index(0, 0).data(Qt::UserRole + 100).isValid());
+}
+
+void StudioStateTest::exposesSeparateSceneAndSourceRoles()
+{
+    StudioState state({{"scene", "Scene", {{"source", "Image", "image", "fixture.png",
+                                           QSize(64, 32), false, true}}}});
+    auto *sceneModel = state.sceneModel();
+    auto *sourceModel = state.sourceModel();
+    const QHash<int, QByteArray> sceneRoles{{StudioState::IdRole, "sceneId"},
+                                          {StudioState::NameRole, "sceneName"}};
+    const QHash<int, QByteArray> sourceRoles{
+        {StudioState::IdRole, "sourceId"}, {StudioState::NameRole, "sourceName"},
+        {StudioState::TypeRole, "sourceType"}, {StudioState::FilePathRole, "sourceFilePath"},
+        {StudioState::OriginalSizeRole, "sourceOriginalSize"},
+        {StudioState::VisibleRole, "sourceVisible"}, {StudioState::LockedRole, "sourceLocked"}};
+    QCOMPARE(sceneModel->roleNames(), sceneRoles);
+    QCOMPARE(sourceModel->roleNames(), sourceRoles);
+
+    const auto scene = sceneModel->index(0, 0);
+    const auto source = sourceModel->index(0, 0);
+    for (const int role : {StudioState::TypeRole, StudioState::FilePathRole,
+                           StudioState::OriginalSizeRole, StudioState::VisibleRole,
+                           StudioState::LockedRole}) {
+        QVERIFY(!scene.data(role).isValid());
+        QVERIFY(source.data(role).isValid());
+    }
+    QCOMPARE(scene.data(Qt::DisplayRole).toString(), QString("Scene"));
+    QCOMPARE(source.data(Qt::DisplayRole).toString(), QString("Image"));
+    QCOMPARE(source.data(StudioState::TypeRole).toString(), QString("image"));
+    QCOMPARE(source.data(StudioState::FilePathRole).toString(), QString("fixture.png"));
+    QCOMPARE(source.data(StudioState::OriginalSizeRole).toSize(), QSize(64, 32));
+    QCOMPARE(source.data(StudioState::VisibleRole).toBool(), false);
+    QCOMPARE(source.data(StudioState::LockedRole).toBool(), true);
+    QVERIFY(!sourceModel->data(scene, StudioState::IdRole).isValid());
+    QVERIFY(!sceneModel->data(source, StudioState::IdRole).isValid());
+    QVERIFY(!sourceModel->data({}, StudioState::IdRole).isValid());
+    QVERIFY(!source.data(Qt::UserRole + 100).isValid());
 }
 
 void StudioStateTest::switchesSourcesAndClearsSelection()
