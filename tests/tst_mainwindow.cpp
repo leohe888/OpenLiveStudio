@@ -72,6 +72,8 @@ private slots:
     void sourcePanelCanBrowseAndAdd();
     void sourceAddDialogHandlesInput_data();
     void sourceAddDialogHandlesInput();
+    void sourceAddDialogHandlesTypeSelection_data();
+    void sourceAddDialogHandlesTypeSelection();
     void sceneNameDialogValidatesAndSaves_data();
     void sceneNameDialogValidatesAndSaves();
     void sceneNameDialogCancelsWithoutChanges_data();
@@ -1573,7 +1575,7 @@ void MainWindowTest::sourceAddDialogHandlesInput()
     auto *confirm = find("confirmSourceAddButton");
     auto *cancel = find("cancelSourceAddButton");
     QVERIFY(name && file && error && type && browse && confirm && cancel);
-    QCOMPARE(type->property("count").toInt(), 1);
+    QCOMPARE(type->property("count").toInt(), 5);
     QVERIFY(browse->isEnabled());
     QCOMPARE(name->property("text").toString(), QString::fromUtf8("图像"));
     QTRY_VERIFY(name->hasActiveFocus());
@@ -1666,6 +1668,104 @@ void MainWindowTest::sourceAddDialogHandlesInput()
     QCOMPARE(added.data(SceneManager::OriginalSizeRole).toSize(), image.size());
     if (method != "switched")
         QCOMPARE(state->currentSourceId(), added.data(SceneManager::IdRole).toString());
+}
+
+void MainWindowTest::sourceAddDialogHandlesTypeSelection_data()
+{
+    QTest::addColumn<QString>("themeId");
+    QTest::newRow("dark") << QString("dark");
+    QTest::newRow("light") << QString("light");
+}
+
+void MainWindowTest::sourceAddDialogHandlesTypeSelection()
+{
+    QFETCH(QString, themeId);
+    QVERIFY(m_theme->setTheme(themeId));
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath("image.png");
+    QImage image(8, 4, QImage::Format_RGB32);
+    image.fill(Qt::red);
+    QVERIFY(image.save(path));
+    MainWindow window(*m_theme);
+    window.show();
+    auto *manager = window.findChild<SceneManager *>();
+    QVERIFY(manager);
+    const QString sceneId = manager->currentSceneId();
+    QVERIFY(!manager->addImageSource(sceneId, QString::fromUtf8("摄像头"), path).isEmpty());
+    window.showDialog(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml"), "Add source",
+        {{"sceneManager", QVariant::fromValue(manager)}, {"sceneId", sceneId}});
+    QPointer<QDialog> dialog = window.findChild<QDialog *>("qmlDialog");
+    QVERIFY(dialog);
+    auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
+    QVERIFY(view);
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    auto *root = view->rootObject();
+    QVERIFY(root);
+    root->setProperty("filePath", path);
+    auto *type = root->findChild<QQuickItem *>("sourceTypeInput");
+    auto *name = root->findChild<QQuickItem *>("sourceNameInput");
+    auto *confirm = root->findChild<QQuickItem *>("confirmSourceAddButton");
+    auto *hint = root->findChild<QQuickItem *>("sourceTypeUnavailableHint");
+    QVERIFY(type && name && confirm && hint);
+    QCOMPARE(type->property("count").toInt(), 5);
+    QCOMPARE(type->property("currentValue").toString(), QString("image"));
+    const auto activateType = [&](int index) {
+        type->forceActiveFocus();
+        QTest::keyClick(view, Qt::Key_Space);
+        auto *popup = type->property("popup").value<QObject *>();
+        QVERIFY(popup);
+        QTRY_VERIFY(popup->property("opened").toBool());
+        QTest::keyClick(view, Qt::Key_Home);
+        for (int row = 0; row < index; ++row)
+            QTest::keyClick(view, Qt::Key_Down);
+        QTest::keyClick(view, Qt::Key_Return);
+        QTRY_COMPARE(type->property("currentIndex").toInt(), index);
+        QTRY_VERIFY(!popup->property("visible").toBool());
+    };
+    const QStringList keys{"image", "displayCapture", "windowCapture", "camera", "text"};
+    for (int index = 1; index < keys.size(); ++index) {
+        root->setProperty("errorText", "Previous error");
+        activateType(index);
+        QCOMPARE(type->property("currentValue").toString(), keys.at(index));
+        QVERIFY(root->property("errorText").toString().isEmpty());
+        QVERIFY(hint->isVisible());
+        QCOMPARE(hint->property("color").value<QColor>(), m_theme->color("text.secondary"));
+        QPointer<QQuickItem> imageInput = root->findChild<QQuickItem *>("sourceFileInput");
+        QTRY_VERIFY(!imageInput || !imageInput->isVisible());
+        QVERIFY(!confirm->isEnabled());
+        auto *background = confirm->property("background").value<QQuickItem *>();
+        QVERIFY(background);
+        QCOMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.disabled"));
+        const QString expectedName = index == 3
+            ? QString::fromUtf8("摄像头 2") : type->property("currentText").toString();
+        QCOMPARE(name->property("text").toString(), expectedName);
+        // A direct call or Return in the name field must also reject these types.
+        QVERIFY(QMetaObject::invokeMethod(root, "submit"));
+        QVERIFY(!root->property("errorText").toString().isEmpty());
+        name->forceActiveFocus();
+        QTest::keyClick(view, Qt::Key_Return);
+        QCOMPARE(manager->sourceModel()->rowCount(), 1);
+        QVERIFY(dialog && dialog->isVisible());
+    }
+    name->forceActiveFocus();
+    QTest::keyClick(view, Qt::Key_A, Qt::ControlModifier);
+    QTest::keyClicks(view, "Custom source");
+    for (int index : {1, 2, 3, 4, 0}) {
+        activateType(index);
+        QCOMPARE(name->property("text").toString(), QString("Custom source"));
+    }
+    QVERIFY(!hint->isVisible());
+    QVERIFY(confirm->isEnabled());
+    auto *file = root->findChild<QQuickItem *>("sourceFileInput");
+    QVERIFY(file);
+    QCOMPARE(file->property("text").toString(), path);
+    QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
+        confirm->mapToScene(confirm->boundingRect().center()).toPoint());
+    QTRY_VERIFY(dialog.isNull());
+    QCOMPARE(manager->sourceModel()->rowCount(), 2);
+    QCOMPARE(manager->sourceModel()->index(0, 0).data(SceneManager::NameRole).toString(),
+             QString("Custom source"));
 }
 
 void MainWindowTest::sceneNameDialogValidatesAndSaves_data()

@@ -14,10 +14,16 @@ Rectangle {
     property string initialName: qsTr("图像")
     property string filePath: ""
     property string errorText: ""
+    property bool nameEdited: false
+    readonly property bool imageSelected: sourceType.currentValue === "image"
     signal closeRequested()
     signal browseImageFileRequested()
 
     function submit() {
+        if (!imageSelected) {
+            errorText = qsTr("该类型尚未接入添加功能。")
+            return
+        }
         if (!sceneManager) {
             errorText = qsTr("来源状态不可用。")
             return
@@ -102,7 +108,20 @@ Rectangle {
                 objectName: "sourceTypeInput"
                 Layout.fillWidth: true
                 implicitHeight: 32
-                model: [qsTr("图像")]
+                textRole: "name"
+                valueRole: "type"
+                model: [
+                    { name: qsTr("图像"), type: "image" },
+                    { name: qsTr("显示器采集"), type: "displayCapture" },
+                    { name: qsTr("窗口采集"), type: "windowCapture" },
+                    { name: qsTr("摄像头"), type: "camera" },
+                    { name: qsTr("文字"), type: "text" }
+                ]
+                onActivated: {
+                    root.errorText = ""
+                    if (!root.nameEdited && root.sceneManager)
+                        nameInput.text = root.sceneManager.suggestedSourceName(root.sceneId, currentText)
+                }
                 Accessible.name: qsTr("来源类型")
                 hoverEnabled: true
                 palette.buttonText: enabled ? root.themeColors.text.primary : root.themeColors.text.disabled
@@ -152,16 +171,28 @@ Rectangle {
                 Layout.fillWidth: true
                 text: root.initialName
                 Accessible.name: qsTr("来源名称")
+                onTextEdited: root.nameEdited = true
             }
         }
         Loader {
             objectName: "sourceConfigurationLoader"
             Layout.fillWidth: true
+            active: root.imageSelected
+            visible: active
             sourceComponent: imageConfiguration
             onLoaded: {
                 nameInput.forceActiveFocus()
                 nameInput.selectAll()
             }
+        }
+        Label {
+            objectName: "sourceTypeUnavailableHint"
+            Layout.fillWidth: true
+            visible: !root.imageSelected
+            text: qsTr("该类型尚未接入添加功能。")
+            textFormat: Text.PlainText
+            wrapMode: Text.WordWrap
+            color: root.themeColors.text.secondary
         }
         Label {
             objectName: "sourceAddError"
@@ -178,6 +209,7 @@ Rectangle {
             ActionButton {
                 objectName: "confirmSourceAddButton"
                 text: qsTr("确定")
+                enabled: root.imageSelected
                 onClicked: root.submit()
             }
             ActionButton {
