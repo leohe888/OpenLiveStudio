@@ -9,7 +9,7 @@ Rectangle {
     implicitWidth: 520
     implicitHeight: 300
     color: root.themeColors.background.panel
-    required property var sceneManager
+    required property var sourceManager
     property string initialName: qsTr("显示器采集")
     property string errorText: ""
     property bool nameEdited: false
@@ -80,8 +80,8 @@ Rectangle {
                 ]
                 onActivated: {
                     root.errorText = ""
-                    if (!root.nameEdited && root.sceneManager)
-                        nameInput.text = root.sceneManager.suggestedSourceName(currentText)
+                    if (!root.nameEdited && root.sourceManager)
+                        nameInput.text = root.sourceManager.suggestedSourceName(currentText)
                 }
                 Accessible.name: qsTr("来源类型")
                 hoverEnabled: true

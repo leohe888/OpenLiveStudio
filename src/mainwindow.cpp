@@ -233,7 +233,7 @@ void MainWindow::showSourceAddDialog()
     if (initialName.isEmpty())
         return;
     showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml")),
-        tr("添加来源"), {{QStringLiteral("sceneManager"), QVariant::fromValue(m_sceneManager)},
+        tr("添加来源"), {{QStringLiteral("sourceManager"), QVariant::fromValue(m_sceneManager)},
                        {QStringLiteral("initialName"), initialName}});
 }
 
@@ -247,7 +247,7 @@ void MainWindow::showSourceRemovalDialog(const QString &sourceId)
         if (index.data(SceneManager::IdRole).toString() != sourceId)
             continue;
         showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceRemovalDialog.qml")),
-            tr("移除来源"), {{QStringLiteral("sceneManager"), QVariant::fromValue(m_sceneManager)},
+            tr("移除来源"), {{QStringLiteral("sourceManager"), QVariant::fromValue(m_sceneManager)},
                            {QStringLiteral("sourceId"), sourceId},
                            {QStringLiteral("sourceName"), index.data(SceneManager::NameRole)}});
         return;
@@ -370,7 +370,7 @@ void MainWindow::setupSourcesDock()
     auto *pages = new QStackedWidget(m_sourcesDock);
     auto *view = new QQuickWidget(pages);
     view->setObjectName(QStringLiteral("sourcesQuickWidget"));
-    view->rootContext()->setContextProperty(QStringLiteral("sceneManager"), m_sceneManager);
+    view->rootContext()->setContextProperty(QStringLiteral("sourceManager"), m_sceneManager);
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
     configureQuickWidget(view);
     pages->addWidget(view);

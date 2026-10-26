@@ -136,10 +136,10 @@ void MainWindowTest::sourcePanelSharesStateAcrossReloadsAndReleasesItWithWindow(
         auto *view = window->findChild<QQuickWidget *>(QLatin1String(panelId) + QStringLiteral("QuickWidget"));
         QVERIFY(view);
         QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-        QCOMPARE(view->rootContext()->contextProperty(QStringLiteral("sceneManager")).value<QObject *>(), state.data());
+        QCOMPARE(view->rootContext()->contextProperty(QStringLiteral("sourceManager")).value<QObject *>(), state.data());
         // Exercise the QML context and invokable API, rather than just a C++ pointer.
         QQmlExpression expression(view->rootContext(), view->rootObject(),
-            QStringLiteral("sceneManager.selectSource(sceneManager.currentSourceId)"));
+            QStringLiteral("sourceManager.selectSource(sourceManager.currentSourceId)"));
         QCOMPARE(expression.evaluate().toBool(), true);
         QVERIFY2(!expression.hasError(), qPrintable(expression.error().toString()));
         QPointer<QQuickItem> oldRoot = view->rootObject();
@@ -149,9 +149,9 @@ void MainWindowTest::sourcePanelSharesStateAcrossReloadsAndReleasesItWithWindow(
         QTRY_VERIFY(oldRoot.isNull());
         view->setSource(source);
         QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-        QCOMPARE(view->rootContext()->contextProperty(QStringLiteral("sceneManager")).value<QObject *>(), state.data());
+        QCOMPARE(view->rootContext()->contextProperty(QStringLiteral("sourceManager")).value<QObject *>(), state.data());
         QQmlExpression reloaded(view->rootContext(), view->rootObject(),
-            QStringLiteral("sceneManager.sourceModel"));
+            QStringLiteral("sourceManager.sourceModel"));
         QCOMPARE(reloaded.evaluate().value<QObject *>(), sources.data());
         QVERIFY2(!reloaded.hasError(), qPrintable(reloaded.error().toString()));
         QCOMPARE(state->sourceModel(), sources.data());
@@ -173,7 +173,7 @@ void MainWindowTest::sourcePanelFollowsSelectionAcrossReloads()
     SceneManager state(QList<SceneManager::SourceData>{{"a", "First"}, {"b", "Second"}});
     QQuickWidget panel;
     panel.rootContext()->setContextProperty("uiTheme", m_theme.get());
-    panel.rootContext()->setContextProperty("sceneManager", &state);
+    panel.rootContext()->setContextProperty("sourceManager", &state);
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(238, 260);
     const QUrl source("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml");
@@ -222,7 +222,7 @@ void MainWindowTest::sourcePanelCanMoveAndToggle()
     panel.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(280, 220);
-    panel.rootContext()->setContextProperty(QStringLiteral("sceneManager"), &state);
+    panel.rootContext()->setContextProperty(QStringLiteral("sourceManager"), &state);
     const QUrl url(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml"));
     panel.setSource(url);
     QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
@@ -362,7 +362,7 @@ void MainWindowTest::listScrollBarsHandleOverflow()
     panel.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(238, 150);
-    panel.rootContext()->setContextProperty(QStringLiteral("sceneManager"), &state);
+    panel.rootContext()->setContextProperty(QStringLiteral("sourceManager"), &state);
     panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(panelName)));
     QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
     panel.show();
@@ -407,7 +407,7 @@ void MainWindowTest::listScrollBarsHandleOverflow()
     panel.resize(238, 150);
     QTRY_VERIFY(bar->isVisible());
     // A short list needs no scrollbar even in the smaller panel.
-    panel.rootContext()->setContextProperty(QStringLiteral("sceneManager"), &shortState);
+    panel.rootContext()->setContextProperty(QStringLiteral("sourceManager"), &shortState);
     QTRY_COMPARE(list->property("count").toInt(), 1);
     QTRY_VERIFY(!bar->isVisible());
 }
@@ -653,7 +653,7 @@ void MainWindowTest::sourceThemes()
     QVERIFY(state.selectSource("0"));
     QQuickWidget panel;
     panel.rootContext()->setContextProperty("uiTheme", m_theme.get());
-    panel.rootContext()->setContextProperty("sceneManager", &state);
+    panel.rootContext()->setContextProperty("sourceManager", &state);
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(280, 220);
     const QUrl url(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(panelName));
@@ -903,7 +903,7 @@ void MainWindowTest::basicDialogThemes()
     if (dialogName == "AboutDialog") {
         properties = {{"productName", "OpenLive Studio"}, {"versionText", "Development"}, {"qtVersion", qVersion()}};
     } else {
-        properties = {{"sceneManager", QVariant::fromValue(state)}};
+        properties = {{"sourceManager", QVariant::fromValue(state)}};
         if (dialogName == "SourceAddDialog") properties.insert("initialName", "Theme sample");
         else {
             properties.insert("sourceId", "fixed-source-id");
@@ -1302,7 +1302,7 @@ void MainWindowTest::sourceAddDialogHandlesInput()
     auto *state = window.findChild<SceneManager *>();
     QVERIFY(state);
     window.showDialog(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml"), "Add source",
-        {{"sceneManager", QVariant::fromValue(state)}});
+        {{"sourceManager", QVariant::fromValue(state)}});
     QPointer<QDialog> dialog = window.findChild<QDialog *>("qmlDialog");
     QVERIFY(dialog);
     auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
@@ -1353,7 +1353,7 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
     auto *manager = window.findChild<SceneManager *>();
     QVERIFY(manager);
     window.showDialog(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml"), "Add source",
-        {{"sceneManager", QVariant::fromValue(manager)}});
+        {{"sourceManager", QVariant::fromValue(manager)}});
     QPointer<QDialog> dialog = window.findChild<QDialog *>("qmlDialog");
     QVERIFY(dialog);
     auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
@@ -1439,7 +1439,7 @@ void MainWindowTest::sourcePanelRequestsRemoval()
     SceneManager state(QList<SceneManager::SourceData>{{second, "Beta"}, {first, "Alpha"}});
     QQuickWidget panel;
     panel.rootContext()->setContextProperty("uiTheme", m_theme.get());
-    panel.rootContext()->setContextProperty("sceneManager", &state);
+    panel.rootContext()->setContextProperty("sourceManager", &state);
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(280, 260);
     const QUrl url("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml");
@@ -1522,7 +1522,7 @@ void MainWindowTest::sourceRemovalDialogHandlesConfirmation()
     MainWindow window(*m_theme);
     window.show();
     window.showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceRemovalDialog.qml")),
-        QStringLiteral("Remove source"), {{"sceneManager", QVariant::fromValue(&state)},
+        QStringLiteral("Remove source"), {{"sourceManager", QVariant::fromValue(&state)},
         {"sourceId", action == "invalid-source" ? QString("missing") : QString("shared")}, {"sourceName", name}});
     QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
     QVERIFY(dialog);

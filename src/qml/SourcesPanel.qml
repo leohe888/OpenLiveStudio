@@ -9,7 +9,7 @@ Rectangle {
     implicitWidth: 238
     implicitHeight: 320
     color: themeColors.background.panel
-    readonly property var state: typeof sceneManager !== "undefined" ? sceneManager : null
+    readonly property var state: typeof sourceManager !== "undefined" ? sourceManager : null
     signal sourceAddDialogRequested()
     signal sourceRemovalDialogRequested(string sourceId)
 

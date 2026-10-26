@@ -9,14 +9,14 @@ Rectangle {
     implicitWidth: 460
     implicitHeight: 220
     color: root.themeColors.background.panel
-    required property var sceneManager
+    required property var sourceManager
     required property string sourceId
     required property string sourceName
     property string errorText: ""
     signal closeRequested()
 
     function removeSource() {
-        if (sceneManager && sceneManager.removeSource(sourceId))
+        if (sourceManager && sourceManager.removeSource(sourceId))
             closeRequested()
         else
             errorText = qsTr("无法移除来源：目标来源可能已不存在。")
