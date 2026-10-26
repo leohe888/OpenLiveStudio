@@ -12,29 +12,17 @@ Rectangle {
     required property var sceneManager
     required property string sceneId
     property string initialName: qsTr("图像")
-    property string filePath: ""
     property string errorText: ""
     property bool nameEdited: false
-    readonly property bool imageSelected: sourceType.currentValue === "image"
     signal closeRequested()
-    signal browseImageFileRequested()
 
     function submit() {
-        if (!imageSelected) {
-            errorText = qsTr("该类型尚未接入添加功能。")
-            return
-        }
-        if (!sceneManager) {
-            errorText = qsTr("来源状态不可用。")
-            return
-        }
-        errorText = sceneManager.imageSourceError(sceneId, nameInput.text, filePath)
-        if (errorText.length > 0)
-            return
-        if (sceneManager.addImageSource(sceneId, nameInput.text, filePath).length > 0)
-            closeRequested()
-        else
-            errorText = qsTr("无法添加图像来源，请重试。")
+        errorText = qsTr("该类型尚未接入添加功能。")
+    }
+
+    Component.onCompleted: {
+        nameInput.forceActiveFocus()
+        nameInput.selectAll()
     }
 
     component FormInput: TextField {
@@ -64,32 +52,6 @@ Rectangle {
                     : (parent.hovered ? root.themeColors.button.background.hovered : root.themeColors.button.background.normal))
             border.color: parent.enabled && parent.activeFocus ? root.themeColors.border.focus : root.themeColors.border.default
             radius: 2
-        }
-    }
-
-    // Only the image form exists today. Other source types can supply their own form.
-    Component {
-        id: imageConfiguration
-        RowLayout {
-            spacing: 10
-            Label { text: qsTr("图像文件"); color: root.themeColors.text.primary; Layout.preferredWidth: 64 }
-            FormInput {
-                objectName: "sourceFileInput"
-                Layout.fillWidth: true
-                Layout.minimumWidth: 0
-                text: root.filePath
-                placeholderText: qsTr("输入本地图像文件路径")
-                Accessible.name: qsTr("图像文件")
-                onTextEdited: {
-                    root.filePath = text
-                    root.errorText = ""
-                }
-            }
-            ActionButton {
-                objectName: "browseSourceFileButton"
-                text: qsTr("浏览")
-                onClicked: root.browseImageFileRequested()
-            }
         }
     }
 
@@ -174,21 +136,9 @@ Rectangle {
                 onTextEdited: root.nameEdited = true
             }
         }
-        Loader {
-            objectName: "sourceConfigurationLoader"
-            Layout.fillWidth: true
-            active: root.imageSelected
-            visible: active
-            sourceComponent: imageConfiguration
-            onLoaded: {
-                nameInput.forceActiveFocus()
-                nameInput.selectAll()
-            }
-        }
         Label {
             objectName: "sourceTypeUnavailableHint"
             Layout.fillWidth: true
-            visible: !root.imageSelected
             text: qsTr("该类型尚未接入添加功能。")
             textFormat: Text.PlainText
             wrapMode: Text.WordWrap
@@ -209,7 +159,7 @@ Rectangle {
             ActionButton {
                 objectName: "confirmSourceAddButton"
                 text: qsTr("确定")
-                enabled: root.imageSelected
+                enabled: false
                 onClicked: root.submit()
             }
             ActionButton {

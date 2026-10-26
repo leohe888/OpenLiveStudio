@@ -10,7 +10,6 @@
 #include <QDebug>
 #include <QDialog>
 #include <QDockWidget>
-#include <QFileDialog>
 #include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
@@ -221,18 +220,6 @@ void MainWindow::showDialog(const QUrl &source, const QString &title,
             const QSize contentSize(qMax(1, qRound(root->implicitWidth())),
                                     qMax(1, qRound(root->implicitHeight())));
             view->setContent(source, component, root);
-            if (root->metaObject()->indexOfSignal("browseImageFileRequested()") >= 0) {
-                auto *picker = new QFileDialog(dialog, tr("选择图像文件"));
-                picker->setObjectName(QStringLiteral("imageFileDialog"));
-                picker->setFileMode(QFileDialog::ExistingFile);
-                picker->setNameFilters({tr("图像文件 (*.png *.jpg *.jpeg *.bmp *.gif *.webp *.svg)"),
-                                        tr("所有文件 (*)")});
-                connect(root, SIGNAL(browseImageFileRequested()), picker, SLOT(open()));
-                connect(picker, &QFileDialog::fileSelected, root, [root](const QString &path) {
-                    root->setProperty("filePath", path);
-                    root->setProperty("errorText", QString());
-                });
-            }
             if (contentSize.width() > 1 && contentSize.height() > 1)
                 dialog->resize(contentSize);
         }

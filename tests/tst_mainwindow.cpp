@@ -9,7 +9,6 @@
 #include <QDockWidget>
 #include <QDialog>
 #include <QFile>
-#include <QFileDialog>
 #include <QImageReader>
 #include <QLabel>
 #include <QMenuBar>
@@ -68,8 +67,8 @@ private slots:
     void qmlDialogShowsLoadErrors_data();
     void qmlDialogShowsLoadErrors();
     void aboutActionShowsProjectInfoAndReusesDialog();
-    void sourcePanelCanBrowseAndAdd_data();
-    void sourcePanelCanBrowseAndAdd();
+    void sourcePanelOpensAddDialog_data();
+    void sourcePanelOpensAddDialog();
     void sourceAddDialogHandlesInput_data();
     void sourceAddDialogHandlesInput();
     void sourceAddDialogHandlesTypeSelection_data();
@@ -1125,8 +1124,6 @@ void MainWindowTest::basicDialogThemes()
             QTRY_VERIFY(dialog->isActiveWindow());
         }
         auto *input = root->findChild<QQuickItem *>(dialogName == "SourceAddDialog" ? "sourceNameInput" : "sceneNameInput");
-        auto *file = root->findChild<QQuickItem *>("sourceFileInput");
-        if (file) root->setProperty("filePath", "C:/Images/unsaved image.png");
         const auto sceneId = root->property("sceneId");
         const auto sourceId = root->property("sourceId");
         if (input) {
@@ -1140,10 +1137,6 @@ void MainWindowTest::basicDialogThemes()
             QCOMPARE(view->rootObject(), root.data());
             QCOMPARE(root->property("sceneId"), sceneId);
             QCOMPARE(root->property("sourceId"), sourceId);
-            if (file) {
-                QCOMPARE(file->property("text").toString(), "C:/Images/unsaved image.png");
-                QCOMPARE(file->property("placeholderTextColor").value<QColor>(), m_theme->color("text.secondary"));
-            }
             QTRY_COMPARE(root->property("color").value<QColor>(), m_theme->color("background.panel"));
             if (input) {
                 QCOMPARE(input->property("text").toString(), "Unsaved name");
@@ -1159,8 +1152,14 @@ void MainWindowTest::basicDialogThemes()
             for (auto *item : root->findChildren<QQuickItem *>()) {
                 if (!item->isVisible() || !item->property("text").isValid() || !item->property("color").isValid()) continue;
                 const auto name = item->objectName();
+                bool disabledActionText = false;
+                for (auto *ancestor = item; ancestor; ancestor = ancestor->parentItem()) {
+                    if (ancestor->objectName() == "confirmSourceAddButton" && !ancestor->isEnabled())
+                        disabledActionText = true;
+                }
                 const auto token = name.endsWith("Error") ? "status.error"
-                    : (name == "aboutVersion" || name == "aboutQtVersion" || name == "sourceRemovalHint" ? "text.secondary" : "text.primary");
+                    : (disabledActionText ? "text.disabled"
+                    : (name == "aboutVersion" || name == "aboutQtVersion" || name == "sourceRemovalHint" || name == "sourceTypeUnavailableHint" ? "text.secondary" : "text.primary"));
                 QCOMPARE(item->property("color").value<QColor>(), m_theme->color(token));
                 if (name.endsWith("Error")) QCOMPARE(item->property("text").toString(), "Validation sample");
             }
@@ -1207,7 +1206,6 @@ void MainWindowTest::basicDialogThemes()
             QTest::keyClick(view, Qt::Key_Escape);
             QTRY_VERIFY(!popup->property("visible").toBool());
             QVERIFY(dialog);
-            QCOMPARE(file->property("text").toString(), "C:/Images/unsaved image.png");
             QCOMPARE(root->property("errorText").toString(), "Validation sample");
             type->setEnabled(false);
             QCOMPARE(indicator->property("arrowColor").value<QColor>(), m_theme->color("icon.disabled"));
@@ -1433,241 +1431,106 @@ void MainWindowTest::aboutActionShowsProjectInfoAndReusesDialog()
     }
 }
 
-void MainWindowTest::sourcePanelCanBrowseAndAdd_data()
+void MainWindowTest::sourcePanelOpensAddDialog_data()
 {
     QTest::addColumn<bool>("reload");
     QTest::newRow("initial") << false;
     QTest::newRow("reloaded") << true;
 }
 
-void MainWindowTest::sourcePanelCanBrowseAndAdd()
+void MainWindowTest::sourcePanelOpensAddDialog()
 {
     QFETCH(bool, reload);
-    QTemporaryDir dir;
-    QVERIFY(dir.isValid());
-    const QString path = dir.filePath(QString::fromUtf8("图像 #100% space.png"));
-    QImage image(19, 11, QImage::Format_ARGB32);
-    image.fill(Qt::red);
-    QVERIFY(image.save(path));
     MainWindow window(*m_theme);
     window.show();
     auto *state = window.findChild<SceneManager *>();
-    auto *panel = window.findChild<QQuickWidget *>(QStringLiteral("sourcesQuickWidget"));
+    auto *panel = window.findChild<QQuickWidget *>("sourcesQuickWidget");
     QVERIFY(state && panel);
     if (reload) {
-        panel->setSource(QUrl(QStringLiteral("qrc:/missing-source-panel.qml")));
+        panel->setSource(QUrl("qrc:/missing-source-panel.qml"));
         QTRY_COMPARE(panel->status(), QQuickWidget::Error);
-        panel->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml")));
+        panel->setSource(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml"));
     }
     QTRY_COMPARE(panel->status(), QQuickWidget::Ready);
-    auto *actions = panel->rootObject()->findChild<QQuickItem *>(QStringLiteral("sourceActions"));
+    auto *actions = panel->rootObject()->findChild<QQuickItem *>("sourceActions");
     QVERIFY(actions);
     QQuickItem *add = nullptr;
     for (auto *item : actions->childItems()) {
-        if (item->objectName() == QStringLiteral("addSourceButton"))
+        if (item->objectName() == "addSourceButton")
             add = item;
     }
     QVERIFY(add && add->isEnabled());
-    QTest::mouseClick(panel, Qt::LeftButton, Qt::NoModifier,
-        add->mapToScene(add->boundingRect().center()).toPoint());
-    QTRY_COMPARE(window.findChildren<QDialog *>(QStringLiteral("qmlDialog")).size(), 1);
-    QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
-    QCOMPARE(dialog->windowTitle(), QString::fromUtf8("添加来源"));
-    auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
-    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-    QPointer<QQuickItem> root = view->rootObject();
-    QPointer<QFileDialog> picker = dialog->findChild<QFileDialog *>(QStringLiteral("imageFileDialog"));
-    auto *name = root->findChild<QQuickItem *>(QStringLiteral("sourceNameInput"));
-    QVERIFY(name);
-    QCOMPARE(name->property("text").toString(), QString::fromUtf8("图像"));
-    auto *file = root->findChild<QQuickItem *>(QStringLiteral("sourceFileInput"));
-    auto *browse = root->findChild<QQuickItem *>(QStringLiteral("browseSourceFileButton"));
-    QVERIFY(picker && file && browse);
-    QCOMPARE(picker->parentWidget(), dialog.data());
-    picker->setOption(QFileDialog::DontUseNativeDialog);
-    picker->setDirectory(dir.path());
-    file->forceActiveFocus();
-    QTest::keyClicks(view, "previous.png");
-    const auto openPicker = [&] {
-        QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
-            browse->mapToScene(browse->boundingRect().center()).toPoint());
-    };
-    openPicker();
-    QTRY_VERIFY(picker->isVisible());
-    picker->selectFile(path);
-    QVERIFY(QMetaObject::invokeMethod(picker, "reject"));
-    QTRY_VERIFY(!picker->isVisible());
-    QCOMPARE(file->property("text").toString(), QString("previous.png"));
-    QCOMPARE(state->sourceModel()->rowCount(), 0);
-    openPicker();
-    QTRY_VERIFY(picker->isVisible());
-    picker->selectFile(path);
-    QVERIFY(QMetaObject::invokeMethod(picker, "accept"));
-    QTRY_VERIFY(!picker->isVisible());
-    QTRY_COMPARE(file->property("text").toString(), path);
-    QCOMPARE(root->property("filePath").toString(), path);
-    QCOMPARE(state->sourceModel()->rowCount(), 0); // Picking is not creation.
-    QVERIFY(QMetaObject::invokeMethod(root, "submit"));
-    QTRY_VERIFY(dialog.isNull());
-    QVERIFY(picker.isNull());
-    QCOMPARE(state->sourceModel()->rowCount(), 1);
-    QCOMPARE(state->sourceModel()->index(0, 0).data(SceneManager::FilePathRole).toString(), path);
-    QCOMPARE(state->currentSourceId(), state->sourceModel()->index(0, 0).data(SceneManager::IdRole).toString());
-    QTest::mouseClick(panel, Qt::LeftButton, Qt::NoModifier,
-        add->mapToScene(add->boundingRect().center()).toPoint());
-    QTRY_COMPARE(window.findChildren<QDialog *>(QStringLiteral("qmlDialog")).size(), 1);
-    dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
-    view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
-    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-    picker = dialog->findChild<QFileDialog *>(QStringLiteral("imageFileDialog"));
-    name = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("sourceNameInput"));
-    QVERIFY(name);
-    QCOMPARE(name->property("text").toString(), QString::fromUtf8("图像 2"));
-    QVERIFY(picker);
-    picker->setOption(QFileDialog::DontUseNativeDialog);
-    picker->setDirectory(dir.path());
-    QVERIFY(QMetaObject::invokeMethod(picker, "open"));
-    QTRY_VERIFY(picker->isVisible());
-    dialog->close();
-    QTRY_VERIFY(dialog.isNull());
-    QVERIFY(picker.isNull());
-    QCOMPARE(state->sourceModel()->rowCount(), 1);
+    for (int opening = 0; opening < 2; ++opening) {
+        QTest::mouseClick(panel, Qt::LeftButton, Qt::NoModifier,
+            add->mapToScene(add->boundingRect().center()).toPoint());
+        QTRY_COMPARE(window.findChildren<QDialog *>("qmlDialog").size(), 1);
+        QPointer<QDialog> dialog = window.findChild<QDialog *>("qmlDialog");
+        QCOMPARE(dialog->windowTitle(), QString::fromUtf8("添加来源"));
+        auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
+        QVERIFY(view);
+        QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+        auto *root = view->rootObject();
+        QVERIFY(root);
+        QVERIFY(!root->findChild<QQuickItem *>("sourceFileInput"));
+        QVERIFY(!root->findChild<QQuickItem *>("browseSourceFileButton"));
+        QVERIFY(!dialog->findChild<QObject *>("imageFileDialog"));
+        auto *name = root->findChild<QQuickItem *>("sourceNameInput");
+        QVERIFY(name);
+        QCOMPARE(name->property("text").toString(), QString::fromUtf8("图像"));
+        dialog->close();
+        QTRY_VERIFY(dialog.isNull());
+        QCOMPARE(state->sourceModel()->rowCount(), 0);
+    }
 }
 
 void MainWindowTest::sourceAddDialogHandlesInput_data()
 {
     QTest::addColumn<QString>("method");
-    for (const auto *method : {"enter", "click", "cancel", "escape", "close", "stale", "switched"})
+    for (const auto *method : {"cancel", "escape", "close"})
         QTest::newRow(method) << QString::fromLatin1(method);
 }
 
 void MainWindowTest::sourceAddDialogHandlesInput()
 {
     QFETCH(QString, method);
-    QTemporaryDir dir;
-    QVERIFY(dir.isValid());
-    const QString path = dir.filePath("image.png");
-    QImage image(19, 11, QImage::Format_ARGB32);
-    image.fill(Qt::transparent);
-    QVERIFY(image.save(path));
     MainWindow window(*m_theme);
     window.show();
     auto *state = window.findChild<SceneManager *>();
     QVERIFY(state);
-    const QString sceneId = state->currentSceneId();
-    const QString existingId = state->addImageSource(sceneId, "Existing", path);
-    QVERIFY(!existingId.isEmpty());
-    window.showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml")),
-        QStringLiteral("Add source"), {{"sceneManager", QVariant::fromValue(state)}, {"sceneId", sceneId}});
-    QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
+    window.showDialog(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml"), "Add source",
+        {{"sceneManager", QVariant::fromValue(state)}, {"sceneId", state->currentSceneId()}});
+    QPointer<QDialog> dialog = window.findChild<QDialog *>("qmlDialog");
     QVERIFY(dialog);
-    auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
+    auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
     QVERIFY(view);
     QTRY_COMPARE(view->status(), QQuickWidget::Ready);
     QPointer<QQuickItem> root = view->rootObject();
     QVERIFY(root);
-    const auto find = [&](const char *name) { return root->findChild<QQuickItem *>(QString::fromLatin1(name)); };
-    auto *name = find("sourceNameInput");
-    auto *file = find("sourceFileInput");
-    auto *error = find("sourceAddError");
-    auto *type = find("sourceTypeInput");
-    auto *browse = find("browseSourceFileButton");
-    auto *confirm = find("confirmSourceAddButton");
-    auto *cancel = find("cancelSourceAddButton");
-    QVERIFY(name && file && error && type && browse && confirm && cancel);
-    QCOMPARE(type->property("count").toInt(), 5);
-    QVERIFY(browse->isEnabled());
-    QCOMPARE(name->property("text").toString(), QString::fromUtf8("图像"));
+    auto *name = root->findChild<QQuickItem *>("sourceNameInput");
+    auto *confirm = root->findChild<QQuickItem *>("confirmSourceAddButton");
+    auto *cancel = root->findChild<QQuickItem *>("cancelSourceAddButton");
+    QVERIFY(name && confirm && cancel);
     QTRY_VERIFY(name->hasActiveFocus());
     QCOMPARE(name->property("selectedText").toString(), name->property("text").toString());
-    const auto input = [&](QQuickItem *field, const QString &text) {
-        field->forceActiveFocus();
-        QTest::keyClick(view, Qt::Key_A, Qt::ControlModifier);
-        QTest::keyClick(view, Qt::Key_Backspace);
-        QTest::keyClicks(view, text);
-    };
-    const auto click = [&](QQuickItem *button) {
-        QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
-            button->mapToScene(button->boundingRect().center()).toPoint());
-    };
-    input(file, path);
-    if (method == "enter" || method == "click") {
-        for (const auto &invalid : {QString("  "), QString(" existing ")}) {
-            input(name, invalid);
-            QTest::keyClick(view, Qt::Key_Return);
-            QTRY_VERIFY(!error->property("text").toString().isEmpty());
-            QCOMPARE(state->sourceModel()->rowCount(), 1);
-            QCOMPARE(state->currentSourceId(), existingId);
-            QVERIFY(dialog->isVisible());
-        }
-        input(name, "Logo");
-        input(file, dir.filePath("missing.png"));
-        QTest::keyClick(view, Qt::Key_Return);
-        QTRY_VERIFY(!error->property("text").toString().isEmpty());
-        QCOMPARE(name->property("text").toString(), QString("Logo"));
-        QCOMPARE(state->sourceModel()->rowCount(), 1);
-        input(file, path);
-        QTRY_VERIFY(error->property("text").toString().isEmpty());
-    }
-    input(name, "  Logo  ");
-    if (method == "cancel" || method == "escape" || method == "close") {
-        // Tab follows the path, Browse, Confirm and Cancel controls.
+    QTest::keyClicks(view, "Custom source");
+    QVERIFY(!confirm->isEnabled());
+    QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
+        confirm->mapToScene(confirm->boundingRect().center()).toPoint());
+    QVERIFY(dialog && dialog->isVisible());
+    QCOMPARE(state->sourceModel()->rowCount(), 0);
+    if (method == "cancel") {
+        name->forceActiveFocus();
         QTest::keyClick(view, Qt::Key_Tab);
-        QTRY_VERIFY(file->hasActiveFocus());
-        if (method == "cancel") {
-            QTest::keyClick(view, Qt::Key_Tab);
-            QTRY_VERIFY(browse->hasActiveFocus());
-            QTest::keyClick(view, Qt::Key_Tab);
-            QTRY_VERIFY(confirm->hasActiveFocus());
-            QTest::keyClick(view, Qt::Key_Tab);
-            QTRY_VERIFY(cancel->hasActiveFocus());
-            QTest::keyClick(view, Qt::Key_Space);
-        } else if (method == "escape") {
-            QTest::keyClick(view, Qt::Key_Escape);
-        } else {
-            dialog->close();
-        }
-        QTRY_VERIFY(dialog.isNull());
-        QVERIFY(root.isNull());
-        QCOMPARE(state->sourceModel()->rowCount(), 1);
-        QCOMPARE(state->currentSourceId(), existingId);
-        return;
-    }
-    QString otherId;
-    if (method == "stale" || method == "switched") {
-        otherId = state->addScene("Other");
-        QVERIFY(!otherId.isEmpty());
-        if (method == "stale")
-            QVERIFY(state->removeScene(sceneId));
-    }
-    if (method == "click")
-        click(confirm);
-    else
-        QTest::keyClick(view, Qt::Key_Return);
-    if (method == "stale") {
-        QTRY_VERIFY(!error->property("text").toString().isEmpty());
-        QVERIFY(dialog->isVisible());
-        QCOMPARE(state->sourceModel()->rowCount(), 0);
-        QCOMPARE(state->currentSceneId(), otherId);
-        QCOMPARE(name->property("text").toString(), QString("  Logo  "));
+        QTRY_VERIFY(cancel->hasActiveFocus());
+        QTest::keyClick(view, Qt::Key_Space);
+    } else if (method == "escape") {
+        QTest::keyClick(view, Qt::Key_Escape);
+    } else {
         dialog->close();
-        QTRY_VERIFY(dialog.isNull());
-        return;
     }
     QTRY_VERIFY(dialog.isNull());
     QVERIFY(root.isNull());
-    if (method == "switched") {
-        QCOMPARE(state->currentSceneId(), otherId);
-        QCOMPARE(state->sourceModel()->rowCount(), 0);
-        QVERIFY(state->selectScene(sceneId));
-    }
-    QCOMPARE(state->sourceModel()->rowCount(), 2);
-    const auto added = state->sourceModel()->index(0, 0);
-    QCOMPARE(added.data(SceneManager::NameRole).toString(), QString("Logo"));
-    QCOMPARE(added.data(SceneManager::FilePathRole).toString(), path);
-    QCOMPARE(added.data(SceneManager::OriginalSizeRole).toSize(), image.size());
-    if (method != "switched")
-        QCOMPARE(state->currentSourceId(), added.data(SceneManager::IdRole).toString());
+    QCOMPARE(state->sourceModel()->rowCount(), 0);
 }
 
 void MainWindowTest::sourceAddDialogHandlesTypeSelection_data()
@@ -1681,18 +1544,11 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
 {
     QFETCH(QString, themeId);
     QVERIFY(m_theme->setTheme(themeId));
-    QTemporaryDir dir;
-    QVERIFY(dir.isValid());
-    const QString path = dir.filePath("image.png");
-    QImage image(8, 4, QImage::Format_RGB32);
-    image.fill(Qt::red);
-    QVERIFY(image.save(path));
     MainWindow window(*m_theme);
     window.show();
     auto *manager = window.findChild<SceneManager *>();
     QVERIFY(manager);
     const QString sceneId = manager->currentSceneId();
-    QVERIFY(!manager->addImageSource(sceneId, QString::fromUtf8("摄像头"), path).isEmpty());
     window.showDialog(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml"), "Add source",
         {{"sceneManager", QVariant::fromValue(manager)}, {"sceneId", sceneId}});
     QPointer<QDialog> dialog = window.findChild<QDialog *>("qmlDialog");
@@ -1702,7 +1558,6 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
     QTRY_COMPARE(view->status(), QQuickWidget::Ready);
     auto *root = view->rootObject();
     QVERIFY(root);
-    root->setProperty("filePath", path);
     auto *type = root->findChild<QQuickItem *>("sourceTypeInput");
     auto *name = root->findChild<QQuickItem *>("sourceNameInput");
     auto *confirm = root->findChild<QQuickItem *>("confirmSourceAddButton");
@@ -1724,7 +1579,7 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
         QTRY_VERIFY(!popup->property("visible").toBool());
     };
     const QStringList keys{"image", "displayCapture", "windowCapture", "camera", "text"};
-    for (int index = 1; index < keys.size(); ++index) {
+    for (int index = 0; index < keys.size(); ++index) {
         root->setProperty("errorText", "Previous error");
         activateType(index);
         QCOMPARE(type->property("currentValue").toString(), keys.at(index));
@@ -1737,15 +1592,14 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
         auto *background = confirm->property("background").value<QQuickItem *>();
         QVERIFY(background);
         QCOMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.disabled"));
-        const QString expectedName = index == 3
-            ? QString::fromUtf8("摄像头 2") : type->property("currentText").toString();
+        const QString expectedName = type->property("currentText").toString();
         QCOMPARE(name->property("text").toString(), expectedName);
         // A direct call or Return in the name field must also reject these types.
         QVERIFY(QMetaObject::invokeMethod(root, "submit"));
         QVERIFY(!root->property("errorText").toString().isEmpty());
         name->forceActiveFocus();
         QTest::keyClick(view, Qt::Key_Return);
-        QCOMPARE(manager->sourceModel()->rowCount(), 1);
+        QCOMPARE(manager->sourceModel()->rowCount(), 0);
         QVERIFY(dialog && dialog->isVisible());
     }
     name->forceActiveFocus();
@@ -1755,17 +1609,14 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
         activateType(index);
         QCOMPARE(name->property("text").toString(), QString("Custom source"));
     }
-    QVERIFY(!hint->isVisible());
-    QVERIFY(confirm->isEnabled());
-    auto *file = root->findChild<QQuickItem *>("sourceFileInput");
-    QVERIFY(file);
-    QCOMPARE(file->property("text").toString(), path);
+    QVERIFY(hint->isVisible());
+    QVERIFY(!confirm->isEnabled());
+    auto *cancel = root->findChild<QQuickItem *>("cancelSourceAddButton");
+    QVERIFY(cancel);
     QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
-        confirm->mapToScene(confirm->boundingRect().center()).toPoint());
+        cancel->mapToScene(cancel->boundingRect().center()).toPoint());
     QTRY_VERIFY(dialog.isNull());
-    QCOMPARE(manager->sourceModel()->rowCount(), 2);
-    QCOMPARE(manager->sourceModel()->index(0, 0).data(SceneManager::NameRole).toString(),
-             QString("Custom source"));
+    QCOMPARE(manager->sourceModel()->rowCount(), 0);
 }
 
 void MainWindowTest::sceneNameDialogValidatesAndSaves_data()
