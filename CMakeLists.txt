@@ -18,8 +18,6 @@ qt_add_executable(OpenLiveStudio
     src/core/thememanager.h
     src/core/scenemanager.cpp
     src/core/scenemanager.h
-    src/sources/imageprobe.cpp
-    src/sources/imageprobe.h
 )
 
 set(OPENLIVE_STUDIO_QML_FILES
@@ -84,7 +82,6 @@ qt_add_resources(OpenLiveStudio "themes"
 target_include_directories(OpenLiveStudio PRIVATE
     "${PROJECT_SOURCE_DIR}/src"
     "${PROJECT_SOURCE_DIR}/src/core"
-    "${PROJECT_SOURCE_DIR}/src/sources"
 )
 
 target_link_libraries(OpenLiveStudio
