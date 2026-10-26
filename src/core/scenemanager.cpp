@@ -1,6 +1,5 @@
 #include "scenemanager.h"
 #include "imageprobe.h"
-#include "camerasource.h"
 
 #include <QAbstractListModel>
 #include <QFileInfo>
@@ -132,10 +131,8 @@ SceneManager::SceneManager(QObject *parent)
 SceneManager::SceneManager(const QList<SceneData> &scenes, QObject *parent)
     : QObject(parent), m_scenes(scenes),
       m_sceneModel(new SceneListModel(this)),
-      m_sourceModel(new SourceListModel(this)),
-      m_mediaDevices(new QMediaDevices(this))
+      m_sourceModel(new SourceListModel(this))
 {
-    connect(m_mediaDevices, &QMediaDevices::videoInputsChanged, this, &SceneManager::cameraDevicesChanged);
     connect(this, &SceneManager::currentSceneIdChanged, this, &SceneManager::sceneMoveAvailabilityChanged);
     connect(m_sceneModel, &QAbstractItemModel::rowsInserted, this, &SceneManager::sceneMoveAvailabilityChanged);
     connect(m_sceneModel, &QAbstractItemModel::rowsRemoved, this, &SceneManager::sceneMoveAvailabilityChanged);
@@ -151,16 +148,6 @@ SceneManager::SceneManager(const QList<SceneData> &scenes, QObject *parent)
 
 QAbstractItemModel *SceneManager::sceneModel() const { return m_sceneModel; }
 QAbstractItemModel *SceneManager::sourceModel() const { return m_sourceModel; }
-
-QVariantList SceneManager::cameraDevices() const
-{
-    QVariantList result;
-    for (const auto &device : CameraSource::availableDevices()) {
-        result.append(QVariantMap{{"id", device.id}, {"description", device.description},
-                                  {"isDefault", device.isDefault}});
-    }
-    return result;
-}
 
 bool SceneManager::selectScene(const QString &id)
 {
@@ -338,7 +325,8 @@ bool SceneManager::moveScene(const QString &id, int offset)
     return true;
 }
 
-QString SceneManager::sourceNameError(const QString &sceneId, const QString &name) const
+QString SceneManager::validateImageSource(const QString &sceneId, const QString &name,
+                                        const QString &filePath, QSize *size) const
 {
     const int row = sceneRow(sceneId);
     if (row < 0)
@@ -350,15 +338,6 @@ QString SceneManager::sourceNameError(const QString &sceneId, const QString &nam
         if (source.name.trimmed().compare(trimmed, Qt::CaseInsensitive) == 0)
             return tr("来源名称已存在。");
     }
-    return {};
-}
-
-QString SceneManager::validateImageSource(const QString &sceneId, const QString &name,
-                                        const QString &filePath, QSize *size) const
-{
-    const QString error = sourceNameError(sceneId, name);
-    if (!error.isEmpty())
-        return error;
     const auto result = ImageProbe::load(filePath);
     if (!result.isValid())
         return result.error;
@@ -381,39 +360,6 @@ QString SceneManager::addImageSource(const QString &sceneId, const QString &name
         return {};
     const SourceData source{QUuid::createUuid().toString(QUuid::WithoutBraces), name.trimmed(),
                             ImageConfig{QFileInfo(filePath).absoluteFilePath()}, {size}};
-    const bool isCurrentScene = sceneId == m_currentSceneId;
-    if (isCurrentScene)
-        m_sourceModel->beginInsertRows({}, 0, 0);
-    m_scenes[sceneRow(sceneId)].sources.prepend(source);
-    if (isCurrentScene) {
-        m_sourceModel->endInsertRows();
-        selectSource(source.id);
-    }
-    return source.id;
-}
-
-QString SceneManager::cameraSourceError(const QString &sceneId, const QString &name,
-                                       const QString &deviceId) const
-{
-    const QString error = sourceNameError(sceneId, name);
-    if (!error.isEmpty())
-        return error;
-    if (deviceId.isEmpty())
-        return tr("请选择摄像头。");
-    for (const auto &entry : cameraDevices()) {
-        if (entry.toMap().value("id").toString() == deviceId)
-            return {};
-    }
-    return tr("所选摄像头不存在或已断开，请重新选择。");
-}
-
-QString SceneManager::addCameraSource(const QString &sceneId, const QString &name,
-                                     const QString &deviceId)
-{
-    if (!cameraSourceError(sceneId, name, deviceId).isEmpty())
-        return {};
-    const SourceData source{QUuid::createUuid().toString(QUuid::WithoutBraces), name.trimmed(),
-                            CameraConfig{deviceId}};
     const bool isCurrentScene = sceneId == m_currentSceneId;
     if (isCurrentScene)
         m_sourceModel->beginInsertRows({}, 0, 0);
