@@ -116,7 +116,4 @@ private:
     QString m_currentSourceId;
 };
 
-// Temporary alias until the core test target is migrated.
-using SceneManager = SourceManager;
-
 #endif // SOURCEMANAGER_H

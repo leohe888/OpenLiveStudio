@@ -8,7 +8,7 @@
 #include <QTemporaryDir>
 #include <QtTest/QTest>
 
-class SceneManagerTest : public QObject
+class SourceManagerTest : public QObject
 {
     Q_OBJECT
 private slots:
@@ -26,14 +26,14 @@ private slots:
     void sameImageEntriesRemainIndependent();
 };
 
-static QList<SceneManager::SourceData> sources()
+static QList<SourceManager::SourceData> sources()
 {
     return {{"a", "Image"}, {"b", "Camera"}, {"c", "Text"}};
 }
 
-void SceneManagerTest::startsWithEmptySourceList()
+void SourceManagerTest::startsWithEmptySourceList()
 {
-    SceneManager state;
+    SourceManager state;
     QAbstractItemModelTester tester(state.sourceModel(), QAbstractItemModelTester::FailureReportingMode::QtTest);
     QCOMPARE(state.sourceModel()->rowCount(), 0);
     QVERIFY(state.currentSourceId().isEmpty());
@@ -48,37 +48,37 @@ void SceneManagerTest::startsWithEmptySourceList()
         QVERIFY(state.metaObject()->indexOfMethod(method) < 0);
 }
 
-void SceneManagerTest::exposesSourceRolesAndRejectsInvalidIndexes()
+void SourceManagerTest::exposesSourceRolesAndRejectsInvalidIndexes()
 {
-    SceneManager state(QList<SceneManager::SourceData>{
-        {"image", "Logo", SceneManager::ImageConfig{"fixture.png"}, {QSize(64, 32)}, false, true}});
+    SourceManager state(QList<SourceManager::SourceData>{
+        {"image", "Logo", SourceManager::ImageConfig{"fixture.png"}, {QSize(64, 32)}, false, true}});
     auto *model = state.sourceModel();
     QAbstractItemModelTester tester(model, QAbstractItemModelTester::FailureReportingMode::QtTest);
     const QHash<int, QByteArray> roles{
-        {SceneManager::IdRole, "sourceId"}, {SceneManager::NameRole, "sourceName"},
-        {SceneManager::TypeRole, "sourceType"}, {SceneManager::FilePathRole, "sourceFilePath"},
-        {SceneManager::OriginalSizeRole, "sourceOriginalSize"},
-        {SceneManager::VisibleRole, "sourceVisible"}, {SceneManager::LockedRole, "sourceLocked"}};
+        {SourceManager::IdRole, "sourceId"}, {SourceManager::NameRole, "sourceName"},
+        {SourceManager::TypeRole, "sourceType"}, {SourceManager::FilePathRole, "sourceFilePath"},
+        {SourceManager::OriginalSizeRole, "sourceOriginalSize"},
+        {SourceManager::VisibleRole, "sourceVisible"}, {SourceManager::LockedRole, "sourceLocked"}};
     QCOMPARE(model->roleNames(), roles);
     const auto index = model->index(0, 0);
-    QCOMPARE(index.data(SceneManager::IdRole).toString(), QString("image"));
+    QCOMPARE(index.data(SourceManager::IdRole).toString(), QString("image"));
     QCOMPARE(index.data(Qt::DisplayRole).toString(), QString("Logo"));
-    QCOMPARE(index.data(SceneManager::FilePathRole).toString(), QString("fixture.png"));
-    QCOMPARE(index.data(SceneManager::OriginalSizeRole).toSize(), QSize(64, 32));
-    QVERIFY(!index.data(SceneManager::VisibleRole).toBool());
-    QVERIFY(index.data(SceneManager::LockedRole).toBool());
+    QCOMPARE(index.data(SourceManager::FilePathRole).toString(), QString("fixture.png"));
+    QCOMPARE(index.data(SourceManager::OriginalSizeRole).toSize(), QSize(64, 32));
+    QVERIFY(!index.data(SourceManager::VisibleRole).toBool());
+    QVERIFY(index.data(SourceManager::LockedRole).toBool());
     QCOMPARE(model->rowCount(index), 0);
-    QVERIFY(!model->data({}, SceneManager::IdRole).isValid());
+    QVERIFY(!model->data({}, SourceManager::IdRole).isValid());
     QVERIFY(!model->index(1, 0).isValid());
     QVERIFY(!model->index(0, 1).isValid());
     QVERIFY(!index.data(Qt::UserRole + 100).isValid());
-    SceneManager other(sources());
-    QVERIFY(!model->data(other.sourceModel()->index(0, 0), SceneManager::IdRole).isValid());
+    SourceManager other(sources());
+    QVERIFY(!model->data(other.sourceModel()->index(0, 0), SourceManager::IdRole).isValid());
 }
 
-void SceneManagerTest::supportsAllSourceConfigurations()
+void SourceManagerTest::supportsAllSourceConfigurations()
 {
-    using Manager = SceneManager;
+    using Manager = SourceManager;
     const Manager::SourceData defaultSource;
     QCOMPARE(defaultSource.type(), Manager::SourceType::DisplayCapture);
     const auto *defaultConfig = std::get_if<Manager::DisplayCaptureConfig>(&defaultSource.config);
@@ -127,10 +127,10 @@ void SceneManagerTest::supportsAllSourceConfigurations()
     QCOMPARE(model->index(3, 0).data(Manager::TypeRole).toString(), QString("image"));
 }
 
-void SceneManagerTest::selectionNotifiesOnlyOnChange()
+void SourceManagerTest::selectionNotifiesOnlyOnChange()
 {
-    SceneManager state(sources());
-    QSignalSpy selected(&state, &SceneManager::currentSourceIdChanged);
+    SourceManager state(sources());
+    QSignalSpy selected(&state, &SourceManager::currentSourceIdChanged);
     QVERIFY(state.selectSource("a"));
     QCOMPARE(selected.count(), 1);
     QVERIFY(state.selectSource("a"));
@@ -143,7 +143,7 @@ void SceneManagerTest::selectionNotifiesOnlyOnChange()
     QCOMPARE(selected.count(), 2);
 }
 
-void SceneManagerTest::removesSelectedSource_data()
+void SourceManagerTest::removesSelectedSource_data()
 {
     QTest::addColumn<int>("row");
     QTest::newRow("first") << 0;
@@ -151,17 +151,17 @@ void SceneManagerTest::removesSelectedSource_data()
     QTest::newRow("last") << 2;
 }
 
-void SceneManagerTest::removesSelectedSource()
+void SourceManagerTest::removesSelectedSource()
 {
     QFETCH(int, row);
-    SceneManager state(sources());
+    SourceManager state(sources());
     auto *model = state.sourceModel();
     QAbstractItemModelTester tester(model, QAbstractItemModelTester::FailureReportingMode::QtTest);
-    const QString id = model->index(row, 0).data(SceneManager::IdRole).toString();
+    const QString id = model->index(row, 0).data(SourceManager::IdRole).toString();
     QVERIFY(state.selectSource(id));
     QPersistentModelIndex survivor(model->index((row + 1) % 3, 0));
-    const QString survivorId = survivor.data(SceneManager::IdRole).toString();
-    QSignalSpy selected(&state, &SceneManager::currentSourceIdChanged);
+    const QString survivorId = survivor.data(SourceManager::IdRole).toString();
+    QSignalSpy selected(&state, &SourceManager::currentSourceIdChanged);
     QSignalSpy removed(model, &QAbstractItemModel::rowsRemoved);
     QSignalSpy reset(model, &QAbstractItemModel::modelReset);
     QVERIFY(state.removeSource(id));
@@ -173,24 +173,24 @@ void SceneManagerTest::removesSelectedSource()
     QCOMPARE(reset.count(), 0);
     QVERIFY(state.currentSourceId().isEmpty());
     QVERIFY(!state.selectSource(id));
-    QCOMPARE(survivor.data(SceneManager::IdRole).toString(), survivorId);
+    QCOMPARE(survivor.data(SourceManager::IdRole).toString(), survivorId);
 }
 
-void SceneManagerTest::removalNotifiesBeforeAndAfterMutation()
+void SourceManagerTest::removalNotifiesBeforeAndAfterMutation()
 {
-    SceneManager state(sources());
+    SourceManager state(sources());
     auto *model = state.sourceModel();
     QVERIFY(state.selectSource("a"));
-    QSignalSpy selected(&state, &SceneManager::currentSourceIdChanged);
+    QSignalSpy selected(&state, &SourceManager::currentSourceIdChanged);
     QStringList notifications;
     connect(model, &QAbstractItemModel::rowsAboutToBeRemoved, this, [&] {
         QCOMPARE(model->rowCount(), 3);
-        QCOMPARE(model->index(1, 0).data(SceneManager::IdRole).toString(), QString("b"));
+        QCOMPARE(model->index(1, 0).data(SourceManager::IdRole).toString(), QString("b"));
         notifications.append("before");
     });
     connect(model, &QAbstractItemModel::rowsRemoved, this, [&] {
         QCOMPARE(model->rowCount(), 2);
-        QCOMPARE(model->index(1, 0).data(SceneManager::IdRole).toString(), QString("c"));
+        QCOMPARE(model->index(1, 0).data(SourceManager::IdRole).toString(), QString("c"));
         notifications.append("after");
     });
     QVERIFY(state.removeSource("b"));
@@ -199,9 +199,9 @@ void SceneManagerTest::removalNotifiesBeforeAndAfterMutation()
     QCOMPARE(selected.count(), 0);
 }
 
-void SceneManagerTest::movesSourcesAndPreservesIdentity()
+void SourceManagerTest::movesSourcesAndPreservesIdentity()
 {
-    SceneManager state(sources());
+    SourceManager state(sources());
     auto *model = state.sourceModel();
     QAbstractItemModelTester tester(model, QAbstractItemModelTester::FailureReportingMode::QtTest);
     QVERIFY(state.selectSource("a"));
@@ -212,8 +212,8 @@ void SceneManagerTest::movesSourcesAndPreservesIdentity()
     QPersistentModelIndex original(model->index(0, 0));
     QSignalSpy moved(model, &QAbstractItemModel::rowsMoved);
     QSignalSpy reset(model, &QAbstractItemModel::modelReset);
-    QSignalSpy selected(&state, &SceneManager::currentSourceIdChanged);
-    QSignalSpy available(&state, &SceneManager::sourceMoveAvailabilityChanged);
+    QSignalSpy selected(&state, &SourceManager::currentSourceIdChanged);
+    QSignalSpy available(&state, &SourceManager::sourceMoveAvailabilityChanged);
     QStringList notifications;
     connect(model, &QAbstractItemModel::rowsAboutToBeMoved, this, [&] {
         QCOMPARE(original.row(), 0);
@@ -229,10 +229,10 @@ void SceneManagerTest::movesSourcesAndPreservesIdentity()
     QCOMPARE(available.count(), 1);
     QCOMPARE(reset.count(), 0);
     QCOMPARE(selected.count(), 0);
-    QCOMPARE(original.data(SceneManager::IdRole).toString(), QString("a"));
-    QCOMPARE(original.data(SceneManager::NameRole).toString(), QString("Image"));
-    QVERIFY(!original.data(SceneManager::VisibleRole).toBool());
-    QVERIFY(original.data(SceneManager::LockedRole).toBool());
+    QCOMPARE(original.data(SourceManager::IdRole).toString(), QString("a"));
+    QCOMPARE(original.data(SourceManager::NameRole).toString(), QString("Image"));
+    QVERIFY(!original.data(SourceManager::VisibleRole).toBool());
+    QVERIFY(original.data(SourceManager::LockedRole).toBool());
     QVERIFY(state.canMoveCurrentSourceUp());
     QVERIFY(state.canMoveCurrentSourceDown());
     // Removing neighbours updates availability without disturbing selection.
@@ -244,41 +244,41 @@ void SceneManagerTest::movesSourcesAndPreservesIdentity()
     QCOMPARE(state.currentSourceId(), QString("a"));
 }
 
-void SceneManagerTest::flagsNotifyOnlyChangedRole()
+void SourceManagerTest::flagsNotifyOnlyChangedRole()
 {
-    SceneManager state(sources());
+    SourceManager state(sources());
     auto *model = state.sourceModel();
     QVERIFY(state.selectSource("a"));
     QSignalSpy changed(model, &QAbstractItemModel::dataChanged);
-    QSignalSpy selected(&state, &SceneManager::currentSourceIdChanged);
+    QSignalSpy selected(&state, &SourceManager::currentSourceIdChanged);
     QVERIFY(state.setSourceVisible("b", false));
     QCOMPARE(changed.count(), 1);
     QCOMPARE(changed.first().at(0).value<QModelIndex>().row(), 1);
     QCOMPARE(changed.first().at(1).value<QModelIndex>().row(), 1);
-    QCOMPARE(changed.first().at(2).value<QList<int>>(), QList<int>{SceneManager::VisibleRole});
+    QCOMPARE(changed.first().at(2).value<QList<int>>(), QList<int>{SourceManager::VisibleRole});
     QVERIFY(state.setSourceVisible("b", false));
     QCOMPARE(changed.count(), 1);
     QVERIFY(state.setSourceLocked("b", true));
     QCOMPARE(changed.count(), 2);
-    QCOMPARE(changed.last().at(2).value<QList<int>>(), QList<int>{SceneManager::LockedRole});
+    QCOMPARE(changed.last().at(2).value<QList<int>>(), QList<int>{SourceManager::LockedRole});
     QVERIFY(state.setSourceLocked("b", true));
     QCOMPARE(changed.count(), 2);
     QCOMPARE(selected.count(), 0);
     QCOMPARE(state.currentSourceId(), QString("a"));
-    QVERIFY(!model->index(1, 0).data(SceneManager::VisibleRole).toBool());
-    QVERIFY(model->index(1, 0).data(SceneManager::LockedRole).toBool());
+    QVERIFY(!model->index(1, 0).data(SourceManager::VisibleRole).toBool());
+    QVERIFY(model->index(1, 0).data(SourceManager::LockedRole).toBool());
     QVERIFY(state.removeSource("b")); // Locking does not prevent list removal.
 }
 
-void SceneManagerTest::rejectsInvalidOperations()
+void SourceManagerTest::rejectsInvalidOperations()
 {
-    SceneManager state(sources());
+    SourceManager state(sources());
     QVERIFY(state.selectSource("a"));
     auto *model = state.sourceModel();
     QSignalSpy removed(model, &QAbstractItemModel::rowsRemoved);
     QSignalSpy moved(model, &QAbstractItemModel::rowsMoved);
     QSignalSpy changed(model, &QAbstractItemModel::dataChanged);
-    QSignalSpy selected(&state, &SceneManager::currentSourceIdChanged);
+    QSignalSpy selected(&state, &SourceManager::currentSourceIdChanged);
     for (const auto &id : {QString(), QString("missing")}) {
         QVERIFY(!state.removeSource(id));
         QVERIFY(!state.moveSource(id, 1));
@@ -294,18 +294,18 @@ void SceneManagerTest::rejectsInvalidOperations()
     QCOMPARE(selected.count(), 0);
     QCOMPARE(state.currentSourceId(), QString("a"));
     QCOMPARE(model->rowCount(), 3);
-    SceneManager empty;
+    SourceManager empty;
     QVERIFY(!empty.removeSource("a"));
     QVERIFY(!empty.moveSource("a", 1));
 }
 
-void SceneManagerTest::suggestsUnusedSourceNames()
+void SourceManagerTest::suggestsUnusedSourceNames()
 {
     const QString base = QString::fromUtf8("图像");
-    SceneManager state(QList<SceneManager::SourceData>{
+    SourceManager state(QList<SourceManager::SourceData>{
         {"a", base}, {"b", base + " 3"}, {"c", "Camera"}, {"d", " cAmErA 2 "}});
     QVERIFY(state.selectSource("a"));
-    QSignalSpy selected(&state, &SceneManager::currentSourceIdChanged);
+    QSignalSpy selected(&state, &SourceManager::currentSourceIdChanged);
     QSignalSpy inserted(state.sourceModel(), &QAbstractItemModel::rowsInserted);
     QCOMPARE(state.suggestedSourceName(base), base + " 2");
     QCOMPARE(state.suggestedSourceName(" camera "), QString("camera 3"));
@@ -319,7 +319,7 @@ void SceneManagerTest::suggestsUnusedSourceNames()
     QCOMPARE(state.suggestedSourceName(base), base);
 }
 
-void SceneManagerTest::sameImageEntriesRemainIndependent()
+void SourceManagerTest::sameImageEntriesRemainIndependent()
 {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
@@ -327,19 +327,19 @@ void SceneManagerTest::sameImageEntriesRemainIndependent()
     QImage image(19, 11, QImage::Format_ARGB32);
     image.fill(Qt::red);
     QVERIFY(image.save(path));
-    QList<SceneManager::SourceData> entries{
-        {"a", "First", SceneManager::ImageConfig{path}, {image.size()}},
-        {"b", "Second", SceneManager::ImageConfig{path}, {image.size()}}};
-    SceneManager state(entries);
+    QList<SourceManager::SourceData> entries{
+        {"a", "First", SourceManager::ImageConfig{path}, {image.size()}},
+        {"b", "Second", SourceManager::ImageConfig{path}, {image.size()}}};
+    SourceManager state(entries);
     entries.clear(); // State owns its source list.
     QVERIFY(state.setSourceVisible("a", false));
     QVERIFY(state.setSourceLocked("a", true));
     QVERIFY(state.moveSource("a", 1));
     const auto other = state.sourceModel()->index(0, 0);
-    QCOMPARE(other.data(SceneManager::IdRole).toString(), QString("b"));
-    QCOMPARE(other.data(SceneManager::OriginalSizeRole).toSize(), image.size());
-    QVERIFY(other.data(SceneManager::VisibleRole).toBool());
-    QVERIFY(!other.data(SceneManager::LockedRole).toBool());
+    QCOMPARE(other.data(SourceManager::IdRole).toString(), QString("b"));
+    QCOMPARE(other.data(SourceManager::OriginalSizeRole).toSize(), image.size());
+    QVERIFY(other.data(SourceManager::VisibleRole).toBool());
+    QVERIFY(!other.data(SourceManager::LockedRole).toBool());
     QVERIFY(state.selectSource("a"));
     QVERIFY(state.removeSource("a"));
     QVERIFY(state.currentSourceId().isEmpty());
@@ -353,5 +353,5 @@ void SceneManagerTest::sameImageEntriesRemainIndependent()
     QCOMPARE(QImage(path), image);
 }
 
-QTEST_GUILESS_MAIN(SceneManagerTest)
+QTEST_GUILESS_MAIN(SourceManagerTest)
 #include "tst_scenemanager.moc"
