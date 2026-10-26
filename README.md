@@ -2,6 +2,8 @@
 
 基于 Qt6 的 Windows 桌面录制与直播工具，采用 QML + Qt Widgets 混合界面。功能按阶段接入，当前能力与未验证范围见项目文档。
 
+产品规划采用单画布与统一来源列表，所有来源归属唯一画布。多场景管理已取消，现有场景界面和内部模型将按步骤移除；本文描述目标方向，不表示代码迁移已完成。
+
 ## 目录结构
 
 ```text
@@ -9,7 +11,7 @@ src/
   main.cpp          应用入口
   mainwindow.h      Widgets 主窗口声明
   mainwindow.cpp    Widgets 主窗口与界面组装
-  core/             场景、来源条目、选择状态与主题管理
+  core/             来源条目、选择状态与主题管理（场景模型待移除）
   sources/          图片探测等来源能力
   qml/              QML 面板和对话框
 assets/icons/       共用 SVG 图标及来源声明
