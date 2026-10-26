@@ -91,3 +91,24 @@ set_tests_properties(ui.mainwindow PROPERTIES
     LABELS "ui;smoke"
     TIMEOUT 120
 )
+
+qt_add_executable(tst_previewwidget
+    tst_previewwidget.cpp
+    ../src/preview/previewwidget.cpp
+    ../src/preview/previewwidget.h
+)
+target_include_directories(tst_previewwidget PRIVATE "${PROJECT_SOURCE_DIR}/src")
+target_link_libraries(tst_previewwidget PRIVATE Qt6::OpenGLWidgets Qt6::OpenGL Qt6::Test)
+set_target_properties(tst_previewwidget PROPERTIES WIN32_EXECUTABLE FALSE)
+
+# Uses a desktop OpenGL context; explicitly skips when the platform cannot create one.
+add_test(NAME ui.previewwidget
+    COMMAND "${CMAKE_COMMAND}" -E env
+        "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
+        "QT_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../plugins"
+        "$<TARGET_FILE:tst_previewwidget>" -o "${CMAKE_CURRENT_BINARY_DIR}/previewwidget-results.txt,txt"
+)
+set_tests_properties(ui.previewwidget PROPERTIES
+    LABELS "ui;gpu"
+    TIMEOUT 30
+)
