@@ -1,5 +1,5 @@
-#ifndef SOURCEMANAGER_H
-#define SOURCEMANAGER_H
+#ifndef SOURCELISTMODEL_H
+#define SOURCELISTMODEL_H
 
 #include <QAbstractListModel>
 #include <QColor>
@@ -10,7 +10,7 @@
 #include <QString>
 #include <variant>
 
-class SourceManager : public QAbstractListModel
+class SourceListModel : public QAbstractListModel
 {
     Q_OBJECT
     Q_PROPERTY(QAbstractItemModel *sourceModel READ sourceModel CONSTANT)
@@ -84,9 +84,9 @@ public:
         LockedRole
     };
 
-    explicit SourceManager(QObject *parent = nullptr);
+    explicit SourceListModel(QObject *parent = nullptr);
     // Initial source IDs must be nonempty and unique.
-    explicit SourceManager(const QList<SourceData> &sources, QObject *parent = nullptr);
+    explicit SourceListModel(const QList<SourceData> &sources, QObject *parent = nullptr);
 
     QAbstractItemModel *sourceModel() const;
     int rowCount(const QModelIndex &parent = {}) const override;
@@ -117,4 +117,4 @@ private:
     QString m_currentSourceId;
 };
 
-#endif // SOURCEMANAGER_H
+#endif // SOURCELISTMODEL_H

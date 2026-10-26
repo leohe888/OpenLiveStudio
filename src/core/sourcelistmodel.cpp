@@ -1,8 +1,8 @@
-#include "sourcemanager.h"
+#include "sourcelistmodel.h"
 
 #include <type_traits>
 
-SourceManager::SourceType SourceManager::SourceData::type() const
+SourceListModel::SourceType SourceListModel::SourceData::type() const
 {
     return std::visit([](const auto &config) {
         using Config = std::decay_t<decltype(config)>;
@@ -21,12 +21,12 @@ SourceManager::SourceType SourceManager::SourceData::type() const
     }, config);
 }
 
-int SourceManager::rowCount(const QModelIndex &parent) const
+int SourceListModel::rowCount(const QModelIndex &parent) const
 {
     return parent.isValid() ? 0 : int(m_sources.size());
 }
 
-QVariant SourceManager::data(const QModelIndex &index, int role) const
+QVariant SourceListModel::data(const QModelIndex &index, int role) const
 {
     const auto &items = m_sources;
     if (!index.isValid() || index.model() != this || index.column() != 0
@@ -57,29 +57,29 @@ QVariant SourceManager::data(const QModelIndex &index, int role) const
     }
 }
 
-QHash<int, QByteArray> SourceManager::roleNames() const
+QHash<int, QByteArray> SourceListModel::roleNames() const
 {
     return {{IdRole, "sourceId"}, {NameRole, "sourceName"}, {TypeRole, "sourceType"},
             {FilePathRole, "sourceFilePath"}, {OriginalSizeRole, "sourceOriginalSize"},
             {VisibleRole, "sourceVisible"}, {LockedRole, "sourceLocked"}};
 }
 
-SourceManager::SourceManager(QObject *parent)
-    : SourceManager(QList<SourceData>{}, parent)
+SourceListModel::SourceListModel(QObject *parent)
+    : SourceListModel(QList<SourceData>{}, parent)
 {
 }
 
-SourceManager::SourceManager(const QList<SourceData> &sources, QObject *parent)
+SourceListModel::SourceListModel(const QList<SourceData> &sources, QObject *parent)
     : QAbstractListModel(parent), m_sources(sources)
 {
-    connect(this, &SourceManager::currentSourceIdChanged, this, &SourceManager::sourceMoveAvailabilityChanged);
-    connect(this, &QAbstractItemModel::rowsRemoved, this, &SourceManager::sourceMoveAvailabilityChanged);
-    connect(this, &QAbstractItemModel::rowsMoved, this, &SourceManager::sourceMoveAvailabilityChanged);
+    connect(this, &SourceListModel::currentSourceIdChanged, this, &SourceListModel::sourceMoveAvailabilityChanged);
+    connect(this, &QAbstractItemModel::rowsRemoved, this, &SourceListModel::sourceMoveAvailabilityChanged);
+    connect(this, &QAbstractItemModel::rowsMoved, this, &SourceListModel::sourceMoveAvailabilityChanged);
 }
 
-QAbstractItemModel *SourceManager::sourceModel() const { return const_cast<SourceManager *>(this); }
+QAbstractItemModel *SourceListModel::sourceModel() const { return const_cast<SourceListModel *>(this); }
 
-bool SourceManager::selectSource(const QString &id)
+bool SourceListModel::selectSource(const QString &id)
 {
     if (!id.isEmpty()) {
         bool found = false;
@@ -99,7 +99,7 @@ bool SourceManager::selectSource(const QString &id)
     return true;
 }
 
-QString SourceManager::suggestedSourceName(const QString &baseName) const
+QString SourceListModel::suggestedSourceName(const QString &baseName) const
 {
     const QString base = baseName.trimmed();
     if (base.isEmpty())
@@ -120,7 +120,7 @@ QString SourceManager::suggestedSourceName(const QString &baseName) const
     }
 }
 
-bool SourceManager::removeSource(const QString &sourceId)
+bool SourceListModel::removeSource(const QString &sourceId)
 {
     const int row = sourceRow(sourceId);
     if (row < 0)
@@ -133,7 +133,7 @@ bool SourceManager::removeSource(const QString &sourceId)
     return true;
 }
 
-int SourceManager::sourceRow(const QString &sourceId) const
+int SourceListModel::sourceRow(const QString &sourceId) const
 {
     if (sourceId.isEmpty())
         return -1;
@@ -144,18 +144,18 @@ int SourceManager::sourceRow(const QString &sourceId) const
     return -1;
 }
 
-bool SourceManager::canMoveCurrentSourceUp() const
+bool SourceListModel::canMoveCurrentSourceUp() const
 {
     return sourceRow(m_currentSourceId) > 0;
 }
 
-bool SourceManager::canMoveCurrentSourceDown() const
+bool SourceListModel::canMoveCurrentSourceDown() const
 {
     const int row = sourceRow(m_currentSourceId);
     return row >= 0 && row + 1 < rowCount();
 }
 
-bool SourceManager::moveSource(const QString &sourceId, int offset)
+bool SourceListModel::moveSource(const QString &sourceId, int offset)
 {
     if (offset != -1 && offset != 1)
         return false;
@@ -172,7 +172,7 @@ bool SourceManager::moveSource(const QString &sourceId, int offset)
     return true;
 }
 
-bool SourceManager::setSourceFlag(const QString &sourceId, int role, bool value)
+bool SourceListModel::setSourceFlag(const QString &sourceId, int role, bool value)
 {
     const int row = sourceRow(sourceId);
     if (row < 0)
@@ -187,12 +187,12 @@ bool SourceManager::setSourceFlag(const QString &sourceId, int role, bool value)
     return true;
 }
 
-bool SourceManager::setSourceVisible(const QString &sourceId, bool visible)
+bool SourceListModel::setSourceVisible(const QString &sourceId, bool visible)
 {
     return setSourceFlag(sourceId, VisibleRole, visible);
 }
 
-bool SourceManager::setSourceLocked(const QString &sourceId, bool locked)
+bool SourceListModel::setSourceLocked(const QString &sourceId, bool locked)
 {
     return setSourceFlag(sourceId, LockedRole, locked);
 }

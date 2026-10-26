@@ -1,5 +1,5 @@
 #include "mainwindow.h"
-#include "sourcemanager.h"
+#include "sourcelistmodel.h"
 #include "thememanager.h"
 
 #include <QAction>
@@ -71,7 +71,7 @@ MainWindow::MainWindow(ThemeManager &theme, QWidget *parent)
     Q_ASSERT(m_theme.isReady());
     applyTheme();
     connect(&m_theme, &ThemeManager::themeChanged, this, &MainWindow::applyTheme);
-    m_sourceManager = new SourceManager;
+    m_sourceManager = new SourceListModel;
     setWindowTitle(QStringLiteral("OpenLive Studio"));
     setMinimumSize(960, 640);
     resize(1280, 800);
@@ -244,12 +244,12 @@ void MainWindow::showSourceRemovalDialog(const QString &sourceId)
     auto *model = m_sourceManager->sourceModel();
     for (int row = 0; row < model->rowCount(); ++row) {
         const auto index = model->index(row, 0);
-        if (index.data(SourceManager::IdRole).toString() != sourceId)
+        if (index.data(SourceListModel::IdRole).toString() != sourceId)
             continue;
         showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceRemovalDialog.qml")),
             tr("移除来源"), {{QStringLiteral("sourceManager"), QVariant::fromValue(m_sourceManager)},
                            {QStringLiteral("sourceId"), sourceId},
-                           {QStringLiteral("sourceName"), index.data(SourceManager::NameRole)}});
+                           {QStringLiteral("sourceName"), index.data(SourceListModel::NameRole)}});
         return;
     }
 }

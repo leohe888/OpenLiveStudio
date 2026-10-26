@@ -1,4 +1,4 @@
-#include "sourcemanager.h"
+#include "sourcelistmodel.h"
 
 #include <QAbstractItemModelTester>
 #include <QFile>
@@ -8,7 +8,7 @@
 #include <QTemporaryDir>
 #include <QtTest/QTest>
 
-class SourceManagerTest : public QObject
+class SourceListModelTest : public QObject
 {
     Q_OBJECT
 private slots:
@@ -26,14 +26,14 @@ private slots:
     void sameImageEntriesRemainIndependent();
 };
 
-static QList<SourceManager::SourceData> sources()
+static QList<SourceListModel::SourceData> sources()
 {
     return {{"a", "Image"}, {"b", "Camera"}, {"c", "Text"}};
 }
 
-void SourceManagerTest::startsWithEmptySourceList()
+void SourceListModelTest::startsWithEmptySourceList()
 {
-    SourceManager state;
+    SourceListModel state;
     QAbstractItemModelTester tester(state.sourceModel(), QAbstractItemModelTester::FailureReportingMode::QtTest);
     QCOMPARE(state.sourceModel()->rowCount(), 0);
     QVERIFY(state.currentSourceId().isEmpty());
@@ -48,37 +48,37 @@ void SourceManagerTest::startsWithEmptySourceList()
         QVERIFY(state.metaObject()->indexOfMethod(method) < 0);
 }
 
-void SourceManagerTest::exposesSourceRolesAndRejectsInvalidIndexes()
+void SourceListModelTest::exposesSourceRolesAndRejectsInvalidIndexes()
 {
-    SourceManager state(QList<SourceManager::SourceData>{
-        {"image", "Logo", SourceManager::ImageConfig{"fixture.png"}, {QSize(64, 32)}, false, true}});
+    SourceListModel state(QList<SourceListModel::SourceData>{
+        {"image", "Logo", SourceListModel::ImageConfig{"fixture.png"}, {QSize(64, 32)}, false, true}});
     auto *model = state.sourceModel();
     QAbstractItemModelTester tester(model, QAbstractItemModelTester::FailureReportingMode::QtTest);
     const QHash<int, QByteArray> roles{
-        {SourceManager::IdRole, "sourceId"}, {SourceManager::NameRole, "sourceName"},
-        {SourceManager::TypeRole, "sourceType"}, {SourceManager::FilePathRole, "sourceFilePath"},
-        {SourceManager::OriginalSizeRole, "sourceOriginalSize"},
-        {SourceManager::VisibleRole, "sourceVisible"}, {SourceManager::LockedRole, "sourceLocked"}};
+        {SourceListModel::IdRole, "sourceId"}, {SourceListModel::NameRole, "sourceName"},
+        {SourceListModel::TypeRole, "sourceType"}, {SourceListModel::FilePathRole, "sourceFilePath"},
+        {SourceListModel::OriginalSizeRole, "sourceOriginalSize"},
+        {SourceListModel::VisibleRole, "sourceVisible"}, {SourceListModel::LockedRole, "sourceLocked"}};
     QCOMPARE(model->roleNames(), roles);
     const auto index = model->index(0, 0);
-    QCOMPARE(index.data(SourceManager::IdRole).toString(), QString("image"));
+    QCOMPARE(index.data(SourceListModel::IdRole).toString(), QString("image"));
     QCOMPARE(index.data(Qt::DisplayRole).toString(), QString("Logo"));
-    QCOMPARE(index.data(SourceManager::FilePathRole).toString(), QString("fixture.png"));
-    QCOMPARE(index.data(SourceManager::OriginalSizeRole).toSize(), QSize(64, 32));
-    QVERIFY(!index.data(SourceManager::VisibleRole).toBool());
-    QVERIFY(index.data(SourceManager::LockedRole).toBool());
+    QCOMPARE(index.data(SourceListModel::FilePathRole).toString(), QString("fixture.png"));
+    QCOMPARE(index.data(SourceListModel::OriginalSizeRole).toSize(), QSize(64, 32));
+    QVERIFY(!index.data(SourceListModel::VisibleRole).toBool());
+    QVERIFY(index.data(SourceListModel::LockedRole).toBool());
     QCOMPARE(model->rowCount(index), 0);
-    QVERIFY(!model->data({}, SourceManager::IdRole).isValid());
+    QVERIFY(!model->data({}, SourceListModel::IdRole).isValid());
     QVERIFY(!model->index(1, 0).isValid());
     QVERIFY(!model->index(0, 1).isValid());
     QVERIFY(!index.data(Qt::UserRole + 100).isValid());
-    SourceManager other(sources());
-    QVERIFY(!model->data(other.sourceModel()->index(0, 0), SourceManager::IdRole).isValid());
+    SourceListModel other(sources());
+    QVERIFY(!model->data(other.sourceModel()->index(0, 0), SourceListModel::IdRole).isValid());
 }
 
-void SourceManagerTest::supportsAllSourceConfigurations()
+void SourceListModelTest::supportsAllSourceConfigurations()
 {
-    using Manager = SourceManager;
+    using Manager = SourceListModel;
     const Manager::SourceData defaultSource;
     QCOMPARE(defaultSource.type(), Manager::SourceType::DisplayCapture);
     const auto *defaultConfig = std::get_if<Manager::DisplayCaptureConfig>(&defaultSource.config);
@@ -127,10 +127,10 @@ void SourceManagerTest::supportsAllSourceConfigurations()
     QCOMPARE(model->index(3, 0).data(Manager::TypeRole).toString(), QString("image"));
 }
 
-void SourceManagerTest::selectionNotifiesOnlyOnChange()
+void SourceListModelTest::selectionNotifiesOnlyOnChange()
 {
-    SourceManager state(sources());
-    QSignalSpy selected(&state, &SourceManager::currentSourceIdChanged);
+    SourceListModel state(sources());
+    QSignalSpy selected(&state, &SourceListModel::currentSourceIdChanged);
     QVERIFY(state.selectSource("a"));
     QCOMPARE(selected.count(), 1);
     QVERIFY(state.selectSource("a"));
@@ -143,7 +143,7 @@ void SourceManagerTest::selectionNotifiesOnlyOnChange()
     QCOMPARE(selected.count(), 2);
 }
 
-void SourceManagerTest::removesSelectedSource_data()
+void SourceListModelTest::removesSelectedSource_data()
 {
     QTest::addColumn<int>("row");
     QTest::newRow("first") << 0;
@@ -151,17 +151,17 @@ void SourceManagerTest::removesSelectedSource_data()
     QTest::newRow("last") << 2;
 }
 
-void SourceManagerTest::removesSelectedSource()
+void SourceListModelTest::removesSelectedSource()
 {
     QFETCH(int, row);
-    SourceManager state(sources());
+    SourceListModel state(sources());
     auto *model = state.sourceModel();
     QAbstractItemModelTester tester(model, QAbstractItemModelTester::FailureReportingMode::QtTest);
-    const QString id = model->index(row, 0).data(SourceManager::IdRole).toString();
+    const QString id = model->index(row, 0).data(SourceListModel::IdRole).toString();
     QVERIFY(state.selectSource(id));
     QPersistentModelIndex survivor(model->index((row + 1) % 3, 0));
-    const QString survivorId = survivor.data(SourceManager::IdRole).toString();
-    QSignalSpy selected(&state, &SourceManager::currentSourceIdChanged);
+    const QString survivorId = survivor.data(SourceListModel::IdRole).toString();
+    QSignalSpy selected(&state, &SourceListModel::currentSourceIdChanged);
     QSignalSpy removed(model, &QAbstractItemModel::rowsRemoved);
     QSignalSpy reset(model, &QAbstractItemModel::modelReset);
     QVERIFY(state.removeSource(id));
@@ -173,24 +173,24 @@ void SourceManagerTest::removesSelectedSource()
     QCOMPARE(reset.count(), 0);
     QVERIFY(state.currentSourceId().isEmpty());
     QVERIFY(!state.selectSource(id));
-    QCOMPARE(survivor.data(SourceManager::IdRole).toString(), survivorId);
+    QCOMPARE(survivor.data(SourceListModel::IdRole).toString(), survivorId);
 }
 
-void SourceManagerTest::removalNotifiesBeforeAndAfterMutation()
+void SourceListModelTest::removalNotifiesBeforeAndAfterMutation()
 {
-    SourceManager state(sources());
+    SourceListModel state(sources());
     auto *model = state.sourceModel();
     QVERIFY(state.selectSource("a"));
-    QSignalSpy selected(&state, &SourceManager::currentSourceIdChanged);
+    QSignalSpy selected(&state, &SourceListModel::currentSourceIdChanged);
     QStringList notifications;
     connect(model, &QAbstractItemModel::rowsAboutToBeRemoved, this, [&] {
         QCOMPARE(model->rowCount(), 3);
-        QCOMPARE(model->index(1, 0).data(SourceManager::IdRole).toString(), QString("b"));
+        QCOMPARE(model->index(1, 0).data(SourceListModel::IdRole).toString(), QString("b"));
         notifications.append("before");
     });
     connect(model, &QAbstractItemModel::rowsRemoved, this, [&] {
         QCOMPARE(model->rowCount(), 2);
-        QCOMPARE(model->index(1, 0).data(SourceManager::IdRole).toString(), QString("c"));
+        QCOMPARE(model->index(1, 0).data(SourceListModel::IdRole).toString(), QString("c"));
         notifications.append("after");
     });
     QVERIFY(state.removeSource("b"));
@@ -199,9 +199,9 @@ void SourceManagerTest::removalNotifiesBeforeAndAfterMutation()
     QCOMPARE(selected.count(), 0);
 }
 
-void SourceManagerTest::movesSourcesAndPreservesIdentity()
+void SourceListModelTest::movesSourcesAndPreservesIdentity()
 {
-    SourceManager state(sources());
+    SourceListModel state(sources());
     auto *model = state.sourceModel();
     QAbstractItemModelTester tester(model, QAbstractItemModelTester::FailureReportingMode::QtTest);
     QVERIFY(state.selectSource("a"));
@@ -212,8 +212,8 @@ void SourceManagerTest::movesSourcesAndPreservesIdentity()
     QPersistentModelIndex original(model->index(0, 0));
     QSignalSpy moved(model, &QAbstractItemModel::rowsMoved);
     QSignalSpy reset(model, &QAbstractItemModel::modelReset);
-    QSignalSpy selected(&state, &SourceManager::currentSourceIdChanged);
-    QSignalSpy available(&state, &SourceManager::sourceMoveAvailabilityChanged);
+    QSignalSpy selected(&state, &SourceListModel::currentSourceIdChanged);
+    QSignalSpy available(&state, &SourceListModel::sourceMoveAvailabilityChanged);
     QStringList notifications;
     connect(model, &QAbstractItemModel::rowsAboutToBeMoved, this, [&] {
         QCOMPARE(original.row(), 0);
@@ -229,10 +229,10 @@ void SourceManagerTest::movesSourcesAndPreservesIdentity()
     QCOMPARE(available.count(), 1);
     QCOMPARE(reset.count(), 0);
     QCOMPARE(selected.count(), 0);
-    QCOMPARE(original.data(SourceManager::IdRole).toString(), QString("a"));
-    QCOMPARE(original.data(SourceManager::NameRole).toString(), QString("Image"));
-    QVERIFY(!original.data(SourceManager::VisibleRole).toBool());
-    QVERIFY(original.data(SourceManager::LockedRole).toBool());
+    QCOMPARE(original.data(SourceListModel::IdRole).toString(), QString("a"));
+    QCOMPARE(original.data(SourceListModel::NameRole).toString(), QString("Image"));
+    QVERIFY(!original.data(SourceListModel::VisibleRole).toBool());
+    QVERIFY(original.data(SourceListModel::LockedRole).toBool());
     QVERIFY(state.canMoveCurrentSourceUp());
     QVERIFY(state.canMoveCurrentSourceDown());
     // Removing neighbours updates availability without disturbing selection.
@@ -244,41 +244,41 @@ void SourceManagerTest::movesSourcesAndPreservesIdentity()
     QCOMPARE(state.currentSourceId(), QString("a"));
 }
 
-void SourceManagerTest::flagsNotifyOnlyChangedRole()
+void SourceListModelTest::flagsNotifyOnlyChangedRole()
 {
-    SourceManager state(sources());
+    SourceListModel state(sources());
     auto *model = state.sourceModel();
     QVERIFY(state.selectSource("a"));
     QSignalSpy changed(model, &QAbstractItemModel::dataChanged);
-    QSignalSpy selected(&state, &SourceManager::currentSourceIdChanged);
+    QSignalSpy selected(&state, &SourceListModel::currentSourceIdChanged);
     QVERIFY(state.setSourceVisible("b", false));
     QCOMPARE(changed.count(), 1);
     QCOMPARE(changed.first().at(0).value<QModelIndex>().row(), 1);
     QCOMPARE(changed.first().at(1).value<QModelIndex>().row(), 1);
-    QCOMPARE(changed.first().at(2).value<QList<int>>(), QList<int>{SourceManager::VisibleRole});
+    QCOMPARE(changed.first().at(2).value<QList<int>>(), QList<int>{SourceListModel::VisibleRole});
     QVERIFY(state.setSourceVisible("b", false));
     QCOMPARE(changed.count(), 1);
     QVERIFY(state.setSourceLocked("b", true));
     QCOMPARE(changed.count(), 2);
-    QCOMPARE(changed.last().at(2).value<QList<int>>(), QList<int>{SourceManager::LockedRole});
+    QCOMPARE(changed.last().at(2).value<QList<int>>(), QList<int>{SourceListModel::LockedRole});
     QVERIFY(state.setSourceLocked("b", true));
     QCOMPARE(changed.count(), 2);
     QCOMPARE(selected.count(), 0);
     QCOMPARE(state.currentSourceId(), QString("a"));
-    QVERIFY(!model->index(1, 0).data(SourceManager::VisibleRole).toBool());
-    QVERIFY(model->index(1, 0).data(SourceManager::LockedRole).toBool());
+    QVERIFY(!model->index(1, 0).data(SourceListModel::VisibleRole).toBool());
+    QVERIFY(model->index(1, 0).data(SourceListModel::LockedRole).toBool());
     QVERIFY(state.removeSource("b")); // Locking does not prevent list removal.
 }
 
-void SourceManagerTest::rejectsInvalidOperations()
+void SourceListModelTest::rejectsInvalidOperations()
 {
-    SourceManager state(sources());
+    SourceListModel state(sources());
     QVERIFY(state.selectSource("a"));
     auto *model = state.sourceModel();
     QSignalSpy removed(model, &QAbstractItemModel::rowsRemoved);
     QSignalSpy moved(model, &QAbstractItemModel::rowsMoved);
     QSignalSpy changed(model, &QAbstractItemModel::dataChanged);
-    QSignalSpy selected(&state, &SourceManager::currentSourceIdChanged);
+    QSignalSpy selected(&state, &SourceListModel::currentSourceIdChanged);
     for (const auto &id : {QString(), QString("missing")}) {
         QVERIFY(!state.removeSource(id));
         QVERIFY(!state.moveSource(id, 1));
@@ -294,18 +294,18 @@ void SourceManagerTest::rejectsInvalidOperations()
     QCOMPARE(selected.count(), 0);
     QCOMPARE(state.currentSourceId(), QString("a"));
     QCOMPARE(model->rowCount(), 3);
-    SourceManager empty;
+    SourceListModel empty;
     QVERIFY(!empty.removeSource("a"));
     QVERIFY(!empty.moveSource("a", 1));
 }
 
-void SourceManagerTest::suggestsUnusedSourceNames()
+void SourceListModelTest::suggestsUnusedSourceNames()
 {
     const QString base = QString::fromUtf8("图像");
-    SourceManager state(QList<SourceManager::SourceData>{
+    SourceListModel state(QList<SourceListModel::SourceData>{
         {"a", base}, {"b", base + " 3"}, {"c", "Camera"}, {"d", " cAmErA 2 "}});
     QVERIFY(state.selectSource("a"));
-    QSignalSpy selected(&state, &SourceManager::currentSourceIdChanged);
+    QSignalSpy selected(&state, &SourceListModel::currentSourceIdChanged);
     QSignalSpy inserted(state.sourceModel(), &QAbstractItemModel::rowsInserted);
     QCOMPARE(state.suggestedSourceName(base), base + " 2");
     QCOMPARE(state.suggestedSourceName(" camera "), QString("camera 3"));
@@ -319,7 +319,7 @@ void SourceManagerTest::suggestsUnusedSourceNames()
     QCOMPARE(state.suggestedSourceName(base), base);
 }
 
-void SourceManagerTest::sameImageEntriesRemainIndependent()
+void SourceListModelTest::sameImageEntriesRemainIndependent()
 {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
@@ -327,19 +327,19 @@ void SourceManagerTest::sameImageEntriesRemainIndependent()
     QImage image(19, 11, QImage::Format_ARGB32);
     image.fill(Qt::red);
     QVERIFY(image.save(path));
-    QList<SourceManager::SourceData> entries{
-        {"a", "First", SourceManager::ImageConfig{path}, {image.size()}},
-        {"b", "Second", SourceManager::ImageConfig{path}, {image.size()}}};
-    SourceManager state(entries);
+    QList<SourceListModel::SourceData> entries{
+        {"a", "First", SourceListModel::ImageConfig{path}, {image.size()}},
+        {"b", "Second", SourceListModel::ImageConfig{path}, {image.size()}}};
+    SourceListModel state(entries);
     entries.clear(); // State owns its source list.
     QVERIFY(state.setSourceVisible("a", false));
     QVERIFY(state.setSourceLocked("a", true));
     QVERIFY(state.moveSource("a", 1));
     const auto other = state.sourceModel()->index(0, 0);
-    QCOMPARE(other.data(SourceManager::IdRole).toString(), QString("b"));
-    QCOMPARE(other.data(SourceManager::OriginalSizeRole).toSize(), image.size());
-    QVERIFY(other.data(SourceManager::VisibleRole).toBool());
-    QVERIFY(!other.data(SourceManager::LockedRole).toBool());
+    QCOMPARE(other.data(SourceListModel::IdRole).toString(), QString("b"));
+    QCOMPARE(other.data(SourceListModel::OriginalSizeRole).toSize(), image.size());
+    QVERIFY(other.data(SourceListModel::VisibleRole).toBool());
+    QVERIFY(!other.data(SourceListModel::LockedRole).toBool());
     QVERIFY(state.selectSource("a"));
     QVERIFY(state.removeSource("a"));
     QVERIFY(state.currentSourceId().isEmpty());
@@ -353,5 +353,5 @@ void SourceManagerTest::sameImageEntriesRemainIndependent()
     QCOMPARE(QImage(path), image);
 }
 
-QTEST_GUILESS_MAIN(SourceManagerTest)
-#include "tst_sourcemanager.moc"
+QTEST_GUILESS_MAIN(SourceListModelTest)
+#include "tst_sourcelistmodel.moc"

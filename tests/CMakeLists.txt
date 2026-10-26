@@ -20,22 +20,22 @@ add_test(NAME core.thememanager
 )
 set_tests_properties(core.thememanager PROPERTIES LABELS "core;smoke" TIMEOUT 15)
 
-qt_add_executable(tst_sourcemanager
-    tst_sourcemanager.cpp
-    ../src/core/sourcemanager.cpp
-    ../src/core/sourcemanager.h
+qt_add_executable(tst_sourcelistmodel
+    tst_sourcelistmodel.cpp
+    ../src/core/sourcelistmodel.cpp
+    ../src/core/sourcelistmodel.h
 )
-target_include_directories(tst_sourcemanager PRIVATE
+target_include_directories(tst_sourcelistmodel PRIVATE
     "${PROJECT_SOURCE_DIR}/src/core"
 )
-target_link_libraries(tst_sourcemanager PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
-add_test(NAME core.sourcemanager
+target_link_libraries(tst_sourcelistmodel PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+add_test(NAME core.sourcelistmodel
     COMMAND "${CMAKE_COMMAND}" -E env
         "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
-        "$<TARGET_FILE:tst_sourcemanager>"
+        "$<TARGET_FILE:tst_sourcelistmodel>"
         -o "-,txt"
 )
-set_tests_properties(core.sourcemanager PROPERTIES LABELS "core;smoke" TIMEOUT 10)
+set_tests_properties(core.sourcelistmodel PROPERTIES LABELS "core;smoke" TIMEOUT 10)
 
 qt_add_executable(tst_mainwindow
     tst_mainwindow.cpp
@@ -43,8 +43,8 @@ qt_add_executable(tst_mainwindow
     ../src/core/thememanager.h
     ../src/mainwindow.cpp
     ../src/mainwindow.h
-    ../src/core/sourcemanager.cpp
-    ../src/core/sourcemanager.h
+    ../src/core/sourcelistmodel.cpp
+    ../src/core/sourcelistmodel.h
 )
 
 target_include_directories(tst_mainwindow PRIVATE
