@@ -1,7 +1,7 @@
 #ifndef SOURCEMANAGER_H
 #define SOURCEMANAGER_H
 
-#include <QAbstractItemModel>
+#include <QAbstractListModel>
 #include <QColor>
 #include <QFont>
 #include <QList>
@@ -10,7 +10,7 @@
 #include <QString>
 #include <variant>
 
-class SourceManager : public QObject
+class SourceManager : public QAbstractListModel
 {
     Q_OBJECT
     Q_PROPERTY(QAbstractItemModel *sourceModel READ sourceModel CONSTANT)
@@ -89,6 +89,9 @@ public:
     explicit SourceManager(const QList<SourceData> &sources, QObject *parent = nullptr);
 
     QAbstractItemModel *sourceModel() const;
+    int rowCount(const QModelIndex &parent = {}) const override;
+    QVariant data(const QModelIndex &index, int role) const override;
+    QHash<int, QByteArray> roleNames() const override;
     QString currentSourceId() const { return m_currentSourceId; }
     // An empty ID clears selection; other IDs must belong to the source list.
     Q_INVOKABLE bool selectSource(const QString &id);
@@ -108,11 +111,9 @@ signals:
     void sourceMoveAvailabilityChanged();
 
 private:
-    class SourceListModel;
     int sourceRow(const QString &sourceId) const;
     bool setSourceFlag(const QString &sourceId, int role, bool value);
     QList<SourceData> m_sources;
-    SourceListModel *m_sourceModel;
     QString m_currentSourceId;
 };
 

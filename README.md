@@ -1,33 +1,15 @@
 # OpenLive Studio
 
-基于 Qt6 的 Windows 桌面录制与直播工具，采用 QML + Qt Widgets 混合界面。功能按阶段接入，当前能力与未验证范围见项目文档。
+基于 Qt6 的 Windows 桌面录制与直播工具，采用 QML + Qt Widgets 混合界面。
 
-应用采用单画布与统一来源列表，所有来源归属唯一画布。多场景界面和内部模型已移除，来源状态由 C++ `SourceManager` 统一管理；HTML 原型同步采用单画布。
+## MVP 功能
 
-## 目录结构
-
-```text
-src/
-  main.cpp          应用入口
-  mainwindow.h      Widgets 主窗口声明
-  mainwindow.cpp    Widgets 主窗口与界面组装
-  core/             来源条目、选择状态与主题管理
-  sources/          图片探测等来源能力
-  qml/              QML 面板和对话框
-assets/icons/       共用 SVG 图标及来源声明
-tests/              Qt Test、CTest 配置与验证记录
-docs/               项目方案、路线、架构说明和 HTML 原型
-.github/workflows/  CI 配置
-```
-
-C++ 头文件与实现文件放在同一模块目录，由根 `CMakeLists.txt` 组装应用。测试继续使用独立目标，源文件和头文件搜索路径在 `tests/CMakeLists.txt` 中配置。QML 模块 URI 与资源地址不因 C++ 目录迁移而改变。后续渲染模块随 OpenGL 合成功能加入，本次不创建占位目录或拆分库目标。
-
-## 构建与项目文档
-
-使用包含 Qt Test、Qt Quick Widgets、Quick Controls 和 SVG 的 Qt6 开发环境，从仓库根目录配置 CMake。构建和测试命令见[测试说明](tests/README.md)。`build/` 用于本地构建产物，已忽略，不属于源码结构。
-
-- [项目方案](docs/openlive-studio-plan.md)
-- [实施路线](docs/openlive-studio-roadmap.md)
-- [架构说明](docs/openlive-studio-architecture.md)
-- [UI 原型](docs/openlive-studio-prototype.html)
-- [协作规则](AGENTS.md)
+1. **单画布**：唯一画布承载来源合成与预览。
+2. **来源管理**：统一列表管理显示器采集、窗口采集、摄像头、图片、文字。
+3. **画面合成**：拖动/缩放/层级调整，简单预览。
+4. **音频采集**：麦克风 + 系统声音混音，音量调节。
+5. **本地录制**：输出 MKV/MP4。
+6. **RTMP 推流**：填推流地址和密钥，开始/停止。
+7. **编码**：优先 FFmpeg 软件编码，能加 NVENC/QSV 更好。
+8. **快捷键**：开始/停止录制。
+9. **断线重连/异常恢复**：推流断开重连，MKV 崩溃可修复。
