@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.19)
 project(OpenLiveStudio LANGUAGES CXX)
 
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
+find_package(FFmpeg REQUIRED)
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets QuickWidgets QuickControls2 Svg)
 
 qt_standard_project_setup()
@@ -91,7 +93,21 @@ target_link_libraries(OpenLiveStudio
         Qt::QuickWidgets
         Qt::QuickControls2
         Qt::Svg
+        FFmpeg::avdevice
+        FFmpeg::avformat
+        FFmpeg::avcodec
+        FFmpeg::avutil
 )
+
+# Include the shared build's transitive DLL dependencies as well.
+if(WIN32 AND FFmpeg_RUNTIME_DLLS)
+    add_custom_command(TARGET OpenLiveStudio POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            ${FFmpeg_RUNTIME_DLLS} "$<TARGET_FILE_DIR:OpenLiveStudio>"
+        COMMAND_EXPAND_LISTS
+        VERBATIM
+    )
+endif()
 
 install(TARGETS OpenLiveStudio
     BUNDLE  DESTINATION .
