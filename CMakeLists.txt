@@ -3,7 +3,7 @@ project(OpenLiveStudio LANGUAGES CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 find_package(FFmpeg REQUIRED)
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets QuickWidgets QuickControls2 Svg)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets QuickWidgets QuickControls2 Svg OpenGL OpenGLWidgets)
 
 qt_standard_project_setup()
 
@@ -90,6 +90,8 @@ target_link_libraries(OpenLiveStudio
         Qt::QuickWidgets
         Qt::QuickControls2
         Qt::Svg
+        Qt::OpenGL
+        Qt::OpenGLWidgets
         FFmpeg::avdevice
         FFmpeg::avformat
         FFmpeg::avcodec
