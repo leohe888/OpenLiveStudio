@@ -118,8 +118,13 @@ bool SceneManager::selectSource(const QString &id)
 
 QString SceneManager::suggestedSourceName(const QString &sceneId, const QString &baseName) const
 {
+    return sceneId == currentSceneId() ? suggestedSourceName(baseName) : QString();
+}
+
+QString SceneManager::suggestedSourceName(const QString &baseName) const
+{
     const QString base = baseName.trimmed();
-    if (sceneId != currentSceneId() || base.isEmpty())
+    if (base.isEmpty())
         return {};
     const auto &sources = m_sources;
     QString candidate = base;
@@ -139,8 +144,11 @@ QString SceneManager::suggestedSourceName(const QString &sceneId, const QString 
 
 bool SceneManager::removeSource(const QString &sceneId, const QString &sourceId)
 {
-    if (sceneId != currentSceneId())
-        return false;
+    return sceneId == currentSceneId() && removeSource(sourceId);
+}
+
+bool SceneManager::removeSource(const QString &sourceId)
+{
     const int row = sourceRow(sourceId);
     if (row < 0)
         return false;

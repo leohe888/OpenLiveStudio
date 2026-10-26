@@ -24,6 +24,7 @@ private slots:
     void rejectsInvalidOperations();
     void suggestsUnusedSourceNames();
     void sameImageEntriesRemainIndependent();
+    void dialogAdaptersShareSourceState();
 };
 
 static QList<SceneManager::SourceData> sources()
@@ -40,7 +41,7 @@ void SceneManagerTest::startsWithEmptySourceList()
     QVERIFY(!state.canMoveCurrentSourceUp());
     QVERIFY(!state.canMoveCurrentSourceDown());
     QVERIFY(!state.currentSceneId().isEmpty()); // Temporary QML adapter remains usable even with no sources.
-    QCOMPARE(state.suggestedSourceName(state.currentSceneId(), "Camera"), QString("Camera"));
+    QCOMPARE(state.suggestedSourceName("Camera"), QString("Camera"));
     QVERIFY(!state.selectSource("missing"));
     QVERIFY(state.selectSource({}));
     QVERIFY(state.metaObject()->indexOfProperty("sceneModel") < 0);
@@ -124,7 +125,7 @@ void SceneManagerTest::supportsAllSourceConfigurations()
         QVERIFY(!model->index(row, 0).data(Manager::VisibleRole).toBool());
         QVERIFY(model->index(row, 0).data(Manager::LockedRole).toBool());
     }
-    QVERIFY(state.removeSource(state.currentSceneId(), "text"));
+    QVERIFY(state.removeSource("text"));
     QCOMPARE(model->index(3, 0).data(Manager::TypeRole).toString(), QString("image"));
 }
 
@@ -165,7 +166,7 @@ void SceneManagerTest::removesSelectedSource()
     QSignalSpy selected(&state, &SceneManager::currentSourceIdChanged);
     QSignalSpy removed(model, &QAbstractItemModel::rowsRemoved);
     QSignalSpy reset(model, &QAbstractItemModel::modelReset);
-    QVERIFY(state.removeSource(state.currentSceneId(), id));
+    QVERIFY(state.removeSource(id));
     QCOMPARE(model->rowCount(), 2);
     QCOMPARE(removed.count(), 1);
     QCOMPARE(removed.first().at(1).toInt(), row);
@@ -194,7 +195,7 @@ void SceneManagerTest::removalNotifiesBeforeAndAfterMutation()
         QCOMPARE(model->index(1, 0).data(SceneManager::IdRole).toString(), QString("c"));
         notifications.append("after");
     });
-    QVERIFY(state.removeSource(state.currentSceneId(), "b"));
+    QVERIFY(state.removeSource("b"));
     QCOMPARE(notifications, QStringList({"before", "after"}));
     QCOMPARE(state.currentSourceId(), QString("a"));
     QCOMPARE(selected.count(), 0);
@@ -203,7 +204,6 @@ void SceneManagerTest::removalNotifiesBeforeAndAfterMutation()
 void SceneManagerTest::movesSourcesAndPreservesIdentity()
 {
     SceneManager state(sources());
-    const auto canvas = state.currentSceneId();
     auto *model = state.sourceModel();
     QAbstractItemModelTester tester(model, QAbstractItemModelTester::FailureReportingMode::QtTest);
     QVERIFY(state.selectSource("a"));
@@ -238,9 +238,9 @@ void SceneManagerTest::movesSourcesAndPreservesIdentity()
     QVERIFY(state.canMoveCurrentSourceUp());
     QVERIFY(state.canMoveCurrentSourceDown());
     // Removing neighbours updates availability without disturbing selection.
-    QVERIFY(state.removeSource(canvas, "c"));
+    QVERIFY(state.removeSource("c"));
     QVERIFY(!state.canMoveCurrentSourceDown());
-    QVERIFY(state.removeSource(canvas, "b"));
+    QVERIFY(state.removeSource("b"));
     QVERIFY(!state.canMoveCurrentSourceUp());
     QCOMPARE(available.count(), 3);
     QCOMPARE(state.currentSourceId(), QString("a"));
@@ -249,7 +249,6 @@ void SceneManagerTest::movesSourcesAndPreservesIdentity()
 void SceneManagerTest::flagsNotifyOnlyChangedRole()
 {
     SceneManager state(sources());
-    const auto canvas = state.currentSceneId();
     auto *model = state.sourceModel();
     QVERIFY(state.selectSource("a"));
     QSignalSpy changed(model, &QAbstractItemModel::dataChanged);
@@ -270,24 +269,20 @@ void SceneManagerTest::flagsNotifyOnlyChangedRole()
     QCOMPARE(state.currentSourceId(), QString("a"));
     QVERIFY(!model->index(1, 0).data(SceneManager::VisibleRole).toBool());
     QVERIFY(model->index(1, 0).data(SceneManager::LockedRole).toBool());
-    QVERIFY(state.removeSource(canvas, "b")); // Locking does not prevent list removal.
+    QVERIFY(state.removeSource("b")); // Locking does not prevent list removal.
 }
 
 void SceneManagerTest::rejectsInvalidOperations()
 {
     SceneManager state(sources());
-    const auto canvas = state.currentSceneId();
     QVERIFY(state.selectSource("a"));
     auto *model = state.sourceModel();
     QSignalSpy removed(model, &QAbstractItemModel::rowsRemoved);
     QSignalSpy moved(model, &QAbstractItemModel::rowsMoved);
     QSignalSpy changed(model, &QAbstractItemModel::dataChanged);
     QSignalSpy selected(&state, &SceneManager::currentSourceIdChanged);
-    for (const auto &target : QList<QPair<QString, QString>>{
-             {{}, "a"}, {"missing", "a"}, {canvas, {}}, {canvas, "missing"}}) {
-        QVERIFY(!state.removeSource(target.first, target.second));
-    }
     for (const auto &id : {QString(), QString("missing")}) {
+        QVERIFY(!state.removeSource(id));
         QVERIFY(!state.moveSource(id, 1));
         QVERIFY(!state.setSourceVisible(id, false));
         QVERIFY(!state.setSourceLocked(id, true));
@@ -302,7 +297,7 @@ void SceneManagerTest::rejectsInvalidOperations()
     QCOMPARE(state.currentSourceId(), QString("a"));
     QCOMPARE(model->rowCount(), 3);
     SceneManager empty;
-    QVERIFY(!empty.removeSource(empty.currentSceneId(), "a"));
+    QVERIFY(!empty.removeSource("a"));
     QVERIFY(!empty.moveSource("a", 1));
 }
 
@@ -311,21 +306,19 @@ void SceneManagerTest::suggestsUnusedSourceNames()
     const QString base = QString::fromUtf8("图像");
     SceneManager state(QList<SceneManager::SourceData>{
         {"a", base}, {"b", base + " 3"}, {"c", "Camera"}, {"d", " cAmErA 2 "}});
-    const auto canvas = state.currentSceneId();
     QVERIFY(state.selectSource("a"));
     QSignalSpy selected(&state, &SceneManager::currentSourceIdChanged);
     QSignalSpy inserted(state.sourceModel(), &QAbstractItemModel::rowsInserted);
-    QCOMPARE(state.suggestedSourceName(canvas, base), base + " 2");
-    QCOMPARE(state.suggestedSourceName(canvas, " camera "), QString("camera 3"));
-    QVERIFY(state.suggestedSourceName("missing", base).isEmpty());
-    QVERIFY(state.suggestedSourceName({}, base).isEmpty());
-    QVERIFY(state.suggestedSourceName(canvas, " \t ").isEmpty());
+    QCOMPARE(state.suggestedSourceName(base), base + " 2");
+    QCOMPARE(state.suggestedSourceName(" camera "), QString("camera 3"));
+    QVERIFY(state.suggestedSourceName({}).isEmpty());
+    QVERIFY(state.suggestedSourceName(" \t ").isEmpty());
     QCOMPARE(state.sourceModel()->rowCount(), 4);
     QCOMPARE(state.currentSourceId(), QString("a"));
     QCOMPARE(selected.count(), 0);
     QCOMPARE(inserted.count(), 0);
-    QVERIFY(state.removeSource(canvas, "a"));
-    QCOMPARE(state.suggestedSourceName(canvas, base), base);
+    QVERIFY(state.removeSource("a"));
+    QCOMPARE(state.suggestedSourceName(base), base);
 }
 
 void SceneManagerTest::sameImageEntriesRemainIndependent()
@@ -341,7 +334,6 @@ void SceneManagerTest::sameImageEntriesRemainIndependent()
         {"b", "Second", SceneManager::ImageConfig{path}, {image.size()}}};
     SceneManager state(entries);
     entries.clear(); // State owns its source list.
-    const auto canvas = state.currentSceneId();
     QVERIFY(state.setSourceVisible("a", false));
     QVERIFY(state.setSourceLocked("a", true));
     QVERIFY(state.moveSource("a", 1));
@@ -351,16 +343,39 @@ void SceneManagerTest::sameImageEntriesRemainIndependent()
     QVERIFY(other.data(SceneManager::VisibleRole).toBool());
     QVERIFY(!other.data(SceneManager::LockedRole).toBool());
     QVERIFY(state.selectSource("a"));
-    QVERIFY(state.removeSource(canvas, "a"));
+    QVERIFY(state.removeSource("a"));
     QVERIFY(state.currentSourceId().isEmpty());
     QCOMPARE(state.sourceModel()->rowCount(), 1);
     QCOMPARE(QImage(path), image);
-    QVERIFY(state.removeSource(canvas, "b"));
+    QVERIFY(state.removeSource("b"));
     QCOMPARE(state.sourceModel()->rowCount(), 0);
     QVERIFY(!state.canMoveCurrentSourceUp());
     QVERIFY(!state.canMoveCurrentSourceDown());
     QVERIFY(QFile::exists(path));
     QCOMPARE(QImage(path), image);
+}
+
+void SceneManagerTest::dialogAdaptersShareSourceState()
+{
+    SceneManager state(sources());
+    const auto canvas = state.currentSceneId();
+    auto *model = state.sourceModel();
+    QSignalSpy removed(model, &QAbstractItemModel::rowsRemoved);
+    QCOMPARE(state.suggestedSourceName(canvas, "Image"), state.suggestedSourceName("Image"));
+    for (const auto &invalid : {QString(), QString("missing")}) {
+        QVERIFY(state.suggestedSourceName(invalid, "Image").isEmpty());
+        QVERIFY(!state.removeSource(invalid, "a"));
+    }
+    QCOMPARE(model->rowCount(), 3);
+    QCOMPARE(removed.count(), 0);
+    QVERIFY(state.removeSource(canvas, "a"));
+    QCOMPARE(removed.count(), 1);
+    QCOMPARE(state.suggestedSourceName("Image"), QString("Image"));
+    QVERIFY(!state.removeSource("a"));
+    QVERIFY(state.removeSource("b"));
+    QVERIFY(!state.removeSource(canvas, "b"));
+    QCOMPARE(model->rowCount(), 1);
+    QCOMPARE(removed.count(), 2);
 }
 
 QTEST_GUILESS_MAIN(SceneManagerTest)

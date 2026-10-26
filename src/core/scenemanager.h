@@ -96,9 +96,11 @@ public:
     QString currentSourceId() const { return m_currentSourceId; }
     // An empty ID clears selection; other IDs must belong to the source list.
     Q_INVOKABLE bool selectSource(const QString &id);
+    Q_INVOKABLE QString suggestedSourceName(const QString &baseName) const;
+    // Removes the list entry only; never deletes its file.
+    Q_INVOKABLE bool removeSource(const QString &sourceId);
     // Temporary dialog adapters: sceneId must match currentSceneId().
     Q_INVOKABLE QString suggestedSourceName(const QString &sceneId, const QString &baseName) const;
-    // Removes the list entry only; never deletes its file.
     Q_INVOKABLE bool removeSource(const QString &sceneId, const QString &sourceId);
     bool canMoveCurrentSourceUp() const;
     bool canMoveCurrentSourceDown() const;
