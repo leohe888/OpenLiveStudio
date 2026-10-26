@@ -11,7 +11,7 @@ Rectangle {
     color: root.themeColors.background.panel
     required property var sceneManager
     required property string sceneId
-    property string initialName: qsTr("图像")
+    property string initialName: qsTr("显示器采集")
     property string errorText: ""
     property bool nameEdited: false
     signal closeRequested()
@@ -73,10 +73,10 @@ Rectangle {
                 textRole: "name"
                 valueRole: "type"
                 model: [
-                    { name: qsTr("图像"), type: "image" },
                     { name: qsTr("显示器采集"), type: "displayCapture" },
                     { name: qsTr("窗口采集"), type: "windowCapture" },
                     { name: qsTr("摄像头"), type: "camera" },
+                    { name: qsTr("图片"), type: "image" },
                     { name: qsTr("文字"), type: "text" }
                 ]
                 onActivated: {

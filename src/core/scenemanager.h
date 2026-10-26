@@ -72,7 +72,7 @@ public:
     struct SourceData {
         QString id;
         QString name;
-        SourceConfig config = ImageConfig{};
+        SourceConfig config = DisplayCaptureConfig{};
         SourceRuntimeInfo runtime;
         bool visible = true;
         bool locked = false;        

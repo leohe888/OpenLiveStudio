@@ -115,6 +115,11 @@ void SceneManagerTest::exposesSeparateSceneAndSourceRoles()
 void SceneManagerTest::supportsAllSourceConfigurations()
 {
     using Manager = SceneManager;
+    const Manager::SourceData defaultSource;
+    QCOMPARE(defaultSource.type(), Manager::SourceType::DisplayCapture);
+    const auto *defaultConfig = std::get_if<Manager::DisplayCaptureConfig>(&defaultSource.config);
+    QVERIFY(defaultConfig);
+    QVERIFY(defaultConfig->displayId.isEmpty());
     QList<Manager::SourceData> sources{
         {"display", "Display", Manager::DisplayCaptureConfig{"monitor-1", false}},
         {"window", "Window", Manager::WindowCaptureConfig{

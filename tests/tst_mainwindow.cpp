@@ -1469,7 +1469,7 @@ void MainWindowTest::sourcePanelOpensAddDialog()
         QVERIFY(!dialog->findChild<QObject *>("imageFileDialog"));
         auto *name = root->findChild<QQuickItem *>("sourceNameInput");
         QVERIFY(name);
-        QCOMPARE(name->property("text").toString(), QString::fromUtf8("图像"));
+        QCOMPARE(name->property("text").toString(), QString::fromUtf8("显示器采集"));
         dialog->close();
         QTRY_VERIFY(dialog.isNull());
         QCOMPARE(state->sourceModel()->rowCount(), 0);
@@ -1557,7 +1557,8 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
     auto *hint = root->findChild<QQuickItem *>("sourceTypeUnavailableHint");
     QVERIFY(type && name && confirm && hint);
     QCOMPARE(type->property("count").toInt(), 5);
-    QCOMPARE(type->property("currentValue").toString(), QString("image"));
+    QCOMPARE(type->property("currentValue").toString(), QString("displayCapture"));
+    QCOMPARE(name->property("text").toString(), QString::fromUtf8("显示器采集"));
     const auto activateType = [&](int index) {
         type->forceActiveFocus();
         QTest::keyClick(view, Qt::Key_Space);
@@ -1571,7 +1572,9 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
         QTRY_COMPARE(type->property("currentIndex").toInt(), index);
         QTRY_VERIFY(!popup->property("visible").toBool());
     };
-    const QStringList keys{"image", "displayCapture", "windowCapture", "camera", "text"};
+    const QStringList keys{"displayCapture", "windowCapture", "camera", "image", "text"};
+    const QStringList labels{QString::fromUtf8("显示器采集"), QString::fromUtf8("窗口采集"),
+                             QString::fromUtf8("摄像头"), QString::fromUtf8("图片"), QString::fromUtf8("文字")};
     for (int index = 0; index < keys.size(); ++index) {
         root->setProperty("errorText", "Previous error");
         activateType(index);
@@ -1585,8 +1588,8 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
         auto *background = confirm->property("background").value<QQuickItem *>();
         QVERIFY(background);
         QCOMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.disabled"));
-        const QString expectedName = type->property("currentText").toString();
-        QCOMPARE(name->property("text").toString(), expectedName);
+        QCOMPARE(type->property("currentText").toString(), labels.at(index));
+        QCOMPARE(name->property("text").toString(), labels.at(index));
         // A direct call or Return in the name field must also reject these types.
         QVERIFY(QMetaObject::invokeMethod(root, "submit"));
         QVERIFY(!root->property("errorText").toString().isEmpty());
