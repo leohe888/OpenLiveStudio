@@ -79,7 +79,6 @@ MainWindow::MainWindow(ThemeManager &theme, QWidget *parent)
     setupMenuBar();
     setupPreview();
     setupStatusBar();
-    setupScenesDock();
     setupSourcesDock();
     setupMixerDock();
     setupControlsDock();
@@ -140,7 +139,7 @@ void MainWindow::applyTheme()
     // afterwards, including child windows (floating docks and dialogs).
     // Keep the application's global palette untouched.
     setPalette(colors);
-    for (auto *dock : {m_scenesDock, m_sourcesDock, m_mixerDock, m_controlsDock})
+    for (auto *dock : {m_sourcesDock, m_mixerDock, m_controlsDock})
         if (dock) dock->setPalette(colors);
     for (auto *dialog : findChildren<QDialog *>()) dialog->setPalette(colors);
     if (auto *container = findChild<QWidget *>(QStringLiteral("previewContainer"))) {
@@ -228,31 +227,6 @@ void MainWindow::showDialog(const QUrl &source, const QString &title,
     dialog->open();
 }
 
-void MainWindow::showSceneNameDialog(const QString &sceneId, const QString &initialName)
-{
-    showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SceneNameDialog.qml")),
-        sceneId.isEmpty() ? tr("添加场景") : tr("重命名场景"), {
-            {QStringLiteral("sceneManager"), QVariant::fromValue(m_sceneManager)},
-            {QStringLiteral("initialName"), sceneId.isEmpty() ? m_sceneManager->suggestedSceneName() : initialName},
-            {QStringLiteral("sceneId"), sceneId}
-        });
-}
-
-void MainWindow::showSceneRemovalDialog(const QString &sceneId)
-{
-    auto *model = m_sceneManager->sceneModel();
-    for (int row = 0; row < model->rowCount(); ++row) {
-        const auto index = model->index(row, 0);
-        if (index.data(SceneManager::IdRole).toString() != sceneId)
-            continue;
-        showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SceneRemovalDialog.qml")),
-            tr("删除场景"), {{QStringLiteral("sceneManager"), QVariant::fromValue(m_sceneManager)},
-            {QStringLiteral("sceneId"), sceneId},
-            {QStringLiteral("sceneName"), index.data(SceneManager::NameRole)}});
-        return;
-    }
-}
-
 void MainWindow::showSourceAddDialog(const QString &sceneId)
 {
     const QString initialName = m_sceneManager->suggestedSourceName(sceneId, tr("显示器采集"));
@@ -296,7 +270,7 @@ void MainWindow::setupMenuBar()
 
 void MainWindow::setupViewActions()
 {
-    for (auto *dock : {m_scenesDock, m_sourcesDock, m_mixerDock, m_controlsDock}) {
+    for (auto *dock : {m_sourcesDock, m_mixerDock, m_controlsDock}) {
         Q_ASSERT(dock);
         // The dock owns this action and keeps its checked state in sync.
         auto *action = dock->toggleViewAction();
@@ -387,59 +361,6 @@ void MainWindow::setupStatusBar()
     statusBar()->addPermanentWidget(m_outputStatus);
     statusBar()->addPermanentWidget(m_outputMetrics);
     statusBar()->showMessage(tr("就绪"));
-}
-
-void MainWindow::setupScenesDock()
-{
-    m_scenesDock = new ThemedDockWidget(tr("场景"), m_theme, this);
-    m_scenesDock->setObjectName(QStringLiteral("scenesDock"));
-    m_scenesDock->setMinimumWidth(180);
-
-    auto *pages = new QStackedWidget(m_scenesDock);
-    auto *view = new QQuickWidget(pages);
-    view->setObjectName(QStringLiteral("scenesQuickWidget"));
-    view->rootContext()->setContextProperty(QStringLiteral("sceneManager"), m_sceneManager);
-    view->setResizeMode(QQuickWidget::SizeRootObjectToView);
-    configureQuickWidget(view);
-    pages->addWidget(view);
-
-    auto *errorLabel = new QLabel(tr("场景面板加载失败，请查看日志。"), pages);
-    errorLabel->setObjectName(QStringLiteral("scenesLoadError"));
-    errorLabel->setProperty("themeError", true);
-    errorLabel->setAlignment(Qt::AlignCenter);
-    errorLabel->setWordWrap(true);
-    pages->addWidget(errorLabel);
-
-    const auto showError = [this, pages, errorLabel](const QString &details) {
-        qWarning().noquote() << tr("场景面板加载失败：") << details;
-        errorLabel->setToolTip(details);
-        pages->setCurrentWidget(errorLabel);
-        statusBar()->showMessage(tr("场景面板加载失败，请查看日志。"));
-    };
-    connect(view, &QQuickWidget::statusChanged, this,
-            [this, view, pages, errorLabel, showError](QQuickWidget::Status status) {
-        if (status == QQuickWidget::Error) {
-            QStringList errors;
-            for (const auto &error : view->errors())
-                errors.append(error.toString());
-            showError(errors.join('\n'));
-        } else if (status == QQuickWidget::Ready) {
-            if (pages->currentWidget() == errorLabel)
-                statusBar()->showMessage(tr("场景面板已加载"), 3000);
-            connect(view->rootObject(), SIGNAL(sceneNameDialogRequested(QString,QString)),
-                    this, SLOT(showSceneNameDialog(QString,QString)), Qt::UniqueConnection);
-            connect(view->rootObject(), SIGNAL(sceneRemovalDialogRequested(QString)),
-                    this, SLOT(showSceneRemovalDialog(QString)), Qt::UniqueConnection);
-            pages->setCurrentWidget(view);
-        }
-    });
-    connect(view, &QQuickWidget::sceneGraphError, this,
-            [showError](QQuickWindow::SceneGraphError, const QString &message) {
-        showError(message);
-    });
-
-    m_scenesDock->setWidget(pages);
-    view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ScenesPanel.qml")));
 }
 
 void MainWindow::setupSourcesDock()
@@ -594,7 +515,7 @@ void MainWindow::setupControlsDock()
 
 void MainWindow::resetDockLayout()
 {
-    const QList<QDockWidget *> docks{m_scenesDock, m_sourcesDock,
+    const QList<QDockWidget *> docks{m_sourcesDock,
                                      m_mixerDock, m_controlsDock};
 
     const bool wasUpdating = updatesEnabled();
@@ -607,17 +528,13 @@ void MainWindow::resetDockLayout()
     }
     setCorner(Qt::BottomLeftCorner, Qt::LeftDockWidgetArea);
     setCorner(Qt::BottomRightCorner, Qt::BottomDockWidgetArea);
-    addDockWidget(Qt::LeftDockWidgetArea, m_scenesDock);
     addDockWidget(Qt::LeftDockWidgetArea, m_sourcesDock);
-    splitDockWidget(m_scenesDock, m_sourcesDock, Qt::Vertical);
     addDockWidget(Qt::BottomDockWidgetArea, m_mixerDock);
     addDockWidget(Qt::BottomDockWidgetArea, m_controlsDock);
     splitDockWidget(m_mixerDock, m_controlsDock, Qt::Horizontal);
     for (auto *dock : docks)
         dock->show();
-    resizeDocks({m_scenesDock}, {238}, Qt::Horizontal);
-    // Equal weights: Qt distributes the available height evenly between the two docks.
-    resizeDocks({m_scenesDock, m_sourcesDock}, {1, 1}, Qt::Vertical);
+    resizeDocks({m_sourcesDock}, {238}, Qt::Horizontal);
     resizeDocks({m_mixerDock, m_controlsDock},
                 {qMax(200, width() - 238 - 286 - 12), 286}, Qt::Horizontal);
     resizeDocks({m_mixerDock}, {198}, Qt::Vertical);

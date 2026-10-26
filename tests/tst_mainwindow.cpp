@@ -51,14 +51,12 @@ private slots:
     void dialogsShareThemeAndReleaseBeforeIt();
     void basicDialogThemes_data();
     void basicDialogThemes();
-    void sceneAndSourceThemes_data();
-    void sceneAndSourceThemes();
+    void sourceThemes_data();
+    void sourceThemes();
     void mixerAndControlThemes_data();
     void mixerAndControlThemes();
-    void panelsShareStateAcrossReloadsAndReleaseItWithWindow();
-    void panelsFollowSceneAndSourceSelection();
-    void imageScenesSwitchIndependently_data();
-    void imageScenesSwitchIndependently();
+    void sourcePanelSharesStateAcrossReloadsAndReleasesItWithWindow();
+    void sourcePanelFollowsSelectionAcrossReloads();
     void sourcePanelCanMoveAndToggle_data();
     void sourcePanelCanMoveAndToggle();
     void listScrollBarsHandleOverflow_data();
@@ -73,26 +71,15 @@ private slots:
     void sourceAddDialogHandlesInput();
     void sourceAddDialogHandlesTypeSelection_data();
     void sourceAddDialogHandlesTypeSelection();
-    void sceneNameDialogValidatesAndSaves_data();
-    void sceneNameDialogValidatesAndSaves();
-    void sceneNameDialogCancelsWithoutChanges_data();
-    void sceneNameDialogCancelsWithoutChanges();
-    void scenePanelCanAddAndRenameAfterReload();
     void sourcePanelRequestsRemoval_data();
     void sourcePanelRequestsRemoval();
     void sourceRemovalDialogHandlesConfirmation_data();
     void sourceRemovalDialogHandlesConfirmation();
-    void sceneRemovalDialogHandlesConfirmation_data();
-    void sceneRemovalDialogHandlesConfirmation();
-    void scenePanelCanRemoveAndMove_data();
-    void scenePanelCanRemoveAndMove();
     void keepsOutputStatusVisibleWhenResized();
-    void loadsScenePanelWithEmptyState();
     void loadsSourcePanelWithEmptyState();
     void loadsMixerPanelWithUnavailableChannels();
     void loadsControlsPanelWithVerticalButtons();
-    void embedsScenePanelInLeftDock();
-    void embedsSourcePanelBelowSceneDock();
+    void embedsSourcePanelInFullHeightLeftDock();
     void embedsMixerPanelBelowPreview();
     void hasNoTransitionsDock();
     void embedsControlsPanelAtBottomRight();
@@ -132,7 +119,7 @@ void MainWindowTest::canShowAndClose()
     QTRY_VERIFY(!window.isVisible());
 }
 
-void MainWindowTest::panelsShareStateAcrossReloadsAndReleaseItWithWindow()
+void MainWindowTest::sourcePanelSharesStateAcrossReloadsAndReleasesItWithWindow()
 {
     auto window = std::make_unique<MainWindow>(*m_theme);
     window->show();
@@ -148,14 +135,14 @@ void MainWindowTest::panelsShareStateAcrossReloadsAndReleaseItWithWindow()
     QStringList destructionOrder;
     connect(state, &QObject::destroyed, this, [&] { destructionOrder.append("state"); });
 
-    for (const auto *panelId : {"scenes", "sources"}) {
+    for (const auto *panelId : {"sources"}) {
         auto *view = window->findChild<QQuickWidget *>(QLatin1String(panelId) + QStringLiteral("QuickWidget"));
         QVERIFY(view);
         QTRY_COMPARE(view->status(), QQuickWidget::Ready);
         QCOMPARE(view->rootContext()->contextProperty(QStringLiteral("sceneManager")).value<QObject *>(), state.data());
         // Exercise the QML context and invokable API, rather than just a C++ pointer.
         QQmlExpression expression(view->rootContext(), view->rootObject(),
-            QStringLiteral("sceneManager.selectScene(sceneManager.currentSceneId)"));
+            QStringLiteral("sceneManager.selectSource(sceneManager.currentSourceId)"));
         QCOMPARE(expression.evaluate().toBool(), true);
         QVERIFY2(!expression.hasError(), qPrintable(expression.error().toString()));
         QPointer<QQuickItem> oldRoot = view->rootObject();
@@ -183,208 +170,46 @@ void MainWindowTest::panelsShareStateAcrossReloadsAndReleaseItWithWindow()
     QVERIFY(sources.isNull());
     for (const auto &root : roots)
         QVERIFY(root.isNull());
-    QCOMPARE(destructionOrder, QStringList({"panel", "panel", "state"}));
+    QCOMPARE(destructionOrder, QStringList({"panel", "state"}));
 }
 
-void MainWindowTest::panelsFollowSceneAndSourceSelection()
+void MainWindowTest::sourcePanelFollowsSelectionAcrossReloads()
 {
     SceneManager state(QList<SceneManager::SceneData>{
-        {"first", "Scene", {{"a", "Image"}}},
-        {"second", "Scene", {{"b", "Image"}}},
-        {"empty", "Empty", {}}});
-    QQuickWidget scenes;
-    scenes.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
-    QQuickWidget sources;
-    sources.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
-    for (auto *view : {&scenes, &sources}) {
-        view->setResizeMode(QQuickWidget::SizeRootObjectToView);
-        view->resize(238, 260);
-        view->rootContext()->setContextProperty(QStringLiteral("sceneManager"), &state);
-    }
-    scenes.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ScenesPanel.qml")));
-    sources.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml")));
-    for (auto *view : {&scenes, &sources}) {
-        QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-        view->show();
-    }
-    const auto row = [](QQuickWidget &view, const QString &listName, const QString &rowName) -> QQuickItem * {
-        auto *list = view.rootObject()->findChild<QQuickItem *>(listName);
-        if (!list)
-            return nullptr;
+        {"only", "Canvas", {{"a", "First"}, {"b", "Second"}}}});
+    QQuickWidget panel;
+    panel.rootContext()->setContextProperty("uiTheme", m_theme.get());
+    panel.rootContext()->setContextProperty("sceneManager", &state);
+    panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
+    panel.resize(238, 260);
+    const QUrl source("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml");
+    panel.setSource(source);
+    QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
+    panel.show();
+    const auto row = [&panel](const QString &id) -> QQuickItem * {
+        auto *list = panel.rootObject()->findChild<QQuickItem *>("sourceList");
+        if (!list) return nullptr;
         auto *content = list->property("contentItem").value<QQuickItem *>();
-        if (!content)
-            return nullptr;
-        for (auto *item : content->childItems()) {
-            if (item->objectName() == rowName)
-                return item;
-        }
+        if (!content) return nullptr;
+        for (auto *item : content->childItems())
+            if (item->objectName() == "sourceRow_" + id) return item;
         return nullptr;
     };
-    const auto click = [](QQuickWidget &view, QQuickItem *item) {
-        QTest::mouseClick(&view, Qt::LeftButton, Qt::NoModifier,
-            item->mapToScene(QPointF(40, item->height() / 2)).toPoint());
-    };
-    QTRY_VERIFY(row(scenes, "sceneList", "sceneRow_first"));
-    QTRY_VERIFY(row(scenes, "sceneList", "sceneRow_second"));
-    QTRY_VERIFY(row(scenes, "sceneList", "sceneRow_empty"));
-    QTRY_VERIFY(row(sources, "sourceList", "sourceRow_a"));
-    QVERIFY(row(scenes, "sceneList", "sceneRow_first")->property("selected").toBool());
-    QVERIFY(!row(scenes, "sceneList", "sceneRow_second")->property("selected").toBool());
-    QVERIFY(!row(sources, "sourceList", "sourceRow_a")->property("selected").toBool());
-    click(sources, row(sources, "sourceList", "sourceRow_a"));
-    QTRY_COMPARE(state.currentSourceId(), QString("a"));
-    QTRY_VERIFY(row(sources, "sourceList", "sourceRow_a")->property("selected").toBool());
-    click(scenes, row(scenes, "sceneList", "sceneRow_second"));
-    QTRY_COMPARE(state.currentSceneId(), QString("second"));
-    QVERIFY(state.currentSourceId().isEmpty());
-    QTRY_VERIFY(row(scenes, "sceneList", "sceneRow_second")->property("selected").toBool());
-    QVERIFY(!row(scenes, "sceneList", "sceneRow_first")->property("selected").toBool());
-    QTRY_VERIFY(row(sources, "sourceList", "sourceRow_b"));
-    QVERIFY(!row(sources, "sourceList", "sourceRow_b")->property("selected").toBool());
-    QVERIFY(!row(sources, "sourceList", "sourceRow_a"));
-    QVERIFY(!state.selectSource("a"));
-    click(sources, row(sources, "sourceList", "sourceRow_b"));
-    QTRY_COMPARE(state.currentSourceId(), QString("b"));
-    // Recreated QML must derive its highlight from C++, not a previous delegate.
-    const QUrl source = sources.source();
-    sources.setSource(QUrl());
-    sources.setSource(source);
-    QTRY_COMPARE(sources.status(), QQuickWidget::Ready);
-    QTRY_VERIFY(row(sources, "sourceList", "sourceRow_b"));
-    QTRY_VERIFY(row(sources, "sourceList", "sourceRow_b")->property("selected").toBool());
-    QVERIFY(state.selectScene("empty"));
-    auto *empty = sources.rootObject()->findChild<QQuickItem *>(QStringLiteral("emptySourcesLabel"));
-    QVERIFY(empty);
-    QTRY_VERIFY(empty->isVisible());
-    QTRY_VERIFY(row(scenes, "sceneList", "sceneRow_empty")->property("selected").toBool());
-    QVERIFY(state.currentSourceId().isEmpty());
-    QVERIFY(state.selectScene("first"));
-    QTRY_VERIFY(!empty->isVisible());
-    QTRY_VERIFY(row(sources, "sourceList", "sourceRow_a"));
-    QVERIFY(!row(sources, "sourceList", "sourceRow_a")->property("selected").toBool());
-}
-
-void MainWindowTest::imageScenesSwitchIndependently_data()
-{
-    QTest::addColumn<bool>("reload");
-    QTest::newRow("initial") << false;
-    QTest::newRow("recovered") << true;
-}
-
-void MainWindowTest::imageScenesSwitchIndependently()
-{
-    QFETCH(bool, reload);
-    const QString first = "first", second = "second", empty = "empty";
-    const QString a = "a", aBackground = "a-background", b = "b";
-    SceneManager fixture(QList<SceneManager::SceneData>{
-        {first, "First", {{aBackground, "Background"}, {a, "Logo"}}},
-        {second, "Second", {{b, "Logo"}}}, {empty, "Empty", {}}});
-    auto *state = &fixture;
-    QQuickWidget scenesView;
-    QQuickWidget sourcesView;
-    auto *scenes = &scenesView;
-    auto *sources = &sourcesView;
-    for (auto *panel : {scenes, sources}) {
-        panel->rootContext()->setContextProperty("uiTheme", m_theme.get());
-        panel->rootContext()->setContextProperty("sceneManager", state);
-        panel->setResizeMode(QQuickWidget::SizeRootObjectToView);
-        panel->resize(280, 260);
+    for (const auto &id : {QString("a"), QString("b")}) {
+        QTRY_VERIFY(row(id));
+        QTest::mouseClick(&panel, Qt::LeftButton, Qt::NoModifier,
+            row(id)->mapToScene(QPointF(40, row(id)->height() / 2)).toPoint());
+        QTRY_COMPARE(state.currentSourceId(), id);
+        QTRY_VERIFY(row(id)->property("selected").toBool());
     }
-    scenes->setSource(QUrl("qrc:/OpenLiveStudio/Ui/qml/ScenesPanel.qml"));
-    sources->setSource(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml"));
-    scenes->show();
-    sources->show();
-    for (auto *panel : {scenes, sources}) {
-        QTRY_COMPARE(panel->status(), QQuickWidget::Ready);
-        if (reload) {
-            const QUrl url = panel->source();
-            panel->setSource(QUrl(QStringLiteral("qrc:/missing-scene-switch-panel.qml")));
-            QTRY_COMPARE(panel->status(), QQuickWidget::Error);
-            panel->setSource(url);
-            QTRY_COMPARE(panel->status(), QQuickWidget::Ready);
-        }
-    }
-    const auto find = [](QQuickWidget *panel, const QString &name) -> QQuickItem * {
-        const auto search = [&name](auto &&self, QQuickItem *parent) -> QQuickItem * {
-            if (parent->objectName() == name) return parent;
-            for (auto *child : parent->childItems()) {
-                if (auto *found = self(self, child)) return found;
-            }
-            return nullptr;
-        };
-        return search(search, panel->rootObject());
-    };
-    const auto click = [](QQuickWidget *panel, QQuickItem *item, bool label = false) {
-        QVERIFY2(item, "The clickable QML item is not ready");
-        QTest::mouseClick(panel, Qt::LeftButton, Qt::NoModifier,
-            item->mapToScene(QPointF(label ? 40 : item->width() / 2, item->height() / 2)).toPoint());
-    };
-    QTRY_VERIFY(find(scenes, "sceneRow_" + first));
-    QTRY_VERIFY(find(scenes, "sceneRow_" + second));
-    QTRY_VERIFY(find(scenes, "sceneRow_" + empty));
-    QTRY_VERIFY(find(sources, "sourceRow_" + a));
-    click(sources, find(sources, "sourceRow_" + a), true);
-    QTRY_COMPARE(state->currentSourceId(), a);
-    auto *up = find(sources, "moveSourceUpButton");
-    QVERIFY(up);
-    QTRY_VERIFY(up->isEnabled());
-    click(sources, up);
-    auto *row = find(sources, "sourceRow_" + a);
-    QVERIFY(row);
-    auto *visibility = row->findChild<QQuickItem *>(QStringLiteral("sourceVisibilityButton"));
-    auto *lock = row->findChild<QQuickItem *>(QStringLiteral("sourceLockButton"));
-    QVERIFY(visibility);
-    QVERIFY(lock);
-    click(sources, visibility);
-    click(sources, lock);
-    QTRY_VERIFY(!row->property("sourceVisible").toBool());
-    QTRY_VERIFY(row->property("sourceLocked").toBool());
-    QTRY_COMPARE(state->sourceModel()->index(0, 0).data(SceneManager::IdRole).toString(), a);
-    QSignalSpy changed(state, &SceneManager::currentSceneIdChanged);
-    QSignalSpy reset(state->sourceModel(), &QAbstractItemModel::modelReset);
-    click(scenes, find(scenes, "sceneRow_" + first), true);
-    QCOMPARE(state->currentSourceId(), a); // Reclicking the current scene preserves selection.
-    QCOMPARE(changed.count(), 0);
-    QCOMPARE(reset.count(), 0);
-    for (int iteration = 0; iteration < 4; ++iteration) {
-        click(scenes, find(scenes, "sceneRow_" + second), true);
-        QCOMPARE(state->currentSceneId(), second); // C++ state changes without an animation timer.
-        QVERIFY(state->currentSourceId().isEmpty());
-        QTRY_VERIFY(find(sources, "sourceRow_" + b));
-        auto *other = find(sources, "sourceRow_" + b);
-        QVERIFY(other->property("sourceVisible").toBool());
-        QVERIFY(!other->property("sourceLocked").toBool());
-        click(sources, other, true);
-        QTRY_COMPARE(state->currentSourceId(), b);
-        click(scenes, find(scenes, "sceneRow_" + first), true);
-        QCOMPARE(state->currentSceneId(), first);
-        QVERIFY(state->currentSourceId().isEmpty());
-        QTRY_VERIFY(find(sources, "sourceRow_" + a));
-        auto *restored = find(sources, "sourceRow_" + a);
-        QVERIFY(!restored->property("sourceVisible").toBool());
-        QVERIFY(restored->property("sourceLocked").toBool());
-        QVERIFY(!restored->property("selected").toBool());
-        QCOMPARE(state->sourceModel()->index(0, 0).data(SceneManager::IdRole).toString(), a);
-    }
-    QCOMPARE(changed.count(), 8);
-    QCOMPARE(reset.count(), 8);
-    click(scenes, find(scenes, "sceneRow_" + empty), true);
-    QCOMPARE(state->currentSceneId(), empty);
-    QCOMPARE(state->sourceModel()->rowCount(), 0);
-    QTRY_VERIFY(find(sources, "emptySourcesLabel")->isVisible());
-    QVERIFY(!find(sources, "removeSourceButton")->isEnabled());
-    QVERIFY(!find(sources, "moveSourceUpButton")->isEnabled());
-    QVERIFY(!find(sources, "moveSourceDownButton")->isEnabled());
-    click(scenes, find(scenes, "sceneRow_" + first), true);
-    QTRY_VERIFY(find(sources, "sourceRow_" + a));
-    const QUrl url = sources->source();
-    sources->setSource(QUrl());
-    sources->setSource(url);
-    QTRY_COMPARE(sources->status(), QQuickWidget::Ready);
-    QTRY_VERIFY(find(sources, "sourceRow_" + a));
-    QVERIFY(!find(sources, "sourceRow_" + a)->property("sourceVisible").toBool());
-    QVERIFY(find(sources, "sourceRow_" + a)->property("sourceLocked").toBool());
-    QVERIFY(state->currentSourceId().isEmpty());
+    QVERIFY(!row("a")->property("selected").toBool());
+    panel.setSource(QUrl());
+    panel.setSource(source);
+    QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
+    QTRY_VERIFY(row("b"));
+    QTRY_VERIFY(row("b")->property("selected").toBool());
+    QVERIFY(state.selectSource({}));
+    QTRY_VERIFY(!row("b")->property("selected").toBool());
 }
 
 void MainWindowTest::sourcePanelCanMoveAndToggle_data()
@@ -530,7 +355,6 @@ void MainWindowTest::listScrollBarsHandleOverflow_data()
 {
     QTest::addColumn<QString>("panelName");
     QTest::addColumn<QString>("prefix");
-    QTest::newRow("scenes") << QString("ScenesPanel") << QString("scene");
     QTest::newRow("sources") << QString("SourcesPanel") << QString("source");
 }
 
@@ -607,6 +431,12 @@ void MainWindowTest::hasWindowShell()
     MainWindow window(*m_theme);
     window.show();
 
+    QVERIFY(!window.findChild<QDockWidget *>("scenesDock"));
+    QVERIFY(!window.findChild<QQuickWidget *>("scenesQuickWidget"));
+    QVERIFY(!window.findChild<QAction *>("scenesDockViewAction"));
+    QCOMPARE(window.findChildren<QDockWidget *>().size(), 3);
+    QVERIFY(window.metaObject()->indexOfSlot("showSceneNameDialog(QString,QString)") < 0);
+    QVERIFY(window.metaObject()->indexOfSlot("showSceneRemovalDialog(QString)") < 0);
     QVERIFY(window.centralWidget());
     QVERIFY(window.centralWidget()->isVisible());
     QVERIFY(window.menuBar()->isVisible());
@@ -642,7 +472,7 @@ void MainWindowTest::dockTitlesStayVerticallyCentered()
     MainWindow window(*m_theme);
     window.show();
     const auto docks = window.findChildren<QDockWidget *>();
-    QCOMPARE(docks.size(), 4);
+    QCOMPARE(docks.size(), 3);
     for (auto *dock : docks) {
         QVERIFY(!dock->titleBarWidget());
         style.titles.append(dock->windowTitle());
@@ -756,7 +586,7 @@ void MainWindowTest::themeRestoresAndUpdatesOuterWidgets()
     QCOMPARE(window.palette().color(QPalette::Window), m_theme->color("background.window"));
     QCOMPARE(window.palette().color(QPalette::Text), m_theme->color("text.primary"));
     const auto views = window.findChildren<QQuickWidget *>();
-    QCOMPARE(views.size(), 4);
+    QCOMPARE(views.size(), 3);
     QList<QPointer<QQuickItem>> roots;
     for (auto *view : views) {
         QTRY_COMPARE(view->status(), QQuickWidget::Ready);
@@ -813,18 +643,17 @@ void MainWindowTest::themeRestoresAndUpdatesOuterWidgets()
     QCOMPARE(QApplication::palette(), applicationPalette);
 }
 
-void MainWindowTest::sceneAndSourceThemes_data()
+void MainWindowTest::sourceThemes_data()
 {
     QTest::addColumn<QString>("panelName");
     QTest::addColumn<QString>("prefix");
     QTest::addColumn<QString>("themeId");
     for (const auto &theme : {QString("dark"), QString("light")}) {
-        QTest::newRow(qPrintable("scenes-" + theme)) << QString("ScenesPanel") << QString("scene") << theme;
         QTest::newRow(qPrintable("sources-" + theme)) << QString("SourcesPanel") << QString("source") << theme;
     }
 }
 
-void MainWindowTest::sceneAndSourceThemes()
+void MainWindowTest::sourceThemes()
 {
     QFETCH(QString, panelName);
     QFETCH(QString, prefix);
@@ -873,7 +702,7 @@ void MainWindowTest::sceneAndSourceThemes()
         auto *row = find(prefix + "Row_0");
         QVERIFY(row);
         QCOMPARE(row->property("color").value<QColor>(), m_theme->color("background.selected"));
-        const auto labelText = prefix == "scene" ? QString("Scene 0") : QString("Source 0");
+        const auto labelText = QString("Source 0");
         bool foundLabel = false;
         for (auto *label : row->findChildren<QQuickItem *>()) {
             if (label->property("text").toString() == labelText) {
@@ -893,7 +722,7 @@ void MainWindowTest::sceneAndSourceThemes()
         QTRY_COMPARE(row->property("color").value<QColor>(), m_theme->color("background.selected"));
         moveMouse(QPoint(panel.width() - 2, panel.height() - 2));
         QTRY_COMPARE(row1->property("color").value<QColor>(), QColor(Qt::transparent));
-        auto *add = find(prefix == "scene" ? "addSceneButton" : "addSourceButton");
+        auto *add = find("addSourceButton");
         QVERIFY(add && add->isEnabled());
         QCOMPARE(QQmlProperty::read(add, "icon.color").value<QColor>(), m_theme->color("icon.primary"));
         auto *background = add->property("background").value<QQuickItem *>();
@@ -1075,7 +904,7 @@ void MainWindowTest::basicDialogThemes_data()
     QTest::addColumn<QString>("dialogName");
     QTest::addColumn<QString>("themeId");
     for (const auto &theme : {QString("dark"), QString("light")})
-        for (const auto &name : {QString("AboutDialog"), QString("SceneNameDialog"), QString("SceneRemovalDialog"), QString("SourceAddDialog"), QString("SourceRemovalDialog")})
+        for (const auto &name : {QString("AboutDialog"), QString("SourceAddDialog"), QString("SourceRemovalDialog")})
             QTest::newRow(qPrintable(name + "-" + theme)) << name << theme;
 }
 
@@ -1093,13 +922,11 @@ void MainWindowTest::basicDialogThemes()
         properties = {{"productName", "OpenLive Studio"}, {"versionText", "Development"}, {"qtVersion", qVersion()}};
     } else {
         properties = {{"sceneManager", QVariant::fromValue(state)}, {"sceneId", state->currentSceneId()}};
-        if (dialogName.startsWith("Source")) {
-            if (dialogName == "SourceAddDialog") properties.insert("initialName", "Theme sample");
-            else {
-                properties.insert("sourceId", "fixed-source-id");
-                properties.insert("sourceName", "Theme sample");
-            }
-        } else properties.insert(dialogName == "SceneNameDialog" ? "initialName" : "sceneName", "Theme sample");
+        if (dialogName == "SourceAddDialog") properties.insert("initialName", "Theme sample");
+        else {
+            properties.insert("sourceId", "fixed-source-id");
+            properties.insert("sourceName", "Theme sample");
+        }
     }
     const QUrl url(QString("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(dialogName));
     for (int opening = 0; opening < 2; ++opening) {
@@ -1116,7 +943,7 @@ void MainWindowTest::basicDialogThemes()
             dialog->activateWindow();
             QTRY_VERIFY(dialog->isActiveWindow());
         }
-        auto *input = root->findChild<QQuickItem *>(dialogName == "SourceAddDialog" ? "sourceNameInput" : "sceneNameInput");
+        auto *input = root->findChild<QQuickItem *>("sourceNameInput");
         const auto sceneId = root->property("sceneId");
         const auto sourceId = root->property("sourceId");
         if (input) {
@@ -1205,9 +1032,7 @@ void MainWindowTest::basicDialogThemes()
             type->setEnabled(true);
         }
         auto *button = root->findChild<QQuickItem *>(dialogName == "AboutDialog" ? "closeAboutButton"
-            : (dialogName == "SceneNameDialog" ? "cancelSceneNameButton"
-                : (dialogName == "SourceAddDialog" ? "cancelSourceAddButton"
-                    : (dialogName == "SourceRemovalDialog" ? "cancelSourceRemovalButton" : "cancelSceneRemovalButton"))));
+            : (dialogName == "SourceAddDialog" ? "cancelSourceAddButton" : "cancelSourceRemovalButton"));
         QVERIFY(button);
         auto *background = button->property("background").value<QQuickItem *>();
         QVERIFY(background);
@@ -1615,211 +1440,6 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
     QCOMPARE(manager->sourceModel()->rowCount(), 0);
 }
 
-void MainWindowTest::sceneNameDialogValidatesAndSaves_data()
-{
-    QTest::addColumn<bool>("rename");
-    QTest::newRow("add-enter") << false;
-    QTest::newRow("rename-click") << true;
-}
-
-void MainWindowTest::sceneNameDialogValidatesAndSaves()
-{
-    QFETCH(bool, rename);
-    MainWindow window(*m_theme);
-    window.show();
-    auto *state = window.findChild<SceneManager *>();
-    QVERIFY(state);
-    const QString originalId = state->currentSceneId();
-    QVERIFY(!state->addScene("Existing").isEmpty());
-    QVERIFY(state->selectScene(originalId));
-    const QString initial = rename ? state->sceneModel()->index(0, 0).data(SceneManager::NameRole).toString()
-                                   : state->suggestedSceneName();
-    window.showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SceneNameDialog.qml")),
-        QStringLiteral("Scene name"), {{"sceneManager", QVariant::fromValue(state)},
-        {"initialName", initial}, {"sceneId", rename ? originalId : QString()}});
-    QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
-    QVERIFY(dialog);
-    auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
-    QVERIFY(view);
-    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-    QPointer<QQuickItem> root = view->rootObject();
-    auto *input = root->findChild<QQuickItem *>(QStringLiteral("sceneNameInput"));
-    auto *error = root->findChild<QQuickItem *>(QStringLiteral("sceneNameError"));
-    QVERIFY(input);
-    QVERIFY(error);
-    QCOMPARE(input->property("text").toString(), initial);
-    QTRY_VERIFY(input->hasActiveFocus());
-    QCOMPARE(input->property("selectedText").toString(), initial);
-    const auto type = [&](const QString &text) {
-        input->forceActiveFocus();
-        QTest::keyClick(view, Qt::Key_A, Qt::ControlModifier);
-        QTest::keyClick(view, Qt::Key_Backspace);
-        QTest::keyClicks(view, text);
-    };
-    for (const auto &invalid : {QString("   "), QString(" existing ")}) {
-        type(invalid);
-        QTest::keyClick(view, Qt::Key_Return);
-        QTRY_VERIFY(!error->property("text").toString().isEmpty());
-        QVERIFY(dialog->isVisible());
-        QCOMPARE(state->sceneModel()->rowCount(), 2);
-        QCOMPARE(state->currentSceneId(), originalId);
-    }
-    type("  Saved name  ");
-    QTRY_VERIFY(error->property("text").toString().isEmpty());
-    if (rename) {
-        auto *button = root->findChild<QQuickItem *>(QStringLiteral("confirmSceneNameButton"));
-        QVERIFY(button);
-        QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
-            button->mapToScene(button->boundingRect().center()).toPoint());
-    } else {
-        QTest::keyClick(view, Qt::Key_Return);
-    }
-    QTRY_VERIFY(dialog.isNull());
-    QVERIFY(root.isNull());
-    QCOMPARE(state->sceneModel()->rowCount(), rename ? 2 : 3);
-    QCOMPARE(state->sceneModel()->index(rename ? 0 : 2, 0).data(SceneManager::NameRole).toString(), QString("Saved name"));
-    if (rename)
-        QCOMPARE(state->currentSceneId(), originalId);
-    else
-        QVERIFY(state->currentSceneId() != originalId);
-}
-
-void MainWindowTest::sceneNameDialogCancelsWithoutChanges_data()
-{
-    QTest::addColumn<QString>("method");
-    QTest::newRow("cancel") << QString("cancel");
-    QTest::newRow("escape") << QString("escape");
-    QTest::newRow("window-close") << QString("close");
-}
-
-void MainWindowTest::sceneNameDialogCancelsWithoutChanges()
-{
-    QFETCH(QString, method);
-    MainWindow window(*m_theme);
-    window.show();
-    auto *state = window.findChild<SceneManager *>();
-    QVERIFY(state);
-    const QString originalId = state->currentSceneId();
-    const QString originalName = state->sceneModel()->index(0, 0).data(SceneManager::NameRole).toString();
-    window.showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SceneNameDialog.qml")),
-        QStringLiteral("Scene name"), {{"sceneManager", QVariant::fromValue(state)},
-        {"initialName", originalName}, {"sceneId", originalId}});
-    QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
-    QVERIFY(dialog);
-    auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
-    QVERIFY(view);
-    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-    auto *input = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("sceneNameInput"));
-    QVERIFY(input);
-    QTRY_VERIFY(input->hasActiveFocus());
-    QTest::keyClicks(view, "Unsaved");
-    if (method == "cancel") {
-        auto *button = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("cancelSceneNameButton"));
-        QVERIFY(button);
-        // Keyboard focus moves from the input to Confirm and then Cancel.
-        QTest::keyClick(view, Qt::Key_Tab);
-        QTest::keyClick(view, Qt::Key_Tab);
-        QTRY_VERIFY(button->hasActiveFocus());
-        QTest::keyClick(view, Qt::Key_Space);
-    } else if (method == "escape") {
-        QTest::keyClick(view, Qt::Key_Escape);
-    } else {
-        dialog->close();
-    }
-    QTRY_VERIFY(dialog.isNull());
-    QCOMPARE(state->sceneModel()->rowCount(), 1);
-    QCOMPARE(state->currentSceneId(), originalId);
-    QCOMPARE(state->sceneModel()->index(0, 0).data(SceneManager::NameRole).toString(), originalName);
-}
-
-void MainWindowTest::scenePanelCanAddAndRenameAfterReload()
-{
-    MainWindow window(*m_theme);
-    window.show();
-    auto *state = window.findChild<SceneManager *>();
-    auto *panel = window.findChild<QQuickWidget *>(QStringLiteral("scenesQuickWidget"));
-    QVERIFY(state);
-    QVERIFY(panel);
-    const QString originalId = state->currentSceneId();
-    const QUrl source = panel->source();
-    for (int pass = 0; pass < 2; ++pass) {
-        if (pass == 1) {
-            panel->setSource(QUrl(QStringLiteral("qrc:/missing-scene-panel.qml")));
-            QTRY_COMPARE(panel->status(), QQuickWidget::Error);
-            panel->setSource(source);
-        }
-        QTRY_COMPARE(panel->status(), QQuickWidget::Ready);
-        auto *actions = panel->rootObject()->findChild<QQuickItem *>(QStringLiteral("sceneActions"));
-        QVERIFY(actions);
-        QQuickItem *add = nullptr;
-        for (auto *button : actions->childItems()) {
-            if (!button->objectName().endsWith(QStringLiteral("Button")))
-                continue;
-            if (button->objectName() == QStringLiteral("addSceneButton")) {
-                add = button;
-                QVERIFY(button->isEnabled());
-            }
-        }
-        QVERIFY(add);
-        const QString suggestion = state->suggestedSceneName();
-        QTest::mouseClick(panel, Qt::LeftButton, Qt::NoModifier,
-            add->mapToScene(add->boundingRect().center()).toPoint());
-        QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
-        QVERIFY(dialog);
-        QCOMPARE(window.findChildren<QDialog *>().size(), 1);
-        QCOMPARE(dialog->windowTitle(), QString::fromUtf8("添加场景"));
-        auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
-        QVERIFY(view);
-        QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-        auto *input = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("sceneNameInput"));
-        QVERIFY(input);
-        QCOMPARE(input->property("text").toString(), suggestion);
-        QTRY_VERIFY(input->hasActiveFocus());
-        QTest::keyClick(view, Qt::Key_Return);
-        QTRY_VERIFY(dialog.isNull());
-        const QString id = state->currentSceneId();
-        QVERIFY(id != originalId);
-        QCOMPARE(state->sceneModel()->rowCount(), pass + 2);
-        QCOMPARE(state->sourceModel()->rowCount(), 0);
-        auto *list = panel->rootObject()->findChild<QQuickItem *>(QStringLiteral("sceneList"));
-        QVERIFY(list);
-        const auto findRow = [&]() -> QQuickItem * {
-            auto *content = list->property("contentItem").value<QQuickItem *>();
-            if (content) {
-                for (auto *item : content->childItems()) {
-                    if (item->objectName() == QStringLiteral("sceneRow_") + id)
-                        return item;
-                }
-            }
-            return nullptr;
-        };
-        QTRY_VERIFY(findRow());
-        QVERIFY(findRow()->property("selected").toBool());
-        const QPoint position = findRow()->mapToScene(findRow()->boundingRect().center()).toPoint();
-        // The QWindow helper sends both complete clicks with double-click timing.
-        QTest::mouseDClick(panel->quickWindow(), Qt::LeftButton, Qt::NoModifier, position);
-        QTRY_VERIFY(window.findChild<QDialog *>(QStringLiteral("qmlDialog")));
-        dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
-        QCOMPARE(window.findChildren<QDialog *>().size(), 1);
-        QCOMPARE(dialog->windowTitle(), QString::fromUtf8("重命名场景"));
-        view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
-        QVERIFY(view);
-        QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-        input = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("sceneNameInput"));
-        QVERIFY(input);
-        QCOMPARE(input->property("text").toString(), suggestion);
-        QTRY_VERIFY(input->hasActiveFocus());
-        const QString renamed = QStringLiteral("Renamed %1").arg(pass);
-        QTest::keyClick(view, Qt::Key_A, Qt::ControlModifier);
-        QTest::keyClicks(view, renamed);
-        QTest::keyClick(view, Qt::Key_Return);
-        QTRY_VERIFY(dialog.isNull());
-        QCOMPARE(state->currentSceneId(), id);
-        QTRY_COMPARE(findRow()->property("sceneName").toString(), renamed);
-        QCOMPARE(state->sceneModel()->rowCount(), pass + 2);
-    }
-}
-
 void MainWindowTest::sourcePanelRequestsRemoval_data()
 {
     QTest::addColumn<bool>("reload");
@@ -1989,203 +1609,6 @@ void MainWindowTest::sourceRemovalDialogHandlesConfirmation()
     QVERIFY(state.selectSource("shared"));
 }
 
-void MainWindowTest::sceneRemovalDialogHandlesConfirmation_data()
-{
-    QTest::addColumn<QString>("action");
-    for (const auto *name : {"confirm", "cancel", "escape", "close", "stale", "last"})
-        QTest::newRow(name) << QString::fromLatin1(name);
-}
-
-void MainWindowTest::sceneRemovalDialogHandlesConfirmation()
-{
-    QFETCH(QString, action);
-    MainWindow window(*m_theme);
-    window.show();
-    auto *state = window.findChild<SceneManager *>();
-    QVERIFY(state);
-    const QString targetId = state->currentSceneId();
-    const QString name = QStringLiteral("<b>Scene & name</b>");
-    QVERIFY(state->renameScene(targetId, name));
-    const QString otherId = action == "last" ? QString() : state->addScene("Other");
-    QVERIFY(state->selectScene(targetId));
-    const int originalCount = state->sceneModel()->rowCount();
-    window.showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SceneRemovalDialog.qml")),
-        QStringLiteral("Remove scene"), {{"sceneManager", QVariant::fromValue(state)},
-        {"sceneId", targetId}, {"sceneName", name}});
-    QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
-    QVERIFY(dialog);
-    auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
-    QVERIFY(view);
-    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-    QPointer<QQuickItem> root = view->rootObject();
-    QVERIFY(root);
-    auto *message = root->findChild<QQuickItem *>(QStringLiteral("sceneRemovalMessage"));
-    auto *confirm = root->findChild<QQuickItem *>(QStringLiteral("confirmSceneRemovalButton"));
-    auto *cancel = root->findChild<QQuickItem *>(QStringLiteral("cancelSceneRemovalButton"));
-    auto *error = root->findChild<QQuickItem *>(QStringLiteral("sceneRemovalError"));
-    QVERIFY(message);
-    QVERIFY(confirm);
-    QVERIFY(cancel);
-    QVERIFY(error);
-    QVERIFY(message->property("text").toString().contains(name));
-    QCOMPARE(message->property("textFormat").toInt(), 0); // Text.PlainText
-    QTRY_VERIFY(cancel->hasActiveFocus());
-    QCOMPARE(state->sceneModel()->rowCount(), originalCount);
-    if (action == "confirm") {
-        // A changed row or current selection must not change the captured target.
-        QVERIFY(state->moveScene(targetId, 1));
-        QVERIFY(state->selectScene(otherId));
-    } else if (action == "stale") {
-        QVERIFY(state->removeScene(targetId));
-    }
-    const auto click = [&](QQuickItem *button) {
-        QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
-            button->mapToScene(button->boundingRect().center()).toPoint());
-    };
-    if (action == "cancel") {
-        click(cancel);
-    } else if (action == "escape") {
-        QTest::keyClick(view, Qt::Key_Escape);
-    } else if (action == "close") {
-        dialog->close();
-    } else {
-        click(confirm);
-        if (action == "stale" || action == "last") {
-            QVERIFY(dialog->isVisible());
-            QTRY_VERIFY(!error->property("text").toString().isEmpty());
-            QCOMPARE(state->sceneModel()->rowCount(), 1);
-            const QString remainingId = action == "last" ? targetId : otherId;
-            QCOMPARE(state->currentSceneId(), remainingId);
-            click(cancel);
-        }
-    }
-    QTRY_VERIFY(dialog.isNull());
-    QVERIFY(root.isNull());
-    if (action == "confirm" || action == "stale") {
-        QCOMPARE(state->sceneModel()->rowCount(), 1);
-        QCOMPARE(state->currentSceneId(), otherId);
-        QVERIFY(!state->selectScene(targetId));
-    } else {
-        QCOMPARE(state->sceneModel()->rowCount(), originalCount);
-        QCOMPARE(state->currentSceneId(), targetId);
-    }
-}
-
-void MainWindowTest::scenePanelCanRemoveAndMove_data()
-{
-    QTest::addColumn<bool>("reload");
-    QTest::newRow("initial") << false;
-    QTest::newRow("reloaded") << true;
-}
-
-void MainWindowTest::scenePanelCanRemoveAndMove()
-{
-    QFETCH(bool, reload);
-    MainWindow window(*m_theme);
-    window.show();
-    auto *state = window.findChild<SceneManager *>();
-    auto *panel = window.findChild<QQuickWidget *>(QStringLiteral("scenesQuickWidget"));
-    QVERIFY(state);
-    QVERIFY(panel);
-    if (reload) {
-        const QUrl source = panel->source();
-        panel->setSource(QUrl(QStringLiteral("qrc:/missing-scene-actions.qml")));
-        QTRY_COMPARE(panel->status(), QQuickWidget::Error);
-        panel->setSource(source);
-    }
-    QTRY_COMPARE(panel->status(), QQuickWidget::Ready);
-    auto *actions = panel->rootObject()->findChild<QQuickItem *>(QStringLiteral("sceneActions"));
-    QVERIFY(actions);
-    const auto button = [&](const QString &name) -> QQuickItem * {
-        for (auto *item : actions->childItems()) {
-            if (item->objectName() == name)
-                return item;
-        }
-        return nullptr;
-    };
-    auto *remove = button("removeSceneButton");
-    auto *up = button("moveSceneUpButton");
-    auto *down = button("moveSceneDownButton");
-    QVERIFY(remove);
-    QVERIFY(up);
-    QVERIFY(down);
-    QVERIFY(!remove->isEnabled());
-    QVERIFY(!up->isEnabled());
-    QVERIFY(!down->isEnabled());
-    const auto click = [&](QQuickWidget *view, QQuickItem *item) {
-        QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
-            item->mapToScene(item->boundingRect().center()).toPoint());
-    };
-    click(panel, remove);
-    QVERIFY(!window.findChild<QDialog *>(QStringLiteral("qmlDialog")));
-    const QString firstId = state->currentSceneId();
-    for (int i = 0; i < 20; ++i)
-        QVERIFY(!state->addScene(QStringLiteral("Scene %1").arg(i)).isEmpty());
-    const QString lastId = state->currentSceneId();
-    QTRY_VERIFY(remove->isEnabled());
-    QTRY_VERIFY(up->isEnabled());
-    QVERIFY(!down->isEnabled());
-    auto *list = panel->rootObject()->findChild<QQuickItem *>(QStringLiteral("sceneList"));
-    auto *bar = panel->rootObject()->findChild<QQuickItem *>(QStringLiteral("sceneScrollBar"));
-    QVERIFY(list);
-    QVERIFY(bar);
-    QTRY_VERIFY(bar->isVisible());
-    QVERIFY(QMetaObject::invokeMethod(list, "positionViewAtEnd"));
-    QTRY_VERIFY(list->property("atYEnd").toBool());
-    click(panel, up);
-    QCOMPARE(state->sceneModel()->index(19, 0).data(SceneManager::IdRole).toString(), lastId);
-    QCOMPARE(state->currentSceneId(), lastId);
-    QTRY_VERIFY(down->isEnabled());
-    click(panel, down);
-    QCOMPARE(state->sceneModel()->index(20, 0).data(SceneManager::IdRole).toString(), lastId);
-    QTRY_VERIFY(!down->isEnabled());
-    QVERIFY(state->selectScene(firstId));
-    QTRY_VERIFY(!up->isEnabled());
-    QTRY_VERIFY(down->isEnabled());
-    click(panel, down);
-    QCOMPARE(state->sceneModel()->index(1, 0).data(SceneManager::IdRole).toString(), firstId);
-    QTRY_VERIFY(up->isEnabled());
-    click(panel, up);
-    QCOMPARE(state->sceneModel()->index(0, 0).data(SceneManager::IdRole).toString(), firstId);
-    const QString nextId = state->sceneModel()->index(1, 0).data(SceneManager::IdRole).toString();
-    click(panel, remove);
-    QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
-    QVERIFY(dialog);
-    QCOMPARE(window.findChildren<QDialog *>().size(), 1);
-    QCOMPARE(dialog->windowTitle(), QString::fromUtf8("删除场景"));
-    auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
-    QVERIFY(view);
-    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-    QCOMPARE(view->rootObject()->property("sceneId").toString(), firstId);
-    auto *cancel = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("cancelSceneRemovalButton"));
-    QVERIFY(cancel);
-    QTRY_VERIFY(cancel->hasActiveFocus());
-    QTest::keyClick(view, Qt::Key_Escape);
-    QTRY_VERIFY(dialog.isNull());
-    QCOMPARE(state->sceneModel()->rowCount(), 21);
-    QCOMPARE(state->currentSceneId(), firstId);
-    click(panel, remove);
-    dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
-    QVERIFY(dialog);
-    view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
-    QVERIFY(view);
-    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-    auto *confirm = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("confirmSceneRemovalButton"));
-    QVERIFY(confirm);
-    click(view, confirm);
-    QTRY_VERIFY(dialog.isNull());
-    QCOMPARE(state->sceneModel()->rowCount(), 20);
-    QCOMPARE(state->currentSceneId(), nextId);
-    while (state->canRemoveCurrentScene())
-        QVERIFY(state->removeScene(state->currentSceneId()));
-    QTRY_VERIFY(!remove->isEnabled());
-    QTRY_VERIFY(!up->isEnabled());
-    QTRY_VERIFY(!down->isEnabled());
-    click(panel, remove);
-    QCOMPARE(state->sceneModel()->rowCount(), 1);
-    QVERIFY(!window.findChild<QDialog *>(QStringLiteral("qmlDialog")));
-}
-
 void MainWindowTest::keepsOutputStatusVisibleWhenResized()
 {
     MainWindow window(*m_theme);
@@ -2205,54 +1628,6 @@ void MainWindowTest::keepsOutputStatusVisibleWhenResized()
         if (metrics->isVisible())
             QVERIFY(!output->geometry().intersects(metrics->geometry()));
     }
-}
-
-void MainWindowTest::loadsScenePanelWithEmptyState()
-{
-    QQuickWidget panel;
-    panel.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
-    panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
-    panel.resize(238, 260);
-    panel.setSource(QUrl(QStringLiteral(
-        "qrc:/OpenLiveStudio/Ui/qml/ScenesPanel.qml")));
-
-    QStringList errors;
-    for (const auto &error : panel.errors())
-        errors.append(error.toString());
-    QTRY_VERIFY2(panel.status() == QQuickWidget::Ready, qPrintable(errors.join('\n')));
-    auto *root = panel.rootObject();
-    QVERIFY(root);
-    panel.show();
-
-    auto *list = root->findChild<QObject *>(QStringLiteral("sceneList"));
-    auto *emptyLabel = root->findChild<QQuickItem *>(QStringLiteral("emptyScenesLabel"));
-    QVERIFY(list);
-    QVERIFY(emptyLabel);
-    QCOMPARE(list->property("count").toInt(), 0);
-    QCOMPARE(list->property("currentIndex").toInt(), -1);
-    QTRY_VERIFY(emptyLabel->isVisible());
-
-    auto *actions = root->findChild<QQuickItem *>(QStringLiteral("sceneActions"));
-    QVERIFY(actions);
-    for (const auto *name : {"addSceneButton", "removeSceneButton",
-                             "moveSceneUpButton", "moveSceneDownButton"}) {
-        // Repeater delegates are children of the visual parent, not necessarily
-        // descendants in the QObject ownership tree.
-        QQuickItem *button = nullptr;
-        for (auto *item : actions->childItems()) {
-            if (item->objectName() == QLatin1String(name)) {
-                button = item;
-                break;
-            }
-        }
-        QVERIFY2(button, name);
-        QVERIFY(button->isVisible());
-        QVERIFY(!button->isEnabled());
-    }
-
-    panel.resize(200, 180);
-    QTRY_COMPARE(root->size(), QSizeF(panel.size()));
-    QVERIFY(emptyLabel->isVisible());
 }
 
 void MainWindowTest::loadsSourcePanelWithEmptyState()
@@ -2440,36 +1815,12 @@ void MainWindowTest::loadsControlsPanelWithVerticalButtons()
     QVERIFY(panel.isVisible());
 }
 
-void MainWindowTest::embedsScenePanelInLeftDock()
+void MainWindowTest::embedsSourcePanelInFullHeightLeftDock()
 {
     MainWindow window(*m_theme);
     window.show();
-    auto *dock = window.findChild<QDockWidget *>(QStringLiteral("scenesDock"));
-    auto *view = window.findChild<QQuickWidget *>(QStringLiteral("scenesQuickWidget"));
-    QVERIFY(dock);
-    QVERIFY(view);
-    QCOMPARE(window.dockWidgetArea(dock), Qt::LeftDockWidgetArea);
-    QVERIFY(dock->isAncestorOf(view));
-    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-    QVERIFY(view->rootObject());
-    auto *list = view->rootObject()->findChild<QObject *>(QStringLiteral("sceneList"));
-    QVERIFY(list);
-    QTRY_COMPARE(list->property("count").toInt(), 1);
-    auto *empty = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("emptyScenesLabel"));
-    QVERIFY(empty);
-    QVERIFY(!empty->isVisible());
-    QTRY_VERIFY(dock->isVisible());
-    QVERIFY(view->isVisible());
-}
-
-void MainWindowTest::embedsSourcePanelBelowSceneDock()
-{
-    MainWindow window(*m_theme);
-    window.show();
-    auto *scenesDock = window.findChild<QDockWidget *>(QStringLiteral("scenesDock"));
     auto *dock = window.findChild<QDockWidget *>(QStringLiteral("sourcesDock"));
     auto *view = window.findChild<QQuickWidget *>(QStringLiteral("sourcesQuickWidget"));
-    QVERIFY(scenesDock);
     QVERIFY(dock);
     QVERIFY(view);
     QCOMPARE(window.dockWidgetArea(dock), Qt::LeftDockWidgetArea);
@@ -2484,9 +1835,10 @@ void MainWindowTest::embedsSourcePanelBelowSceneDock()
         window.resize(size);
         QTRY_VERIFY(dock->isVisible());
         QVERIFY(view->isVisible());
-        QVERIFY(scenesDock->isVisible());
-        QTRY_VERIFY(scenesDock->geometry().bottom() < dock->geometry().top());
-        QTRY_VERIFY(qAbs(scenesDock->height() - dock->height()) <= 1);
+        QTRY_COMPARE(dock->geometry().top(), window.centralWidget()->geometry().top());
+        auto *mixer = window.findChild<QDockWidget *>(QStringLiteral("mixerDock"));
+        QVERIFY(mixer);
+        QTRY_COMPARE(dock->geometry().bottom(), mixer->geometry().bottom());
         QVERIFY(!dock->geometry().intersects(window.centralWidget()->geometry()));
         QTRY_COMPARE(view->rootObject()->size(), QSizeF(view->size()));
         auto *actions = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("sourceActions"));
@@ -2533,13 +1885,13 @@ void MainWindowTest::hasNoTransitionsDock()
 {
     MainWindow window(*m_theme);
     window.show();
-    QCOMPARE(window.findChildren<QDockWidget *>().size(), 4);
+    QCOMPARE(window.findChildren<QDockWidget *>().size(), 3);
     QVERIFY(!window.findChild<QDockWidget *>(QStringLiteral("transitionsDock")));
     QVERIFY(!window.findChild<QQuickWidget *>(QStringLiteral("transitionsQuickWidget")));
     QVERIFY(!window.findChild<QAction *>(QStringLiteral("transitionsDockViewAction")));
     auto *viewMenu = window.findChild<QMenu *>(QStringLiteral("viewMenu"));
     QVERIFY(viewMenu);
-    QCOMPARE(viewMenu->actions().size(), 6); // Four docks, separator and reset.
+    QCOMPARE(viewMenu->actions().size(), 5); // Three docks, separator and reset.
 }
 
 void MainWindowTest::embedsControlsPanelAtBottomRight()
@@ -2590,8 +1942,6 @@ void MainWindowTest::panelDockCanFloatRedockAndClose_data()
     QTest::addColumn<QString>("panelId");
     QTest::addColumn<Qt::DockWidgetArea>("dockArea");
     QTest::addColumn<QString>("qmlName");
-    QTest::newRow("scenes") << QStringLiteral("scenes")
-        << Qt::LeftDockWidgetArea << QStringLiteral("ScenesPanel");
     QTest::newRow("sources") << QStringLiteral("sources")
         << Qt::LeftDockWidgetArea << QStringLiteral("SourcesPanel");
     QTest::newRow("mixer") << QStringLiteral("mixer")
@@ -2665,7 +2015,7 @@ void MainWindowTest::viewMenuCanRestoreAllHiddenDocks()
     auto *viewMenu = window.findChild<QMenu *>(QStringLiteral("viewMenu"));
     QVERIFY(viewMenu);
     const auto docks = window.findChildren<QDockWidget *>();
-    QCOMPARE(docks.size(), 4);
+    QCOMPARE(docks.size(), 3);
     for (auto *dock : docks) {
         QVERIFY(dock->close());
         QTRY_VERIFY(!dock->isVisible());
@@ -2701,9 +2051,9 @@ void MainWindowTest::resetLayoutRestoresDocksWithoutReload()
     QList<QDockWidget *> docks;
     QList<QQuickWidget *> views;
     QList<QPointer<QQuickItem>> roots;
-    const QList<Qt::DockWidgetArea> areas{Qt::LeftDockWidgetArea, Qt::LeftDockWidgetArea,
+    const QList<Qt::DockWidgetArea> areas{Qt::LeftDockWidgetArea,
         Qt::BottomDockWidgetArea, Qt::BottomDockWidgetArea};
-    for (const auto *id : {"scenes", "sources", "mixer", "controls"}) {
+    for (const auto *id : {"sources", "mixer", "controls"}) {
         auto *dock = window.findChild<QDockWidget *>(QLatin1String(id) + QStringLiteral("Dock"));
         auto *view = window.findChild<QQuickWidget *>(QLatin1String(id) + QStringLiteral("QuickWidget"));
         QVERIFY(dock);
@@ -2717,13 +2067,13 @@ void MainWindowTest::resetLayoutRestoresDocksWithoutReload()
     // Mix moved, tabbed, floating and hidden panels, then hide every floating panel.
     for (int pass = 0; pass < 3; ++pass) {
         if (pass == 0) {
-            window.addDockWidget(Qt::RightDockWidgetArea, docks[1]);
-            window.tabifyDockWidget(docks[2], docks[1]);
-            QVERIFY(!window.tabifiedDockWidgets(docks[2]).isEmpty());
-            docks[3]->setFloating(true);
-            docks[3]->move(-10000, -10000);
+            window.addDockWidget(Qt::RightDockWidgetArea, docks[0]);
+            window.tabifyDockWidget(docks[1], docks[0]);
+            QVERIFY(!window.tabifiedDockWidgets(docks[1]).isEmpty());
+            docks[2]->setFloating(true);
+            docks[2]->move(-10000, -10000);
             docks[0]->close();
-            docks[3]->close();
+            docks[2]->close();
         } else if (pass == 1) {
             for (auto *dock : docks) {
                 dock->setFloating(true);
@@ -2732,8 +2082,8 @@ void MainWindowTest::resetLayoutRestoresDocksWithoutReload()
         }
         resetAction->trigger();
         QTRY_COMPARE(window.size(), windowSize);
-        QCOMPARE(window.findChildren<QDockWidget *>().size(), 4);
-        QCOMPARE(window.findChildren<QQuickWidget *>().size(), 4);
+        QCOMPARE(window.findChildren<QDockWidget *>().size(), 3);
+        QCOMPARE(window.findChildren<QQuickWidget *>().size(), 3);
         for (int i = 0; i < docks.size(); ++i) {
             QVERIFY(!docks[i]->isFloating());
             QTRY_VERIFY(docks[i]->isVisible());
@@ -2744,14 +2094,13 @@ void MainWindowTest::resetLayoutRestoresDocksWithoutReload()
             QCOMPARE(views[i]->rootObject(), roots[i].data());
             QCOMPARE(views[i]->status(), QQuickWidget::Ready);
         }
-        QTRY_VERIFY(docks[0]->geometry().bottom() < docks[1]->geometry().top());
-        QTRY_VERIFY(qAbs(docks[0]->height() - docks[1]->height()) <= 1);
-        QTRY_VERIFY(docks[2]->geometry().right() < docks[3]->geometry().left());
-        for (int i = 2; i < docks.size(); ++i) {
+        QTRY_COMPARE(docks[0]->geometry().top(), window.centralWidget()->geometry().top());
+        QTRY_VERIFY(docks[1]->geometry().right() < docks[2]->geometry().left());
+        for (int i = 1; i < docks.size(); ++i) {
             QVERIFY(docks[i]->geometry().top() > window.centralWidget()->geometry().bottom());
-            QCOMPARE(docks[i]->geometry().top(), docks[2]->geometry().top());
-            QCOMPARE(docks[i]->geometry().bottom(), docks[1]->geometry().bottom());
-            QVERIFY(docks[1]->geometry().right() < docks[i]->geometry().left());
+            QCOMPARE(docks[i]->geometry().top(), docks[1]->geometry().top());
+            QCOMPARE(docks[i]->geometry().bottom(), docks[0]->geometry().bottom());
+            QVERIFY(docks[0]->geometry().right() < docks[i]->geometry().left());
         }
         QVERIFY(docks[0]->geometry().right() < window.centralWidget()->geometry().left());
         QVERIFY(window.centralWidget()->width() > 0);
@@ -2817,8 +2166,6 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates_data()
     QTest::addColumn<int>("expectedButtons");
     QTest::addColumn<bool>("alternateSourceState");
     QTest::addColumn<QString>("themeId");
-    QTest::newRow("scenes-dark") << QStringLiteral("ScenesPanel") << 4 << false << QString("dark");
-    QTest::newRow("scenes-light") << QStringLiteral("ScenesPanel") << 4 << false << QString("light");
     QTest::newRow("sources-dark") << QStringLiteral("SourcesPanel") << 8 << false << QString("dark");
     QTest::newRow("sources-light") << QStringLiteral("SourcesPanel") << 8 << false << QString("light");
     QTest::newRow("sources-hidden-locked-dark") << QStringLiteral("SourcesPanel") << 8 << true << QString("dark");
@@ -2904,8 +2251,7 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
     int checkedButtons = 0;
     for (auto *button : buttons) {
         // Isolate icons from button text and borders for rendering checks.
-        const bool isolateIcon = panelName == QStringLiteral("ScenesPanel")
-            || panelName == QStringLiteral("SourcesPanel")
+        const bool isolateIcon = panelName == QStringLiteral("SourcesPanel")
             || panelName == QStringLiteral("ControlsPanel");
         const QVariant originalDisplay = button->property("display");
         auto *background = button->property("background").value<QQuickItem *>();

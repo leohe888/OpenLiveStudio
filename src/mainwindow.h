@@ -29,8 +29,6 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private slots:
-    void showSceneNameDialog(const QString &sceneId, const QString &initialName);
-    void showSceneRemovalDialog(const QString &sceneId);
     void showSourceAddDialog(const QString &sceneId);
     void showSourceRemovalDialog(const QString &sceneId, const QString &sourceId);
 
@@ -40,7 +38,6 @@ private:
     void setupMenuBar();
     void setupPreview();
     void setupStatusBar();
-    void setupScenesDock();
     void setupSourcesDock();
     void setupMixerDock();
     void setupControlsDock();
@@ -55,7 +52,6 @@ private:
     QMenu *m_viewMenu = nullptr;
     QMenu *m_themeMenu = nullptr;
     QMenu *m_helpMenu = nullptr;
-    QDockWidget *m_scenesDock = nullptr;
     QDockWidget *m_sourcesDock = nullptr;
     QDockWidget *m_mixerDock = nullptr;
     QDockWidget *m_controlsDock = nullptr;
