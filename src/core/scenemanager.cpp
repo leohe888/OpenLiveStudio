@@ -139,7 +139,9 @@ QString SceneManager::suggestedSourceName(const QString &sceneId, const QString 
 
 bool SceneManager::removeSource(const QString &sceneId, const QString &sourceId)
 {
-    const int row = sourceRow(sceneId, sourceId);
+    if (sceneId != currentSceneId())
+        return false;
+    const int row = sourceRow(sourceId);
     if (row < 0)
         return false;
     if (sourceId == m_currentSourceId)
@@ -150,9 +152,9 @@ bool SceneManager::removeSource(const QString &sceneId, const QString &sourceId)
     return true;
 }
 
-int SceneManager::sourceRow(const QString &sceneId, const QString &sourceId) const
+int SceneManager::sourceRow(const QString &sourceId) const
 {
-    if (sceneId != currentSceneId() || sourceId.isEmpty())
+    if (sourceId.isEmpty())
         return -1;
     for (int row = 0; row < m_sources.size(); ++row) {
         if (m_sources.at(row).id == sourceId)
@@ -163,20 +165,20 @@ int SceneManager::sourceRow(const QString &sceneId, const QString &sourceId) con
 
 bool SceneManager::canMoveCurrentSourceUp() const
 {
-    return sourceRow(currentSceneId(), m_currentSourceId) > 0;
+    return sourceRow(m_currentSourceId) > 0;
 }
 
 bool SceneManager::canMoveCurrentSourceDown() const
 {
-    const int row = sourceRow(currentSceneId(), m_currentSourceId);
+    const int row = sourceRow(m_currentSourceId);
     return row >= 0 && row + 1 < m_sourceModel->rowCount();
 }
 
-bool SceneManager::moveSource(const QString &sceneId, const QString &sourceId, int offset)
+bool SceneManager::moveSource(const QString &sourceId, int offset)
 {
     if (offset != -1 && offset != 1)
         return false;
-    const int from = sourceRow(sceneId, sourceId);
+    const int from = sourceRow(sourceId);
     if (from < 0)
         return false;
     auto &sources = m_sources;
@@ -189,9 +191,9 @@ bool SceneManager::moveSource(const QString &sceneId, const QString &sourceId, i
     return true;
 }
 
-bool SceneManager::setSourceFlag(const QString &sceneId, const QString &sourceId, int role, bool value)
+bool SceneManager::setSourceFlag(const QString &sourceId, int role, bool value)
 {
-    const int row = sourceRow(sceneId, sourceId);
+    const int row = sourceRow(sourceId);
     if (row < 0)
         return false;
     auto &source = m_sources[row];
@@ -204,12 +206,12 @@ bool SceneManager::setSourceFlag(const QString &sceneId, const QString &sourceId
     return true;
 }
 
-bool SceneManager::setSourceVisible(const QString &sceneId, const QString &sourceId, bool visible)
+bool SceneManager::setSourceVisible(const QString &sourceId, bool visible)
 {
-    return setSourceFlag(sceneId, sourceId, VisibleRole, visible);
+    return setSourceFlag(sourceId, VisibleRole, visible);
 }
 
-bool SceneManager::setSourceLocked(const QString &sceneId, const QString &sourceId, bool locked)
+bool SceneManager::setSourceLocked(const QString &sourceId, bool locked)
 {
-    return setSourceFlag(sceneId, sourceId, LockedRole, locked);
+    return setSourceFlag(sourceId, LockedRole, locked);
 }

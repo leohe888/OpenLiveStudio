@@ -121,7 +121,7 @@ Rectangle {
                             text: sourceVisible ? qsTr("来源已显示") : qsTr("来源已隐藏")
                             icon.source: sourceVisible ? "qrc:/assets/icons/eye.svg"
                                 : "qrc:/assets/icons/eye-off.svg"
-                            onClicked: root.state.setSourceVisible(root.state.currentSceneId, sourceId, !sourceVisible)
+                            onClicked: root.state.setSourceVisible(sourceId, !sourceVisible)
                         }
                         SourceButton {
                             objectName: "sourceLockButton"
@@ -130,7 +130,7 @@ Rectangle {
                             text: sourceLocked ? qsTr("来源已锁定") : qsTr("来源未锁定")
                             icon.source: sourceLocked ? "qrc:/assets/icons/lock.svg"
                                 : "qrc:/assets/icons/lock-open.svg"
-                            onClicked: root.state.setSourceLocked(root.state.currentSceneId, sourceId, !sourceLocked)
+                            onClicked: root.state.setSourceLocked(sourceId, !sourceLocked)
                         }
                     }
                 }
@@ -190,9 +190,9 @@ Rectangle {
                             else if (modelData.name === "removeSourceButton")
                                 root.sourceRemovalDialogRequested(root.state.currentSceneId, root.state.currentSourceId)
                             else if (modelData.name === "moveSourceUpButton")
-                                root.state.moveSource(root.state.currentSceneId, root.state.currentSourceId, -1)
+                                root.state.moveSource(root.state.currentSourceId, -1)
                             else if (modelData.name === "moveSourceDownButton")
-                                root.state.moveSource(root.state.currentSceneId, root.state.currentSourceId, 1)
+                                root.state.moveSource(root.state.currentSourceId, 1)
                         }
                     }
                 }

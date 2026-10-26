@@ -96,16 +96,17 @@ public:
     QString currentSourceId() const { return m_currentSourceId; }
     // An empty ID clears selection; other IDs must belong to the source list.
     Q_INVOKABLE bool selectSource(const QString &id);
-    // Legacy sceneId parameters must match currentSceneId().
+    // Temporary dialog adapters: sceneId must match currentSceneId().
     Q_INVOKABLE QString suggestedSourceName(const QString &sceneId, const QString &baseName) const;
     // Removes the list entry only; never deletes its file.
     Q_INVOKABLE bool removeSource(const QString &sceneId, const QString &sourceId);
     bool canMoveCurrentSourceUp() const;
     bool canMoveCurrentSourceDown() const;
-    // List order is topmost first. Locking only restricts future transform edits.
-    Q_INVOKABLE bool moveSource(const QString &sceneId, const QString &sourceId, int offset);
-    Q_INVOKABLE bool setSourceVisible(const QString &sceneId, const QString &sourceId, bool visible);
-    Q_INVOKABLE bool setSourceLocked(const QString &sceneId, const QString &sourceId, bool locked);
+    // List order is topmost first; offset must be -1 or 1.
+    // Locking only restricts future transform edits.
+    Q_INVOKABLE bool moveSource(const QString &sourceId, int offset);
+    Q_INVOKABLE bool setSourceVisible(const QString &sourceId, bool visible);
+    Q_INVOKABLE bool setSourceLocked(const QString &sourceId, bool locked);
 
 signals:
     void currentSourceIdChanged();
@@ -113,8 +114,8 @@ signals:
 
 private:
     class SourceListModel;
-    int sourceRow(const QString &sceneId, const QString &sourceId) const;
-    bool setSourceFlag(const QString &sceneId, const QString &sourceId, int role, bool value);
+    int sourceRow(const QString &sourceId) const;
+    bool setSourceFlag(const QString &sourceId, int role, bool value);
     QList<SourceData> m_sources;
     SourceListModel *m_sourceModel;
     QString m_currentSourceId;

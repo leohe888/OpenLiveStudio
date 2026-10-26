@@ -285,7 +285,7 @@ void MainWindowTest::sourcePanelCanMoveAndToggle()
     QCOMPARE(state.currentSourceId(), QString("a"));
     QVERIFY(state.sourceModel()->index(1, 0).data(SceneManager::LockedRole).toBool());
     // Model updates must continue to drive presentation after user clicks.
-    QVERIFY(state.setSourceVisible(state.currentSceneId(), "b", true));
+    QVERIFY(state.setSourceVisible("b", true));
     QTRY_VERIFY(visibility->property("checked").toBool());
     QTRY_COMPARE(iconSource(visibility), QUrl("qrc:/assets/icons/eye.svg"));
     click(visibility);
