@@ -1,6 +1,6 @@
 #include "mainwindow.h"
 #include "thememanager.h"
-#include "scenemanager.h"
+#include "sourcemanager.h"
 #include <QApplication>
 
 #include <QAction>

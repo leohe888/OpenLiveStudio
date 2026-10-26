@@ -1,5 +1,5 @@
 #include "mainwindow.h"
-#include "scenemanager.h"
+#include "sourcemanager.h"
 #include "thememanager.h"
 
 #include <QAction>

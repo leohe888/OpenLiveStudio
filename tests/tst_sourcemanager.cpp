@@ -1,4 +1,4 @@
-#include "scenemanager.h"
+#include "sourcemanager.h"
 
 #include <QAbstractItemModelTester>
 #include <QFile>
