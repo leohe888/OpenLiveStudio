@@ -34,8 +34,9 @@ static QList<SourceListModel::SourceData> sources()
 void SourceListModelTest::startsWithEmptySourceList()
 {
     SourceListModel state;
-    QAbstractItemModelTester tester(state.sourceModel(), QAbstractItemModelTester::FailureReportingMode::QtTest);
-    QCOMPARE(state.sourceModel()->rowCount(), 0);
+    QAbstractItemModelTester tester(&state, QAbstractItemModelTester::FailureReportingMode::QtTest);
+    QCOMPARE(state.rowCount(), 0);
+    QVERIFY(state.metaObject()->indexOfProperty("sourceModel") < 0);
     QVERIFY(state.currentSourceId().isEmpty());
     QVERIFY(!state.canMoveCurrentSourceUp());
     QVERIFY(!state.canMoveCurrentSourceDown());
@@ -52,7 +53,7 @@ void SourceListModelTest::exposesSourceRolesAndRejectsInvalidIndexes()
 {
     SourceListModel state(QList<SourceListModel::SourceData>{
         {"image", "Logo", SourceListModel::ImageConfig{"fixture.png"}, {QSize(64, 32)}, false, true}});
-    auto *model = state.sourceModel();
+    auto *model = &state;
     QAbstractItemModelTester tester(model, QAbstractItemModelTester::FailureReportingMode::QtTest);
     const QHash<int, QByteArray> roles{
         {SourceListModel::IdRole, "sourceId"}, {SourceListModel::NameRole, "sourceName"},
@@ -73,7 +74,7 @@ void SourceListModelTest::exposesSourceRolesAndRejectsInvalidIndexes()
     QVERIFY(!model->index(0, 1).isValid());
     QVERIFY(!index.data(Qt::UserRole + 100).isValid());
     SourceListModel other(sources());
-    QVERIFY(!model->data(other.sourceModel()->index(0, 0), SourceListModel::IdRole).isValid());
+    QVERIFY(!model->data(other.index(0, 0), SourceListModel::IdRole).isValid());
 }
 
 void SourceListModelTest::supportsAllSourceConfigurations()
@@ -96,7 +97,7 @@ void SourceListModelTest::supportsAllSourceConfigurations()
         Manager::SourceType::Camera, Manager::SourceType::Image, Manager::SourceType::Text};
     const QStringList typeNames{"displayCapture", "windowCapture", "camera", "image", "text"};
     Manager state(sources);
-    auto *model = state.sourceModel();
+    auto *model = &state;
     QAbstractItemModelTester tester(model, QAbstractItemModelTester::FailureReportingMode::QtTest);
     for (int row = 0; row < sources.size(); ++row) {
         QCOMPARE(sources.at(row).type(), types.at(row));
@@ -155,7 +156,7 @@ void SourceListModelTest::removesSelectedSource()
 {
     QFETCH(int, row);
     SourceListModel state(sources());
-    auto *model = state.sourceModel();
+    auto *model = &state;
     QAbstractItemModelTester tester(model, QAbstractItemModelTester::FailureReportingMode::QtTest);
     const QString id = model->index(row, 0).data(SourceListModel::IdRole).toString();
     QVERIFY(state.selectSource(id));
@@ -179,7 +180,7 @@ void SourceListModelTest::removesSelectedSource()
 void SourceListModelTest::removalNotifiesBeforeAndAfterMutation()
 {
     SourceListModel state(sources());
-    auto *model = state.sourceModel();
+    auto *model = &state;
     QVERIFY(state.selectSource("a"));
     QSignalSpy selected(&state, &SourceListModel::currentSourceIdChanged);
     QStringList notifications;
@@ -202,7 +203,7 @@ void SourceListModelTest::removalNotifiesBeforeAndAfterMutation()
 void SourceListModelTest::movesSourcesAndPreservesIdentity()
 {
     SourceListModel state(sources());
-    auto *model = state.sourceModel();
+    auto *model = &state;
     QAbstractItemModelTester tester(model, QAbstractItemModelTester::FailureReportingMode::QtTest);
     QVERIFY(state.selectSource("a"));
     QVERIFY(!state.canMoveCurrentSourceUp());
@@ -247,7 +248,7 @@ void SourceListModelTest::movesSourcesAndPreservesIdentity()
 void SourceListModelTest::flagsNotifyOnlyChangedRole()
 {
     SourceListModel state(sources());
-    auto *model = state.sourceModel();
+    auto *model = &state;
     QVERIFY(state.selectSource("a"));
     QSignalSpy changed(model, &QAbstractItemModel::dataChanged);
     QSignalSpy selected(&state, &SourceListModel::currentSourceIdChanged);
@@ -274,7 +275,7 @@ void SourceListModelTest::rejectsInvalidOperations()
 {
     SourceListModel state(sources());
     QVERIFY(state.selectSource("a"));
-    auto *model = state.sourceModel();
+    auto *model = &state;
     QSignalSpy removed(model, &QAbstractItemModel::rowsRemoved);
     QSignalSpy moved(model, &QAbstractItemModel::rowsMoved);
     QSignalSpy changed(model, &QAbstractItemModel::dataChanged);
@@ -306,12 +307,12 @@ void SourceListModelTest::suggestsUnusedSourceNames()
         {"a", base}, {"b", base + " 3"}, {"c", "Camera"}, {"d", " cAmErA 2 "}});
     QVERIFY(state.selectSource("a"));
     QSignalSpy selected(&state, &SourceListModel::currentSourceIdChanged);
-    QSignalSpy inserted(state.sourceModel(), &QAbstractItemModel::rowsInserted);
+    QSignalSpy inserted(&state, &QAbstractItemModel::rowsInserted);
     QCOMPARE(state.suggestedSourceName(base), base + " 2");
     QCOMPARE(state.suggestedSourceName(" camera "), QString("camera 3"));
     QVERIFY(state.suggestedSourceName({}).isEmpty());
     QVERIFY(state.suggestedSourceName(" \t ").isEmpty());
-    QCOMPARE(state.sourceModel()->rowCount(), 4);
+    QCOMPARE(state.rowCount(), 4);
     QCOMPARE(state.currentSourceId(), QString("a"));
     QCOMPARE(selected.count(), 0);
     QCOMPARE(inserted.count(), 0);
@@ -335,7 +336,7 @@ void SourceListModelTest::sameImageEntriesRemainIndependent()
     QVERIFY(state.setSourceVisible("a", false));
     QVERIFY(state.setSourceLocked("a", true));
     QVERIFY(state.moveSource("a", 1));
-    const auto other = state.sourceModel()->index(0, 0);
+    const auto other = state.index(0, 0);
     QCOMPARE(other.data(SourceListModel::IdRole).toString(), QString("b"));
     QCOMPARE(other.data(SourceListModel::OriginalSizeRole).toSize(), image.size());
     QVERIFY(other.data(SourceListModel::VisibleRole).toBool());
@@ -343,10 +344,10 @@ void SourceListModelTest::sameImageEntriesRemainIndependent()
     QVERIFY(state.selectSource("a"));
     QVERIFY(state.removeSource("a"));
     QVERIFY(state.currentSourceId().isEmpty());
-    QCOMPARE(state.sourceModel()->rowCount(), 1);
+    QCOMPARE(state.rowCount(), 1);
     QCOMPARE(QImage(path), image);
     QVERIFY(state.removeSource("b"));
-    QCOMPARE(state.sourceModel()->rowCount(), 0);
+    QCOMPARE(state.rowCount(), 0);
     QVERIFY(!state.canMoveCurrentSourceUp());
     QVERIFY(!state.canMoveCurrentSourceDown());
     QVERIFY(QFile::exists(path));

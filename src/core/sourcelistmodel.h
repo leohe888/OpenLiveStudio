@@ -13,7 +13,6 @@
 class SourceListModel : public QAbstractListModel
 {
     Q_OBJECT
-    Q_PROPERTY(QAbstractItemModel *sourceModel READ sourceModel CONSTANT)
     Q_PROPERTY(QString currentSourceId READ currentSourceId NOTIFY currentSourceIdChanged)
     Q_PROPERTY(bool canMoveCurrentSourceUp READ canMoveCurrentSourceUp NOTIFY sourceMoveAvailabilityChanged)
     Q_PROPERTY(bool canMoveCurrentSourceDown READ canMoveCurrentSourceDown NOTIFY sourceMoveAvailabilityChanged)
@@ -88,7 +87,6 @@ public:
     // Initial source IDs must be nonempty and unique.
     explicit SourceListModel(const QList<SourceData> &sources, QObject *parent = nullptr);
 
-    QAbstractItemModel *sourceModel() const;
     int rowCount(const QModelIndex &parent = {}) const override;
     QVariant data(const QModelIndex &index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;

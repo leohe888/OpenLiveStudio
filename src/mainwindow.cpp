@@ -71,7 +71,7 @@ MainWindow::MainWindow(ThemeManager &theme, QWidget *parent)
     Q_ASSERT(m_theme.isReady());
     applyTheme();
     connect(&m_theme, &ThemeManager::themeChanged, this, &MainWindow::applyTheme);
-    m_sourceManager = new SourceListModel;
+    m_sourceListModel = new SourceListModel;
     setWindowTitle(QStringLiteral("OpenLive Studio"));
     setMinimumSize(960, 640);
     resize(1280, 800);
@@ -88,7 +88,7 @@ MainWindow::MainWindow(ThemeManager &theme, QWidget *parent)
     resetDockLayout();
     updateStatusLayout();
     // Destroy the dock QML contexts before their shared state.
-    m_sourceManager->setParent(this);
+    m_sourceListModel->setParent(this);
     applyTheme();
     if (!m_theme.lastError().isEmpty())
         statusBar()->showMessage(tr("主题配置提示：%1").arg(m_theme.lastError()));
@@ -229,11 +229,11 @@ void MainWindow::showDialog(const QUrl &source, const QString &title,
 
 void MainWindow::showSourceAddDialog()
 {
-    const QString initialName = m_sourceManager->suggestedSourceName(tr("显示器采集"));
+    const QString initialName = m_sourceListModel->suggestedSourceName(tr("显示器采集"));
     if (initialName.isEmpty())
         return;
     showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml")),
-        tr("添加来源"), {{QStringLiteral("sourceManager"), QVariant::fromValue(m_sourceManager)},
+        tr("添加来源"), {{QStringLiteral("sourceListModel"), QVariant::fromValue(m_sourceListModel)},
                        {QStringLiteral("initialName"), initialName}});
 }
 
@@ -241,13 +241,13 @@ void MainWindow::showSourceRemovalDialog(const QString &sourceId)
 {
     if (sourceId.isEmpty())
         return;
-    auto *model = m_sourceManager->sourceModel();
+    auto *model = m_sourceListModel;
     for (int row = 0; row < model->rowCount(); ++row) {
         const auto index = model->index(row, 0);
         if (index.data(SourceListModel::IdRole).toString() != sourceId)
             continue;
         showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceRemovalDialog.qml")),
-            tr("移除来源"), {{QStringLiteral("sourceManager"), QVariant::fromValue(m_sourceManager)},
+            tr("移除来源"), {{QStringLiteral("sourceListModel"), QVariant::fromValue(m_sourceListModel)},
                            {QStringLiteral("sourceId"), sourceId},
                            {QStringLiteral("sourceName"), index.data(SourceListModel::NameRole)}});
         return;
@@ -370,7 +370,7 @@ void MainWindow::setupSourcesDock()
     auto *pages = new QStackedWidget(m_sourcesDock);
     auto *view = new QQuickWidget(pages);
     view->setObjectName(QStringLiteral("sourcesQuickWidget"));
-    view->rootContext()->setContextProperty(QStringLiteral("sourceManager"), m_sourceManager);
+    view->rootContext()->setContextProperty(QStringLiteral("sourceListModel"), m_sourceListModel);
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
     configureQuickWidget(view);
     pages->addWidget(view);

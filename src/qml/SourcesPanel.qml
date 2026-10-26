@@ -9,7 +9,7 @@ Rectangle {
     implicitWidth: 238
     implicitHeight: 320
     color: themeColors.background.panel
-    readonly property var state: typeof sourceManager !== "undefined" ? sourceManager : null
+    readonly property var state: typeof sourceListModel !== "undefined" ? sourceListModel : null
     signal sourceAddDialogRequested()
     signal sourceRemovalDialogRequested(string sourceId)
 
@@ -52,7 +52,7 @@ Rectangle {
                 objectName: "sourceList"
                 anchors.fill: parent
                 clip: true
-                model: root.state ? root.state.sourceModel : null
+                model: root.state
                 currentIndex: -1
                 keyNavigationEnabled: false
 

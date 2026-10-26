@@ -127,7 +127,6 @@ void MainWindowTest::sourcePanelSharesStateAcrossReloadsAndReleasesItWithWindow(
     QVERIFY(state);
     QCOMPARE(window->findChildren<SourceListModel *>().size(), 1);
     QCOMPARE(state->parent(), window.get());
-    QPointer<QAbstractItemModel> sources = state->sourceModel();
     QList<QPointer<QQuickItem>> roots;
     QStringList destructionOrder;
     connect(state, &QObject::destroyed, this, [&] { destructionOrder.append("state"); });
@@ -136,10 +135,10 @@ void MainWindowTest::sourcePanelSharesStateAcrossReloadsAndReleasesItWithWindow(
         auto *view = window->findChild<QQuickWidget *>(QLatin1String(panelId) + QStringLiteral("QuickWidget"));
         QVERIFY(view);
         QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-        QCOMPARE(view->rootContext()->contextProperty(QStringLiteral("sourceManager")).value<QObject *>(), state.data());
+        QCOMPARE(view->rootContext()->contextProperty(QStringLiteral("sourceListModel")).value<QObject *>(), state.data());
         // Exercise the QML context and invokable API, rather than just a C++ pointer.
         QQmlExpression expression(view->rootContext(), view->rootObject(),
-            QStringLiteral("sourceManager.selectSource(sourceManager.currentSourceId)"));
+            QStringLiteral("sourceListModel.selectSource(sourceListModel.currentSourceId)"));
         QCOMPARE(expression.evaluate().toBool(), true);
         QVERIFY2(!expression.hasError(), qPrintable(expression.error().toString()));
         QPointer<QQuickItem> oldRoot = view->rootObject();
@@ -149,12 +148,14 @@ void MainWindowTest::sourcePanelSharesStateAcrossReloadsAndReleasesItWithWindow(
         QTRY_VERIFY(oldRoot.isNull());
         view->setSource(source);
         QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-        QCOMPARE(view->rootContext()->contextProperty(QStringLiteral("sourceManager")).value<QObject *>(), state.data());
+        QCOMPARE(view->rootContext()->contextProperty(QStringLiteral("sourceListModel")).value<QObject *>(), state.data());
         QQmlExpression reloaded(view->rootContext(), view->rootObject(),
-            QStringLiteral("sourceManager.sourceModel"));
-        QCOMPARE(reloaded.evaluate().value<QObject *>(), sources.data());
+            QStringLiteral("sourceListModel"));
+        QCOMPARE(reloaded.evaluate().value<QObject *>(), state.data());
         QVERIFY2(!reloaded.hasError(), qPrintable(reloaded.error().toString()));
-        QCOMPARE(state->sourceModel(), sources.data());
+        auto *list = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("sourceList"));
+        QVERIFY(list);
+        QCOMPARE(list->property("model").value<QObject *>(), state.data());
         roots.append(view->rootObject());
         connect(view->rootObject(), &QObject::destroyed, this,
             [&] { destructionOrder.append("panel"); });
@@ -162,7 +163,6 @@ void MainWindowTest::sourcePanelSharesStateAcrossReloadsAndReleasesItWithWindow(
 
     window.reset();
     QVERIFY(state.isNull());
-    QVERIFY(sources.isNull());
     for (const auto &root : roots)
         QVERIFY(root.isNull());
     QCOMPARE(destructionOrder, QStringList({"panel", "state"}));
@@ -173,7 +173,7 @@ void MainWindowTest::sourcePanelFollowsSelectionAcrossReloads()
     SourceListModel state(QList<SourceListModel::SourceData>{{"a", "First"}, {"b", "Second"}});
     QQuickWidget panel;
     panel.rootContext()->setContextProperty("uiTheme", m_theme.get());
-    panel.rootContext()->setContextProperty("sourceManager", &state);
+    panel.rootContext()->setContextProperty("sourceListModel", &state);
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(238, 260);
     const QUrl source("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml");
@@ -222,7 +222,7 @@ void MainWindowTest::sourcePanelCanMoveAndToggle()
     panel.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(280, 220);
-    panel.rootContext()->setContextProperty(QStringLiteral("sourceManager"), &state);
+    panel.rootContext()->setContextProperty(QStringLiteral("sourceListModel"), &state);
     const QUrl url(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml"));
     panel.setSource(url);
     QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
@@ -276,12 +276,12 @@ void MainWindowTest::sourcePanelCanMoveAndToggle()
     QTRY_VERIFY(!visibility->property("checked").toBool());
     QTRY_COMPARE(iconSource(visibility), QUrl("qrc:/assets/icons/eye-off.svg"));
     QCOMPARE(state.currentSourceId(), QString("a"));
-    QVERIFY(!state.sourceModel()->index(1, 0).data(SourceListModel::VisibleRole).toBool());
+    QVERIFY(!state.index(1, 0).data(SourceListModel::VisibleRole).toBool());
     click(lock);
     QTRY_VERIFY(lock->property("checked").toBool());
     QTRY_COMPARE(iconSource(lock), QUrl("qrc:/assets/icons/lock.svg"));
     QCOMPARE(state.currentSourceId(), QString("a"));
-    QVERIFY(state.sourceModel()->index(1, 0).data(SourceListModel::LockedRole).toBool());
+    QVERIFY(state.index(1, 0).data(SourceListModel::LockedRole).toBool());
     // Model updates must continue to drive presentation after user clicks.
     QVERIFY(state.setSourceVisible("b", true));
     QTRY_VERIFY(visibility->property("checked").toBool());
@@ -300,13 +300,13 @@ void MainWindowTest::sourcePanelCanMoveAndToggle()
     QTRY_VERIFY(up->isEnabled());
     QTRY_VERIFY(down->isEnabled());
     click(up);
-    QTRY_COMPARE(state.sourceModel()->index(0, 0).data(SourceListModel::IdRole).toString(), QString("b"));
+    QTRY_COMPARE(state.index(0, 0).data(SourceListModel::IdRole).toString(), QString("b"));
     QTRY_VERIFY(!up->isEnabled());
     QCOMPARE(state.currentSourceId(), QString("b"));
     QTRY_VERIFY(find("sourceRow_b")->y() < find("sourceRow_a")->y());
     click(down);
     click(down);
-    QTRY_COMPARE(state.sourceModel()->index(2, 0).data(SourceListModel::IdRole).toString(), QString("b"));
+    QTRY_COMPARE(state.index(2, 0).data(SourceListModel::IdRole).toString(), QString("b"));
     QTRY_VERIFY(!down->isEnabled());
     click(down);
     QCOMPARE(state.currentSourceId(), QString("b"));
@@ -333,9 +333,9 @@ void MainWindowTest::sourcePanelCanMoveAndToggle()
     const QString screenshot = qEnvironmentVariable("OPENLIVE_SOURCE_PANEL_SCREENSHOT");
     if (!screenshot.isEmpty() && !reload)
         QVERIFY(panel.grabFramebuffer().save(screenshot));
-    while (state.sourceModel()->rowCount() > 0)
+    while (state.rowCount() > 0)
         QVERIFY(state.removeSource(
-            state.sourceModel()->index(0, 0).data(SourceListModel::IdRole).toString()));
+            state.index(0, 0).data(SourceListModel::IdRole).toString()));
     QTRY_VERIFY(find("emptySourcesLabel")->isVisible());
     QVERIFY(!find("moveSourceUpButton")->isEnabled());
     QVERIFY(!find("moveSourceDownButton")->isEnabled());
@@ -362,7 +362,7 @@ void MainWindowTest::listScrollBarsHandleOverflow()
     panel.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(238, 150);
-    panel.rootContext()->setContextProperty(QStringLiteral("sourceManager"), &state);
+    panel.rootContext()->setContextProperty(QStringLiteral("sourceListModel"), &state);
     panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(panelName)));
     QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
     panel.show();
@@ -407,7 +407,7 @@ void MainWindowTest::listScrollBarsHandleOverflow()
     panel.resize(238, 150);
     QTRY_VERIFY(bar->isVisible());
     // A short list needs no scrollbar even in the smaller panel.
-    panel.rootContext()->setContextProperty(QStringLiteral("sourceManager"), &shortState);
+    panel.rootContext()->setContextProperty(QStringLiteral("sourceListModel"), &shortState);
     QTRY_COMPARE(list->property("count").toInt(), 1);
     QTRY_VERIFY(!bar->isVisible());
 }
@@ -653,7 +653,7 @@ void MainWindowTest::sourceThemes()
     QVERIFY(state.selectSource("0"));
     QQuickWidget panel;
     panel.rootContext()->setContextProperty("uiTheme", m_theme.get());
-    panel.rootContext()->setContextProperty("sourceManager", &state);
+    panel.rootContext()->setContextProperty("sourceListModel", &state);
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(280, 220);
     const QUrl url(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(panelName));
@@ -748,9 +748,9 @@ void MainWindowTest::sourceThemes()
     QCOMPARE(find(prefix + "Row_0")->property("color").value<QColor>(), m_theme->color("background.selected"));
     QCOMPARE(state.currentSourceId(), "0");
     if (prefix == "source") {
-        while (state.sourceModel()->rowCount() > 0)
+        while (state.rowCount() > 0)
             QVERIFY(state.removeSource(
-                state.sourceModel()->index(0, 0).data(SourceListModel::IdRole).toString()));
+                state.index(0, 0).data(SourceListModel::IdRole).toString()));
         auto *label = find("emptySourcesLabel");
         QVERIFY(label);
         QTRY_VERIFY(label->isVisible());
@@ -903,7 +903,7 @@ void MainWindowTest::basicDialogThemes()
     if (dialogName == "AboutDialog") {
         properties = {{"productName", "OpenLive Studio"}, {"versionText", "Development"}, {"qtVersion", qVersion()}};
     } else {
-        properties = {{"sourceManager", QVariant::fromValue(state)}};
+        properties = {{"sourceListModel", QVariant::fromValue(state)}};
         if (dialogName == "SourceAddDialog") properties.insert("initialName", "Theme sample");
         else {
             properties.insert("sourceId", "fixed-source-id");
@@ -1257,7 +1257,7 @@ void MainWindowTest::sourcePanelOpensAddDialog()
         if (item->objectName() == "addSourceButton")
             add = item;
     }
-    QCOMPARE(state->sourceModel()->rowCount(), 0);
+    QCOMPARE(state->rowCount(), 0);
     QVERIFY(state->currentSourceId().isEmpty());
     QVERIFY(add && add->isEnabled());
     QSignalSpy requested(panel->rootObject(), SIGNAL(sourceAddDialogRequested()));
@@ -1283,7 +1283,7 @@ void MainWindowTest::sourcePanelOpensAddDialog()
         QCOMPARE(name->property("text").toString(), QString::fromUtf8("显示器采集"));
         dialog->close();
         QTRY_VERIFY(dialog.isNull());
-        QCOMPARE(state->sourceModel()->rowCount(), 0);
+        QCOMPARE(state->rowCount(), 0);
     }
 }
 
@@ -1302,7 +1302,7 @@ void MainWindowTest::sourceAddDialogHandlesInput()
     auto *state = window.findChild<SourceListModel *>();
     QVERIFY(state);
     window.showDialog(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml"), "Add source",
-        {{"sourceManager", QVariant::fromValue(state)}});
+        {{"sourceListModel", QVariant::fromValue(state)}});
     QPointer<QDialog> dialog = window.findChild<QDialog *>("qmlDialog");
     QVERIFY(dialog);
     auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
@@ -1321,7 +1321,7 @@ void MainWindowTest::sourceAddDialogHandlesInput()
     QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
         confirm->mapToScene(confirm->boundingRect().center()).toPoint());
     QVERIFY(dialog && dialog->isVisible());
-    QCOMPARE(state->sourceModel()->rowCount(), 0);
+    QCOMPARE(state->rowCount(), 0);
     if (method == "cancel") {
         name->forceActiveFocus();
         QTest::keyClick(view, Qt::Key_Tab);
@@ -1334,7 +1334,7 @@ void MainWindowTest::sourceAddDialogHandlesInput()
     }
     QTRY_VERIFY(dialog.isNull());
     QVERIFY(root.isNull());
-    QCOMPARE(state->sourceModel()->rowCount(), 0);
+    QCOMPARE(state->rowCount(), 0);
 }
 
 void MainWindowTest::sourceAddDialogHandlesTypeSelection_data()
@@ -1353,7 +1353,7 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
     auto *manager = window.findChild<SourceListModel *>();
     QVERIFY(manager);
     window.showDialog(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml"), "Add source",
-        {{"sourceManager", QVariant::fromValue(manager)}});
+        {{"sourceListModel", QVariant::fromValue(manager)}});
     QPointer<QDialog> dialog = window.findChild<QDialog *>("qmlDialog");
     QVERIFY(dialog);
     auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
@@ -1405,7 +1405,7 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
         QVERIFY(!root->property("errorText").toString().isEmpty());
         name->forceActiveFocus();
         QTest::keyClick(view, Qt::Key_Return);
-        QCOMPARE(manager->sourceModel()->rowCount(), 0);
+        QCOMPARE(manager->rowCount(), 0);
         QVERIFY(dialog && dialog->isVisible());
     }
     name->forceActiveFocus();
@@ -1422,7 +1422,7 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
     QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
         cancel->mapToScene(cancel->boundingRect().center()).toPoint());
     QTRY_VERIFY(dialog.isNull());
-    QCOMPARE(manager->sourceModel()->rowCount(), 0);
+    QCOMPARE(manager->rowCount(), 0);
 }
 
 void MainWindowTest::sourcePanelRequestsRemoval_data()
@@ -1439,7 +1439,7 @@ void MainWindowTest::sourcePanelRequestsRemoval()
     SourceListModel state(QList<SourceListModel::SourceData>{{second, "Beta"}, {first, "Alpha"}});
     QQuickWidget panel;
     panel.rootContext()->setContextProperty("uiTheme", m_theme.get());
-    panel.rootContext()->setContextProperty("sourceManager", &state);
+    panel.rootContext()->setContextProperty("sourceListModel", &state);
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(280, 260);
     const QUrl url("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml");
@@ -1488,7 +1488,7 @@ void MainWindowTest::sourcePanelRequestsRemoval()
         QVERIFY(state.removeSource(id));
         QTRY_VERIFY(!removeButton()->isEnabled());
     }
-    QCOMPARE(state.sourceModel()->rowCount(), 0);
+    QCOMPARE(state.rowCount(), 0);
     auto *empty = panel.rootObject()->findChild<QQuickItem *>("emptySourcesLabel");
     QVERIFY(empty);
     QTRY_VERIFY(empty->isVisible());
@@ -1522,7 +1522,7 @@ void MainWindowTest::sourceRemovalDialogHandlesConfirmation()
     MainWindow window(*m_theme);
     window.show();
     window.showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceRemovalDialog.qml")),
-        QStringLiteral("Remove source"), {{"sourceManager", QVariant::fromValue(&state)},
+        QStringLiteral("Remove source"), {{"sourceListModel", QVariant::fromValue(&state)},
         {"sourceId", action == "invalid-source" ? QString("missing") : QString("shared")}, {"sourceName", name}});
     QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
     QVERIFY(dialog);
@@ -1539,7 +1539,7 @@ void MainWindowTest::sourceRemovalDialogHandlesConfirmation()
     QVERIFY(message->property("text").toString().contains(name));
     QCOMPARE(message->property("textFormat").toInt(), 0); // Text.PlainText
     QTRY_VERIFY(cancel->hasActiveFocus());
-    QCOMPARE(state.sourceModel()->rowCount(), sources.size());
+    QCOMPARE(state.rowCount(), sources.size());
     if (action == "stale-source")
         QVERIFY(state.removeSource("shared"));
     const auto click = [&](QQuickItem *button) {
@@ -1563,7 +1563,7 @@ void MainWindowTest::sourceRemovalDialogHandlesConfirmation()
     QTRY_VERIFY(dialog.isNull());
     QVERIFY(root.isNull());
     const bool removed = action == "confirm" || action == "last" || action == "stale-source";
-    QCOMPARE(state.sourceModel()->rowCount(), sources.size() - (removed ? 1 : 0));
+    QCOMPARE(state.rowCount(), sources.size() - (removed ? 1 : 0));
     if (removed) {
         QVERIFY(!state.selectSource("shared"));
         QVERIFY(state.currentSourceId().isEmpty());

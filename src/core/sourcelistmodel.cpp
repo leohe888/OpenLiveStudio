@@ -77,8 +77,6 @@ SourceListModel::SourceListModel(const QList<SourceData> &sources, QObject *pare
     connect(this, &QAbstractItemModel::rowsMoved, this, &SourceListModel::sourceMoveAvailabilityChanged);
 }
 
-QAbstractItemModel *SourceListModel::sourceModel() const { return const_cast<SourceListModel *>(this); }
-
 bool SourceListModel::selectSource(const QString &id)
 {
     if (!id.isEmpty()) {

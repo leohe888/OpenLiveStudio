@@ -55,7 +55,7 @@ private:
     QDockWidget *m_sourcesDock = nullptr;
     QDockWidget *m_mixerDock = nullptr;
     QDockWidget *m_controlsDock = nullptr;
-    SourceListModel *m_sourceManager = nullptr;
+    SourceListModel *m_sourceListModel = nullptr;
     ThemeManager &m_theme;
 };
 #endif // MAINWINDOW_H
