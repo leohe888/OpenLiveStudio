@@ -59,12 +59,14 @@ qt_add_executable(tst_scenemanager
     ../src/core/scenemanager.h
     ../src/sources/imageprobe.cpp
     ../src/sources/imageprobe.h
+    ../src/sources/camerasource.cpp
+    ../src/sources/camerasource.h
 )
 target_include_directories(tst_scenemanager PRIVATE
     "${PROJECT_SOURCE_DIR}/src/sources"
     "${PROJECT_SOURCE_DIR}/src/core"
 )
-target_link_libraries(tst_scenemanager PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_link_libraries(tst_scenemanager PRIVATE Qt6::Multimedia Qt6::Test)
 add_test(NAME core.scenemanager
     COMMAND "${CMAKE_COMMAND}" -E env
         "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
@@ -83,6 +85,8 @@ qt_add_executable(tst_mainwindow
     ../src/core/scenemanager.h
     ../src/sources/imageprobe.cpp
     ../src/sources/imageprobe.h
+    ../src/sources/camerasource.cpp
+    ../src/sources/camerasource.h
 )
 
 target_include_directories(tst_mainwindow PRIVATE
@@ -91,7 +95,7 @@ target_include_directories(tst_mainwindow PRIVATE
     "${PROJECT_SOURCE_DIR}/src/sources"
 )
 target_link_libraries(tst_mainwindow PRIVATE
-    Qt6::Widgets Qt6::Test Qt6::QuickWidgets Qt6::QuickControls2 Qt6::Svg
+    Qt6::Widgets Qt6::Test Qt6::QuickWidgets Qt6::QuickControls2 Qt6::Svg Qt6::Multimedia
 )
 set_target_properties(tst_mainwindow PROPERTIES WIN32_EXECUTABLE FALSE)
 

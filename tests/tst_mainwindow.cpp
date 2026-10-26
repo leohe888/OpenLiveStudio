@@ -35,6 +35,19 @@
 #include <QtTest/QTest>
 #include <memory>
 
+class CameraDialogSceneManager : public SceneManager
+{
+public:
+    using SceneManager::SceneManager;
+    QVariantList devices;
+    QVariantList cameraDevices() const override { return devices; }
+    void setDevices(const QVariantList &value)
+    {
+        devices = value;
+        emit cameraDevicesChanged();
+    }
+};
+
 class MainWindowTest : public QObject
 {
     Q_OBJECT
@@ -74,6 +87,9 @@ private slots:
     void sourceAddDialogHandlesInput();
     void sourceAddDialogHandlesTypeSelection_data();
     void sourceAddDialogHandlesTypeSelection();
+    void cameraSourcesValidateAndKeepScenesSeparate();
+    void sourceAddDialogHandlesCameras_data();
+    void sourceAddDialogHandlesCameras();
     void sceneNameDialogValidatesAndSaves_data();
     void sceneNameDialogValidatesAndSaves();
     void sceneNameDialogCancelsWithoutChanges_data();
@@ -1724,7 +1740,7 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
         QTRY_VERIFY(!popup->property("visible").toBool());
     };
     const QStringList keys{"image", "displayCapture", "windowCapture", "camera", "text"};
-    for (int index = 1; index < keys.size(); ++index) {
+    for (int index : {1, 2, 4}) {
         root->setProperty("errorText", "Previous error");
         activateType(index);
         QCOMPARE(type->property("currentValue").toString(), keys.at(index));
@@ -1737,8 +1753,7 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
         auto *background = confirm->property("background").value<QQuickItem *>();
         QVERIFY(background);
         QCOMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.disabled"));
-        const QString expectedName = index == 3
-            ? QString::fromUtf8("摄像头 2") : type->property("currentText").toString();
+        const QString expectedName = type->property("currentText").toString();
         QCOMPARE(name->property("text").toString(), expectedName);
         // A direct call or Return in the name field must also reject these types.
         QVERIFY(QMetaObject::invokeMethod(root, "submit"));
@@ -1766,6 +1781,154 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
     QCOMPARE(manager->sourceModel()->rowCount(), 2);
     QCOMPARE(manager->sourceModel()->index(0, 0).data(SceneManager::NameRole).toString(),
              QString("Custom source"));
+}
+
+void MainWindowTest::cameraSourcesValidateAndKeepScenesSeparate()
+{
+    CameraDialogSceneManager manager(QList<SceneManager::SceneData>{
+        {"first", "First", {}}, {"second", "Second", {}}});
+    manager.setDevices({QVariantMap{{"id", "a"}, {"description", "Camera"}, {"isDefault", true}}});
+    const QString first = manager.addCameraSource("first", "  Camera  ", "a");
+    QVERIFY(!first.isEmpty());
+    QCOMPARE(manager.currentSourceId(), first);
+    for (const auto &name : {QString(), QString("  "), QString("camera"), QString(" CAMERA ")}) {
+        QVERIFY(!manager.cameraSourceError("first", name, "a").isEmpty());
+        QVERIFY(manager.addCameraSource("first", name, "a").isEmpty());
+    }
+    for (const auto &id : {QString(), QString("missing")})
+        QVERIFY(manager.addCameraSource("first", "Other", id).isEmpty());
+    QVERIFY(manager.addCameraSource("missing", "Other", "a").isEmpty());
+    const QString second = manager.addCameraSource("second", "Camera", "a");
+    QVERIFY(!second.isEmpty());
+    QVERIFY(second != first);
+    QCOMPARE(manager.currentSourceId(), first);
+    QCOMPARE(manager.sourceModel()->rowCount(), 1);
+    const auto row = manager.sourceModel()->index(0, 0);
+    QCOMPARE(row.data(SceneManager::NameRole).toString(), QString("Camera"));
+    QCOMPARE(row.data(SceneManager::TypeRole).toString(), QString("camera"));
+    QVERIFY(!row.data(SceneManager::FilePathRole).isValid());
+    QVERIFY(!row.data(SceneManager::OriginalSizeRole).toSize().isValid());
+    QVERIFY(manager.selectScene("second"));
+    QCOMPARE(manager.sourceModel()->index(0, 0).data(SceneManager::IdRole).toString(), second);
+    manager.devices.clear(); // Simulate loss before a device-list notification is delivered.
+    QVERIFY(manager.addCameraSource("second", "Another", "a").isEmpty());
+    QCOMPARE(manager.sourceModel()->rowCount(), 1);
+    QVERIFY(manager.removeScene("first"));
+    QVERIFY(manager.addCameraSource("first", "Another", "a").isEmpty());
+}
+
+void MainWindowTest::sourceAddDialogHandlesCameras_data()
+{
+    QTest::addColumn<QString>("themeId");
+    QTest::newRow("dark") << QString("dark");
+    QTest::newRow("light") << QString("light");
+}
+
+void MainWindowTest::sourceAddDialogHandlesCameras()
+{
+    QFETCH(QString, themeId);
+    QVERIFY(m_theme->setTheme(themeId));
+    const QVariant a = QVariantMap{{"id", "a"}, {"description", "Same camera name"}, {"isDefault", false}};
+    const QVariant b = QVariantMap{{"id", "b"}, {"description", "Same camera name"}, {"isDefault", true}};
+    CameraDialogSceneManager manager(QList<SceneManager::SceneData>{
+        {"first", "First", {}}, {"second", "Second", {}}});
+    MainWindow window(*m_theme);
+    window.show();
+    for (bool cancel : {true, false}) {
+        manager.setDevices({});
+        window.showDialog(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml"), "Add camera",
+            {{"sceneManager", QVariant::fromValue(static_cast<SceneManager *>(&manager))},
+             {"sceneId", "first"}});
+        QPointer<QDialog> dialog = window.findChild<QDialog *>("qmlDialog");
+        QVERIFY(dialog);
+        auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
+        QVERIFY(view);
+        QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+        auto *root = view->rootObject();
+        QVERIFY(root);
+        auto *type = root->findChild<QQuickItem *>("sourceTypeInput");
+        auto *name = root->findChild<QQuickItem *>("sourceNameInput");
+        auto *confirm = root->findChild<QQuickItem *>("confirmSourceAddButton");
+        QVERIFY(type && name && confirm);
+        const auto choose = [&](QQuickItem *combo, int index) {
+            combo->forceActiveFocus();
+            QTest::keyClick(view, Qt::Key_Space);
+            auto *popup = combo->property("popup").value<QObject *>();
+            QVERIFY(popup);
+            QTRY_VERIFY(popup->property("opened").toBool());
+            QTest::keyClick(view, Qt::Key_Home);
+            for (int row = 0; row < index; ++row)
+                QTest::keyClick(view, Qt::Key_Down);
+            QTest::keyClick(view, Qt::Key_Return);
+            QTRY_COMPARE(combo->property("currentIndex").toInt(), index);
+            QTRY_VERIFY(!popup->property("visible").toBool());
+        };
+        choose(type, 3);
+        auto *camera = root->findChild<QQuickItem *>("cameraDeviceInput");
+        auto *hint = root->findChild<QQuickItem *>("cameraConfigurationHint");
+        QVERIFY(camera && hint);
+        QVERIFY(!camera->isEnabled());
+        QVERIFY(!confirm->isEnabled());
+        QVERIFY(hint->isVisible());
+        QVERIFY(QMetaObject::invokeMethod(root, "submit"));
+        QVERIFY(!root->property("errorText").toString().isEmpty());
+        manager.setDevices({a, b});
+        QTRY_COMPARE(root->property("cameraDeviceId").toString(), QString("b"));
+        QTRY_COMPARE(camera->property("currentIndex").toInt(), 1);
+        QVERIFY(confirm->isEnabled());
+        manager.setDevices({b, a});
+        QTRY_COMPARE(camera->property("currentIndex").toInt(), 0);
+        QCOMPARE(root->property("cameraDeviceId").toString(), QString("b"));
+        choose(camera, 1);
+        QCOMPARE(root->property("cameraDeviceId").toString(), QString("a"));
+        manager.setDevices({b});
+        QTRY_VERIFY(root->property("cameraDeviceId").toString().isEmpty());
+        QVERIFY(!confirm->isEnabled());
+        manager.setDevices({a, b});
+        QTRY_COMPARE(camera->property("currentIndex").toInt(), -1);
+        QVERIFY(root->property("cameraDeviceId").toString().isEmpty());
+        choose(camera, 0);
+        name->forceActiveFocus();
+        QTest::keyClick(view, Qt::Key_A, Qt::ControlModifier);
+        QTest::keyClicks(view, "My camera");
+        choose(type, 0);
+        choose(type, 3);
+        camera = root->findChild<QQuickItem *>("cameraDeviceInput");
+        QVERIFY(camera);
+        QCOMPARE(root->property("cameraDeviceId").toString(), QString("a"));
+        QCOMPARE(name->property("text").toString(), QString("My camera"));
+        QCOMPARE(hint->property("color").value<QColor>(), m_theme->color("text.secondary"));
+        auto *indicator = camera->property("indicator").value<QQuickItem *>();
+        QVERIFY(indicator);
+        QCOMPARE(indicator->property("arrowColor").value<QColor>(), m_theme->color("icon.primary"));
+        QVERIFY(view->grabFramebuffer().save(QCoreApplication::applicationDirPath()
+                                           + "/camera-dialog-" + themeId + ".png"));
+        manager.devices.clear();
+        QVERIFY(QMetaObject::invokeMethod(root, "submit"));
+        QVERIFY(!root->property("errorText").toString().isEmpty());
+        QVERIFY(dialog->isVisible());
+        QCOMPARE(manager.sourceModel()->rowCount(), 0);
+        manager.setDevices({a, b});
+        if (cancel) {
+            auto *button = root->findChild<QQuickItem *>("cancelSourceAddButton");
+            QVERIFY(button);
+            QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
+                button->mapToScene(button->boundingRect().center()).toPoint());
+            QTRY_VERIFY(dialog.isNull());
+            QCOMPARE(manager.sourceModel()->rowCount(), 0);
+        } else {
+            QVERIFY(manager.selectScene("second"));
+            QVERIFY(QMetaObject::invokeMethod(root, "submit"));
+            QTRY_VERIFY(dialog.isNull());
+            QCOMPARE(manager.currentSceneId(), QString("second"));
+            QCOMPARE(manager.sourceModel()->rowCount(), 0);
+            QVERIFY(manager.selectScene("first"));
+            QCOMPARE(manager.sourceModel()->rowCount(), 1);
+            const auto added = manager.sourceModel()->index(0, 0);
+            QCOMPARE(added.data(SceneManager::NameRole).toString(), QString("My camera"));
+            QCOMPARE(added.data(SceneManager::TypeRole).toString(), QString("camera"));
+        }
+    }
 }
 
 void MainWindowTest::sceneNameDialogValidatesAndSaves_data()

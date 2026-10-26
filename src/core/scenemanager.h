@@ -8,13 +8,17 @@
 #include <QObject>
 #include <QSize>
 #include <QString>
+#include <QVariantList>
 #include <variant>
+
+class QMediaDevices;
 
 class SceneManager : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QAbstractItemModel *sceneModel READ sceneModel CONSTANT)
     Q_PROPERTY(QAbstractItemModel *sourceModel READ sourceModel CONSTANT)
+    Q_PROPERTY(QVariantList cameraDevices READ cameraDevices NOTIFY cameraDevicesChanged)
     Q_PROPERTY(QString currentSceneId READ currentSceneId NOTIFY currentSceneIdChanged)
     Q_PROPERTY(QString currentSourceId READ currentSourceId NOTIFY currentSourceIdChanged)
     Q_PROPERTY(bool canRemoveCurrentScene READ canRemoveCurrentScene NOTIFY canRemoveCurrentSceneChanged)
@@ -100,6 +104,8 @@ public:
 
     QAbstractItemModel *sceneModel() const;
     QAbstractItemModel *sourceModel() const;
+    // Entries contain opaque device IDs, descriptions, and the default-device flag.
+    virtual QVariantList cameraDevices() const;
     QString currentSceneId() const { return m_currentSceneId; }
     QString currentSourceId() const { return m_currentSourceId; }
     bool canRemoveCurrentScene() const { return m_scenes.size() > 1 && !m_currentSceneId.isEmpty(); }
@@ -126,6 +132,11 @@ public:
     // Returns the new ID, or empty on failure. Adds at the top of the target scene.
     Q_INVOKABLE QString addImageSource(const QString &sceneId, const QString &name,
                                        const QString &filePath);
+    Q_INVOKABLE QString cameraSourceError(const QString &sceneId, const QString &name,
+                                          const QString &deviceId) const;
+    // Saves the device configuration only; capture is not started here.
+    Q_INVOKABLE QString addCameraSource(const QString &sceneId, const QString &name,
+                                        const QString &deviceId);
     // Remove only this scene's entry; never delete its file or another scene's entry.
     Q_INVOKABLE bool removeSource(const QString &sceneId, const QString &sourceId);
     bool canMoveCurrentSourceUp() const;
@@ -136,6 +147,7 @@ public:
     Q_INVOKABLE bool setSourceLocked(const QString &sceneId, const QString &sourceId, bool locked);
 
 signals:
+    void cameraDevicesChanged();
     void currentSceneIdChanged();
     void currentSourceIdChanged();
     void canRemoveCurrentSceneChanged();
@@ -148,11 +160,13 @@ private:
     int sceneRow(const QString &id) const;
     int sourceRow(const QString &sceneId, const QString &sourceId) const;
     bool setSourceFlag(const QString &sceneId, const QString &sourceId, int role, bool value);
+    QString sourceNameError(const QString &sceneId, const QString &name) const;
     QString validateImageSource(const QString &sceneId, const QString &name,
                                 const QString &filePath, QSize *size) const;
     QList<SceneData> m_scenes;
     SceneListModel *m_sceneModel;
     SourceListModel *m_sourceModel;
+    QMediaDevices *m_mediaDevices;
     QString m_currentSceneId;
     QString m_currentSourceId;
 };
