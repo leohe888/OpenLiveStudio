@@ -911,7 +911,6 @@ void MainWindowTest::basicDialogThemes()
         properties = {{"sceneManager", QVariant::fromValue(state)}};
         if (dialogName == "SourceAddDialog") properties.insert("initialName", "Theme sample");
         else {
-            properties.insert("sceneId", state->currentSceneId());
             properties.insert("sourceId", "fixed-source-id");
             properties.insert("sourceName", "Theme sample");
         }
@@ -932,7 +931,6 @@ void MainWindowTest::basicDialogThemes()
             QTRY_VERIFY(dialog->isActiveWindow());
         }
         auto *input = root->findChild<QQuickItem *>("sourceNameInput");
-        const auto sceneId = root->property("sceneId");
         const auto sourceId = root->property("sourceId");
         if (input) {
             input->setProperty("text", "Unsaved name");
@@ -943,7 +941,6 @@ void MainWindowTest::basicDialogThemes()
         for (const auto &id : {themeId, themeId == "dark" ? QString("light") : QString("dark")}) {
             QVERIFY(m_theme->setTheme(id));
             QCOMPARE(view->rootObject(), root.data());
-            QCOMPARE(root->property("sceneId"), sceneId);
             QCOMPARE(root->property("sourceId"), sourceId);
             QTRY_COMPARE(root->property("color").value<QColor>(), m_theme->color("background.panel"));
             if (input) {
@@ -1445,7 +1442,6 @@ void MainWindowTest::sourcePanelRequestsRemoval()
     QFETCH(bool, reload);
     const QString first = "alpha", second = "beta";
     SceneManager state(QList<SceneManager::SourceData>{{second, "Beta"}, {first, "Alpha"}});
-    const QString sceneId = state.currentSceneId();
     QQuickWidget panel;
     panel.rootContext()->setContextProperty("uiTheme", m_theme.get());
     panel.rootContext()->setContextProperty("sceneManager", &state);
@@ -1472,7 +1468,7 @@ void MainWindowTest::sourcePanelRequestsRemoval()
     };
     // Finish the new root's first layout before exercising model changes.
     QVERIFY(!panel.grabFramebuffer().isNull());
-    QSignalSpy requested(panel.rootObject(), SIGNAL(sourceRemovalDialogRequested(QString,QString)));
+    QSignalSpy requested(panel.rootObject(), SIGNAL(sourceRemovalDialogRequested(QString)));
     QVERIFY(requested.isValid());
     const auto clickRemove = [&] {
         auto *button = removeButton();
@@ -1490,11 +1486,11 @@ void MainWindowTest::sourcePanelRequestsRemoval()
         requested.clear();
         clickRemove();
         QTRY_COMPARE(requested.count(), 1);
-        QCOMPARE(requested.first().at(0).toString(), sceneId);
-        QCOMPARE(requested.first().at(1).toString(), id);
+        QCOMPARE(requested.first().size(), 1);
+        QCOMPARE(requested.first().at(0).toString(), id);
         // Requesting confirmation leaves the entry intact.
         QCOMPARE(state.currentSourceId(), id);
-        QVERIFY(state.removeSource(sceneId, id));
+        QVERIFY(state.removeSource(id));
         QTRY_VERIFY(!removeButton()->isEnabled());
     }
     QCOMPARE(state.sourceModel()->rowCount(), 0);
@@ -1509,7 +1505,7 @@ void MainWindowTest::sourcePanelRequestsRemoval()
 void MainWindowTest::sourceRemovalDialogHandlesConfirmation_data()
 {
     QTest::addColumn<QString>("action");
-    for (const auto *name : {"confirm", "last", "cancel", "escape", "close", "stale-source", "invalid-canvas"})
+    for (const auto *name : {"confirm", "last", "cancel", "escape", "close", "stale-source", "invalid-source"})
         QTest::newRow(name) << QString::fromLatin1(name);
 }
 
@@ -1532,13 +1528,14 @@ void MainWindowTest::sourceRemovalDialogHandlesConfirmation()
     window.show();
     window.showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceRemovalDialog.qml")),
         QStringLiteral("Remove source"), {{"sceneManager", QVariant::fromValue(&state)},
-        {"sceneId", action == "invalid-canvas" ? QString("missing") : state.currentSceneId()}, {"sourceId", "shared"}, {"sourceName", name}});
+        {"sourceId", action == "invalid-source" ? QString("missing") : QString("shared")}, {"sourceName", name}});
     QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
     QVERIFY(dialog);
     auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
     QTRY_COMPARE(view->status(), QQuickWidget::Ready);
     QPointer<QQuickItem> root = view->rootObject();
     QVERIFY(root);
+    QVERIFY(!root->property("sceneId").isValid());
     auto *message = root->findChild<QQuickItem *>(QStringLiteral("sourceRemovalMessage"));
     auto *confirm = root->findChild<QQuickItem *>(QStringLiteral("confirmSourceRemovalButton"));
     auto *cancel = root->findChild<QQuickItem *>(QStringLiteral("cancelSourceRemovalButton"));
@@ -1549,7 +1546,7 @@ void MainWindowTest::sourceRemovalDialogHandlesConfirmation()
     QTRY_VERIFY(cancel->hasActiveFocus());
     QCOMPARE(state.sourceModel()->rowCount(), sources.size());
     if (action == "stale-source")
-        QVERIFY(state.removeSource(state.currentSceneId(), "shared"));
+        QVERIFY(state.removeSource("shared"));
     const auto click = [&](QQuickItem *button) {
         QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
             button->mapToScene(button->boundingRect().center()).toPoint());
@@ -1562,7 +1559,7 @@ void MainWindowTest::sourceRemovalDialogHandlesConfirmation()
         dialog->close();
     } else {
         click(confirm);
-        if (action == "stale-source" || action == "invalid-canvas") {
+        if (action == "stale-source" || action == "invalid-source") {
             QTRY_VERIFY(!error->property("text").toString().isEmpty());
             QVERIFY(dialog->isVisible());
             click(cancel);

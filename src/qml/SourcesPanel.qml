@@ -11,7 +11,7 @@ Rectangle {
     color: themeColors.background.panel
     readonly property var state: typeof sceneManager !== "undefined" ? sceneManager : null
     signal sourceAddDialogRequested()
-    signal sourceRemovalDialogRequested(string sceneId, string sourceId)
+    signal sourceRemovalDialogRequested(string sourceId)
 
     // Each operation opts in once its business implementation is available.
     component SourceButton: ToolButton {
@@ -188,7 +188,7 @@ Rectangle {
                             if (modelData.name === "addSourceButton")
                                 root.sourceAddDialogRequested()
                             else if (modelData.name === "removeSourceButton")
-                                root.sourceRemovalDialogRequested(root.state.currentSceneId, root.state.currentSourceId)
+                                root.sourceRemovalDialogRequested(root.state.currentSourceId)
                             else if (modelData.name === "moveSourceUpButton")
                                 root.state.moveSource(root.state.currentSourceId, -1)
                             else if (modelData.name === "moveSourceDownButton")

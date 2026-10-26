@@ -237,9 +237,9 @@ void MainWindow::showSourceAddDialog()
                        {QStringLiteral("initialName"), initialName}});
 }
 
-void MainWindow::showSourceRemovalDialog(const QString &sceneId, const QString &sourceId)
+void MainWindow::showSourceRemovalDialog(const QString &sourceId)
 {
-    if (sceneId != m_sceneManager->currentSceneId() || sourceId.isEmpty())
+    if (sourceId.isEmpty())
         return;
     auto *model = m_sceneManager->sourceModel();
     for (int row = 0; row < model->rowCount(); ++row) {
@@ -248,7 +248,6 @@ void MainWindow::showSourceRemovalDialog(const QString &sceneId, const QString &
             continue;
         showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceRemovalDialog.qml")),
             tr("移除来源"), {{QStringLiteral("sceneManager"), QVariant::fromValue(m_sceneManager)},
-                           {QStringLiteral("sceneId"), sceneId},
                            {QStringLiteral("sourceId"), sourceId},
                            {QStringLiteral("sourceName"), index.data(SceneManager::NameRole)}});
         return;
@@ -402,8 +401,8 @@ void MainWindow::setupSourcesDock()
             pages->setCurrentWidget(view);
             connect(view->rootObject(), SIGNAL(sourceAddDialogRequested()),
                     this, SLOT(showSourceAddDialog()), Qt::UniqueConnection);
-            connect(view->rootObject(), SIGNAL(sourceRemovalDialogRequested(QString,QString)),
-                    this, SLOT(showSourceRemovalDialog(QString,QString)), Qt::UniqueConnection);
+            connect(view->rootObject(), SIGNAL(sourceRemovalDialogRequested(QString)),
+                    this, SLOT(showSourceRemovalDialog(QString)), Qt::UniqueConnection);
         }
     });
     connect(view, &QQuickWidget::sceneGraphError, this,

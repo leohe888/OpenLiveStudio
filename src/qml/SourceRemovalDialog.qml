@@ -10,17 +10,16 @@ Rectangle {
     implicitHeight: 220
     color: root.themeColors.background.panel
     required property var sceneManager
-    required property string sceneId
     required property string sourceId
     required property string sourceName
     property string errorText: ""
     signal closeRequested()
 
     function removeSource() {
-        if (sceneManager && sceneManager.removeSource(sceneId, sourceId))
+        if (sceneManager && sceneManager.removeSource(sourceId))
             closeRequested()
         else
-            errorText = qsTr("无法移除来源：目标场景或来源可能已不存在。")
+            errorText = qsTr("无法移除来源：目标来源可能已不存在。")
     }
 
     component ActionButton: Button {
@@ -53,7 +52,7 @@ Rectangle {
         Label {
             Layout.fillWidth: true
             objectName: "sourceRemovalHint"
-            text: qsTr("仅从此场景移除，不会删除磁盘上的文件。")
+            text: qsTr("仅从来源列表移除，不会删除磁盘上的文件。")
             textFormat: Text.PlainText
             wrapMode: Text.WordWrap
             color: root.themeColors.text.secondary

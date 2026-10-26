@@ -30,7 +30,7 @@ protected:
 
 private slots:
     void showSourceAddDialog();
-    void showSourceRemovalDialog(const QString &sceneId, const QString &sourceId);
+    void showSourceRemovalDialog(const QString &sourceId);
 
 private:
     void applyTheme();
