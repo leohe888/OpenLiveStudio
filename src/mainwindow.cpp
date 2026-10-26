@@ -227,14 +227,13 @@ void MainWindow::showDialog(const QUrl &source, const QString &title,
     dialog->open();
 }
 
-void MainWindow::showSourceAddDialog(const QString &sceneId)
+void MainWindow::showSourceAddDialog()
 {
-    const QString initialName = m_sceneManager->suggestedSourceName(sceneId, tr("显示器采集"));
+    const QString initialName = m_sceneManager->suggestedSourceName(tr("显示器采集"));
     if (initialName.isEmpty())
         return;
     showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml")),
         tr("添加来源"), {{QStringLiteral("sceneManager"), QVariant::fromValue(m_sceneManager)},
-                       {QStringLiteral("sceneId"), sceneId},
                        {QStringLiteral("initialName"), initialName}});
 }
 
@@ -401,8 +400,8 @@ void MainWindow::setupSourcesDock()
             if (pages->currentWidget() == errorLabel)
                 statusBar()->showMessage(tr("来源面板已加载"), 3000);
             pages->setCurrentWidget(view);
-            connect(view->rootObject(), SIGNAL(sourceAddDialogRequested(QString)),
-                    this, SLOT(showSourceAddDialog(QString)), Qt::UniqueConnection);
+            connect(view->rootObject(), SIGNAL(sourceAddDialogRequested()),
+                    this, SLOT(showSourceAddDialog()), Qt::UniqueConnection);
             connect(view->rootObject(), SIGNAL(sourceRemovalDialogRequested(QString,QString)),
                     this, SLOT(showSourceRemovalDialog(QString,QString)), Qt::UniqueConnection);
         }

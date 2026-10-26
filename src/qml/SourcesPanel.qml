@@ -10,7 +10,7 @@ Rectangle {
     implicitHeight: 320
     color: themeColors.background.panel
     readonly property var state: typeof sceneManager !== "undefined" ? sceneManager : null
-    signal sourceAddDialogRequested(string sceneId)
+    signal sourceAddDialogRequested()
     signal sourceRemovalDialogRequested(string sceneId, string sourceId)
 
     // Each operation opts in once its business implementation is available.
@@ -177,7 +177,7 @@ Rectangle {
                         enabled: {
                             if (!root.state) return false
                             switch (modelData.name) {
-                            case "addSourceButton": return root.state.currentSceneId.length > 0
+                            case "addSourceButton": return true
                             case "removeSourceButton": return root.state.currentSourceId.length > 0
                             case "moveSourceUpButton": return root.state.canMoveCurrentSourceUp
                             case "moveSourceDownButton": return root.state.canMoveCurrentSourceDown
@@ -186,7 +186,7 @@ Rectangle {
                         }
                         onClicked: {
                             if (modelData.name === "addSourceButton")
-                                root.sourceAddDialogRequested(root.state.currentSceneId)
+                                root.sourceAddDialogRequested()
                             else if (modelData.name === "removeSourceButton")
                                 root.sourceRemovalDialogRequested(root.state.currentSceneId, root.state.currentSourceId)
                             else if (modelData.name === "moveSourceUpButton")

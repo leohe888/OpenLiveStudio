@@ -29,7 +29,7 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private slots:
-    void showSourceAddDialog(const QString &sceneId);
+    void showSourceAddDialog();
     void showSourceRemovalDialog(const QString &sceneId, const QString &sourceId);
 
 private:

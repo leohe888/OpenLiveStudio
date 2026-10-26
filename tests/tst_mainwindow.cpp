@@ -908,9 +908,10 @@ void MainWindowTest::basicDialogThemes()
     if (dialogName == "AboutDialog") {
         properties = {{"productName", "OpenLive Studio"}, {"versionText", "Development"}, {"qtVersion", qVersion()}};
     } else {
-        properties = {{"sceneManager", QVariant::fromValue(state)}, {"sceneId", state->currentSceneId()}};
+        properties = {{"sceneManager", QVariant::fromValue(state)}};
         if (dialogName == "SourceAddDialog") properties.insert("initialName", "Theme sample");
         else {
+            properties.insert("sceneId", state->currentSceneId());
             properties.insert("sourceId", "fixed-source-id");
             properties.insert("sourceName", "Theme sample");
         }
@@ -1264,7 +1265,11 @@ void MainWindowTest::sourcePanelOpensAddDialog()
         if (item->objectName() == "addSourceButton")
             add = item;
     }
+    QCOMPARE(state->sourceModel()->rowCount(), 0);
+    QVERIFY(state->currentSourceId().isEmpty());
     QVERIFY(add && add->isEnabled());
+    QSignalSpy requested(panel->rootObject(), SIGNAL(sourceAddDialogRequested()));
+    QVERIFY(requested.isValid());
     for (int opening = 0; opening < 2; ++opening) {
         QTest::mouseClick(panel, Qt::LeftButton, Qt::NoModifier,
             add->mapToScene(add->boundingRect().center()).toPoint());
@@ -1276,6 +1281,8 @@ void MainWindowTest::sourcePanelOpensAddDialog()
         QTRY_COMPARE(view->status(), QQuickWidget::Ready);
         auto *root = view->rootObject();
         QVERIFY(root);
+        QCOMPARE(requested.count(), opening + 1);
+        QVERIFY(!root->property("sceneId").isValid());
         QVERIFY(!root->findChild<QQuickItem *>("sourceFileInput"));
         QVERIFY(!root->findChild<QQuickItem *>("browseSourceFileButton"));
         QVERIFY(!dialog->findChild<QObject *>("imageFileDialog"));
@@ -1303,7 +1310,7 @@ void MainWindowTest::sourceAddDialogHandlesInput()
     auto *state = window.findChild<SceneManager *>();
     QVERIFY(state);
     window.showDialog(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml"), "Add source",
-        {{"sceneManager", QVariant::fromValue(state)}, {"sceneId", state->currentSceneId()}});
+        {{"sceneManager", QVariant::fromValue(state)}});
     QPointer<QDialog> dialog = window.findChild<QDialog *>("qmlDialog");
     QVERIFY(dialog);
     auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
@@ -1353,9 +1360,8 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
     window.show();
     auto *manager = window.findChild<SceneManager *>();
     QVERIFY(manager);
-    const QString sceneId = manager->currentSceneId();
     window.showDialog(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml"), "Add source",
-        {{"sceneManager", QVariant::fromValue(manager)}, {"sceneId", sceneId}});
+        {{"sceneManager", QVariant::fromValue(manager)}});
     QPointer<QDialog> dialog = window.findChild<QDialog *>("qmlDialog");
     QVERIFY(dialog);
     auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
