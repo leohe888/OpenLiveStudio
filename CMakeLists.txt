@@ -19,7 +19,7 @@ qt_add_executable(OpenLiveStudio
     src/core/thememanager.cpp
     src/core/thememanager.h
     src/core/sourcemanager.cpp
-    src/core/scenemanager.h
+    src/core/sourcemanager.h
 )
 
 set(OPENLIVE_STUDIO_QML_FILES

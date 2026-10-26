@@ -23,7 +23,7 @@ set_tests_properties(core.thememanager PROPERTIES LABELS "core;smoke" TIMEOUT 15
 qt_add_executable(tst_sourcemanager
     tst_sourcemanager.cpp
     ../src/core/sourcemanager.cpp
-    ../src/core/scenemanager.h
+    ../src/core/sourcemanager.h
 )
 target_include_directories(tst_sourcemanager PRIVATE
     "${PROJECT_SOURCE_DIR}/src/core"
@@ -44,7 +44,7 @@ qt_add_executable(tst_mainwindow
     ../src/mainwindow.cpp
     ../src/mainwindow.h
     ../src/core/sourcemanager.cpp
-    ../src/core/scenemanager.h
+    ../src/core/sourcemanager.h
 )
 
 target_include_directories(tst_mainwindow PRIVATE
