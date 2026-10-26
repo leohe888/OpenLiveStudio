@@ -90,6 +90,7 @@ public:
     int rowCount(const QModelIndex &parent = {}) const override;
     QVariant data(const QModelIndex &index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
+
     QString currentSourceId() const { return m_currentSourceId; }
     // An empty ID clears selection; other IDs must belong to the source list.
     Q_INVOKABLE bool selectSource(const QString &id);

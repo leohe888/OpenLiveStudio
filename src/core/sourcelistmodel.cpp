@@ -21,6 +21,19 @@ SourceListModel::SourceType SourceListModel::SourceData::type() const
     }, config);
 }
 
+SourceListModel::SourceListModel(QObject *parent)
+    : SourceListModel(QList<SourceData>{}, parent)
+{
+}
+
+SourceListModel::SourceListModel(const QList<SourceData> &sources, QObject *parent)
+    : QAbstractListModel(parent), m_sources(sources)
+{
+    connect(this, &SourceListModel::currentSourceIdChanged, this, &SourceListModel::sourceMoveAvailabilityChanged);
+    connect(this, &QAbstractItemModel::rowsRemoved, this, &SourceListModel::sourceMoveAvailabilityChanged);
+    connect(this, &QAbstractItemModel::rowsMoved, this, &SourceListModel::sourceMoveAvailabilityChanged);
+}
+
 int SourceListModel::rowCount(const QModelIndex &parent) const
 {
     return parent.isValid() ? 0 : int(m_sources.size());
@@ -62,19 +75,6 @@ QHash<int, QByteArray> SourceListModel::roleNames() const
     return {{IdRole, "sourceId"}, {NameRole, "sourceName"}, {TypeRole, "sourceType"},
             {FilePathRole, "sourceFilePath"}, {OriginalSizeRole, "sourceOriginalSize"},
             {VisibleRole, "sourceVisible"}, {LockedRole, "sourceLocked"}};
-}
-
-SourceListModel::SourceListModel(QObject *parent)
-    : SourceListModel(QList<SourceData>{}, parent)
-{
-}
-
-SourceListModel::SourceListModel(const QList<SourceData> &sources, QObject *parent)
-    : QAbstractListModel(parent), m_sources(sources)
-{
-    connect(this, &SourceListModel::currentSourceIdChanged, this, &SourceListModel::sourceMoveAvailabilityChanged);
-    connect(this, &QAbstractItemModel::rowsRemoved, this, &SourceListModel::sourceMoveAvailabilityChanged);
-    connect(this, &QAbstractItemModel::rowsMoved, this, &SourceListModel::sourceMoveAvailabilityChanged);
 }
 
 bool SourceListModel::selectSource(const QString &id)
