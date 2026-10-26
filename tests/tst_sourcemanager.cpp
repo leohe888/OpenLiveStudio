@@ -354,4 +354,4 @@ void SourceManagerTest::sameImageEntriesRemainIndependent()
 }
 
 QTEST_GUILESS_MAIN(SourceManagerTest)
-#include "tst_scenemanager.moc"
+#include "tst_sourcemanager.moc"

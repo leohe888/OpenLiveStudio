@@ -20,22 +20,22 @@ add_test(NAME core.thememanager
 )
 set_tests_properties(core.thememanager PROPERTIES LABELS "core;smoke" TIMEOUT 15)
 
-qt_add_executable(tst_scenemanager
-    tst_scenemanager.cpp
-    ../src/core/scenemanager.cpp
+qt_add_executable(tst_sourcemanager
+    tst_sourcemanager.cpp
+    ../src/core/sourcemanager.cpp
     ../src/core/scenemanager.h
 )
-target_include_directories(tst_scenemanager PRIVATE
+target_include_directories(tst_sourcemanager PRIVATE
     "${PROJECT_SOURCE_DIR}/src/core"
 )
-target_link_libraries(tst_scenemanager PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
-add_test(NAME core.scenemanager
+target_link_libraries(tst_sourcemanager PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+add_test(NAME core.sourcemanager
     COMMAND "${CMAKE_COMMAND}" -E env
         "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
-        "$<TARGET_FILE:tst_scenemanager>"
+        "$<TARGET_FILE:tst_sourcemanager>"
         -o "-,txt"
 )
-set_tests_properties(core.scenemanager PROPERTIES LABELS "core;smoke" TIMEOUT 10)
+set_tests_properties(core.sourcemanager PROPERTIES LABELS "core;smoke" TIMEOUT 10)
 
 qt_add_executable(tst_mainwindow
     tst_mainwindow.cpp
@@ -43,7 +43,7 @@ qt_add_executable(tst_mainwindow
     ../src/core/thememanager.h
     ../src/mainwindow.cpp
     ../src/mainwindow.h
-    ../src/core/scenemanager.cpp
+    ../src/core/sourcemanager.cpp
     ../src/core/scenemanager.h
 )
 
