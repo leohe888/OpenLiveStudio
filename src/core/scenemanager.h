@@ -14,8 +14,6 @@ class SceneManager : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QAbstractItemModel *sourceModel READ sourceModel CONSTANT)
-    // Temporary compatibility token for source QML; there is no scene selection.
-    Q_PROPERTY(QString currentSceneId READ currentSceneId CONSTANT)
     Q_PROPERTY(QString currentSourceId READ currentSourceId NOTIFY currentSourceIdChanged)
     Q_PROPERTY(bool canMoveCurrentSourceUp READ canMoveCurrentSourceUp NOTIFY sourceMoveAvailabilityChanged)
     Q_PROPERTY(bool canMoveCurrentSourceDown READ canMoveCurrentSourceDown NOTIFY sourceMoveAvailabilityChanged)
@@ -91,17 +89,12 @@ public:
     explicit SceneManager(const QList<SourceData> &sources, QObject *parent = nullptr);
 
     QAbstractItemModel *sourceModel() const;
-    // Transitional source API adapter; not a stored or selectable scene ID.
-    QString currentSceneId() const { return QStringLiteral("canvas"); }
     QString currentSourceId() const { return m_currentSourceId; }
     // An empty ID clears selection; other IDs must belong to the source list.
     Q_INVOKABLE bool selectSource(const QString &id);
     Q_INVOKABLE QString suggestedSourceName(const QString &baseName) const;
     // Removes the list entry only; never deletes its file.
     Q_INVOKABLE bool removeSource(const QString &sourceId);
-    // Temporary dialog adapters: sceneId must match currentSceneId().
-    Q_INVOKABLE QString suggestedSourceName(const QString &sceneId, const QString &baseName) const;
-    Q_INVOKABLE bool removeSource(const QString &sceneId, const QString &sourceId);
     bool canMoveCurrentSourceUp() const;
     bool canMoveCurrentSourceDown() const;
     // List order is topmost first; offset must be -1 or 1.

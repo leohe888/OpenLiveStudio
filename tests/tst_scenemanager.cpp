@@ -24,7 +24,6 @@ private slots:
     void rejectsInvalidOperations();
     void suggestsUnusedSourceNames();
     void sameImageEntriesRemainIndependent();
-    void dialogAdaptersShareSourceState();
 };
 
 static QList<SceneManager::SourceData> sources()
@@ -40,7 +39,6 @@ void SceneManagerTest::startsWithEmptySourceList()
     QVERIFY(state.currentSourceId().isEmpty());
     QVERIFY(!state.canMoveCurrentSourceUp());
     QVERIFY(!state.canMoveCurrentSourceDown());
-    QVERIFY(!state.currentSceneId().isEmpty()); // Temporary QML adapter remains usable even with no sources.
     QCOMPARE(state.suggestedSourceName("Camera"), QString("Camera"));
     QVERIFY(!state.selectSource("missing"));
     QVERIFY(state.selectSource({}));
@@ -353,29 +351,6 @@ void SceneManagerTest::sameImageEntriesRemainIndependent()
     QVERIFY(!state.canMoveCurrentSourceDown());
     QVERIFY(QFile::exists(path));
     QCOMPARE(QImage(path), image);
-}
-
-void SceneManagerTest::dialogAdaptersShareSourceState()
-{
-    SceneManager state(sources());
-    const auto canvas = state.currentSceneId();
-    auto *model = state.sourceModel();
-    QSignalSpy removed(model, &QAbstractItemModel::rowsRemoved);
-    QCOMPARE(state.suggestedSourceName(canvas, "Image"), state.suggestedSourceName("Image"));
-    for (const auto &invalid : {QString(), QString("missing")}) {
-        QVERIFY(state.suggestedSourceName(invalid, "Image").isEmpty());
-        QVERIFY(!state.removeSource(invalid, "a"));
-    }
-    QCOMPARE(model->rowCount(), 3);
-    QCOMPARE(removed.count(), 0);
-    QVERIFY(state.removeSource(canvas, "a"));
-    QCOMPARE(removed.count(), 1);
-    QCOMPARE(state.suggestedSourceName("Image"), QString("Image"));
-    QVERIFY(!state.removeSource("a"));
-    QVERIFY(state.removeSource("b"));
-    QVERIFY(!state.removeSource(canvas, "b"));
-    QCOMPARE(model->rowCount(), 1);
-    QCOMPARE(removed.count(), 2);
 }
 
 QTEST_GUILESS_MAIN(SceneManagerTest)

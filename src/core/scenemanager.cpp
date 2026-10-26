@@ -116,11 +116,6 @@ bool SceneManager::selectSource(const QString &id)
     return true;
 }
 
-QString SceneManager::suggestedSourceName(const QString &sceneId, const QString &baseName) const
-{
-    return sceneId == currentSceneId() ? suggestedSourceName(baseName) : QString();
-}
-
 QString SceneManager::suggestedSourceName(const QString &baseName) const
 {
     const QString base = baseName.trimmed();
@@ -140,11 +135,6 @@ QString SceneManager::suggestedSourceName(const QString &baseName) const
             return candidate;
         candidate = base + QStringLiteral(" %1").arg(number);
     }
-}
-
-bool SceneManager::removeSource(const QString &sceneId, const QString &sourceId)
-{
-    return sceneId == currentSceneId() && removeSource(sourceId);
 }
 
 bool SceneManager::removeSource(const QString &sourceId)

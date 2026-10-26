@@ -127,8 +127,6 @@ void MainWindowTest::sourcePanelSharesStateAcrossReloadsAndReleasesItWithWindow(
     QVERIFY(state);
     QCOMPARE(window->findChildren<SceneManager *>().size(), 1);
     QCOMPARE(state->parent(), window.get());
-    const QString sceneId = state->currentSceneId();
-    QVERIFY(!sceneId.isEmpty());
     QPointer<QAbstractItemModel> sources = state->sourceModel();
     QList<QPointer<QQuickItem>> roots;
     QStringList destructionOrder;
@@ -153,8 +151,8 @@ void MainWindowTest::sourcePanelSharesStateAcrossReloadsAndReleasesItWithWindow(
         QTRY_COMPARE(view->status(), QQuickWidget::Ready);
         QCOMPARE(view->rootContext()->contextProperty(QStringLiteral("sceneManager")).value<QObject *>(), state.data());
         QQmlExpression reloaded(view->rootContext(), view->rootObject(),
-            QStringLiteral("sceneManager.currentSceneId"));
-        QCOMPARE(reloaded.evaluate().toString(), sceneId);
+            QStringLiteral("sceneManager.sourceModel"));
+        QCOMPARE(reloaded.evaluate().value<QObject *>(), sources.data());
         QVERIFY2(!reloaded.hasError(), qPrintable(reloaded.error().toString()));
         QCOMPARE(state->sourceModel(), sources.data());
         roots.append(view->rootObject());
@@ -336,7 +334,7 @@ void MainWindowTest::sourcePanelCanMoveAndToggle()
     if (!screenshot.isEmpty() && !reload)
         QVERIFY(panel.grabFramebuffer().save(screenshot));
     while (state.sourceModel()->rowCount() > 0)
-        QVERIFY(state.removeSource(state.currentSceneId(),
+        QVERIFY(state.removeSource(
             state.sourceModel()->index(0, 0).data(SceneManager::IdRole).toString()));
     QTRY_VERIFY(find("emptySourcesLabel")->isVisible());
     QVERIFY(!find("moveSourceUpButton")->isEnabled());
@@ -403,7 +401,6 @@ void MainWindowTest::listScrollBarsHandleOverflow()
     const QRectF lastRect = findLast()->mapRectToItem(list, findLast()->boundingRect());
     QVERIFY(lastRect.top() >= -1 && lastRect.bottom() <= list->height() + 1);
     QVERIFY(lastRect.right() <= bar->x());
-    QCOMPARE(state.currentSceneId(), QString("canvas"));
     QCOMPARE(state.currentSourceId(), QString("0"));
     panel.resize(238, 1000);
     QTRY_VERIFY(!bar->isVisible());
@@ -742,7 +739,6 @@ void MainWindowTest::sourceThemes()
             QVERIFY(find("sourceVisibilityButton")->property("checked").toBool() == false);
             QVERIFY(find("sourceLockButton")->property("checked").toBool());
         }
-        QCOMPARE(state.currentSceneId(), "canvas");
         QCOMPARE(state.currentSourceId(), "0");
     }
     panel.setSource(QUrl());
@@ -750,11 +746,10 @@ void MainWindowTest::sourceThemes()
     QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
     QTRY_VERIFY(find(prefix + "Row_0"));
     QCOMPARE(find(prefix + "Row_0")->property("color").value<QColor>(), m_theme->color("background.selected"));
-    QCOMPARE(state.currentSceneId(), "canvas");
     QCOMPARE(state.currentSourceId(), "0");
     if (prefix == "source") {
         while (state.sourceModel()->rowCount() > 0)
-            QVERIFY(state.removeSource(state.currentSceneId(),
+            QVERIFY(state.removeSource(
                 state.sourceModel()->index(0, 0).data(SceneManager::IdRole).toString()));
         auto *label = find("emptySourcesLabel");
         QVERIFY(label);
