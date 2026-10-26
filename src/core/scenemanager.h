@@ -1,5 +1,5 @@
-#ifndef SCENEMANAGER_H
-#define SCENEMANAGER_H
+#ifndef SOURCEMANAGER_H
+#define SOURCEMANAGER_H
 
 #include <QAbstractItemModel>
 #include <QColor>
@@ -10,7 +10,7 @@
 #include <QString>
 #include <variant>
 
-class SceneManager : public QObject
+class SourceManager : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QAbstractItemModel *sourceModel READ sourceModel CONSTANT)
@@ -84,9 +84,9 @@ public:
         LockedRole
     };
 
-    explicit SceneManager(QObject *parent = nullptr);
+    explicit SourceManager(QObject *parent = nullptr);
     // Initial source IDs must be nonempty and unique.
-    explicit SceneManager(const QList<SourceData> &sources, QObject *parent = nullptr);
+    explicit SourceManager(const QList<SourceData> &sources, QObject *parent = nullptr);
 
     QAbstractItemModel *sourceModel() const;
     QString currentSourceId() const { return m_currentSourceId; }
@@ -116,4 +116,7 @@ private:
     QString m_currentSourceId;
 };
 
-#endif // SCENEMANAGER_H
+// Temporary alias until the core test target is migrated.
+using SceneManager = SourceManager;
+
+#endif // SOURCEMANAGER_H

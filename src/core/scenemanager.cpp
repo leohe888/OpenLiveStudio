@@ -3,7 +3,7 @@
 #include <QAbstractListModel>
 #include <type_traits>
 
-SceneManager::SourceType SceneManager::SourceData::type() const
+SourceManager::SourceType SourceManager::SourceData::type() const
 {
     return std::visit([](const auto &config) {
         using Config = std::decay_t<decltype(config)>;
@@ -22,11 +22,11 @@ SceneManager::SourceType SceneManager::SourceData::type() const
     }, config);
 }
 
-class SceneManager::SourceListModel : public QAbstractListModel
+class SourceManager::SourceListModel : public QAbstractListModel
 {
 public:
-    explicit SourceListModel(SceneManager *sceneManager)
-        : QAbstractListModel(sceneManager), m_sceneManager(sceneManager) {}
+    explicit SourceListModel(SourceManager *sourceManager)
+        : QAbstractListModel(sourceManager), m_sourceManager(sourceManager) {}
 
     int rowCount(const QModelIndex &parent = {}) const override
     {
@@ -72,31 +72,31 @@ public:
     }
 
 private:
-    friend class SceneManager;
+    friend class SourceManager;
     const QList<SourceData> &sources() const
     {
-        return m_sceneManager->m_sources;
+        return m_sourceManager->m_sources;
     }
 
-    const SceneManager *m_sceneManager;
+    const SourceManager *m_sourceManager;
 };
 
-SceneManager::SceneManager(QObject *parent)
-    : SceneManager(QList<SourceData>{}, parent)
+SourceManager::SourceManager(QObject *parent)
+    : SourceManager(QList<SourceData>{}, parent)
 {
 }
 
-SceneManager::SceneManager(const QList<SourceData> &sources, QObject *parent)
+SourceManager::SourceManager(const QList<SourceData> &sources, QObject *parent)
     : QObject(parent), m_sources(sources), m_sourceModel(new SourceListModel(this))
 {
-    connect(this, &SceneManager::currentSourceIdChanged, this, &SceneManager::sourceMoveAvailabilityChanged);
-    connect(m_sourceModel, &QAbstractItemModel::rowsRemoved, this, &SceneManager::sourceMoveAvailabilityChanged);
-    connect(m_sourceModel, &QAbstractItemModel::rowsMoved, this, &SceneManager::sourceMoveAvailabilityChanged);
+    connect(this, &SourceManager::currentSourceIdChanged, this, &SourceManager::sourceMoveAvailabilityChanged);
+    connect(m_sourceModel, &QAbstractItemModel::rowsRemoved, this, &SourceManager::sourceMoveAvailabilityChanged);
+    connect(m_sourceModel, &QAbstractItemModel::rowsMoved, this, &SourceManager::sourceMoveAvailabilityChanged);
 }
 
-QAbstractItemModel *SceneManager::sourceModel() const { return m_sourceModel; }
+QAbstractItemModel *SourceManager::sourceModel() const { return m_sourceModel; }
 
-bool SceneManager::selectSource(const QString &id)
+bool SourceManager::selectSource(const QString &id)
 {
     if (!id.isEmpty()) {
         bool found = false;
@@ -116,7 +116,7 @@ bool SceneManager::selectSource(const QString &id)
     return true;
 }
 
-QString SceneManager::suggestedSourceName(const QString &baseName) const
+QString SourceManager::suggestedSourceName(const QString &baseName) const
 {
     const QString base = baseName.trimmed();
     if (base.isEmpty())
@@ -137,7 +137,7 @@ QString SceneManager::suggestedSourceName(const QString &baseName) const
     }
 }
 
-bool SceneManager::removeSource(const QString &sourceId)
+bool SourceManager::removeSource(const QString &sourceId)
 {
     const int row = sourceRow(sourceId);
     if (row < 0)
@@ -150,7 +150,7 @@ bool SceneManager::removeSource(const QString &sourceId)
     return true;
 }
 
-int SceneManager::sourceRow(const QString &sourceId) const
+int SourceManager::sourceRow(const QString &sourceId) const
 {
     if (sourceId.isEmpty())
         return -1;
@@ -161,18 +161,18 @@ int SceneManager::sourceRow(const QString &sourceId) const
     return -1;
 }
 
-bool SceneManager::canMoveCurrentSourceUp() const
+bool SourceManager::canMoveCurrentSourceUp() const
 {
     return sourceRow(m_currentSourceId) > 0;
 }
 
-bool SceneManager::canMoveCurrentSourceDown() const
+bool SourceManager::canMoveCurrentSourceDown() const
 {
     const int row = sourceRow(m_currentSourceId);
     return row >= 0 && row + 1 < m_sourceModel->rowCount();
 }
 
-bool SceneManager::moveSource(const QString &sourceId, int offset)
+bool SourceManager::moveSource(const QString &sourceId, int offset)
 {
     if (offset != -1 && offset != 1)
         return false;
@@ -189,7 +189,7 @@ bool SceneManager::moveSource(const QString &sourceId, int offset)
     return true;
 }
 
-bool SceneManager::setSourceFlag(const QString &sourceId, int role, bool value)
+bool SourceManager::setSourceFlag(const QString &sourceId, int role, bool value)
 {
     const int row = sourceRow(sourceId);
     if (row < 0)
@@ -204,12 +204,12 @@ bool SceneManager::setSourceFlag(const QString &sourceId, int role, bool value)
     return true;
 }
 
-bool SceneManager::setSourceVisible(const QString &sourceId, bool visible)
+bool SourceManager::setSourceVisible(const QString &sourceId, bool visible)
 {
     return setSourceFlag(sourceId, VisibleRole, visible);
 }
 
-bool SceneManager::setSourceLocked(const QString &sourceId, bool locked)
+bool SourceManager::setSourceLocked(const QString &sourceId, bool locked)
 {
     return setSourceFlag(sourceId, LockedRole, locked);
 }
