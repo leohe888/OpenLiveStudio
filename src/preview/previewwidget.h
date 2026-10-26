@@ -7,7 +7,9 @@
 #include <memory>
 
 class QOpenGLTexture;
-class QOpenGLTextureBlitter;
+class QOpenGLShaderProgram;
+class QOpenGLBuffer;
+class QOpenGLVertexArrayObject;
 
 class PreviewWidget : public QOpenGLWidget, protected QOpenGLFunctions
 {
@@ -35,7 +37,10 @@ private:
     QImage m_image;
     bool m_imageDirty = false;
     QString m_lastError;
-    std::unique_ptr<QOpenGLTextureBlitter> m_blitter;
+    bool m_initialized = false;
+    std::unique_ptr<QOpenGLShaderProgram> m_program;
+    std::unique_ptr<QOpenGLBuffer> m_vertexBuffer;
+    std::unique_ptr<QOpenGLVertexArrayObject> m_vertexArray;
     std::unique_ptr<QOpenGLTexture> m_texture;
     QMetaObject::Connection m_contextDestruction;
 };

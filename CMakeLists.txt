@@ -80,6 +80,16 @@ qt_add_resources(OpenLiveStudio "themes"
     FILES ${OPENLIVE_STUDIO_THEME_FILES}
 )
 
+set(OPENLIVE_STUDIO_SHADER_FILES
+    "${PROJECT_SOURCE_DIR}/assets/shaders/texture.vert"
+    "${PROJECT_SOURCE_DIR}/assets/shaders/texture.frag"
+)
+qt_add_resources(OpenLiveStudio "shaders"
+    PREFIX "/"
+    BASE "${PROJECT_SOURCE_DIR}"
+    FILES ${OPENLIVE_STUDIO_SHADER_FILES}
+)
+
 target_include_directories(OpenLiveStudio PRIVATE
     "${PROJECT_SOURCE_DIR}/src"
     "${PROJECT_SOURCE_DIR}/src/core"

@@ -21,6 +21,9 @@ private slots:
         qInfo() << "OpenGL renderer:" << reinterpret_cast<const char *>(
             widget.context()->functions()->glGetString(GL_RENDERER));
         qInfo() << "Device pixel ratio:" << widget.devicePixelRatioF();
+        QVERIFY(widget.context()->format().version() >= qMakePair(3, 3));
+        QCOMPARE(widget.context()->format().profile(), QSurfaceFormat::CoreProfile);
+        QVERIFY(!widget.context()->isOpenGLES());
         widget.doneCurrent();
         QVERIFY2(widget.lastError().isEmpty(), qPrintable(widget.lastError()));
     }
@@ -55,6 +58,9 @@ private slots:
         QCOMPARE(sample(wideFrame, .95, .5), QColor(Qt::black));
         QCOMPARE(sample(wideFrame, .4, .25), QColor(Qt::red));
         QCOMPARE(errors.count(), 0);
+        widget.makeCurrent();
+        QCOMPARE(widget.context()->functions()->glGetError(), GLenum(GL_NO_ERROR));
+        widget.doneCurrent();
     }
 
     void replacesBlendsAndClearsImage()

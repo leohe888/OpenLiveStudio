@@ -100,6 +100,11 @@ qt_add_executable(tst_previewwidget
 target_include_directories(tst_previewwidget PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_previewwidget PRIVATE Qt6::OpenGLWidgets Qt6::OpenGL Qt6::Test)
 set_target_properties(tst_previewwidget PROPERTIES WIN32_EXECUTABLE FALSE)
+qt_add_resources(tst_previewwidget "preview_shaders"
+    PREFIX "/"
+    BASE "${PROJECT_SOURCE_DIR}"
+    FILES ${OPENLIVE_STUDIO_SHADER_FILES}
+)
 
 # Uses a desktop OpenGL context; explicitly skips when the platform cannot create one.
 add_test(NAME ui.previewwidget
