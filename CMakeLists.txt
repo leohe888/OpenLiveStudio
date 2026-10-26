@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.19)
 project(OpenLiveStudio LANGUAGES CXX)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets QuickWidgets QuickControls2 Svg Multimedia)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets QuickWidgets QuickControls2 Svg)
 
 qt_standard_project_setup()
 
@@ -20,8 +20,6 @@ qt_add_executable(OpenLiveStudio
     src/core/scenemanager.h
     src/sources/imageprobe.cpp
     src/sources/imageprobe.h
-    src/sources/camerasource.cpp
-    src/sources/camerasource.h
 )
 
 set(OPENLIVE_STUDIO_QML_FILES
@@ -96,7 +94,6 @@ target_link_libraries(OpenLiveStudio
         Qt::QuickWidgets
         Qt::QuickControls2
         Qt::Svg
-        Qt::Multimedia
 )
 
 install(TARGETS OpenLiveStudio
