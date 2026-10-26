@@ -120,12 +120,6 @@ public:
     Q_INVOKABLE bool removeScene(const QString &id);
     // Move one row: offset must be -1 (up) or 1 (down).
     Q_INVOKABLE bool moveScene(const QString &id, int offset);
-    // Paths are local filesystem paths. Empty error means the image can be decoded.
-    Q_INVOKABLE QString imageSourceError(const QString &sceneId, const QString &name,
-                                         const QString &filePath) const;
-    // Returns the new ID, or empty on failure. Adds at the top of the target scene.
-    Q_INVOKABLE QString addImageSource(const QString &sceneId, const QString &name,
-                                       const QString &filePath);
     // Remove only this scene's entry; never delete its file or another scene's entry.
     Q_INVOKABLE bool removeSource(const QString &sceneId, const QString &sourceId);
     bool canMoveCurrentSourceUp() const;
@@ -148,8 +142,6 @@ private:
     int sceneRow(const QString &id) const;
     int sourceRow(const QString &sceneId, const QString &sourceId) const;
     bool setSourceFlag(const QString &sceneId, const QString &sourceId, int role, bool value);
-    QString validateImageSource(const QString &sceneId, const QString &name,
-                                const QString &filePath, QSize *size) const;
     QList<SceneData> m_scenes;
     SceneListModel *m_sceneModel;
     SourceListModel *m_sourceModel;

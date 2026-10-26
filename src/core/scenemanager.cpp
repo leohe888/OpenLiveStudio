@@ -1,8 +1,6 @@
 #include "scenemanager.h"
-#include "imageprobe.h"
 
 #include <QAbstractListModel>
-#include <QFileInfo>
 #include <QUuid>
 #include <type_traits>
 
@@ -323,52 +321,6 @@ bool SceneManager::moveScene(const QString &id, int offset)
     m_scenes.move(from, to);
     m_sceneModel->endMoveRows();
     return true;
-}
-
-QString SceneManager::validateImageSource(const QString &sceneId, const QString &name,
-                                        const QString &filePath, QSize *size) const
-{
-    const int row = sceneRow(sceneId);
-    if (row < 0)
-        return tr("目标场景不存在。");
-    const QString trimmed = name.trimmed();
-    if (trimmed.isEmpty())
-        return tr("来源名称不能为空。");
-    for (const auto &source : m_scenes.at(row).sources) {
-        if (source.name.trimmed().compare(trimmed, Qt::CaseInsensitive) == 0)
-            return tr("来源名称已存在。");
-    }
-    const auto result = ImageProbe::load(filePath);
-    if (!result.isValid())
-        return result.error;
-    if (size)
-        *size = result.originalSize;
-    return {};
-}
-
-QString SceneManager::imageSourceError(const QString &sceneId, const QString &name,
-                                     const QString &filePath) const
-{
-    return validateImageSource(sceneId, name, filePath, nullptr);
-}
-
-QString SceneManager::addImageSource(const QString &sceneId, const QString &name,
-                                   const QString &filePath)
-{
-    QSize size;
-    if (!validateImageSource(sceneId, name, filePath, &size).isEmpty())
-        return {};
-    const SourceData source{QUuid::createUuid().toString(QUuid::WithoutBraces), name.trimmed(),
-                            ImageConfig{QFileInfo(filePath).absoluteFilePath()}, {size}};
-    const bool isCurrentScene = sceneId == m_currentSceneId;
-    if (isCurrentScene)
-        m_sourceModel->beginInsertRows({}, 0, 0);
-    m_scenes[sceneRow(sceneId)].sources.prepend(source);
-    if (isCurrentScene) {
-        m_sourceModel->endInsertRows();
-        selectSource(source.id);
-    }
-    return source.id;
 }
 
 bool SceneManager::removeSource(const QString &sceneId, const QString &sourceId)

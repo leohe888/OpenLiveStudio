@@ -5,7 +5,6 @@
 #include <QFile>
 #include <QImage>
 #include <QSignalSpy>
-#include <QSet>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -35,9 +34,6 @@ private slots:
     void movesOneRowWithoutChangingSelection();
     void rejectsInvalidSceneMoves();
     void updatesMoveAvailabilityAfterSceneChanges();
-    void addsImageSourcesAndPreservesSceneIsolation();
-    void rejectsInvalidImageSources_data();
-    void rejectsInvalidImageSources();
     void removesSelectedSource_data();
     void removesSelectedSource();
     void removesSourceWithoutChangingOtherSelections();
@@ -216,7 +212,12 @@ void SceneManagerTest::modelsNotifyBeforeAndAfterDataChanges()
 
 void SceneManagerTest::modelsReadSharedDataAfterSceneChanges()
 {
-    SceneManager state(scenes());
+    const QString logo = "logo";
+    const QSize size(8, 4);
+    SceneManager state(QList<SceneManager::SceneData>{
+        {"first", "First", {{"a", "Foreground"},
+            {logo, "Logo", SceneManager::ImageConfig{"fixture.png"}, {size}}}},
+        {"second", "Second", {}}, {"empty", "Empty", {}}});
     QAbstractItemModelTester sceneTester(state.sceneModel(),
                                         QAbstractItemModelTester::FailureReportingMode::QtTest);
     QAbstractItemModelTester sourceTester(state.sourceModel(),
@@ -228,29 +229,20 @@ void SceneManagerTest::modelsReadSharedDataAfterSceneChanges()
     QVERIFY(state.renameScene("first", "Renamed"));
     QCOMPARE(source.data(SceneManager::IdRole).toString(), QString("a"));
     QCOMPARE(state.currentSourceId(), QString("a"));
-
-    QTemporaryDir dir;
-    QVERIFY(dir.isValid());
-    QImage image(8, 4, QImage::Format_RGB32);
-    image.fill(Qt::red);
-    const QString path = dir.filePath("image.png");
-    QVERIFY(image.save(path));
-    const QString added = state.addImageSource("first", "Logo", path);
-    QVERIFY(!added.isEmpty());
+    QVERIFY(state.setSourceVisible("first", logo, false));
+    QVERIFY(state.setSourceLocked("first", logo, true));
+    QVERIFY(state.moveSource("first", logo, -1));
     QCOMPARE(source.row(), 1);
-    QVERIFY(state.setSourceVisible("first", added, false));
-    QVERIFY(state.setSourceLocked("first", added, true));
-    QVERIFY(state.moveSource("first", added, 1));
     QVERIFY(state.selectScene("empty"));
     QVERIFY(!source.isValid());
     QVERIFY(state.removeSource("first", "a"));
     QVERIFY(state.selectScene("first"));
     const auto restored = state.sourceModel()->index(0, 0);
-    QCOMPARE(restored.data(SceneManager::IdRole).toString(), added);
-    QCOMPARE(restored.data(SceneManager::OriginalSizeRole).toSize(), image.size());
+    QCOMPARE(restored.data(SceneManager::IdRole).toString(), logo);
+    QCOMPARE(restored.data(SceneManager::OriginalSizeRole).toSize(), size);
     QVERIFY(!restored.data(SceneManager::VisibleRole).toBool());
     QVERIFY(restored.data(SceneManager::LockedRole).toBool());
-    QVERIFY(state.removeSource("first", added));
+    QVERIFY(state.removeSource("first", logo));
     QVERIFY(state.removeScene("first"));
     QCOMPARE(state.sourceModel()->rowCount(), 0);
 }
@@ -633,109 +625,6 @@ void SceneManagerTest::updatesMoveAvailabilityAfterSceneChanges()
     QVERIFY(!state.canMoveCurrentSceneDown());
 }
 
-void SceneManagerTest::addsImageSourcesAndPreservesSceneIsolation()
-{
-    QTemporaryDir dir;
-    QVERIFY(dir.isValid());
-    const QString path = dir.filePath("image.png");
-    QImage image(13, 7, QImage::Format_ARGB32);
-    image.fill(Qt::transparent);
-    QVERIFY(image.save(path));
-    SceneManager state(scenes());
-    auto *model = state.sourceModel();
-    QSignalSpy inserted(model, &QAbstractItemModel::rowsInserted);
-    QSignalSpy reset(model, &QAbstractItemModel::modelReset);
-    QSignalSpy selected(&state, &SceneManager::currentSourceIdChanged);
-    QPersistentModelIndex previous(model->index(0, 0));
-    QVERIFY(state.imageSourceError("first", " Logo ", path).isEmpty());
-    const QString id = state.addImageSource("first", " Logo ", path);
-    QVERIFY(!id.isEmpty());
-    QCOMPARE(state.currentSceneId(), QString("first"));
-    QCOMPARE(state.currentSourceId(), id);
-    QCOMPARE(model->rowCount(), 3);
-    QCOMPARE(inserted.count(), 1);
-    QCOMPARE(inserted.first().at(1).toInt(), 0);
-    QCOMPARE(inserted.first().at(2).toInt(), 0);
-    QCOMPARE(reset.count(), 0);
-    QCOMPARE(selected.count(), 1);
-    QCOMPARE(previous.row(), 1);
-    QCOMPARE(previous.data(SceneManager::IdRole).toString(), QString("a"));
-    const auto row = model->index(0, 0);
-    QCOMPARE(row.data(SceneManager::IdRole).toString(), id);
-    QCOMPARE(row.data(SceneManager::NameRole).toString(), QString("Logo"));
-    QCOMPARE(row.data(SceneManager::TypeRole).toString(), QString("image"));
-    QCOMPARE(row.data(SceneManager::FilePathRole).toString(), path);
-    QCOMPARE(row.data(SceneManager::OriginalSizeRole).toSize(), QSize(13, 7));
-    QCOMPARE(model->roleNames().value(SceneManager::OriginalSizeRole), QByteArray("sourceOriginalSize"));
-    QVERIFY(!state.sceneModel()->index(0, 0).data(SceneManager::TypeRole).isValid());
-    // A captured target scene can differ from the current scene without changing selection.
-    const QString other = state.addImageSource("second", "Logo", path);
-    QVERIFY(!other.isEmpty());
-    QVERIFY(other != id);
-    QCOMPARE(state.currentSourceId(), id);
-    QCOMPARE(inserted.count(), 1);
-    QVERIFY(state.selectScene("second"));
-    QCOMPARE(model->rowCount(), 3);
-    QCOMPARE(model->index(0, 0).data(SceneManager::IdRole).toString(), other);
-    QCOMPARE(model->index(0, 0).data(SceneManager::OriginalSizeRole).toSize(), image.size());
-    QVERIFY(state.currentSourceId().isEmpty());
-    QVERIFY(state.selectScene("first"));
-    QCOMPARE(model->index(0, 0).data(SceneManager::IdRole).toString(), id);
-    QCOMPARE(model->index(0, 0).data(SceneManager::FilePathRole).toString(), path);
-}
-
-void SceneManagerTest::rejectsInvalidImageSources_data()
-{
-    QTest::addColumn<QString>("failure");
-    for (const auto *name : {"empty-name", "duplicate-name", "missing-file", "empty-path",
-                             "directory", "corrupt-file", "truncated-image", "missing-scene"})
-        QTest::newRow(name) << QString::fromLatin1(name);
-}
-
-void SceneManagerTest::rejectsInvalidImageSources()
-{
-    QFETCH(QString, failure);
-    QTemporaryDir dir;
-    QVERIFY(dir.isValid());
-    QString path = dir.filePath("image.png");
-    QImage image(13, 7, QImage::Format_ARGB32);
-    image.fill(Qt::red);
-    QVERIFY(image.save(path));
-    SceneManager state(scenes());
-    QVERIFY(state.selectSource("a"));
-    QString sceneId = "first", name = "Logo";
-    if (failure == "empty-name") name = " \t ";
-    if (failure == "duplicate-name") name = " iMaGe ";
-    if (failure == "missing-scene") sceneId = "missing";
-    if (failure == "missing-file") path = dir.filePath("missing.png");
-    if (failure == "empty-path") path.clear();
-    if (failure == "directory") path = dir.path();
-    if (failure == "corrupt-file" || failure == "truncated-image") {
-        QFile file(path);
-        QVERIFY(file.open(QIODevice::ReadWrite));
-        if (failure == "corrupt-file") {
-            QVERIFY(file.resize(0));
-            QCOMPARE(file.write("not an image"), qint64(12));
-        } else {
-            QVERIFY(file.resize(40)); // Keep PNG header, discard pixel data.
-        }
-    }
-    QSignalSpy inserted(state.sourceModel(), &QAbstractItemModel::rowsInserted);
-    QSignalSpy reset(state.sourceModel(), &QAbstractItemModel::modelReset);
-    QSignalSpy selected(&state, &SceneManager::currentSourceIdChanged);
-    QVERIFY(!state.imageSourceError(sceneId, name, path).isEmpty());
-    QVERIFY(state.addImageSource(sceneId, name, path).isEmpty());
-    QCOMPARE(state.sourceModel()->rowCount(), 2);
-    QCOMPARE(state.currentSourceId(), QString("a"));
-    QCOMPARE(inserted.count(), 0);
-    QCOMPARE(reset.count(), 0);
-    QCOMPARE(selected.count(), 0);
-    QVERIFY(state.selectScene("second"));
-    QCOMPARE(state.sourceModel()->rowCount(), 2);
-    SceneManager empty(QList<SceneManager::SceneData>{});
-    QVERIFY(empty.addImageSource({}, "Logo", path).isEmpty());
-}
-
 void SceneManagerTest::removesSelectedSource_data()
 {
     QTest::addColumn<int>("row");
@@ -836,10 +725,10 @@ void SceneManagerTest::removesLastImageSourceWithoutDeletingFile()
     QImage image(19, 11, QImage::Format_ARGB32);
     image.fill(Qt::red);
     QVERIFY(image.save(path));
-    SceneManager state;
-    const QString sceneId = state.currentSceneId();
-    const QString id = state.addImageSource(sceneId, "Logo", path);
-    QVERIFY(!id.isEmpty());
+    const QString sceneId = "scene", id = "logo";
+    SceneManager state(QList<SceneManager::SceneData>{
+        {sceneId, "Scene", {{id, "Logo", SceneManager::ImageConfig{path}, {image.size()}}}}});
+    QVERIFY(state.selectSource(id));
     QVERIFY(state.removeSource(sceneId, id));
     QCOMPARE(state.sourceModel()->rowCount(), 0);
     QCOMPARE(state.sceneModel()->rowCount(), 1);
@@ -848,10 +737,6 @@ void SceneManagerTest::removesLastImageSourceWithoutDeletingFile()
     QVERIFY(QFile::exists(path));
     QCOMPARE(QImage(path), image);
     QVERIFY(!state.removeSource(sceneId, id));
-    const QString newId = state.addImageSource(sceneId, "Logo", path);
-    QVERIFY(!newId.isEmpty());
-    QVERIFY(newId != id);
-    QCOMPARE(state.currentSourceId(), newId);
 }
 
 void SceneManagerTest::suggestsUnusedSourceNamesWithinTargetScene()
@@ -993,18 +878,6 @@ void SceneManagerTest::sourceMoveAvailabilityTracksChanges()
     QVERIFY(!available.isEmpty());
     QVERIFY(!state.canMoveCurrentSourceUp());
     QVERIFY(!state.canMoveCurrentSourceDown());
-    QTemporaryDir dir;
-    QVERIFY(dir.isValid());
-    QImage image(4, 4, QImage::Format_RGB32);
-    image.fill(Qt::red);
-    const QString path = dir.filePath("image.png");
-    QVERIFY(image.save(path));
-    const QString added = state.addImageSource("first", "New", path);
-    QVERIFY(!added.isEmpty());
-    QVERIFY(state.sourceModel()->index(0, 0).data(SceneManager::VisibleRole).toBool());
-    QVERIFY(!state.sourceModel()->index(0, 0).data(SceneManager::LockedRole).toBool());
-    QVERIFY(!state.canMoveCurrentSourceUp());
-    QVERIFY(state.canMoveCurrentSourceDown());
     QVERIFY(state.selectSource({}));
     QVERIFY(!state.canMoveCurrentSourceDown());
     QVERIFY(state.selectScene("second"));
@@ -1025,15 +898,14 @@ void SceneManagerTest::sameImageEntriesStayIndependentAcrossSceneChanges()
     QImage image(17, 9, QImage::Format_ARGB32);
     image.fill(Qt::transparent);
     QVERIFY(image.save(path));
+    const QString a = "a-logo", aBackground = "a-background";
+    const QString b = "b-logo", bBackground = "b-background";
     SceneManager state(QList<SceneManager::SceneData>{
-        {"a", "First", {}}, {"b", "Second", {}}, {"empty", "Empty", {}}});
-    const QString a = state.addImageSource("a", "Logo", path);
-    const QString aBackground = state.addImageSource("a", "Background", path);
-    const QString b = state.addImageSource("b", "Logo", path);
-    const QString bBackground = state.addImageSource("b", "Background", path);
-    const QSet<QString> ids{a, aBackground, b, bBackground};
-    QCOMPARE(ids.size(), 4);
-    QVERIFY(!ids.contains(QString()));
+        {"a", "First", {{aBackground, "Background", SceneManager::ImageConfig{path}, {image.size()}},
+                         {a, "Logo", SceneManager::ImageConfig{path}, {image.size()}}}},
+        {"b", "Second", {{bBackground, "Background", SceneManager::ImageConfig{path}, {image.size()}},
+                          {b, "Logo", SceneManager::ImageConfig{path}, {image.size()}}}},
+        {"empty", "Empty", {}}});
     auto *model = state.sourceModel();
     const auto snapshot = [model] {
         QList<QVariantList> rows;
@@ -1074,8 +946,6 @@ void SceneManagerTest::sameImageEntriesStayIndependentAcrossSceneChanges()
     QVERIFY(state.setSourceLocked("b", bBackground, true));
     QVERIFY(state.removeSource("b", b));
     QVERIFY(state.currentSourceId().isEmpty());
-    const QString bNew = state.addImageSource("b", "New", path);
-    QVERIFY(!bNew.isEmpty());
     const auto second = snapshot();
     for (int iteration = 0; iteration < 4; ++iteration) {
         QVERIFY(state.selectScene("a"));
@@ -1090,12 +960,12 @@ void SceneManagerTest::sameImageEntriesStayIndependentAcrossSceneChanges()
         QVERIFY(state.selectScene("b"));
         QCOMPARE(snapshot(), second);
         QVERIFY(state.currentSourceId().isEmpty());
-        QVERIFY(state.selectSource(bNew));
+        QVERIFY(state.selectSource(bBackground));
     }
     QVERIFY(state.removeSource("a", a));
     QVERIFY(state.removeScene("a"));
     QCOMPARE(snapshot(), second);
-    QCOMPARE(state.currentSourceId(), bNew);
+    QCOMPARE(state.currentSourceId(), bBackground);
     QCOMPARE(QImage(path), image);
 }
 
