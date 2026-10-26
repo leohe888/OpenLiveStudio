@@ -3,7 +3,7 @@
 <head data-page-node-id="mPtCWsEfVIGSGCeNSEvovE">
 <meta charset="UTF-8" data-page-node-id="GNL8nP5IlQm8noe5BaTAhH">
 <meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="ixdCNa9kE8Tfm3LfNvJGwh">
-<title>OBS Studio 30.1 — OpenLiveStudio 场景集合</title>
+<title>OpenLive Studio — 单画布原型</title>
 <style>
 :root{
   --bg:#131313;
@@ -110,7 +110,6 @@ svg{display:block}
   border:1px solid rgba(255,255,255,.14);color:#d8d8d8;font-size:11px;
 }
 .win.pv-full .pv-exit{display:block}
-.col-left .dock.scenes{flex:0 0 34%}
 .col-left .dock.sources{flex:1 1 auto}
 
 /* ---------- dock ---------- */
@@ -127,12 +126,12 @@ svg{display:block}
 .dock-h:hover .hb{opacity:1}
 .dock-h .hb:hover{background:#3a3a3a;color:#fff}
 .dock-b{flex:1 1 auto;min-height:0;overflow:auto;padding:2px}
-#sceneList,#sourceList{overflow-x:hidden;overflow-y:auto}
-#sceneList::-webkit-scrollbar,#sourceList::-webkit-scrollbar{width:12px}
-#sceneList::-webkit-scrollbar-track,#sourceList::-webkit-scrollbar-track{background:#232323}
-#sceneList::-webkit-scrollbar-thumb,#sourceList::-webkit-scrollbar-thumb{background:#606060;border:2px solid #232323;border-radius:6px}
-#sceneList::-webkit-scrollbar-thumb:hover,#sourceList::-webkit-scrollbar-thumb:hover{background:#808080}
-#sceneList::-webkit-scrollbar-thumb:active,#sourceList::-webkit-scrollbar-thumb:active{background:#9a9a9a}
+#sourceList{overflow-x:hidden;overflow-y:auto}
+#sourceList::-webkit-scrollbar{width:12px}
+#sourceList::-webkit-scrollbar-track{background:#232323}
+#sourceList::-webkit-scrollbar-thumb{background:#606060;border:2px solid #232323;border-radius:6px}
+#sourceList::-webkit-scrollbar-thumb:hover{background:#808080}
+#sourceList::-webkit-scrollbar-thumb:active{background:#9a9a9a}
 .dock-f{
   flex:0 0 auto;height:26px;display:flex;align-items:center;gap:1px;padding:0 3px;
   background:#191919;border-top:1px solid #0a0a0a;
@@ -362,7 +361,6 @@ input[type=range].h::-webkit-slider-thumb{
       <div class="menu-pop">
         <div class="mi" data-act="fullscreen">全屏预览 <span class="k">F11</span></div>
         <div class="msep"></div>
-        <div class="mi" data-dock="scenes">场景 <span class="k">✓</span></div>
         <div class="mi" data-dock="sources">来源 <span class="k">✓</span></div>
         <div class="mi" data-dock="mixer">混音器 <span class="k">✓</span></div>
         <div class="mi" data-dock="controls">控制 <span class="k">✓</span></div>
@@ -382,20 +380,6 @@ input[type=range].h::-webkit-slider-thumb{
 
     <!-- 左列 -->
     <div class="col col-left" data-page-node-id="LnUoOiZUxfCbQ4AY8QlE6H">
-      <section class="dock scenes" data-page-node-id="wuV3nLBSaYpi0DKa5eFpwG">
-        <div class="dock-h" data-page-node-id="eSKAotb41V216vIB5bzITD"><span class="t" data-page-node-id="lgAI0wm97BLGOJgFRvX231">场景</span>
-          <button class="hb" title="浮动窗口" data-page-node-id="O6xoMPGzWDHQAS7s2Yqwao"><svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" data-page-node-id="pXX31FQEnuh0mHADTfEgKL"><rect x=".5" y=".5" width="6" height="6" data-page-node-id="bgCEP2WUBQtgw4lEsOjBKY"/><path d="M3.5 3.5h6v6h-6z" data-page-node-id="jjfGS95il15hVERuHfdMuh"/></svg></button>
-          <button class="hb" title="关闭" data-page-node-id="FSiKUVOJC70LV0ZUxYUlCl"><svg width="8" height="8" viewBox="0 0 10 10" stroke="currentColor" stroke-width="1.2" data-page-node-id="tc9yjC0tLbm8MzJN0HyjUi"><path d="M1 1l8 8M9 1L1 9" data-page-node-id="ULsv4jWiuE2sd4CIxoP4kn"/></svg></button>
-        </div>
-        <div class="dock-b" id="sceneList" data-page-node-id="iIFUuhTBe8Tbhg6cNLAgw1"></div>
-        <div class="dock-f" data-page-node-id="HE8k0DyBgxZjHPoUZ9d3yF">
-          <button title="添加场景" data-act="scene-add" data-page-node-id="FF862TArDD3JBqnILQOuDw"><svg width="12" height="12" viewBox="0 0 12 12" stroke="currentColor" stroke-width="1.4" data-page-node-id="8zkxu3NOZua64I4nZNczlD"><path d="M6 1v10M1 6h10" data-page-node-id="zSlPn0MuMDGxgzbrY3By26"/></svg></button>
-          <button title="移除场景" data-page-node-id="IIXQ9mnxs2BnW7nOvg0yso"><svg width="12" height="12" viewBox="0 0 12 12" stroke="currentColor" stroke-width="1.4" data-page-node-id="EKpUB9qDl01mFh5UMBYWKI"><path d="M1 6h10" data-page-node-id="Hz6Y7lKP0zRvEiUzbFuEbm"/></svg></button>
-          <button title="场景上移" data-page-node-id="kMZLSnb5oS5HVEjy2EZYhy"><svg width="12" height="12" viewBox="0 0 12 12" stroke="currentColor" stroke-width="1.4" fill="none" data-page-node-id="rZ7ztXAuSXtiDHHnywNg11"><path d="M6 10V2M2.5 5.5L6 2l3.5 3.5" data-page-node-id="PhQk7AOVjpcTL4vTHfgtS8"/></svg></button>
-          <button title="场景下移" data-page-node-id="JzvZne9xE1vDszN72H9uCl"><svg width="12" height="12" viewBox="0 0 12 12" stroke="currentColor" stroke-width="1.4" fill="none" data-page-node-id="nFctG990SEvogQEbo0tLN0"><path d="M6 2v8M2.5 6.5L6 10l3.5-3.5" data-page-node-id="dkgADKkUvAcUGtIM6Y1dKl"/></svg></button>
-        </div>
-      </section>
-
       <section class="dock sources" data-page-node-id="hrsNYovxCgl5EdxFKaeOLW">
         <div class="dock-h" data-page-node-id="YY2NT2xIa8brE7M2iHmqLQ"><span class="t" data-page-node-id="JB1DSS1zhtCVbcDFwwDEBm">来源</span>
           <button class="hb" title="浮动窗口" data-page-node-id="bebn3Swua4R2HknCLYRG8Y"><svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" data-page-node-id="NclwPVESD05ZDYeibviB19"><rect x=".5" y=".5" width="6" height="6" data-page-node-id="a3IdbG7VbBIYDuIiTSfJvq"/><path d="M3.5 3.5h6v6h-6z" data-page-node-id="IB8NPANSNnZAmSpCOBFyNJ"/></svg></button>
@@ -483,7 +467,7 @@ input[type=range].h::-webkit-slider-thumb{
 
 <script>
 /* ============================================================
-   OBS 风格原型：多源场景合成 + 录制/直播控制
+   OBS 风格原型：单画布多来源合成 + 录制/直播控制
    预览中的源可拖动/缩放，属性/滤镜/变换走 OBS 式对话框
    ============================================================ */
 const $ = (s, r = document) => r.querySelector(s);
@@ -504,31 +488,18 @@ const IC = {
   eyeOff: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 3l18 18"/><path d="M10.6 6.1A9.8 9.8 0 0 1 12 6c6.5 0 10.2 6 10.2 6a17 17 0 0 1-3.6 4.1M6.4 7.9A17 17 0 0 0 1.8 12s3.7 6 10.2 6a9.6 9.6 0 0 0 3.7-.7"/></svg>',
   lock: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg>',
   unlock: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7.8a4 4 0 0 1 7.4-2"/></svg>',
-  scene: '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 9.5h19"/></svg>',
   mute: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 9.5h4l5-4v13l-5-4H4z"/><path d="M17 9l4 6M21 9l-4 6"/></svg>',
   sound: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 9.5h4l5-4v13l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>',
   gear: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4M5.2 5.2l2.8 2.8M16 16l2.8 2.8M18.8 5.2L16 8M8 16l-2.8 2.8"/></svg>'
 };
 
-/* ---------- 场景 / 来源数据 ---------- */
+/* ---------- 单画布来源数据 ---------- */
 const cameraFilter = { on: true, brightness: 100, contrast: 100, saturation: 100 };
 
-const scenes = [
-  {
-    name: '主场景',
-    sources: [
-      { id: 'logo', name: 'Logo', type: 'image', x: 64, y: 52, w: 470, h: 112, visible: true, locked: false },
-      { id: 'camera', name: '摄像头', type: 'camera', x: 1296, y: 702, w: 576, h: 324, visible: true, locked: false, device: 'USB Camera (示例)' },
-      { id: 'desktop', name: '桌面', type: 'desktop', x: 0, y: 0, w: 1920, h: 1080, visible: true, locked: false }
-    ]
-  },
-  {
-    name: '休息画面',
-    sources: [
-      { id: 'brbLogo', name: 'Logo', type: 'image', x: 64, y: 52, w: 470, h: 112, visible: true, locked: false },
-      { id: 'brb', name: '稍等片刻', type: 'text', x: 0, y: 0, w: 1920, h: 1080, visible: true, locked: false }
-    ]
-  }
+let sources = [
+  { id: 'logo', name: 'Logo', type: 'image', x: 64, y: 52, w: 470, h: 112, visible: true, locked: false },
+  { id: 'camera', name: '摄像头', type: 'camera', x: 1296, y: 702, w: 576, h: 324, visible: true, locked: false, device: 'USB Camera (示例)' },
+  { id: 'desktop', name: '桌面', type: 'desktop', x: 0, y: 0, w: 1920, h: 1080, visible: true, locked: false }
 ];
 
 const audioSources = [
@@ -538,15 +509,13 @@ const audioSources = [
 ];
 
 const state = {
-  scene: 0,
   selected: 'camera',
   recOn: false, liveOn: false,
   recT: 0, liveT: 0,
   fps: 30, drop: 0, totalFrames: 0
 };
 
-function curScene() { return scenes[state.scene]; }
-function findSource(id) { return curScene().sources.find(s => s.id === id); }
+function findSource(id) { return sources.find(s => s.id === id); }
 
 /* ---------- 预览内容 ---------- */
 const DESKTOP_SVG = `
@@ -655,34 +624,10 @@ const BRB_HTML = `
   <span>直播即将继续，请稍候</span>
 </div>`;
 
-/* ---------- 渲染：场景列表 ---------- */
-function renderScenes() {
-  const box = $('#sceneList');
-  box.innerHTML = scenes.map((s, i) => `
-    <div class="row ${i === state.scene ? 'sel' : ''}" data-scene="${i}">
-      <span class="nm" style="padding-left:2px"></span>
-    </div>`).join('');
-  $$('.row', box).forEach(r => {
-    r.querySelector('.nm').textContent = scenes[+r.dataset.scene].name;
-    r.addEventListener('click', () => switchScene(+r.dataset.scene));
-    r.addEventListener('dblclick', () => openSceneNameDialog(scenes[+r.dataset.scene]));
-  });
-}
-
-function switchScene(i) {
-  if (!scenes[i] || i === state.scene) return;
-  state.scene = i;
-  state.selected = null;
-  renderScenes();
-  renderPreview();
-  renderSources();
-  msg(`已切换场景：${scenes[i].name}`);
-}
-
 /* ---------- 渲染：来源列表 ---------- */
 function renderSources() {
   const box = $('#sourceList');
-  box.innerHTML = curScene().sources.map(s => {
+  box.innerHTML = sources.map(s => {
     const icon = s.type === 'camera' ? IC.camera : s.type === 'desktop' ? IC.desktop : s.type === 'image' ? IC.image : IC.text;
     return `<div class="row ${s.id === state.selected ? 'sel' : ''} ${s.visible ? '' : 'hidden'}" data-id="${s.id}">
       ${icon}
@@ -732,7 +677,7 @@ function srcContent(s) {
 
 function renderPreview() {
   const canvas = $('#canvas');
-  const list = curScene().sources.slice().reverse(); // 列表顶部在最上层
+  const list = sources.slice().reverse(); // 列表顶部在最上层
   canvas.innerHTML = list.map(s => `
     <div class="src-box ${s.visible ? '' : 'hidden'} ${s.locked ? 'locked' : ''}" data-id="${s.id}"
          style="left:${s.x / LOGICAL_W * 100}%;top:${s.y / LOGICAL_H * 100}%;width:${s.w / LOGICAL_W * 100}%;height:${s.h / LOGICAL_H * 100}%;z-index:${list.indexOf(s) + 1}">
@@ -746,7 +691,7 @@ function renderPreview() {
   if (cam) camCtx = cam.getContext('2d'); else camCtx = null;
 
   // 滤镜
-  curScene().sources.forEach(s => applyFilter(s.id));
+  sources.forEach(s => applyFilter(s.id));
 
   // 事件
   $$('.src-box', canvas).forEach(box => {
@@ -1250,7 +1195,7 @@ function setFullPreview(on) {
 }
 
 function resetLayout() {
-  ['scenes', 'sources', 'mixer', 'controls'].forEach(k => toggleDock(k, true));
+  ['sources', 'mixer', 'controls'].forEach(k => toggleDock(k, true));
   if (isFullPreview()) setFullPreview(false);
   msg('布局已重置');
 }
@@ -1260,7 +1205,7 @@ $$('.dock').forEach(d => {
   const btn = d.querySelector('.dock-h .hb:last-child');
   if (!btn) return;
   btn.addEventListener('click', () => {
-    const key = ['scenes', 'sources', 'mixer', 'controls'].find(k => d.classList.contains(k));
+    const key = ['sources', 'mixer', 'controls'].find(k => d.classList.contains(k));
     if (key) toggleDock(key, false);
   });
 });
@@ -1268,8 +1213,7 @@ $$('.dock').forEach(d => {
 function removeSelected() {
   const s = state.selected ? findSource(state.selected) : null;
   if (!s) return msg('请先选择一个来源');
-  const sc = curScene();
-  sc.sources = sc.sources.filter(x => x.id !== s.id);
+  sources = sources.filter(x => x.id !== s.id);
   state.selected = null;
   renderSources(); renderPreview();
   msg(`已移除来源：${s.name}`);
@@ -1282,54 +1226,14 @@ $('[data-act="src-del"]').addEventListener('click', removeSelected);
 $('[data-act="src-up"]').addEventListener('click', () => moveSource(-1));
 $('[data-act="src-down"]').addEventListener('click', () => moveSource(1));
 function moveSource(dir) {
-  const sc = curScene();
-  const i = sc.sources.findIndex(s => s.id === state.selected);
+  const i = sources.findIndex(s => s.id === state.selected);
   if (i < 0) return msg('请先选择一个来源');
   const j = i + dir;
-  if (j < 0 || j >= sc.sources.length) return;
-  [sc.sources[i], sc.sources[j]] = [sc.sources[j], sc.sources[i]];
+  if (j < 0 || j >= sources.length) return;
+  [sources[i], sources[j]] = [sources[j], sources[i]];
   renderSources(); renderPreview();
   msg('来源层级已调整');
 }
-function sceneNameError(name, target = null) {
-  if (!name.trim()) return '场景名称不能为空。';
-  return scenes.some(s => s !== target && s.name.trim().toLowerCase() === name.trim().toLowerCase())
-    ? '场景名称已存在。' : '';
-}
-function suggestedSceneName() {
-  let name = '场景';
-  for (let number = 2; sceneNameError(name); number++) name = '场景 ' + number;
-  return name;
-}
-function openSceneNameDialog(target = null) {
-  openDialog(target ? '重命名场景' : '添加场景', `
-    <label class="fld"><span>场景名称</span><input id="sceneNameInput" type="text" autocomplete="off"></label>
-    <div id="sceneNameError" role="alert" style="color:#ee9b9b;min-height:18px"></div>`, () => {
-    const name = $('#sceneNameInput').value.trim();
-    const error = sceneNameError(name, target);
-    $('#sceneNameError').textContent = error;
-    if (error) return false;
-    if (target) {
-      target.name = name;
-      renderScenes();
-      msg('已重命名场景');
-    } else {
-      scenes.push({ name, sources: [] });
-      renderScenes();
-      switchScene(scenes.length - 1);
-      msg('已添加场景');
-    }
-  });
-  const input = $('#sceneNameInput');
-  input.value = target ? target.name : suggestedSceneName();
-  input.addEventListener('input', () => { $('#sceneNameError').textContent = ''; });
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('#dlgOk').click(); }
-  });
-  input.focus();
-  input.select();
-}
-$('[data-act="scene-add"]').addEventListener('click', () => openSceneNameDialog());
 $('[data-act="src-add"]').addEventListener('click', () => {
   const names = ['摄像头', '桌面', 'Logo', '文本'];
   openDialog('添加来源', `
@@ -1342,7 +1246,7 @@ $('[data-act="src-add"]').addEventListener('click', () => {
     <div class="fld"><span>名称</span><input type="text" id="newName" value="摄像头 2"></div>`, () => {
     const type = $('#newType').value;
     const id = 'src' + Date.now();
-    curScene().sources.unshift({
+    sources.unshift({
       id, name: $('#newName').value || '新来源', type,
       x: 120, y: 120, w: type === 'desktop' ? 1920 : 576, h: type === 'desktop' ? 1080 : 324,
       visible: true, locked: false
@@ -1378,7 +1282,6 @@ function fitCanvas() {
 }
 
 /* ---------- 启动 ---------- */
-renderScenes();
 renderSources();
 renderPreview();
 renderMixer();
