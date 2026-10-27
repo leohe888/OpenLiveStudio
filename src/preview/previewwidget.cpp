@@ -8,6 +8,7 @@
 #include <QOpenGLTexture>
 #include <QOpenGLVertexArrayObject>
 #include <QScopeGuard>
+#include <QShowEvent>
 #include <QSurfaceFormat>
 #include <QVector2D>
 
@@ -26,6 +27,21 @@ void PreviewWidget::setImage(const QImage &image)
     m_image = image;
     m_imageDirty = true;
     update();
+}
+
+void PreviewWidget::setSurroundingColor(const QColor &color)
+{
+    if (!color.isValid() || m_surroundingColor == color)
+        return;
+    m_surroundingColor = color;
+    update();
+}
+
+void PreviewWidget::showEvent(QShowEvent *event)
+{
+    QOpenGLWidget::showEvent(event);
+    if (!isValid() && m_lastError.isEmpty())
+        reportError(tr("无法创建 OpenGL 预览上下文。"));
 }
 
 void PreviewWidget::initializeGL()
@@ -129,7 +145,8 @@ void PreviewWidget::paintGL()
     glDisable(GL_CULL_FACE);
     glDisable(GL_SCISSOR_TEST);
     glDisable(GL_BLEND);
-    glClearColor(0, 0, 0, 1);
+    glClearColor(m_surroundingColor.redF(), m_surroundingColor.greenF(),
+                 m_surroundingColor.blueF(), 1);
     glClear(GL_COLOR_BUFFER_BIT);
     if (!m_initialized || pixelSize.isEmpty())
         return;
@@ -148,6 +165,7 @@ void PreviewWidget::paintGL()
         return;
     }
     glViewport(0, 0, canvasSize.width(), canvasSize.height());
+    glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT);
 
     if (m_imageDirty) {

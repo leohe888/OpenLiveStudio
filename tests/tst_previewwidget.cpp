@@ -226,6 +226,34 @@ private slots:
         QVERIFY(widget.lastError().isEmpty());
     }
 
+    void surroundingColorDoesNotChangeCanvasOrResources()
+    {
+        PreviewWidget widget;
+        widget.resize(240, 240);
+        QImage image(80, 40, QImage::Format_RGBA8888);
+        image.fill(Qt::red);
+        widget.setImage(image);
+        widget.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&widget));
+        const QImage before = widget.grabFramebuffer();
+        QCOMPARE(sample(before, .5, .05), QColor(Qt::black));
+        const QImage canvas = readCanvas(widget);
+        const auto *canvasResource = widget.m_canvasFbo.get();
+        const auto *imageResource = widget.m_texture.get();
+        const auto *programResource = widget.m_program.get();
+        widget.setSurroundingColor(QColor("#D4D7DC"));
+        const QImage after = widget.grabFramebuffer();
+        QCOMPARE(sample(after, .5, .05), QColor("#D4D7DC"));
+        QCOMPARE(sample(after, .5, .5), QColor(Qt::red));
+        QCOMPARE(sample(readCanvas(widget), .5, .02), QColor(Qt::black));
+        QCOMPARE(readCanvas(widget), canvas);
+        QCOMPARE(widget.m_canvasFbo.get(), canvasResource);
+        QCOMPARE(widget.m_texture.get(), imageResource);
+        QCOMPARE(widget.m_program.get(), programResource);
+        widget.setSurroundingColor(Qt::black);
+        QCOMPARE(sample(widget.grabFramebuffer(), .5, .05), QColor(Qt::black));
+    }
+
     void fitsPortraitImageIntoCanvasAndCanvasIntoWidget()
     {
         PreviewWidget widget;

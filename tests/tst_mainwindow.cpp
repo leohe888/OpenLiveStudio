@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 #include "thememanager.h"
 #include "sourcelistmodel.h"
+#include "preview/previewwidget.h"
 #include <QApplication>
 
 #include <QAction>
@@ -28,6 +29,8 @@
 #include <QRegularExpression>
 #include <QSignalSpy>
 #include <QStatusBar>
+#include <QStackedWidget>
+#include <QSurfaceFormat>
 #include <QTemporaryDir>
 #include <QToolBar>
 #include <QWheelEvent>
@@ -44,6 +47,8 @@ private slots:
     void init();
     void canShowAndClose();
     void hasWindowShell();
+    void previewDisplaysGeneratedImage();
+    void previewShowsRenderingError();
     void dockTitlesStayVerticallyCentered();
     void themeRestoresAndUpdatesOuterWidgets();
     void themeMenuSwitchesAndRestoresPreference();
@@ -429,10 +434,104 @@ void MainWindowTest::hasWindowShell()
     QCOMPARE(window.menuBar()->actions().size(), 3);
     QVERIFY(window.findChildren<QToolBar *>().isEmpty());
     QVERIFY(window.statusBar()->isVisible());
-    auto *placeholder = window.findChild<QLabel *>(QStringLiteral("previewPlaceholder"));
-    QVERIFY(placeholder && placeholder->isVisible());
-    QVERIFY(!placeholder->text().isEmpty());
+    auto *pages = window.findChild<QStackedWidget *>(QStringLiteral("previewPages"));
+    auto *error = window.findChild<QLabel *>(QStringLiteral("previewErrorLabel"));
+    QVERIFY(pages && error);
+    if (QGuiApplication::platformName() == "offscreen" || QGuiApplication::platformName() == "minimal") {
+        QVERIFY(!window.findChild<PreviewWidget *>());
+        QCOMPARE(pages->currentWidget(), error);
+        QVERIFY(error->isVisible());
+        QVERIFY(error->text().contains(QStringLiteral("不支持 OpenGL")));
+    } else {
+        auto *preview = window.findChild<PreviewWidget *>(QStringLiteral("previewWidget"));
+        QVERIFY(preview);
+        QCOMPARE(pages->currentWidget(), preview);
+        QVERIFY(preview->isVisible());
+    }
     QVERIFY(!window.findChild<QLabel *>(QStringLiteral("previewStatus")));
+}
+
+void MainWindowTest::previewDisplaysGeneratedImage()
+{
+    MainWindow window(*m_theme);
+    auto *preview = window.findChild<PreviewWidget *>("previewWidget");
+    if (!preview)
+        QSKIP("Native desktop OpenGL is required for preview integration testing.");
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QTRY_VERIFY(preview->isValid());
+    QVERIFY2(preview->lastError().isEmpty(), qPrintable(preview->lastError()));
+    auto *pages = window.findChild<QStackedWidget *>("previewPages");
+    QCOMPARE(pages->currentWidget(), preview);
+    auto *sources = window.findChild<SourceListModel *>();
+    QVERIFY(sources);
+    QCOMPARE(sources->rowCount(), 0);
+    for (const auto *name : {"sourcesQuickWidget", "mixerQuickWidget", "controlsQuickWidget"}) {
+        auto *panel = window.findChild<QQuickWidget *>(QLatin1String(name));
+        QVERIFY(panel);
+        QTRY_COMPARE(panel->status(), QQuickWidget::Ready);
+        QVERIFY(panel->rootObject());
+        QCOMPARE(panel->quickWindow()->rendererInterface()->graphicsApi(), QSGRendererInterface::OpenGL);
+    }
+
+    const auto verifyFrame = [&] {
+        const QImage frame = preview->grabFramebuffer();
+        QVERIFY(!frame.isNull());
+        const double scale = qMin(frame.width() / 1920.0, frame.height() / 1080.0);
+        const double width = 1920 * scale;
+        const double height = 1080 * scale;
+        const double x = (frame.width() - width) / 2;
+        const double y = (frame.height() - height) / 2;
+        const auto sample = [&](double u, double v) {
+            return frame.pixelColor(int(x + u * width), int(y + v * height));
+        };
+        QCOMPARE(sample(.1, .1), QColor(Qt::red));
+        QCOMPARE(sample(.9, .1), QColor(Qt::green));
+        QCOMPARE(sample(.1, .9), QColor(Qt::blue));
+        QCOMPARE(sample(.9, .9), QColor(Qt::white));
+        QCOMPARE(sample(.5, .5), QColor(Qt::black));
+        QVERIFY(x > 2 || y > 2);
+        const QColor surrounding = y > 2 ? frame.pixelColor(frame.width() / 2, int(y / 2))
+                                         : frame.pixelColor(int(x / 2), frame.height() / 2);
+        QCOMPARE(surrounding, m_theme->color("preview.surrounding"));
+    };
+    verifyFrame();
+    QVERIFY(m_theme->setTheme("light"));
+    verifyFrame();
+    QVERIFY(window.grab().save(QCoreApplication::applicationDirPath() + "/mainwindow-preview.png"));
+    window.resize(qMax(window.minimumWidth(), window.width() - 40), window.height());
+    QCoreApplication::processEvents();
+    verifyFrame();
+    QVERIFY(m_theme->setTheme("dark"));
+    verifyFrame();
+    QVERIFY(window.close());
+}
+
+void MainWindowTest::previewShowsRenderingError()
+{
+    MainWindow window(*m_theme);
+    auto *preview = window.findChild<PreviewWidget *>("previewWidget");
+    if (!preview)
+        QSKIP("Native desktop OpenGL is required to inject a preview rendering error.");
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto *pages = window.findChild<QStackedWidget *>("previewPages");
+    auto *error = window.findChild<QLabel *>("previewErrorLabel");
+    QVERIFY(pages && error);
+    const QString details = QStringLiteral("<b>测试渲染错误</b>");
+    preview->renderingError(details);
+    QCOMPARE(pages->currentWidget(), preview);
+    QTRY_COMPARE(pages->currentWidget(), error);
+    QVERIFY(error->isVisible());
+    QVERIFY(!preview->isVisible());
+    QCOMPARE(error->textFormat(), Qt::PlainText);
+    QCOMPARE(error->text(), QStringLiteral("预览不可用\n") + details);
+    QVERIFY(m_theme->setTheme("light"));
+    QTRY_COMPARE(error->palette().color(QPalette::WindowText), m_theme->color("status.error"));
+    QTRY_COMPARE(error->palette().color(QPalette::Window), m_theme->color("background.panel"));
+    QCOMPARE(error->text(), QStringLiteral("预览不可用\n") + details);
+    QCOMPARE(pages->currentWidget(), error);
+    QVERIFY(window.close());
 }
 
 void MainWindowTest::dockTitlesStayVerticallyCentered()
@@ -604,10 +703,10 @@ void MainWindowTest::themeRestoresAndUpdatesOuterWidgets()
         QCOMPARE(views[i]->rootObject(), roots[i].data());
         QCOMPARE(views[i]->quickWindow()->color(), m_theme->color("background.panel"));
     }
-    auto *placeholder = window.findChild<QLabel *>("previewPlaceholder");
-    QVERIFY(placeholder);
-    QTRY_COMPARE(placeholder->palette().color(QPalette::WindowText), m_theme->color("text.secondary"));
-    QTRY_COMPARE(placeholder->palette().color(QPalette::Window), m_theme->color("preview.canvas"));
+    auto *error = window.findChild<QLabel *>("previewErrorLabel");
+    QVERIFY(error);
+    QTRY_COMPARE(error->palette().color(QPalette::WindowText), m_theme->color("status.error"));
+    QTRY_COMPARE(error->palette().color(QPalette::Window), m_theme->color("background.panel"));
     QTRY_COMPARE(window.centralWidget()->palette().color(QPalette::Window), m_theme->color("preview.surrounding"));
     dock->setFloating(false);
     const auto titleButtons = dock->findChildren<QAbstractButton *>(QString(), Qt::FindDirectChildrenOnly);
@@ -2244,7 +2343,14 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
 
 int main(int argc, char **argv)
 {
+    QSurfaceFormat format;
+    format.setRenderableType(QSurfaceFormat::OpenGL);
+    format.setVersion(3, 3);
+    format.setProfile(QSurfaceFormat::CoreProfile);
+    QSurfaceFormat::setDefaultFormat(format);
     QApplication application(argc, argv);
+    if (QGuiApplication::platformName() != "offscreen" && QGuiApplication::platformName() != "minimal")
+        QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
     application.setQuitOnLastWindowClosed(false);
     MainWindowTest test;
     return QTest::qExec(&test, argc, argv);

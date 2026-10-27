@@ -45,6 +45,8 @@ qt_add_executable(tst_mainwindow
     ../src/core/thememanager.h
     ../src/mainwindow.cpp
     ../src/mainwindow.h
+    ../src/preview/previewwidget.cpp
+    ../src/preview/previewwidget.h
     ../src/core/source.cpp
     ../src/core/source.h
     ../src/core/sourcelistmodel.cpp
@@ -57,8 +59,14 @@ target_include_directories(tst_mainwindow PRIVATE
 )
 target_link_libraries(tst_mainwindow PRIVATE
     Qt6::Widgets Qt6::Test Qt6::QuickWidgets Qt6::QuickControls2 Qt6::Svg
+    Qt6::OpenGL Qt6::OpenGLWidgets
 )
 set_target_properties(tst_mainwindow PROPERTIES WIN32_EXECUTABLE FALSE)
+qt_add_resources(tst_mainwindow "mainwindow_shaders"
+    PREFIX "/"
+    BASE "${PROJECT_SOURCE_DIR}"
+    FILES ${OPENLIVE_STUDIO_SHADER_FILES}
+)
 
 # Embed the same source at the application's resource URL.
 qt_add_resources(tst_mainwindow "test_ui"

@@ -1,6 +1,7 @@
 #ifndef PREVIEWWIDGET_H
 #define PREVIEWWIDGET_H
 
+#include <QColor>
 #include <QImage>
 #include <QOpenGLFunctions>
 #include <QOpenGLWidget>
@@ -22,12 +23,14 @@ public:
 
     // Call on the GUI thread. A null image clears the preview.
     void setImage(const QImage &image);
+    void setSurroundingColor(const QColor &color);
     QString lastError() const { return m_lastError; }
 
 signals:
     void renderingError(const QString &message);
 
 protected:
+    void showEvent(QShowEvent *event) override;
     void initializeGL() override;
     void paintGL() override;
 
@@ -38,6 +41,7 @@ private:
     void reportError(const QString &message);
 
     QImage m_image;
+    QColor m_surroundingColor = Qt::black;
     bool m_imageDirty = false;
     QString m_lastError;
     bool m_initialized = false;

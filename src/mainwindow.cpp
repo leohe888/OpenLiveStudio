@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 #include "sourcelistmodel.h"
 #include "thememanager.h"
+#include "preview/previewwidget.h"
 
 #include <QAction>
 #include <QActionGroup>
@@ -25,6 +26,29 @@
 #include <QVBoxLayout>
 
 namespace {
+QImage previewTestImage()
+{
+    QImage image(1920, 1080, QImage::Format_RGBA8888);
+    QPainter painter(&image);
+    const QRect quadrants[] = {{0, 0, 960, 540}, {960, 0, 960, 540},
+                               {0, 540, 960, 540}, {960, 540, 960, 540}};
+    const QColor colors[] = {Qt::red, Qt::green, Qt::blue, Qt::white};
+    const QString labels[] = {QObject::tr("左上"), QObject::tr("右上"),
+                               QObject::tr("左下"), QObject::tr("右下")};
+    QFont font = painter.font();
+    font.setPixelSize(54);
+    painter.setFont(font);
+    for (int i = 0; i < 4; ++i) {
+        painter.fillRect(quadrants[i], colors[i]);
+        painter.setPen(i == 0 || i == 2 ? Qt::white : Qt::black);
+        painter.drawText(quadrants[i], Qt::AlignCenter, labels[i]);
+    }
+    painter.setCompositionMode(QPainter::CompositionMode_Source);
+    painter.fillRect(QRect(800, 450, 320, 180), Qt::transparent);
+    painter.end();
+    return image;
+}
+
 // Preserve Qt's title-bar glyphs and actions, but tint their pixmaps because
 // native Windows styles can return black icons regardless of the palette.
 class ThemedDockWidget final : public QDockWidget
@@ -130,8 +154,7 @@ void MainWindow::applyTheme()
         "QStatusBar::item { border: none; }"
         "QLabel { color: %2; }"
         "QLabel:disabled { color: %7; }"
-        "QLabel[themeError=\"true\"] { color: %9; background-color: %3; }"
-        "QLabel#previewPlaceholder { border: 1px solid %4; }")
+        "QLabel[themeError=\"true\"] { color: %9; background-color: %3; }")
         .arg(hex("background.header"), hex("text.primary"), hex("background.panel"),
              hex("border.default"), hex("background.hovered"), hex("background.selected"),
              hex("text.disabled"), hex("border.focus"), hex("status.error")));
@@ -144,10 +167,11 @@ void MainWindow::applyTheme()
     for (auto *dialog : findChildren<QDialog *>()) dialog->setPalette(colors);
     if (auto *container = findChild<QWidget *>(QStringLiteral("previewContainer"))) {
         container->setStyleSheet(QStringLiteral(
-            "QWidget#previewContainer { background-color: %1; }"
-            "QLabel#previewPlaceholder { background-color: %2; color: %3; }")
-            .arg(hex("preview.surrounding"), hex("preview.canvas"), hex("text.secondary")));
+            "QWidget#previewContainer { background-color: %1; }")
+            .arg(hex("preview.surrounding")));
     }
+    if (auto *preview = findChild<PreviewWidget *>(QStringLiteral("previewWidget")))
+        preview->setSurroundingColor(color("preview.surrounding"));
 }
 
 void MainWindow::configureQuickWidget(QQuickWidget *view)
@@ -336,13 +360,35 @@ void MainWindow::setupPreview()
     container->setObjectName(QStringLiteral("previewContainer"));
     auto *layout = new QVBoxLayout(container);
     layout->setContentsMargins(12, 12, 12, 12);
-    auto *placeholder = new QLabel(tr("预览未接入"), container);
-    placeholder->setObjectName(QStringLiteral("previewPlaceholder"));
-    placeholder->setTextFormat(Qt::PlainText);
-    placeholder->setAlignment(Qt::AlignCenter);
-    placeholder->setWordWrap(true);
-    layout->addWidget(placeholder, 1);
+    auto *pages = new QStackedWidget(container);
+    pages->setObjectName(QStringLiteral("previewPages"));
+    auto *errorLabel = new QLabel(pages);
+    errorLabel->setObjectName(QStringLiteral("previewErrorLabel"));
+    errorLabel->setProperty("themeError", true);
+    errorLabel->setTextFormat(Qt::PlainText);
+    errorLabel->setAlignment(Qt::AlignCenter);
+    errorLabel->setWordWrap(true);
+    errorLabel->setMargin(12);
+    pages->addWidget(errorLabel);
+    layout->addWidget(pages, 1);
     setCentralWidget(container);
+
+    const auto showError = [pages, errorLabel](const QString &details) {
+        errorLabel->setText(QObject::tr("预览不可用\n%1").arg(details));
+        pages->setCurrentWidget(errorLabel);
+    };
+    const QString platform = QGuiApplication::platformName();
+    if (platform == QStringLiteral("offscreen") || platform == QStringLiteral("minimal")) {
+        showError(tr("当前平台不支持 OpenGL 预览。"));
+        return;
+    }
+
+    auto *preview = new PreviewWidget(pages);
+    preview->setObjectName(QStringLiteral("previewWidget"));
+    connect(preview, &PreviewWidget::renderingError, pages, showError, Qt::QueuedConnection);
+    preview->setImage(previewTestImage());
+    pages->addWidget(preview);
+    pages->setCurrentWidget(preview);
 }
 
 void MainWindow::setupStatusBar()
