@@ -602,6 +602,46 @@ private slots:
         QVERIFY(closePoint(widget.m_sources[0].transform.center, start.center));
     }
 
+    void rotationHandleUsesHandCursors()
+    {
+        PreviewWidget widget;
+        widget.resize(640, 480);
+        wireEditor(widget);
+        QImage image(200, 100, QImage::Format_RGBA8888);
+        image.fill(Qt::red);
+        widget.setSources({{"image", image, true, {{960, 540}, {600, 300}, 0}}});
+        widget.setSelectedSourceId("image");
+        widget.show();
+        QVERIFY(QTest::qWaitForWindowActive(&widget));
+        widget.grabFramebuffer();
+        const auto handle = widget.selectionHandles(widget.m_sources[0])[8];
+        mouse(widget, QEvent::MouseMove, handle, Qt::NoButton, Qt::NoButton);
+        QCOMPARE(widget.cursor().shape(), Qt::OpenHandCursor);
+        mouse(widget, QEvent::MouseButtonPress, handle, Qt::LeftButton, Qt::LeftButton);
+        QCOMPARE(widget.cursor().shape(), Qt::ClosedHandCursor);
+        const QPointF away(10, 10);
+        mouse(widget, QEvent::MouseMove, away, Qt::NoButton, Qt::LeftButton);
+        QCOMPARE(widget.cursor().shape(), Qt::ClosedHandCursor);
+        mouse(widget, QEvent::MouseButtonRelease, away, Qt::LeftButton, Qt::NoButton);
+        QCOMPARE(widget.cursor().shape(), Qt::ArrowCursor);
+        const auto rotatedHandle = widget.selectionHandles(widget.m_sources[0])[8];
+        mouse(widget, QEvent::MouseMove, rotatedHandle, Qt::NoButton, Qt::NoButton);
+        QCOMPARE(widget.cursor().shape(), Qt::OpenHandCursor);
+        mouse(widget, QEvent::MouseButtonPress, rotatedHandle, Qt::LeftButton, Qt::LeftButton);
+        QCOMPARE(widget.cursor().shape(), Qt::ClosedHandCursor);
+        mouse(widget, QEvent::MouseButtonRelease, rotatedHandle, Qt::LeftButton, Qt::NoButton);
+        QCOMPARE(widget.cursor().shape(), Qt::OpenHandCursor);
+        mouse(widget, QEvent::MouseButtonPress, rotatedHandle, Qt::LeftButton, Qt::LeftButton);
+        QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+        QApplication::sendEvent(&widget, &escape);
+        QVERIFY(widget.cursor().shape() != Qt::ClosedHandCursor);
+        auto sources = widget.m_sources;
+        sources[0].locked = true;
+        widget.setSources(sources);
+        mouse(widget, QEvent::MouseMove, rotatedHandle, Qt::NoButton, Qt::NoButton);
+        QVERIFY(widget.cursor().shape() != Qt::OpenHandCursor);
+    }
+
     void selectionUsesRotatedRectanglesAndSkipsLockedSources()
     {
         PreviewWidget widget;

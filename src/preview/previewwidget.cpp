@@ -360,7 +360,7 @@ void PreviewWidget::updateCursor(const QPointF &position)
 {
     if (const auto *source = selectedSource()) {
         const int handle = handleAt(*source, position);
-        if (handle == 8) { setCursor(Qt::CrossCursor); return; }
+        if (handle == 8) { setCursor(Qt::OpenHandCursor); return; }
         if (handle >= 0) {
             const auto fraction = SourceGeometry::handleFractions[handle];
             const qreal angle = source->transform.rotation
@@ -419,6 +419,7 @@ void PreviewWidget::mousePressEvent(QMouseEvent *event)
     m_gestureSourceId = source->id;
     m_gestureStart = source->transform;
     m_pressCanvas = toCanvas(position);
+    if (m_gesture == Gesture::Rotate) setCursor(Qt::ClosedHandCursor);
     event->accept();
 }
 
