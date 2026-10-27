@@ -22,6 +22,8 @@ set_tests_properties(core.thememanager PROPERTIES LABELS "core;smoke" TIMEOUT 15
 
 qt_add_executable(tst_sourcelistmodel
     tst_sourcelistmodel.cpp
+    ../src/core/source.cpp
+    ../src/core/source.h
     ../src/core/sourcelistmodel.cpp
     ../src/core/sourcelistmodel.h
 )
@@ -43,6 +45,8 @@ qt_add_executable(tst_mainwindow
     ../src/core/thememanager.h
     ../src/mainwindow.cpp
     ../src/mainwindow.h
+    ../src/core/source.cpp
+    ../src/core/source.h
     ../src/core/sourcelistmodel.cpp
     ../src/core/sourcelistmodel.h
 )

@@ -1,14 +1,12 @@
 #ifndef SOURCELISTMODEL_H
 #define SOURCELISTMODEL_H
 
+#include "source.h"
+
 #include <QAbstractListModel>
-#include <QColor>
-#include <QFont>
 #include <QList>
 #include <QObject>
-#include <QSize>
 #include <QString>
-#include <variant>
 
 class SourceListModel : public QAbstractListModel
 {
@@ -18,61 +16,6 @@ class SourceListModel : public QAbstractListModel
     Q_PROPERTY(bool canMoveCurrentSourceDown READ canMoveCurrentSourceDown NOTIFY sourceMoveAvailabilityChanged)
 
 public:
-    enum class SourceType {
-        DisplayCapture,
-        WindowCapture,
-        Camera,
-        Image,
-        Text
-    };
-    Q_ENUM(SourceType)
-
-    struct DisplayCaptureConfig {
-        QString displayId;
-        bool captureCursor = true;
-    };
-    struct WindowCaptureConfig {
-        QString executablePath;
-        QString windowClass;
-        QString windowTitle;
-        bool captureCursor = true;
-    };
-    struct CameraConfig {
-        QString deviceId;
-        // Invalid size and zero frame rate mean no explicit preference.
-        QSize requestedResolution;
-        int requestedFrameRate = 0;
-    };
-    struct ImageConfig {
-        QString filePath;
-    };
-    struct TextConfig {
-        QString text;
-        QFont font;
-        QColor color = Qt::white;
-    };
-    using SourceConfig = std::variant<
-        DisplayCaptureConfig,
-        WindowCaptureConfig,
-        CameraConfig,
-        ImageConfig,
-        TextConfig
-    >;
-
-    struct SourceRuntimeInfo {
-        // Invalid until loading, capture, or rendering supplies the actual size.
-        QSize originalSize;
-    };
-    struct SourceData {
-        QString id;
-        QString name;
-        SourceConfig config = DisplayCaptureConfig{};
-        SourceRuntimeInfo runtime;
-        bool visible = true;
-        bool locked = false;
-
-        SourceType type() const;
-    };
     enum Role {
         IdRole = Qt::UserRole + 1,
         NameRole,

@@ -170,7 +170,7 @@ void MainWindowTest::sourcePanelSharesStateAcrossReloadsAndReleasesItWithWindow(
 
 void MainWindowTest::sourcePanelFollowsSelectionAcrossReloads()
 {
-    SourceListModel state(QList<SourceListModel::SourceData>{{"a", "First"}, {"b", "Second"}});
+    SourceListModel state(QList<SourceData>{{"a", "First"}, {"b", "Second"}});
     QQuickWidget panel;
     panel.rootContext()->setContextProperty("uiTheme", m_theme.get());
     panel.rootContext()->setContextProperty("sourceListModel", &state);
@@ -216,7 +216,7 @@ void MainWindowTest::sourcePanelCanMoveAndToggle_data()
 void MainWindowTest::sourcePanelCanMoveAndToggle()
 {
     QFETCH(bool, reload);
-    SourceListModel state(QList<SourceListModel::SourceData>{
+    SourceListModel state(QList<SourceData>{
         {"a", "Foreground"}, {"b", "Background"}, {"c", "Logo"}});
     QQuickWidget panel;
     panel.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
@@ -352,11 +352,11 @@ void MainWindowTest::listScrollBarsHandleOverflow()
 {
     QFETCH(QString, panelName);
     QFETCH(QString, prefix);
-    QList<SourceListModel::SourceData> sources;
+    QList<SourceData> sources;
     for (int i = 0; i < 24; ++i)
         sources.append({QString::number(i), QStringLiteral("Source %1").arg(i)});
     SourceListModel state(sources);
-    SourceListModel shortState(QList<SourceListModel::SourceData>{{"one", "One"}});
+    SourceListModel shortState(QList<SourceData>{{"one", "One"}});
     QVERIFY(state.selectSource("0"));
     QQuickWidget panel;
     panel.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
@@ -645,10 +645,10 @@ void MainWindowTest::sourceThemes()
     QFETCH(QString, prefix);
     QFETCH(QString, themeId);
     QVERIFY(m_theme->setTheme(themeId));
-    QList<SourceListModel::SourceData> sources;
+    QList<SourceData> sources;
     for (int i = 0; i < 24; ++i)
         sources.append({QString::number(i), QString("Source %1").arg(i),
-                        SourceListModel::ImageConfig{}, {}, i != 0, i == 0});
+                        ImageConfig{}, {}, i != 0, i == 0});
     SourceListModel state(sources);
     QVERIFY(state.selectSource("0"));
     QQuickWidget panel;
@@ -1436,7 +1436,7 @@ void MainWindowTest::sourcePanelRequestsRemoval()
 {
     QFETCH(bool, reload);
     const QString first = "alpha", second = "beta";
-    SourceListModel state(QList<SourceListModel::SourceData>{{second, "Beta"}, {first, "Alpha"}});
+    SourceListModel state(QList<SourceData>{{second, "Beta"}, {first, "Alpha"}});
     QQuickWidget panel;
     panel.rootContext()->setContextProperty("uiTheme", m_theme.get());
     panel.rootContext()->setContextProperty("sourceListModel", &state);
@@ -1514,9 +1514,9 @@ void MainWindowTest::sourceRemovalDialogHandlesConfirmation()
     image.fill(Qt::red);
     QVERIFY(image.save(path));
     const QString name = "<b>Logo & image</b>";
-    QList<SourceListModel::SourceData> sources{
-        {"shared", name, SourceListModel::ImageConfig{path}, {image.size()}}};
-    if (action != "last") sources.append(SourceListModel::SourceData{"remaining", "Remaining"});
+    QList<SourceData> sources{
+        {"shared", name, ImageConfig{path}, {image.size()}}};
+    if (action != "last") sources.append(SourceData{"remaining", "Remaining"});
     SourceListModel state(sources);
     QVERIFY(state.selectSource("shared"));
     MainWindow window(*m_theme);

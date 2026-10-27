@@ -26,7 +26,7 @@ private slots:
     void sameImageEntriesRemainIndependent();
 };
 
-static QList<SourceListModel::SourceData> sources()
+static QList<SourceData> sources()
 {
     return {{"a", "Image"}, {"b", "Camera"}, {"c", "Text"}};
 }
@@ -51,8 +51,8 @@ void SourceListModelTest::startsWithEmptySourceList()
 
 void SourceListModelTest::exposesSourceRolesAndRejectsInvalidIndexes()
 {
-    SourceListModel state(QList<SourceListModel::SourceData>{
-        {"image", "Logo", SourceListModel::ImageConfig{"fixture.png"}, {QSize(64, 32)}, false, true}});
+    SourceListModel state(QList<SourceData>{
+        {"image", "Logo", ImageConfig{"fixture.png"}, {QSize(64, 32)}, false, true}});
     auto *model = &state;
     QAbstractItemModelTester tester(model, QAbstractItemModelTester::FailureReportingMode::QtTest);
     const QHash<int, QByteArray> roles{
@@ -80,21 +80,21 @@ void SourceListModelTest::exposesSourceRolesAndRejectsInvalidIndexes()
 void SourceListModelTest::supportsAllSourceConfigurations()
 {
     using Manager = SourceListModel;
-    const Manager::SourceData defaultSource;
-    QCOMPARE(defaultSource.type(), Manager::SourceType::DisplayCapture);
-    const auto *defaultConfig = std::get_if<Manager::DisplayCaptureConfig>(&defaultSource.config);
+    const SourceData defaultSource;
+    QCOMPARE(defaultSource.type(), SourceType::DisplayCapture);
+    const auto *defaultConfig = std::get_if<DisplayCaptureConfig>(&defaultSource.config);
     QVERIFY(defaultConfig);
     QVERIFY(defaultConfig->displayId.isEmpty());
-    QList<Manager::SourceData> sources{
-        {"display", "Display", Manager::DisplayCaptureConfig{"monitor-1", false}},
-        {"window", "Window", Manager::WindowCaptureConfig{
+    QList<SourceData> sources{
+        {"display", "Display", DisplayCaptureConfig{"monitor-1", false}},
+        {"window", "Window", WindowCaptureConfig{
             "program.exe", "WindowClass", "Window title", true}},
-        {"camera", "Camera", Manager::CameraConfig{"camera-1", QSize(1280, 720), 30}},
-        {"image", "Image", Manager::ImageConfig{"fixture.png"}, {QSize(64, 32)}},
-        {"text", "Text", Manager::TextConfig{"Caption", QFont("Arial", 24), Qt::yellow}}};
-    const QList<Manager::SourceType> types{
-        Manager::SourceType::DisplayCapture, Manager::SourceType::WindowCapture,
-        Manager::SourceType::Camera, Manager::SourceType::Image, Manager::SourceType::Text};
+        {"camera", "Camera", CameraConfig{"camera-1", QSize(1280, 720), 30}},
+        {"image", "Image", ImageConfig{"fixture.png"}, {QSize(64, 32)}},
+        {"text", "Text", TextConfig{"Caption", QFont("Arial", 24), Qt::yellow}}};
+    const QList<SourceType> types{
+        SourceType::DisplayCapture, SourceType::WindowCapture,
+        SourceType::Camera, SourceType::Image, SourceType::Text};
     const QStringList typeNames{"displayCapture", "windowCapture", "camera", "image", "text"};
     Manager state(sources);
     auto *model = &state;
@@ -103,7 +103,7 @@ void SourceListModelTest::supportsAllSourceConfigurations()
         QCOMPARE(sources.at(row).type(), types.at(row));
         const auto index = model->index(row, 0);
         QCOMPARE(index.data(Manager::TypeRole).toString(), typeNames.at(row));
-        if (types.at(row) == Manager::SourceType::Image) {
+        if (types.at(row) == SourceType::Image) {
             QCOMPARE(index.data(Manager::FilePathRole).toString(), QString("fixture.png"));
             QCOMPARE(index.data(Manager::OriginalSizeRole).toSize(), QSize(64, 32));
         } else {
@@ -115,8 +115,8 @@ void SourceListModelTest::supportsAllSourceConfigurations()
         QVERIFY(state.setSourceLocked(sources.at(row).id, true));
     }
     // Type follows config replacement; it cannot retain an independently stored value.
-    sources[0].config = Manager::ImageConfig{"replacement.png"};
-    QCOMPARE(sources.at(0).type(), Manager::SourceType::Image);
+    sources[0].config = ImageConfig{"replacement.png"};
+    QCOMPARE(sources.at(0).type(), SourceType::Image);
     QCOMPARE(model->index(0, 0).data(Manager::TypeRole).toString(), QString("displayCapture"));
     QVERIFY(state.moveSource("text", -1));
     QCOMPARE(model->index(3, 0).data(Manager::TypeRole).toString(), QString("text"));
@@ -303,7 +303,7 @@ void SourceListModelTest::rejectsInvalidOperations()
 void SourceListModelTest::suggestsUnusedSourceNames()
 {
     const QString base = QString::fromUtf8("图像");
-    SourceListModel state(QList<SourceListModel::SourceData>{
+    SourceListModel state(QList<SourceData>{
         {"a", base}, {"b", base + " 3"}, {"c", "Camera"}, {"d", " cAmErA 2 "}});
     QVERIFY(state.selectSource("a"));
     QSignalSpy selected(&state, &SourceListModel::currentSourceIdChanged);
@@ -328,9 +328,9 @@ void SourceListModelTest::sameImageEntriesRemainIndependent()
     QImage image(19, 11, QImage::Format_ARGB32);
     image.fill(Qt::red);
     QVERIFY(image.save(path));
-    QList<SourceListModel::SourceData> entries{
-        {"a", "First", SourceListModel::ImageConfig{path}, {image.size()}},
-        {"b", "Second", SourceListModel::ImageConfig{path}, {image.size()}}};
+    QList<SourceData> entries{
+        {"a", "First", ImageConfig{path}, {image.size()}},
+        {"b", "Second", ImageConfig{path}, {image.size()}}};
     SourceListModel state(entries);
     entries.clear(); // State owns its source list.
     QVERIFY(state.setSourceVisible("a", false));
