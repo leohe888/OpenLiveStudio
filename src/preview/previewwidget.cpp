@@ -7,6 +7,7 @@
 #include <QOpenGLShaderProgram>
 #include <QOpenGLTexture>
 #include <QOpenGLVertexArrayObject>
+#include <QScopeGuard>
 #include <QSurfaceFormat>
 #include <QVector2D>
 
@@ -88,8 +89,10 @@ void PreviewWidget::initializeGL()
     }
     GLint previousDrawFramebuffer = 0;
     GLint previousReadFramebuffer = 0;
+    GLint previousTexture = 0;
     glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previousDrawFramebuffer);
     glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &previousReadFramebuffer);
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &previousTexture);
     QOpenGLFramebufferObjectFormat canvasFormat;
     canvasFormat.setTextureTarget(GL_TEXTURE_2D);
     canvasFormat.setInternalTextureFormat(GL_RGBA8);
@@ -99,6 +102,14 @@ void PreviewWidget::initializeGL()
     const bool canvasValid = m_canvasFbo->isValid();
     if (!canvasValid)
         m_canvasFbo.reset();
+    else {
+        glBindTexture(GL_TEXTURE_2D, m_canvasFbo->texture());
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    }
+    glBindTexture(GL_TEXTURE_2D, GLuint(previousTexture));
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, GLuint(previousDrawFramebuffer));
     glBindFramebuffer(GL_READ_FRAMEBUFFER, GLuint(previousReadFramebuffer));
     if (!canvasValid) {
@@ -112,16 +123,43 @@ void PreviewWidget::paintGL()
 {
     const QSize pixelSize(qRound(width() * devicePixelRatioF()),
                           qRound(height() * devicePixelRatioF()));
+    glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
     glViewport(0, 0, pixelSize.width(), pixelSize.height());
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_BLEND);
     glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT);
     if (!m_initialized || pixelSize.isEmpty())
         return;
 
+    const auto restoreWidgetTarget = qScopeGuard([&] {
+        glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+        glViewport(0, 0, pixelSize.width(), pixelSize.height());
+        glDisable(GL_BLEND);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        m_vertexArray->release();
+        m_program->release();
+    });
+    const QSize canvasSize = m_canvasFbo->size();
+    if (!m_canvasFbo->bind()) {
+        reportError(tr("无法绑定合成画布。"));
+        return;
+    }
+    glViewport(0, 0, canvasSize.width(), canvasSize.height());
+    glClear(GL_COLOR_BUFFER_BIT);
+
     if (m_imageDirty) {
         m_imageDirty = false;
         m_texture.reset();
         if (!m_image.isNull()) {
+            GLint maxTextureSize = 0;
+            glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
+            if (m_image.width() > maxTextureSize || m_image.height() > maxTextureSize) {
+                reportError(tr("预览图片尺寸超过显卡纹理限制。"));
+                return;
+            }
             m_texture = std::make_unique<QOpenGLTexture>(m_image, QOpenGLTexture::DontGenerateMipMaps);
             if (!m_texture->isCreated() || !m_texture->isStorageAllocated()) {
                 m_texture.reset();
@@ -133,29 +171,37 @@ void PreviewWidget::paintGL()
         }
         m_lastError.clear();
     }
-    if (!m_texture)
-        return;
-
-    const double scale = qMin(double(pixelSize.width()) / m_image.width(),
-                              double(pixelSize.height()) / m_image.height());
-    const QSizeF displaySize(m_image.width() * scale, m_image.height() * scale);
     if (!m_program->bind()) {
         m_initialized = false;
         reportError(tr("无法绑定预览着色器：%1").arg(m_program->log()));
         return;
     }
-    m_program->setUniformValue("displayScale", QVector2D(displaySize.width() / pixelSize.width(),
-                                                        displaySize.height() / pixelSize.height()));
-    glEnable(GL_BLEND);
-    // QOpenGLTexture's QImage upload uses straight RGBA; keep the background opaque.
-    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-    m_texture->bind(0);
+    glActiveTexture(GL_TEXTURE0);
     m_vertexArray->bind();
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    m_vertexArray->release();
-    m_texture->release(0);
-    m_program->release();
+    const auto drawTexture = [&](GLuint texture, const QSize &sourceSize,
+                                  const QSize &targetSize, bool flipY) {
+        const double scale = qMin(double(targetSize.width()) / sourceSize.width(),
+                                  double(targetSize.height()) / sourceSize.height());
+        m_program->setUniformValue("displayScale",
+            QVector2D(sourceSize.width() * scale / targetSize.width(),
+                      sourceSize.height() * scale / targetSize.height()));
+        m_program->setUniformValue("flipY", flipY);
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    };
+
+    if (m_texture) {
+        // Blend the straight-alpha image once onto an opaque canvas.
+        glEnable(GL_BLEND);
+        glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+        drawTexture(m_texture->textureId(), m_image.size(), canvasSize, false);
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+    glViewport(0, 0, pixelSize.width(), pixelSize.height());
     glDisable(GL_BLEND);
+    // FBO textures use bottom-left-origin coordinates, unlike uploaded images.
+    drawTexture(m_canvasFbo->texture(), canvasSize, pixelSize, true);
 }
 
 void PreviewWidget::cleanup()
