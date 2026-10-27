@@ -12,11 +12,6 @@
 PreviewWidget::PreviewWidget(QWidget *parent)
     : QOpenGLWidget(parent)
 {
-    QSurfaceFormat requestedFormat = format();
-    requestedFormat.setRenderableType(QSurfaceFormat::OpenGL);
-    requestedFormat.setVersion(3, 3);
-    requestedFormat.setProfile(QSurfaceFormat::CoreProfile);
-    setFormat(requestedFormat);
 }
 
 PreviewWidget::~PreviewWidget()

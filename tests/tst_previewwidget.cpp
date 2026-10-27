@@ -1,8 +1,10 @@
 #include "preview/previewwidget.h"
 
+#include <QApplication>
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
 #include <QSignalSpy>
+#include <QSurfaceFormat>
 #include <QTest>
 
 class PreviewWidgetTest : public QObject
@@ -125,5 +127,17 @@ private:
     }
 };
 
-QTEST_MAIN(PreviewWidgetTest)
+int main(int argc, char *argv[])
+{
+    QSurfaceFormat format;
+    format.setRenderableType(QSurfaceFormat::OpenGL);
+    format.setVersion(3, 3);
+    format.setProfile(QSurfaceFormat::CoreProfile);
+    QSurfaceFormat::setDefaultFormat(format);
+
+    QApplication app(argc, argv);
+    PreviewWidgetTest test;
+    return QTest::qExec(&test, argc, argv);
+}
+
 #include "tst_previewwidget.moc"
