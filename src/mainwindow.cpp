@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "sourcelistmodel.h"
+#include "imagesourcecontroller.h"
 #include "thememanager.h"
 #include "preview/previewwidget.h"
 
@@ -22,33 +23,11 @@
 #include <QQuickWidget>
 #include <QResizeEvent>
 #include <QStatusBar>
+#include <QShortcut>
 #include <QStackedWidget>
 #include <QVBoxLayout>
 
 namespace {
-QImage previewTestImage()
-{
-    QImage image(1920, 1080, QImage::Format_RGBA8888);
-    QPainter painter(&image);
-    const QRect quadrants[] = {{0, 0, 960, 540}, {960, 0, 960, 540},
-                               {0, 540, 960, 540}, {960, 540, 960, 540}};
-    const QColor colors[] = {Qt::red, Qt::green, Qt::blue, Qt::white};
-    const QString labels[] = {QObject::tr("左上"), QObject::tr("右上"),
-                               QObject::tr("左下"), QObject::tr("右下")};
-    QFont font = painter.font();
-    font.setPixelSize(54);
-    painter.setFont(font);
-    for (int i = 0; i < 4; ++i) {
-        painter.fillRect(quadrants[i], colors[i]);
-        painter.setPen(i == 0 || i == 2 ? Qt::white : Qt::black);
-        painter.drawText(quadrants[i], Qt::AlignCenter, labels[i]);
-    }
-    painter.setCompositionMode(QPainter::CompositionMode_Source);
-    painter.fillRect(QRect(800, 450, 320, 180), Qt::transparent);
-    painter.end();
-    return image;
-}
-
 // Preserve Qt's title-bar glyphs and actions, but tint their pixmaps because
 // native Windows styles can return black icons regardless of the palette.
 class ThemedDockWidget final : public QDockWidget
@@ -96,6 +75,7 @@ MainWindow::MainWindow(ThemeManager &theme, QWidget *parent)
     applyTheme();
     connect(&m_theme, &ThemeManager::themeChanged, this, &MainWindow::applyTheme);
     m_sourceListModel = new SourceListModel;
+    m_imageSources = new ImageSourceController(*m_sourceListModel, this);
     setWindowTitle(QStringLiteral("OpenLive Studio"));
     setMinimumSize(960, 640);
     resize(1280, 800);
@@ -103,6 +83,20 @@ MainWindow::MainWindow(ThemeManager &theme, QWidget *parent)
     setupMenuBar();
     setupPreview();
     setupStatusBar();
+    const auto showSourceError = [this](const QString &id, const QString &message) {
+        QString name = tr("图片");
+        for (int row = 0; row < m_sourceListModel->rowCount(); ++row) {
+            const auto index = m_sourceListModel->index(row, 0);
+            if (index.data(SourceListModel::IdRole).toString() == id) {
+                name = index.data(SourceListModel::NameRole).toString();
+                break;
+            }
+        }
+        statusBar()->showMessage(tr("来源“%1”：%2").arg(name, message));
+    };
+    connect(m_imageSources, &ImageSourceController::sourceError, this, showSourceError);
+    if (auto *preview = findChild<PreviewWidget *>(QStringLiteral("previewWidget")))
+        connect(preview, &PreviewWidget::sourceError, this, showSourceError, Qt::QueuedConnection);
     setupSourcesDock();
     setupMixerDock();
     setupControlsDock();
@@ -220,7 +214,7 @@ void MainWindow::showDialog(const QUrl &source, const QString &title,
     });
     auto *component = new QQmlComponent(view->engine(), view);
     connect(component, &QQmlComponent::statusChanged, dialog,
-            [dialog, view, component, source, properties, showError](QQmlComponent::Status status) {
+            [this, dialog, view, component, source, properties, showError](QQmlComponent::Status status) {
         if (status == QQmlComponent::Error) {
             QStringList errors;
             for (const auto &error : component->errors())
@@ -228,7 +222,11 @@ void MainWindow::showDialog(const QUrl &source, const QString &title,
             showError(errors.join('\n'));
         } else if (status == QQmlComponent::Ready) {
             // Compatible with Qt 6.5; properties precede Component.onCompleted.
-            auto *object = component->createWithInitialProperties(properties, view->rootContext());
+            QVariantMap initialProperties = properties;
+            if (source.fileName() == QStringLiteral("SourceAddDialog.qml"))
+                initialProperties.insert(QStringLiteral("imageSourceController"),
+                    QVariant::fromValue(m_imageSources));
+            auto *object = component->createWithInitialProperties(initialProperties, view->rootContext());
             auto *root = qobject_cast<QQuickItem *>(object);
             if (!root) {
                 QStringList errors;
@@ -237,6 +235,12 @@ void MainWindow::showDialog(const QUrl &source, const QString &title,
                 showError(errors.isEmpty() ? tr("QML 根对象必须是可视 Item。") : errors.join('\n'));
                 delete object;
                 return;
+            }
+            if (source.fileName() == QStringLiteral("SourceAddDialog.qml")) {
+                auto *cancel = new QShortcut(QKeySequence(Qt::Key_Escape), dialog);
+                connect(cancel, &QShortcut::activated, dialog, &QDialog::reject);
+                connect(dialog, &QDialog::finished, m_imageSources,
+                    [this, root] { m_imageSources->cancelAdd(root); });
             }
             if (root->metaObject()->indexOfSignal("closeRequested()") >= 0)
                 connect(root, SIGNAL(closeRequested()), dialog, SLOT(close()));
@@ -386,7 +390,7 @@ void MainWindow::setupPreview()
     auto *preview = new PreviewWidget(pages);
     preview->setObjectName(QStringLiteral("previewWidget"));
     connect(preview, &PreviewWidget::renderingError, pages, showError, Qt::QueuedConnection);
-    preview->setImage(previewTestImage());
+    connect(m_imageSources, &ImageSourceController::sourcesChanged, preview, &PreviewWidget::setSources);
     pages->addWidget(preview);
     pages->setCurrentWidget(preview);
 }

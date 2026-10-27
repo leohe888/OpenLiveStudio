@@ -4,6 +4,7 @@
 #include <QOpenGLContext>
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLFunctions>
+#include <QOpenGLTexture>
 #include <QSignalSpy>
 #include <QSurfaceFormat>
 #include <QTest>
@@ -239,7 +240,7 @@ private slots:
         QCOMPARE(sample(before, .5, .05), QColor(Qt::black));
         const QImage canvas = readCanvas(widget);
         const auto *canvasResource = widget.m_canvasFbo.get();
-        const auto *imageResource = widget.m_texture.get();
+        const auto *imageResource = widget.m_textures.at(QStringLiteral("single-image")).texture.get();
         const auto *programResource = widget.m_program.get();
         widget.setSurroundingColor(QColor("#D4D7DC"));
         const QImage after = widget.grabFramebuffer();
@@ -248,7 +249,7 @@ private slots:
         QCOMPARE(sample(readCanvas(widget), .5, .02), QColor(Qt::black));
         QCOMPARE(readCanvas(widget), canvas);
         QCOMPARE(widget.m_canvasFbo.get(), canvasResource);
-        QCOMPARE(widget.m_texture.get(), imageResource);
+        QCOMPARE(widget.m_textures.at(QStringLiteral("single-image")).texture.get(), imageResource);
         QCOMPARE(widget.m_program.get(), programResource);
         widget.setSurroundingColor(Qt::black);
         QCOMPARE(sample(widget.grabFramebuffer(), .5, .05), QColor(Qt::black));
@@ -293,11 +294,10 @@ private slots:
         QVERIFY(!oversized.isNull());
         oversized.fill(Qt::white);
         widget.setImage(oversized);
-        QSignalSpy errors(&widget, &PreviewWidget::renderingError);
-        QTest::ignoreMessage(QtWarningMsg, "预览图片尺寸超过显卡纹理限制。");
+        QSignalSpy errors(&widget, &PreviewWidget::sourceError);
         widget.paintGL();
         QCOMPARE(errors.count(), 1);
-        QVERIFY(!widget.lastError().isEmpty());
+        QVERIFY(widget.lastError().isEmpty());
         GLint framebuffer = 0;
         GLint viewport[4] = {};
         functions->glGetIntegerv(GL_FRAMEBUFFER_BINDING, &framebuffer);
@@ -326,11 +326,15 @@ private slots:
         widget->resize(100, 100);
         QImage image(16, 16, QImage::Format_RGBA8888);
         image.fill(Qt::blue);
-        widget->setImage(image);
+        QImage overlay(200, 100, QImage::Format_RGBA8888);
+        overlay.fill(Qt::yellow);
+        QImage background(1920, 1080, QImage::Format_RGBA8888);
+        background.fill(Qt::blue);
+        widget->setSources({{"overlay", overlay, true}, {"background", background, true}});
         firstWindow.show();
         QVERIFY(QTest::qWaitForWindowExposed(&firstWindow));
-        QCOMPARE(sample(widget->grabFramebuffer(), .5, .5), QColor(Qt::blue));
-        QCOMPARE(sample(readCanvas(*widget), .5, .5), QColor(Qt::blue));
+        QCOMPARE(sample(widget->grabFramebuffer(), .5, .5), QColor(Qt::yellow));
+        QCOMPARE(sample(readCanvas(*widget), .5, .5), QColor(Qt::yellow));
         QVERIFY(widget->m_canvasFbo);
         QVERIFY(widget->m_canvasFbo->isValid());
         bool canvasWasReleased = false;
@@ -344,10 +348,12 @@ private slots:
         QVERIFY(QTest::qWaitForWindowExposed(&secondWindow));
         QCOMPARE(destroyed.count(), 1);
         QVERIFY(canvasWasReleased);
-        QCOMPARE(sample(widget->grabFramebuffer(), .5, .5), QColor(Qt::blue));
-        QCOMPARE(sample(readCanvas(*widget), .5, .5), QColor(Qt::blue));
+        QCOMPARE(sample(widget->grabFramebuffer(), .5, .5), QColor(Qt::yellow));
+        QCOMPARE(sample(readCanvas(*widget), .5, .5), QColor(Qt::yellow));
         QVERIFY(widget->m_canvasFbo);
         QVERIFY(widget->m_canvasFbo->isValid());
+        QCOMPARE(widget->m_textures.size(), size_t(2));
+        QCOMPARE(sample(readCanvas(*widget), .1, .5), QColor(Qt::blue));
         QCOMPARE(widget->m_canvasFbo->size(), QSize(1920, 1080));
         widget->makeCurrent();
         QVERIFY(widget->m_canvasFbo->bind());
@@ -357,6 +363,87 @@ private slots:
         QCOMPARE(functions->glGetError(), GLenum(GL_NO_ERROR));
         widget->doneCurrent();
         QVERIFY(widget->lastError().isEmpty());
+    }
+
+    void compositesSourcesAndReusesTextures()
+    {
+        PreviewWidget widget;
+        widget.resize(480, 400);
+        QImage background(1920, 1080, QImage::Format_RGBA8888);
+        background.fill(Qt::blue);
+        QImage foreground(400, 200, QImage::Format_RGBA8888);
+        foreground.fill(QColor(255, 0, 0, 128));
+        QList<PreviewSource> sources{{"top", foreground, true}, {"bottom", background, true}};
+        widget.setSources(sources);
+        widget.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&widget));
+        const auto blended = sample(widget.grabFramebuffer(), .5, .5);
+        QVERIFY(qAbs(blended.red() - 128) <= 1);
+        QVERIFY(qAbs(blended.blue() - 127) <= 1);
+        QCOMPARE(blended.alpha(), 255);
+        const auto canvas = readCanvas(widget);
+        QCOMPARE(canvas.pixelColor(600, 540), QColor(Qt::blue));
+        QCOMPARE(canvas.pixelColor(960, 540), blended);
+        const GLuint top = widget.m_textures.at("top").texture->textureId();
+        const GLuint bottom = widget.m_textures.at("bottom").texture->textureId();
+        const GLuint fbo = widget.m_canvasFbo->handle();
+        sources[0].visible = false;
+        widget.setSources(sources);
+        QCOMPARE(sample(widget.grabFramebuffer(), .5, .5), QColor(Qt::blue));
+        sources[0].visible = true;
+        sources.swapItemsAt(0, 1);
+        widget.setSources(sources);
+        QCOMPARE(sample(widget.grabFramebuffer(), .5, .5), QColor(Qt::blue));
+        QCOMPARE(widget.m_textures.at("top").texture->textureId(), top);
+        QCOMPARE(widget.m_textures.at("bottom").texture->textureId(), bottom);
+        widget.resize(600, 160);
+        widget.grabFramebuffer();
+        QCOMPARE(widget.m_canvasFbo->handle(), fbo);
+        QCOMPARE(widget.m_textures.at("top").texture->textureId(), top);
+        sources.removeFirst();
+        widget.setSources(sources);
+        widget.grabFramebuffer();
+        QCOMPARE(widget.m_textures.size(), size_t(1));
+        widget.makeCurrent();
+        QVERIFY(!widget.context()->functions()->glIsTexture(bottom));
+        QCOMPARE(widget.context()->functions()->glGetError(), GLenum(GL_NO_ERROR));
+        widget.doneCurrent();
+        QCOMPARE(readCanvas(widget).pixelColor(600, 540), QColor(Qt::black));
+        sources[0].image = {};
+        widget.setSources(sources);
+        QCOMPARE(sample(widget.grabFramebuffer(), .5, .5), QColor(Qt::black));
+        QVERIFY(widget.m_textures.empty());
+    }
+
+    void fitsOversizedSourcesAndSkipsFailedSource()
+    {
+        PreviewWidget widget;
+        widget.resize(480, 400);
+        widget.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&widget));
+        QImage tall(1200, 2400, QImage::Format_RGBA8888);
+        tall.fill(Qt::yellow);
+        widget.setSources({{"tall", tall, true}});
+        widget.grabFramebuffer();
+        const auto canvas = readCanvas(widget);
+        QCOMPARE(sample(canvas, .5, .05), QColor(Qt::yellow));
+        QCOMPARE(sample(canvas, .3, .5), QColor(Qt::black));
+        widget.makeCurrent();
+        GLint maxSize = 0;
+        widget.context()->functions()->glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxSize);
+        widget.doneCurrent();
+        QImage invalid(maxSize + 1, 1, QImage::Format_RGBA8888);
+        invalid.fill(Qt::white);
+        QSignalSpy sourceErrors(&widget, &PreviewWidget::sourceError);
+        QSignalSpy fatalErrors(&widget, &PreviewWidget::renderingError);
+        widget.setSources({{"invalid", invalid, true}, {"tall", tall, true}});
+        QCOMPARE(sample(widget.grabFramebuffer(), .5, .5), QColor(Qt::yellow));
+        QCOMPARE(sourceErrors.size(), 1);
+        QCOMPARE(fatalErrors.size(), 0);
+        widget.grabFramebuffer();
+        QCOMPARE(sourceErrors.size(), 1);
+        widget.setSources({});
+        QCOMPARE(sample(widget.grabFramebuffer(), .5, .5), QColor(Qt::black));
     }
 
     void destroysWithoutInitialization()

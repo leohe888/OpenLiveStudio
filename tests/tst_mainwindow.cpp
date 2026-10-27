@@ -1,6 +1,10 @@
 #include "mainwindow.h"
 #include "thememanager.h"
 #include "sourcelistmodel.h"
+#include "imagesourcecontroller.h"
+#include <QPainter>
+#include <QFileDialog>
+#include <QTimer>
 #include "preview/previewwidget.h"
 #include <QApplication>
 
@@ -47,7 +51,7 @@ private slots:
     void init();
     void canShowAndClose();
     void hasWindowShell();
-    void previewDisplaysGeneratedImage();
+    void previewDisplaysImageSources();
     void previewShowsRenderingError();
     void dockTitlesStayVerticallyCentered();
     void themeRestoresAndUpdatesOuterWidgets();
@@ -72,6 +76,9 @@ private slots:
     void aboutActionShowsProjectInfoAndReusesDialog();
     void sourcePanelOpensAddDialog_data();
     void sourcePanelOpensAddDialog();
+    void addsImageThroughDialog();
+    void cancelsPendingImageThroughDialog_data();
+    void cancelsPendingImageThroughDialog();
     void sourceAddDialogHandlesInput_data();
     void sourceAddDialogHandlesInput();
     void sourceAddDialogHandlesTypeSelection_data();
@@ -451,7 +458,7 @@ void MainWindowTest::hasWindowShell()
     QVERIFY(!window.findChild<QLabel *>(QStringLiteral("previewStatus")));
 }
 
-void MainWindowTest::previewDisplaysGeneratedImage()
+void MainWindowTest::previewDisplaysImageSources()
 {
     MainWindow window(*m_theme);
     auto *preview = window.findChild<PreviewWidget *>("previewWidget");
@@ -466,6 +473,27 @@ void MainWindowTest::previewDisplaysGeneratedImage()
     auto *sources = window.findChild<SourceListModel *>();
     QVERIFY(sources);
     QCOMPARE(sources->rowCount(), 0);
+    const auto empty = preview->grabFramebuffer();
+    QCOMPARE(empty.pixelColor(empty.width() / 2, empty.height() / 2), QColor(Qt::black));
+    QTemporaryDir images;
+    QImage image(1920, 1080, QImage::Format_RGBA8888);
+    image.fill(Qt::transparent);
+    {
+        QPainter painter(&image);
+        painter.fillRect(0, 0, 960, 540, Qt::red);
+        painter.fillRect(960, 0, 960, 540, Qt::green);
+        painter.fillRect(0, 540, 960, 540, Qt::blue);
+        painter.fillRect(960, 540, 960, 540, Qt::white);
+        painter.setCompositionMode(QPainter::CompositionMode_Source);
+        painter.fillRect(800, 450, 320, 180, Qt::transparent);
+    }
+    const QString imagePath = images.filePath("corners.png");
+    QVERIFY(image.save(imagePath));
+    auto *controller = window.findChild<ImageSourceController *>();
+    QVERIFY(controller);
+    QObject request;
+    controller->addImage("Corners", imagePath, &request);
+    QTRY_COMPARE(sources->rowCount(), 1);
     for (const auto *name : {"sourcesQuickWidget", "mixerQuickWidget", "controlsQuickWidget"}) {
         auto *panel = window.findChild<QQuickWidget *>(QLatin1String(name));
         QVERIFY(panel);
@@ -504,6 +532,57 @@ void MainWindowTest::previewDisplaysGeneratedImage()
     verifyFrame();
     QVERIFY(m_theme->setTheme("dark"));
     verifyFrame();
+    QImage overlay(600, 400, QImage::Format_RGBA8888);
+    overlay.fill(Qt::yellow);
+    const QString overlayPath = images.filePath("overlay.png");
+    QVERIFY(overlay.save(overlayPath));
+    controller->addImage("Overlay", overlayPath, &request);
+    QTRY_COMPARE(sources->rowCount(), 2);
+    const QString overlayId = sources->currentSourceId();
+    const auto sampleCanvas = [&](double u, double v) {
+        const QImage frame = preview->grabFramebuffer();
+        const double scale = qMin(frame.width() / 1920.0, frame.height() / 1080.0);
+        return frame.pixelColor(int((frame.width() - 1920 * scale) / 2 + u * 1920 * scale),
+            int((frame.height() - 1080 * scale) / 2 + v * 1080 * scale));
+    };
+    QCOMPARE(sampleCanvas(.6, .6), QColor(Qt::yellow));
+    auto *panel = window.findChild<QQuickWidget *>("sourcesQuickWidget");
+    const auto find = [&](const QString &objectName) {
+        const auto search = [&](auto &&self, QQuickItem *item) -> QQuickItem * {
+            if (item->objectName() == objectName) return item;
+            for (auto *child : item->childItems())
+                if (auto *found = self(self, child)) return found;
+            return nullptr;
+        };
+        return search(search, panel->rootObject());
+    };
+    QTRY_VERIFY(find("sourceRow_" + overlayId));
+    QVERIFY(window.grab().save(QCoreApplication::applicationDirPath() + "/mainwindow-image-sources.png"));
+    auto *row = find("sourceRow_" + overlayId);
+    auto *visibility = row->findChild<QQuickItem *>("sourceVisibilityButton");
+    auto *lock = row->findChild<QQuickItem *>("sourceLockButton");
+    auto *down = find("moveSourceDownButton");
+    QVERIFY(visibility && lock && down);
+    const auto click = [&](QQuickItem *item) {
+        QTest::mouseClick(panel, Qt::LeftButton, Qt::NoModifier,
+            item->mapToScene(item->boundingRect().center()).toPoint());
+    };
+    click(lock);
+    click(visibility);
+    QTRY_VERIFY(!sources->index(0, 0).data(SourceListModel::VisibleRole).toBool());
+    QCOMPARE(sampleCanvas(.6, .6), QColor(Qt::white));
+    click(visibility);
+    QTRY_VERIFY(sources->index(0, 0).data(SourceListModel::VisibleRole).toBool());
+    QCOMPARE(sampleCanvas(.6, .6), QColor(Qt::yellow));
+    click(down);
+    QTRY_COMPARE(sources->index(1, 0).data(SourceListModel::IdRole).toString(), overlayId);
+    QCOMPARE(sampleCanvas(.6, .6), QColor(Qt::white));
+    QVERIFY(sources->moveSource(overlayId, -1));
+    QCOMPARE(sampleCanvas(.6, .6), QColor(Qt::yellow));
+    QVERIFY(sources->removeSource(overlayId));
+    verifyFrame();
+    QVERIFY(sources->removeSource(sources->index(0, 0).data(SourceListModel::IdRole).toString()));
+    QCOMPARE(sampleCanvas(.6, .6), QColor(Qt::black));
     QVERIFY(window.close());
 }
 
@@ -518,6 +597,13 @@ void MainWindowTest::previewShowsRenderingError()
     auto *pages = window.findChild<QStackedWidget *>("previewPages");
     auto *error = window.findChild<QLabel *>("previewErrorLabel");
     QVERIFY(pages && error);
+    auto *model = window.findChild<SourceListModel *>();
+    QVERIFY(model->addSource({"example", "Logo"}));
+    preview->sourceError("example", "Texture upload failed");
+    QTRY_VERIFY(window.statusBar()->currentMessage().contains("Logo"));
+    QVERIFY(window.statusBar()->currentMessage().contains("Texture upload failed"));
+    QCOMPARE(pages->currentWidget(), preview);
+    QVERIFY(preview->lastError().isEmpty());
     const QString details = QStringLiteral("<b>测试渲染错误</b>");
     preview->renderingError(details);
     QCOMPARE(pages->currentWidget(), preview);
@@ -1374,7 +1460,7 @@ void MainWindowTest::sourcePanelOpensAddDialog()
         QVERIFY(root);
         QCOMPARE(requested.count(), opening + 1);
         QVERIFY(!root->property("sceneId").isValid());
-        QVERIFY(!root->findChild<QQuickItem *>("sourceFileInput"));
+        QVERIFY(!root->findChild<QQuickItem *>("sourceFileInput")->isVisible());
         QVERIFY(!root->findChild<QQuickItem *>("browseSourceFileButton"));
         QVERIFY(!dialog->findChild<QObject *>("imageFileDialog"));
         auto *name = root->findChild<QQuickItem *>("sourceNameInput");
@@ -1384,6 +1470,115 @@ void MainWindowTest::sourcePanelOpensAddDialog()
         QTRY_VERIFY(dialog.isNull());
         QCOMPARE(state->rowCount(), 0);
     }
+}
+
+void MainWindowTest::addsImageThroughDialog()
+{
+    QTemporaryDir dir;
+    const QString path = dir.filePath("image.png");
+    QImage image(80, 40, QImage::Format_RGBA8888);
+    image.fill(Qt::red);
+    QVERIFY(image.save(path));
+    MainWindow window(*m_theme);
+    window.show();
+    auto *model = window.findChild<SourceListModel *>();
+    QVERIFY(model);
+    const auto open = [&] {
+        window.showDialog(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml"), "Add image",
+            {{"sourceListModel", QVariant::fromValue(model)}});
+    };
+    open();
+    QPointer<QDialog> dialog = window.findChild<QDialog *>("qmlDialog");
+    auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    auto *root = view->rootObject();
+    auto *type = root->findChild<QQuickItem *>("sourceTypeInput");
+    auto *name = root->findChild<QQuickItem *>("sourceNameInput");
+    auto *input = root->findChild<QQuickItem *>("sourceFileInput");
+    auto *confirm = root->findChild<QQuickItem *>("confirmSourceAddButton");
+    QVERIFY(type && name && input && confirm);
+    type->setProperty("currentIndex", 3);
+    QVERIFY(input->isVisible());
+    QVERIFY(confirm->isEnabled());
+    name->setProperty("text", "Logo");
+    input->setProperty("text", dir.filePath("missing.png"));
+    QVERIFY(QMetaObject::invokeMethod(root, "submit"));
+    QVERIFY(root->property("loading").toBool());
+    QVERIFY(!confirm->isEnabled());
+    QTRY_VERIFY(!root->property("loading").toBool());
+    QVERIFY(!root->property("errorText").toString().isEmpty());
+    QVERIFY(dialog->isVisible());
+    QCOMPARE(model->rowCount(), 0);
+    // Browsing cancellation must preserve an already entered path.
+    input->setProperty("text", path);
+    auto *browse = root->findChild<QQuickItem *>("browseSourceImageButton");
+    QVERIFY(browse);
+    const bool previous = QApplication::testAttribute(Qt::AA_DontUseNativeDialogs);
+    QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
+    QTimer::singleShot(0, [&] {
+        for (auto *widget : QApplication::topLevelWidgets())
+            if (auto *file = qobject_cast<QFileDialog *>(widget)) file->reject();
+    });
+    QVERIFY(QMetaObject::invokeMethod(browse, "clicked"));
+    QApplication::setAttribute(Qt::AA_DontUseNativeDialogs, previous);
+    QCOMPARE(input->property("text").toString(), path);
+    QVERIFY(QMetaObject::invokeMethod(root, "submit"));
+    QVERIFY(root->property("loading").toBool());
+    // Duplicate submission is ignored while decoding.
+    QVERIFY(QMetaObject::invokeMethod(root, "submit"));
+    QTRY_VERIFY(dialog.isNull());
+    QCOMPARE(model->rowCount(), 1);
+    QCOMPARE(model->index(0, 0).data(SourceListModel::NameRole).toString(), QString("Logo"));
+    QCOMPARE(model->index(0, 0).data(SourceListModel::OriginalSizeRole).toSize(), image.size());
+}
+
+void MainWindowTest::cancelsPendingImageThroughDialog_data()
+{
+    QTest::addColumn<QString>("method");
+    for (const auto *method : {"cancel", "escape", "close"})
+        QTest::newRow(method) << QString::fromLatin1(method);
+}
+
+void MainWindowTest::cancelsPendingImageThroughDialog()
+{
+    QFETCH(QString, method);
+    QTemporaryDir dir;
+    const QString path = dir.filePath("image.png");
+    QImage image(80, 40, QImage::Format_RGBA8888);
+    image.fill(Qt::red);
+    QVERIFY(image.save(path));
+    MainWindow window(*m_theme);
+    window.show();
+    auto *model = window.findChild<SourceListModel *>();
+    auto *controller = window.findChild<ImageSourceController *>();
+    window.showDialog(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml"), "Add image",
+        {{"sourceListModel", QVariant::fromValue(model)}});
+    QPointer<QDialog> dialog = window.findChild<QDialog *>("qmlDialog");
+    auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
+    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    auto *root = view->rootObject();
+    QTRY_VERIFY(root->findChild<QQuickItem *>("sourceNameInput")->hasActiveFocus());
+    QTRY_VERIFY(dialog->isActiveWindow());
+    root->findChild<QQuickItem *>("sourceTypeInput")->setProperty("currentIndex", 3);
+    root->findChild<QQuickItem *>("sourceFileInput")->setProperty("text", path);
+    root->findChild<QQuickItem *>("sourceNameInput")->setProperty("text", "Cancelled");
+    QVERIFY(QMetaObject::invokeMethod(root, "submit"));
+    QVERIFY(root->property("loading").toBool());
+    if (method == "cancel") {
+        QVERIFY(QMetaObject::invokeMethod(root->findChild<QQuickItem *>("cancelSourceAddButton"), "clicked"));
+    } else if (method == "escape") {
+        QTest::keyClick(view, Qt::Key_Escape);
+    } else {
+        dialog->close();
+    }
+    QVERIFY(!dialog->isVisible());
+    QTRY_VERIFY(dialog.isNull());
+    QSignalSpy added(controller, &ImageSourceController::imageAdded);
+    QObject owner;
+    controller->addImage("Kept", path, &owner);
+    QTRY_COMPARE(added.count(), 1);
+    QCOMPARE(model->rowCount(), 1);
+    QCOMPARE(model->index(0, 0).data(SourceListModel::NameRole).toString(), QString("Kept"));
 }
 
 void MainWindowTest::sourceAddDialogHandlesInput_data()
@@ -1489,14 +1684,16 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
         activateType(index);
         QCOMPARE(type->property("currentValue").toString(), keys.at(index));
         QVERIFY(root->property("errorText").toString().isEmpty());
-        QVERIFY(hint->isVisible());
+        QCOMPARE(hint->isVisible(), index != 3);
         QCOMPARE(hint->property("color").value<QColor>(), m_theme->color("text.secondary"));
         QPointer<QQuickItem> imageInput = root->findChild<QQuickItem *>("sourceFileInput");
-        QTRY_VERIFY(!imageInput || !imageInput->isVisible());
-        QVERIFY(!confirm->isEnabled());
+        QVERIFY(imageInput);
+        QCOMPARE(imageInput->isVisible(), index == 3);
+        QCOMPARE(confirm->isEnabled(), index == 3);
         auto *background = confirm->property("background").value<QQuickItem *>();
         QVERIFY(background);
-        QCOMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.disabled"));
+        if (index != 3)
+            QCOMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.disabled"));
         QCOMPARE(type->property("currentText").toString(), labels.at(index));
         QCOMPARE(name->property("text").toString(), labels.at(index));
         // A direct call or Return in the name field must also reject these types.

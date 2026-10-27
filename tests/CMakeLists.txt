@@ -51,6 +51,8 @@ qt_add_executable(tst_mainwindow
     ../src/core/source.h
     ../src/core/sourcelistmodel.cpp
     ../src/core/sourcelistmodel.h
+    ../src/core/imagesourcecontroller.cpp
+    ../src/core/imagesourcecontroller.h
 )
 
 target_include_directories(tst_mainwindow PRIVATE
@@ -129,3 +131,21 @@ set_tests_properties(ui.previewwidget PROPERTIES
     LABELS "ui;gpu"
     TIMEOUT 30
 )
+
+qt_add_executable(tst_imagesourcecontroller
+    tst_imagesourcecontroller.cpp
+    ../src/core/source.cpp
+    ../src/core/sourcelistmodel.cpp
+    ../src/core/imagesourcecontroller.cpp
+    ../src/core/imagesourcecontroller.h
+)
+target_include_directories(tst_imagesourcecontroller PRIVATE
+    "${PROJECT_SOURCE_DIR}/src" "${PROJECT_SOURCE_DIR}/src/core")
+target_link_libraries(tst_imagesourcecontroller PRIVATE Qt6::Widgets Qt6::Test)
+add_test(NAME core.imagesourcecontroller
+    COMMAND "${CMAKE_COMMAND}" -E env
+        "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
+        "QT_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../plugins"
+        "QT_QPA_PLATFORM=offscreen"
+        "$<TARGET_FILE:tst_imagesourcecontroller>" -o "-,txt")
+set_tests_properties(core.imagesourcecontroller PROPERTIES LABELS "core;smoke" TIMEOUT 30)

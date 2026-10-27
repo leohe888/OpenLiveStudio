@@ -9,6 +9,7 @@ SourceListModel::SourceListModel(const QList<SourceData> &sources, QObject *pare
     : QAbstractListModel(parent), m_sources(sources)
 {
     connect(this, &SourceListModel::currentSourceIdChanged, this, &SourceListModel::sourceMoveAvailabilityChanged);
+    connect(this, &QAbstractItemModel::rowsInserted, this, &SourceListModel::sourceMoveAvailabilityChanged);
     connect(this, &QAbstractItemModel::rowsRemoved, this, &SourceListModel::sourceMoveAvailabilityChanged);
     connect(this, &QAbstractItemModel::rowsMoved, this, &SourceListModel::sourceMoveAvailabilityChanged);
 }
@@ -172,4 +173,26 @@ bool SourceListModel::setSourceVisible(const QString &sourceId, bool visible)
 bool SourceListModel::setSourceLocked(const QString &sourceId, bool locked)
 {
     return setSourceFlag(sourceId, LockedRole, locked);
+}
+
+bool SourceListModel::addSource(const SourceData &source)
+{
+    if (source.id.trimmed().isEmpty() || sourceRow(source.id) >= 0)
+        return false;
+    beginInsertRows({}, 0, 0);
+    m_sources.prepend(source);
+    endInsertRows();
+    selectSource(source.id);
+    return true;
+}
+
+bool SourceListModel::setSourceOriginalSize(const QString &id, const QSize &size)
+{
+    const int row = sourceRow(id);
+    if (row < 0) return false;
+    if (m_sources[row].runtime.originalSize != size) {
+        m_sources[row].runtime.originalSize = size;
+        emit dataChanged(index(row, 0), index(row, 0), {OriginalSizeRole});
+    }
+    return true;
 }

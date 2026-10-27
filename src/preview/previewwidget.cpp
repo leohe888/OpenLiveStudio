@@ -1,6 +1,7 @@
 #include "previewwidget.h"
 
 #include <QDebug>
+#include <algorithm>
 #include <QOpenGLBuffer>
 #include <QOpenGLContext>
 #include <QOpenGLFramebufferObject>
@@ -24,8 +25,16 @@ PreviewWidget::~PreviewWidget()
 
 void PreviewWidget::setImage(const QImage &image)
 {
-    m_image = image;
-    m_imageDirty = true;
+    setSources(image.isNull() ? QList<PreviewSource>{}
+                             : QList<PreviewSource>{{QStringLiteral("single-image"), image, true}});
+    // Preserve the original single-image API's fit-to-canvas behavior.
+    m_fitSingleImage = true;
+}
+
+void PreviewWidget::setSources(const QList<PreviewSource> &sources)
+{
+    m_sources = sources;
+    m_fitSingleImage = false;
     update();
 }
 
@@ -50,7 +59,6 @@ void PreviewWidget::initializeGL()
     m_contextDestruction = connect(context(), &QOpenGLContext::aboutToBeDestroyed,
                                   this, &PreviewWidget::cleanup, Qt::DirectConnection);
     m_lastError.clear();
-    m_imageDirty = true;
     m_initialized = false;
     if (context()->isOpenGLES() || context()->format().version() < qMakePair(3, 3)) {
         reportError(tr("预览需要 OpenGL 3.3 或更高版本。"));
@@ -168,26 +176,36 @@ void PreviewWidget::paintGL()
     glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    if (m_imageDirty) {
-        m_imageDirty = false;
-        m_texture.reset();
-        if (!m_image.isNull()) {
-            GLint maxTextureSize = 0;
-            glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
-            if (m_image.width() > maxTextureSize || m_image.height() > maxTextureSize) {
-                reportError(tr("预览图片尺寸超过显卡纹理限制。"));
-                return;
+    for (auto it = m_textures.begin(); it != m_textures.end();) {
+        const bool retained = std::any_of(m_sources.cbegin(), m_sources.cend(),
+            [&](const PreviewSource &source) { return source.id == it->first && !source.image.isNull(); });
+        if (!retained) it = m_textures.erase(it);
+        else ++it;
+    }
+    for (const auto &source : m_sources) {
+        if (!source.visible || source.image.isNull()) continue;
+        auto &resource = m_textures[source.id];
+        if (resource.imageKey == source.image.cacheKey()) continue;
+        resource.texture.reset();
+        resource.imageKey = source.image.cacheKey();
+        GLint maxTextureSize = 0;
+        glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
+        QString error;
+        if (source.image.width() > maxTextureSize || source.image.height() > maxTextureSize) {
+            error = tr("预览图片尺寸超过显卡纹理限制。");
+        } else {
+            resource.texture = std::make_unique<QOpenGLTexture>(source.image, QOpenGLTexture::DontGenerateMipMaps);
+            const GLenum uploadError = glGetError();
+            if (!resource.texture->isCreated() || !resource.texture->isStorageAllocated()
+                || uploadError != GL_NO_ERROR) {
+                resource.texture.reset();
+                error = tr("无法创建预览图片纹理。");
+            } else {
+                resource.texture->setMinMagFilters(QOpenGLTexture::Linear, QOpenGLTexture::Linear);
+                resource.texture->setWrapMode(QOpenGLTexture::ClampToEdge);
             }
-            m_texture = std::make_unique<QOpenGLTexture>(m_image, QOpenGLTexture::DontGenerateMipMaps);
-            if (!m_texture->isCreated() || !m_texture->isStorageAllocated()) {
-                m_texture.reset();
-                reportError(tr("无法创建预览图片纹理。"));
-                return;
-            }
-            m_texture->setMinMagFilters(QOpenGLTexture::Linear, QOpenGLTexture::Linear);
-            m_texture->setWrapMode(QOpenGLTexture::ClampToEdge);
         }
-        m_lastError.clear();
+        if (!error.isEmpty()) emit sourceError(source.id, error);
     }
     if (!m_program->bind()) {
         m_initialized = false;
@@ -197,9 +215,10 @@ void PreviewWidget::paintGL()
     glActiveTexture(GL_TEXTURE0);
     m_vertexArray->bind();
     const auto drawTexture = [&](GLuint texture, const QSize &sourceSize,
-                                  const QSize &targetSize, bool flipY) {
-        const double scale = qMin(double(targetSize.width()) / sourceSize.width(),
+                                  const QSize &targetSize, bool flipY, bool allowUpscale = true) {
+        double scale = qMin(double(targetSize.width()) / sourceSize.width(),
                                   double(targetSize.height()) / sourceSize.height());
+        if (!allowUpscale) scale = qMin(1.0, scale);
         m_program->setUniformValue("displayScale",
             QVector2D(sourceSize.width() * scale / targetSize.width(),
                       sourceSize.height() * scale / targetSize.height()));
@@ -208,11 +227,13 @@ void PreviewWidget::paintGL()
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     };
 
-    if (m_texture) {
-        // Blend the straight-alpha image once onto an opaque canvas.
-        glEnable(GL_BLEND);
-        glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-        drawTexture(m_texture->textureId(), m_image.size(), canvasSize, false);
+    glEnable(GL_BLEND);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    for (auto it = m_sources.crbegin(); it != m_sources.crend(); ++it) {
+        const auto resource = m_textures.find(it->id);
+        if (it->visible && resource != m_textures.end() && resource->second.texture)
+            drawTexture(resource->second.texture->textureId(), it->image.size(), canvasSize,
+                        false, m_fitSingleImage);
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
@@ -231,13 +252,12 @@ void PreviewWidget::cleanup()
 
     makeCurrent();
     m_canvasFbo.reset();
-    m_texture.reset();
+    m_textures.clear();
     m_vertexArray.reset();
     m_vertexBuffer.reset();
     m_program.reset();
     doneCurrent();
-    // Retain the CPU image so a replacement context can upload it again.
-    m_imageDirty = true;
+    // Retain CPU images so a replacement context can upload them again.
 }
 
 void PreviewWidget::reportError(const QString &message)

@@ -12,6 +12,7 @@ class SourceListModelTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void insertsSourcesAtTop();
     void startsWithEmptySourceList();
     void exposesSourceRolesAndRejectsInvalidIndexes();
     void supportsAllSourceConfigurations();
@@ -356,3 +357,27 @@ void SourceListModelTest::sameImageEntriesRemainIndependent()
 
 QTEST_GUILESS_MAIN(SourceListModelTest)
 #include "tst_sourcelistmodel.moc"
+
+void SourceListModelTest::insertsSourcesAtTop()
+{
+    SourceListModel model;
+    QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::QtTest);
+    QSignalSpy inserted(&model, &QAbstractItemModel::rowsInserted);
+    QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
+    QSignalSpy availability(&model, &SourceListModel::sourceMoveAvailabilityChanged);
+    QVERIFY(!model.addSource({" ", "Invalid"}));
+    QVERIFY(model.addSource({"one", "First", ImageConfig{"one.png"}}));
+    QVERIFY(!model.addSource({"one", "Duplicate"}));
+    QVERIFY(model.addSource({"two", "Second", ImageConfig{"one.png"}}));
+    QCOMPARE(model.rowCount(), 2);
+    QCOMPARE(inserted.count(), 2);
+    QCOMPARE(model.currentSourceId(), QString("two"));
+    QCOMPARE(model.index(0, 0).data(SourceListModel::IdRole).toString(), QString("two"));
+    QVERIFY(model.canMoveCurrentSourceDown());
+    QVERIFY(!model.canMoveCurrentSourceUp());
+    QVERIFY(!availability.isEmpty());
+    QVERIFY(model.setSourceOriginalSize("two", QSize(40, 20)));
+    QVERIFY(model.setSourceOriginalSize("two", QSize(40, 20)));
+    QCOMPARE(changed.count(), 1);
+    QVERIFY(!model.setSourceOriginalSize("missing", QSize(40, 20)));
+}

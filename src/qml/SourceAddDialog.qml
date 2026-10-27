@@ -10,13 +10,37 @@ Rectangle {
     implicitHeight: 300
     color: root.themeColors.background.panel
     required property var sourceListModel
+    property var imageSourceController: null
+    property bool loading: false
+    readonly property bool isImage: sourceType.currentValue === "image"
     property string initialName: qsTr("显示器采集")
     property string errorText: ""
     property bool nameEdited: false
     signal closeRequested()
 
     function submit() {
-        errorText = qsTr("该类型尚未接入添加功能。")
+        if (!isImage) {
+            errorText = qsTr("该类型尚未接入添加功能。")
+            return
+        }
+        if (loading || !imageSourceController) return
+        errorText = ""
+        loading = true
+        imageSourceController.addImage(nameInput.text, fileInput.text, root)
+    }
+
+    Connections {
+        target: root.imageSourceController
+        function onImageAdded(requester) {
+            if (requester !== root) return
+            root.loading = false
+            root.closeRequested()
+        }
+        function onAddFailed(requester, message) {
+            if (requester !== root) return
+            root.loading = false
+            root.errorText = message
+        }
     }
 
     Component.onCompleted: {
@@ -68,6 +92,7 @@ Rectangle {
                 id: sourceType
                 objectName: "sourceTypeInput"
                 Layout.fillWidth: true
+                enabled: !root.loading
                 implicitHeight: 32
                 textRole: "name"
                 valueRole: "type"
@@ -130,13 +155,44 @@ Rectangle {
                 id: nameInput
                 objectName: "sourceNameInput"
                 Layout.fillWidth: true
+                enabled: !root.loading
                 text: root.initialName
                 Accessible.name: qsTr("来源名称")
                 onTextEdited: root.nameEdited = true
             }
+            Label {
+                visible: root.isImage
+                text: qsTr("图片文件")
+                color: root.themeColors.text.primary
+            }
+            RowLayout {
+                visible: root.isImage
+                Layout.fillWidth: true
+                FormInput {
+                    id: fileInput
+                    objectName: "sourceFileInput"
+                    Layout.fillWidth: true
+                    enabled: !root.loading
+                    placeholderText: qsTr("本地图片路径")
+                    Accessible.name: qsTr("图片文件路径")
+                }
+                ActionButton {
+                    objectName: "browseSourceImageButton"
+                    text: qsTr("浏览…")
+                    enabled: !root.loading && root.imageSourceController !== null
+                    onClicked: {
+                        const path = root.imageSourceController.browseImage(fileInput.text)
+                        if (path.length > 0) {
+                            fileInput.text = path
+                            root.errorText = ""
+                        }
+                    }
+                }
+            }
         }
         Label {
             objectName: "sourceTypeUnavailableHint"
+            visible: !root.isImage
             Layout.fillWidth: true
             text: qsTr("该类型尚未接入添加功能。")
             textFormat: Text.PlainText
@@ -157,8 +213,8 @@ Rectangle {
             spacing: 8
             ActionButton {
                 objectName: "confirmSourceAddButton"
-                text: qsTr("确定")
-                enabled: false
+                text: root.loading ? qsTr("加载中…") : qsTr("确定")
+                enabled: root.isImage && !root.loading && root.imageSourceController !== null
                 onClicked: root.submit()
             }
             ActionButton {

@@ -24,6 +24,8 @@ qt_add_executable(OpenLiveStudio
     src/core/source.h
     src/core/sourcelistmodel.cpp
     src/core/sourcelistmodel.h
+    src/core/imagesourcecontroller.cpp
+    src/core/imagesourcecontroller.h
 )
 
 set(OPENLIVE_STUDIO_QML_FILES

@@ -34,6 +34,9 @@ public:
     QVariant data(const QModelIndex &index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
 
+    bool addSource(const SourceData &source);
+    bool setSourceOriginalSize(const QString &id, const QSize &size);
+
     QString currentSourceId() const { return m_currentSourceId; }
     // An empty ID clears selection; other IDs must belong to the source list.
     Q_INVOKABLE bool selectSource(const QString &id);

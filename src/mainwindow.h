@@ -11,6 +11,7 @@ class QMenu;
 class QResizeEvent;
 class QQuickWidget;
 class SourceListModel;
+class ImageSourceController;
 class ThemeManager;
 
 class MainWindow : public QMainWindow
@@ -56,6 +57,7 @@ private:
     QDockWidget *m_mixerDock = nullptr;
     QDockWidget *m_controlsDock = nullptr;
     SourceListModel *m_sourceListModel = nullptr;
+    ImageSourceController *m_imageSources = nullptr;
     ThemeManager &m_theme;
 };
 #endif // MAINWINDOW_H
