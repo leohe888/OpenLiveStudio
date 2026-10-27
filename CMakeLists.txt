@@ -18,6 +18,7 @@ qt_add_executable(OpenLiveStudio
     src/mainwindow.h
     src/preview/previewwidget.cpp
     src/preview/previewwidget.h
+    src/preview/previewsource.h
     src/core/thememanager.cpp
     src/core/thememanager.h
     src/core/source.cpp
