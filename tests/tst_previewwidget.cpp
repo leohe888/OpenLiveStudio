@@ -8,6 +8,9 @@
 #include <QSignalSpy>
 #include <QSurfaceFormat>
 #include <QTest>
+#include <QMouseEvent>
+#include <QKeyEvent>
+#include <QFocusEvent>
 
 class PreviewWidgetTest : public QObject
 {
@@ -328,17 +331,19 @@ private slots:
     {
         QWidget firstWindow;
         QWidget secondWindow;
-        firstWindow.resize(160, 160);
-        secondWindow.resize(160, 160);
+        firstWindow.resize(500, 350);
+        secondWindow.resize(500, 350);
         auto *widget = new PreviewWidget(&firstWindow);
-        widget->resize(100, 100);
+        widget->resize(400, 250);
         QImage image(16, 16, QImage::Format_RGBA8888);
         image.fill(Qt::blue);
         QImage overlay(200, 100, QImage::Format_RGBA8888);
         overlay.fill(Qt::yellow);
         QImage background(1920, 1080, QImage::Format_RGBA8888);
         background.fill(Qt::blue);
-        widget->setSources({{"overlay", overlay, true}, {"background", background, true}});
+        const SourceTransform transform{{960, 540}, {200, 100}, 30};
+        widget->setSources({{"overlay", overlay, true, transform}, {"background", background, true}});
+        widget->setSelectedSourceId("overlay");
         firstWindow.show();
         QVERIFY(QTest::qWaitForWindowExposed(&firstWindow));
         QCOMPARE(sample(widget->grabFramebuffer(), .5, .5), QColor(Qt::yellow));
@@ -361,6 +366,8 @@ private slots:
         QVERIFY(widget->m_canvasFbo);
         QVERIFY(widget->m_canvasFbo->isValid());
         QCOMPARE(widget->m_textures.size(), size_t(2));
+        QVERIFY(widget->m_sources[0].transform == transform);
+        QCOMPARE(widget->m_selectedSourceId, QString("overlay"));
         QCOMPARE(sample(readCanvas(*widget), .1, .5), QColor(Qt::blue));
         QCOMPARE(widget->m_canvasFbo->size(), QSize(1920, 1080));
         widget->makeCurrent();
@@ -454,6 +461,242 @@ private slots:
         QCOMPARE(sample(widget.grabFramebuffer(), .5, .5), QColor(Qt::black));
     }
 
+    void transformsRenderAndSelectionStaysOutOfCanvas()
+    {
+        QImage image(80, 40, QImage::Format_RGBA8888);
+        for (int y = 0; y < 40; ++y)
+            for (int x = 0; x < 80; ++x)
+                image.setPixelColor(x, y, y < 20 ? (x < 40 ? Qt::red : Qt::green)
+                                                               : (x < 40 ? Qt::blue : Qt::white));
+        PreviewWidget widget;
+        widget.resize(640, 480);
+        SourceTransform transform{{500, 400}, {400, 200}, 90};
+        widget.setSources({{"image", image, true, transform}});
+        widget.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&widget));
+        widget.grabFramebuffer();
+        const auto verifyColors = [&] {
+            const auto canvas = readCanvas(widget);
+            const auto matrix = SourceGeometry::sourceToCanvas(transform);
+            const QColor colors[]{Qt::red, Qt::green, Qt::blue, Qt::white};
+            int index = 0;
+            for (qreal y : {.25, .75}) {
+                for (qreal x : {.25, .75}) {
+                    const auto point = matrix.map(QPointF(x * transform.size.width(), y * transform.size.height()));
+                    QCOMPARE(canvas.pixelColor(qRound(point.x()), qRound(point.y())), colors[index++]);
+                }
+            }
+            QCOMPARE(canvas.pixelColor(0, 0), QColor(Qt::black));
+        };
+        verifyColors();
+        const auto texture = widget.m_textures.at("image").texture->textureId();
+        const auto fbo = widget.m_canvasFbo->handle();
+        const auto *program = widget.m_program.get();
+        transform = {{900, 600}, {600, 300}, 37};
+        widget.setSources({{"image", image, true, transform}});
+        const auto unselected = widget.grabFramebuffer();
+        verifyColors();
+        const auto canvas = readCanvas(widget);
+        widget.setSelectedSourceId("image");
+        const auto selected = widget.grabFramebuffer();
+        QVERIFY(selected != unselected);
+        QCOMPARE(readCanvas(widget), canvas);
+        QCOMPARE(widget.m_textures.at("image").texture->textureId(), texture);
+        QCOMPARE(widget.m_canvasFbo->handle(), fbo);
+        QCOMPARE(widget.m_program.get(), program);
+        widget.setSources({{"image", image, true, {{-50, 400}, {400, 200}, 0}}});
+        widget.grabFramebuffer();
+        QCOMPARE(readCanvas(widget).pixelColor(10, 380), QColor(Qt::green));
+        widget.setSources({{"image", image, true, {{-1000, 400}, {400, 200}, 0}}});
+        widget.grabFramebuffer();
+        QCOMPARE(sample(readCanvas(widget), .5, .5), QColor(Qt::black));
+        QCOMPARE(widget.m_textures.at("image").texture->textureId(), texture);
+        widget.setSources({{"image", image, true, transform}});
+        widget.makeCurrent();
+        widget.paintGL();
+        GLint binding = 0, viewport[4]{};
+        auto *gl = widget.context()->functions();
+        gl->glGetIntegerv(GL_FRAMEBUFFER_BINDING, &binding);
+        gl->glGetIntegerv(GL_VIEWPORT, viewport);
+        QCOMPARE(GLuint(binding), widget.defaultFramebufferObject());
+        QCOMPARE(viewport[2], qRound(widget.width() * widget.devicePixelRatioF()));
+        QCOMPARE(viewport[3], qRound(widget.height() * widget.devicePixelRatioF()));
+        QCOMPARE(gl->glGetError(), GLenum(GL_NO_ERROR));
+        widget.doneCurrent();
+    }
+
+    void mouseEditingUsesCanvasCoordinatesAndLocalAxes()
+    {
+        PreviewWidget widget;
+        wireEditor(widget);
+        QImage image(200, 100, QImage::Format_RGBA8888);
+        image.fill(Qt::red);
+        SourceTransform start{{960, 540}, {600, 300}, 0};
+        widget.resize(640, 480);
+        widget.setSources({{"image", image, true, start}});
+        widget.setSelectedSourceId("image");
+        widget.show();
+        QVERIFY(QTest::qWaitForWindowActive(&widget));
+        for (const QSize &size : {QSize(640, 480), QSize(800, 280), QSize(300, 500)}) {
+            widget.resize(size);
+            widget.setSources({{"image", image, true, start}});
+            widget.grabFramebuffer();
+            const auto display = SourceGeometry::canvasToWidget(widget.size());
+            drag(widget, display.map(start.center), display.map(start.center + QPointF(120, -60)));
+            const auto moved = widget.m_sources[0].transform;
+            QVERIFY(closePoint(moved.center, start.center + QPointF(120, -60)));
+            QVERIFY(moved.size == start.size);
+            widget.setSources({{"image", image, true, start}});
+            const auto point = display.map(start.center);
+            mouse(widget, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
+            mouse(widget, QEvent::MouseMove, point + QPointF(20, 10), Qt::NoButton, Qt::LeftButton);
+            QVERIFY(widget.m_sources[0].transform != start);
+            QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+            QApplication::sendEvent(&widget, &escape);
+            QVERIFY(widget.m_sources[0].transform == start);
+            mouse(widget, QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton);
+            const auto handles = widget.selectionHandles(widget.m_sources[0]);
+            QVERIFY(qAbs(std::hypot((handles[8] - handles[1]).x(), (handles[8] - handles[1]).y()) - 24) < 1e-6);
+            const auto insideHandle = handles[0] - QPointF(5.5, 5.5);
+            mouse(widget, QEvent::MouseButtonPress, insideHandle, Qt::LeftButton, Qt::LeftButton);
+            QVERIFY(widget.m_gesture == PreviewWidget::Gesture::Resize);
+            mouse(widget, QEvent::MouseButtonRelease, insideHandle, Qt::LeftButton, Qt::NoButton);
+            const auto outsideHandle = handles[0] - QPointF(7.5, 7.5);
+            drag(widget, outsideHandle, outsideHandle);
+            QVERIFY(widget.m_selectedSourceId.isEmpty());
+            mouse(widget, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
+            mouse(widget, QEvent::MouseButtonRelease, point + QPointF(10, 0), Qt::LeftButton, Qt::NoButton);
+            QVERIFY(closePoint(widget.m_sources[0].transform.center,
+                display.inverted().map(point + QPointF(10, 0))));
+            widget.setSelectedSourceId("image");
+        }
+        widget.resize(800, 500);
+        start.rotation = 37;
+        widget.setSources({{"image", image, true, start}});
+        widget.grabFramebuffer();
+        QTransform rotation;
+        rotation.rotate(37);
+        auto handles = widget.selectionHandles(widget.m_sources[0]);
+        const auto display = SourceGeometry::canvasToWidget(widget.size());
+        const QPointF delta = rotation.map(QPointF(120, 60));
+        drag(widget, handles[4], handles[4] + display.map(delta) - display.map(QPointF()));
+        const auto resized = widget.m_sources[0].transform;
+        QVERIFY(qAbs(resized.size.width() - 720) < 1e-6);
+        QVERIFY(qAbs(resized.size.height() - 360) < 1e-6);
+        QVERIFY(closePoint(SourceGeometry::sourceToCanvas(start).map(QPointF()),
+                           SourceGeometry::sourceToCanvas(resized).map(QPointF())));
+        widget.setSources({{"image", image, true, start}});
+        handles = widget.selectionHandles(widget.m_sources[0]);
+        const QPointF sideDelta = rotation.map(QPointF(80, 0));
+        drag(widget, handles[3], handles[3] + display.map(sideDelta) - display.map(QPointF()));
+        QVERIFY(qAbs(widget.m_sources[0].transform.size.width() - 680) < 1e-6);
+        QVERIFY(qAbs(widget.m_sources[0].transform.size.height() - 300) < 1e-6);
+        start.rotation = 0;
+        widget.setSources({{"image", image, true, start}});
+        handles = widget.selectionHandles(widget.m_sources[0]);
+        const auto center = display.map(start.center);
+        QTransform quarterTurn;
+        quarterTurn.rotate(90);
+        drag(widget, handles[8], center + quarterTurn.map(handles[8] - center));
+        QVERIFY(qAbs(widget.m_sources[0].transform.rotation - 90) < 1e-6);
+        QVERIFY(closePoint(widget.m_sources[0].transform.center, start.center));
+    }
+
+    void selectionUsesRotatedRectanglesAndSkipsLockedSources()
+    {
+        PreviewWidget widget;
+        widget.resize(640, 480);
+        wireEditor(widget);
+        QImage transparent(100, 100, QImage::Format_RGBA8888);
+        transparent.fill(Qt::transparent);
+        QImage background(100, 100, QImage::Format_RGBA8888);
+        background.fill(Qt::yellow);
+        QList<PreviewSource> sources{{"top", transparent, true, {{960, 540}, {200, 400}, 45}, true},
+                                     {"bottom", background, true, {{960, 540}, {500, 500}, 0}}};
+        widget.setSources(sources);
+        widget.show();
+        QVERIFY(QTest::qWaitForWindowActive(&widget));
+        widget.grabFramebuffer();
+        const auto display = SourceGeometry::canvasToWidget(widget.size());
+        const auto center = display.map(QPointF(960, 540));
+        drag(widget, center, center);
+        QCOMPARE(widget.m_selectedSourceId, QString("bottom"));
+        sources[0].locked = false;
+        widget.setSources(sources);
+        drag(widget, center, center);
+        QCOMPARE(widget.m_selectedSourceId, QString("top"));
+        const auto bounds = SourceGeometry::sourceToCanvas(sources[0].transform).mapRect(
+            QRectF(QPointF(), sources[0].transform.size));
+        const auto outsideRotatedRectangle = bounds.topLeft() + QPointF(5, 5);
+        QVERIFY(!SourceGeometry::contains(sources[0].transform, outsideRotatedRectangle));
+        drag(widget, display.map(outsideRotatedRectangle), display.map(outsideRotatedRectangle));
+        QCOMPARE(widget.m_selectedSourceId, QString("bottom"));
+        sources[0].locked = true;
+        widget.setSources(sources);
+        widget.setSelectedSourceId("top");
+        QCOMPARE(widget.handleAt(widget.m_sources[0], widget.selectionHandles(widget.m_sources[0])[0]), -1);
+        drag(widget, center, center);
+        QCOMPARE(widget.m_selectedSourceId, QString("bottom"));
+        sources[0].visible = false;
+        widget.setSources(sources);
+        widget.setSelectedSourceId("top");
+        QVERIFY(!widget.selectedSource());
+        drag(widget, QPointF(5, 5), QPointF(5, 5));
+        QVERIFY(widget.m_selectedSourceId.isEmpty());
+    }
+
+    void interruptsGesturesWhenEditingBecomesUnavailable()
+    {
+        PreviewWidget widget;
+        widget.resize(640, 480);
+        wireEditor(widget);
+        QImage image(100, 100, QImage::Format_RGBA8888);
+        image.fill(Qt::green);
+        widget.show();
+        QVERIFY(QTest::qWaitForWindowActive(&widget));
+        QSignalSpy transforms(&widget, &PreviewWidget::transformRequested);
+        for (int reason = 0; reason < 9; ++reason) {
+            widget.show();
+            QVERIFY(QTest::qWaitForWindowActive(&widget));
+            widget.setSources({{"image", image, true, {{960, 540}, {600, 300}, 0}}});
+            widget.setSelectedSourceId("image");
+            widget.grabFramebuffer();
+            const QPointF center = SourceGeometry::canvasToWidget(widget.size()).map(QPointF(960, 540));
+            mouse(widget, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+            mouse(widget, QEvent::MouseMove, center + QPointF(10, 0), Qt::NoButton, Qt::LeftButton);
+            QVERIFY(widget.m_gesture != PreviewWidget::Gesture::None);
+            const auto before = widget.m_sources;
+            auto changed = before;
+            if (reason == 0) { changed[0].visible = false; widget.setSources(changed); }
+            if (reason == 1) { changed[0].locked = true; widget.setSources(changed); }
+            if (reason == 2) widget.setSources({});
+            if (reason == 3) widget.setSelectedSourceId({});
+            if (reason == 4) widget.resize(widget.width() + 10, widget.height());
+            if (reason == 5) {
+                QFocusEvent event(QEvent::FocusOut);
+                QApplication::sendEvent(&widget, &event);
+            }
+            if (reason == 6) widget.hide();
+            if (reason == 7) {
+                QEvent event(QEvent::WindowDeactivate);
+                QApplication::sendEvent(&widget, &event);
+            }
+            if (reason == 8) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+                QEvent event(QEvent::DevicePixelRatioChange);
+#else
+                QEvent event(QEvent::WindowDeactivate);
+#endif
+                QApplication::sendEvent(&widget, &event);
+            }
+            QVERIFY(widget.m_gesture == PreviewWidget::Gesture::None);
+            const int count = transforms.count();
+            mouse(widget, QEvent::MouseMove, center + QPointF(100, 0), Qt::NoButton, Qt::LeftButton);
+            QCOMPARE(transforms.count(), count);
+            mouse(widget, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+        }
+    }
+
     void destroysWithoutInitialization()
     {
         PreviewWidget widget;
@@ -464,6 +707,35 @@ private slots:
     }
 
 private:
+    static bool closePoint(const QPointF &a, const QPointF &b)
+    { return std::hypot(a.x() - b.x(), a.y() - b.y()) < 1e-6; }
+
+    static void wireEditor(PreviewWidget &widget)
+    {
+        connect(&widget, &PreviewWidget::selectionRequested, &widget, &PreviewWidget::setSelectedSourceId);
+        connect(&widget, &PreviewWidget::transformRequested, &widget,
+            [&widget](const QString &id, const SourceTransform &transform) {
+                auto sources = widget.m_sources;
+                for (auto &source : sources)
+                    if (source.id == id && !source.locked) source.transform = transform;
+                widget.setSources(sources);
+            });
+    }
+
+    static void mouse(PreviewWidget &widget, QEvent::Type type, const QPointF &position,
+                      Qt::MouseButton button, Qt::MouseButtons buttons)
+    {
+        QMouseEvent event(type, position, widget.mapToGlobal(position), button, buttons, Qt::NoModifier);
+        QApplication::sendEvent(&widget, &event);
+    }
+
+    static void drag(PreviewWidget &widget, const QPointF &from, const QPointF &to)
+    {
+        mouse(widget, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
+        mouse(widget, QEvent::MouseMove, to, Qt::NoButton, Qt::LeftButton);
+        mouse(widget, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
+    }
+
     static QImage readCanvas(PreviewWidget &widget)
     {
         widget.makeCurrent();

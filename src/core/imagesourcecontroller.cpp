@@ -22,7 +22,8 @@ ImageSourceController::ImageSourceController(SourceListModel &model, QObject *pa
     connect(&model, &QAbstractItemModel::dataChanged, this,
         [this](const QModelIndex &, const QModelIndex &, const QList<int> &roles) {
             if (roles.isEmpty() || roles.contains(SourceListModel::FilePathRole)
-                || roles.contains(SourceListModel::TypeRole) || roles.contains(SourceListModel::VisibleRole))
+                || roles.contains(SourceListModel::TypeRole) || roles.contains(SourceListModel::VisibleRole)
+                || roles.contains(SourceListModel::TransformRole) || roles.contains(SourceListModel::LockedRole))
                 synchronize();
         });
     // Allow the caller to connect the preview before publishing initial entries.
@@ -124,7 +125,9 @@ void ImageSourceController::synchronize()
                 synchronize();
             });
         }
-        sources.append({id, it->image, index.data(SourceListModel::VisibleRole).toBool()});
+        sources.append({id, it->image, index.data(SourceListModel::VisibleRole).toBool(),
+            index.data(SourceListModel::TransformRole).value<SourceTransform>(),
+            index.data(SourceListModel::LockedRole).toBool()});
     }
     for (auto it = m_images.begin(); it != m_images.end();) {
         if (!retained.contains(it.key())) it = m_images.erase(it);

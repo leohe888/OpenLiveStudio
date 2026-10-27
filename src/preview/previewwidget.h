@@ -6,8 +6,10 @@
 #include <QColor>
 #include <QOpenGLFunctions>
 #include <QOpenGLWidget>
-#include <memory>
+#include <QPolygonF>
 #include <map>
+#include <memory>
+
 class QOpenGLTexture;
 class QOpenGLShaderProgram;
 class QOpenGLBuffer;
@@ -23,16 +25,28 @@ public:
     ~PreviewWidget() override;
 
     // Call on the GUI thread. Topmost first; an empty list clears the preview.
-    // Images retain their native size unless larger than the canvas.
+    // An unset transform uses the initial centered, fit-without-upscaling layout.
     void setSources(const QList<PreviewSource> &sources);
+    void setSelectedSourceId(const QString &id);
+    void setSelectionColor(const QColor &color);
     void setSurroundingColor(const QColor &color);
     QString lastError() const { return m_lastError; }
 
 signals:
+    void selectionRequested(const QString &id);
+    void transformRequested(const QString &id, const SourceTransform &transform);
     void sourceError(const QString &sourceId, const QString &message);
     void renderingError(const QString &message);
 
 protected:
+    bool event(QEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
+    void focusOutEvent(QFocusEvent *event) override;
+    void hideEvent(QHideEvent *event) override;
     void showEvent(QShowEvent *event) override;
     void initializeGL() override;
     void paintGL() override;
@@ -40,10 +54,27 @@ protected:
 private:
     friend class PreviewWidgetTest;
 
+    const PreviewSource *selectedSource() const;
+    bool drawable(const PreviewSource &source) const;
+    QPointF toCanvas(const QPointF &point) const;
+    QPolygonF selectionHandles(const PreviewSource &source) const;
+    int handleAt(const PreviewSource &source, const QPointF &point) const;
+    void paintSelection();
+    void endGesture();
+    void updateGesture(const QPointF &position);
+    void updateCursor(const QPointF &position);
     void cleanup();
     void reportError(const QString &message);
 
     QList<PreviewSource> m_sources;
+    QString m_selectedSourceId;
+    QColor m_selectionColor{QStringLiteral("#72AAFF")};
+    enum class Gesture { None, Move, Resize, Rotate };
+    Gesture m_gesture = Gesture::None;
+    QString m_gestureSourceId;
+    SourceTransform m_gestureStart;
+    QPointF m_pressCanvas;
+    int m_resizeHandle = -1;
     QColor m_surroundingColor = Qt::black;
     QString m_lastError;
     bool m_initialized = false;

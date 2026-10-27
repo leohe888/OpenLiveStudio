@@ -8,6 +8,10 @@ SourceListModel::SourceListModel(QObject *parent)
 SourceListModel::SourceListModel(const QList<SourceData> &sources, QObject *parent)
     : QAbstractListModel(parent), m_sources(sources)
 {
+    for (auto &source : m_sources) {
+        if (source.transform.size.isEmpty())
+            source.transform = SourceGeometry::initial(source.runtime.originalSize);
+    }
     connect(this, &SourceListModel::currentSourceIdChanged, this, &SourceListModel::sourceMoveAvailabilityChanged);
     connect(this, &QAbstractItemModel::rowsInserted, this, &SourceListModel::sourceMoveAvailabilityChanged);
     connect(this, &QAbstractItemModel::rowsRemoved, this, &SourceListModel::sourceMoveAvailabilityChanged);
@@ -46,6 +50,7 @@ QVariant SourceListModel::data(const QModelIndex &index, int role) const
     case OriginalSizeRole: return item.runtime.originalSize;
     case VisibleRole: return item.visible;
     case LockedRole: return item.locked;
+    case TransformRole: return QVariant::fromValue(item.transform);
     default: return {};
     }
 }
@@ -54,7 +59,7 @@ QHash<int, QByteArray> SourceListModel::roleNames() const
 {
     return {{IdRole, "sourceId"}, {NameRole, "sourceName"}, {TypeRole, "sourceType"},
             {FilePathRole, "sourceFilePath"}, {OriginalSizeRole, "sourceOriginalSize"},
-            {VisibleRole, "sourceVisible"}, {LockedRole, "sourceLocked"}};
+            {VisibleRole, "sourceVisible"}, {LockedRole, "sourceLocked"}, {TransformRole, "sourceTransform"}};
 }
 
 bool SourceListModel::selectSource(const QString &id)
@@ -180,7 +185,10 @@ bool SourceListModel::addSource(const SourceData &source)
     if (source.id.trimmed().isEmpty() || sourceRow(source.id) >= 0)
         return false;
     beginInsertRows({}, 0, 0);
-    m_sources.prepend(source);
+    SourceData initialized = source;
+    if (initialized.transform.size.isEmpty())
+        initialized.transform = SourceGeometry::initial(initialized.runtime.originalSize);
+    m_sources.prepend(initialized);
     endInsertRows();
     selectSource(source.id);
     return true;
@@ -192,7 +200,27 @@ bool SourceListModel::setSourceOriginalSize(const QString &id, const QSize &size
     if (row < 0) return false;
     if (m_sources[row].runtime.originalSize != size) {
         m_sources[row].runtime.originalSize = size;
-        emit dataChanged(index(row, 0), index(row, 0), {OriginalSizeRole});
+        QList<int> roles{OriginalSizeRole};
+        if (m_sources[row].transform.size.isEmpty() && !size.isEmpty()) {
+            m_sources[row].transform = SourceGeometry::initial(size);
+            roles.append(TransformRole);
+        }
+        emit dataChanged(index(row, 0), index(row, 0), roles);
+    }
+    return true;
+}
+
+bool SourceListModel::setSourceTransform(const QString &id, const SourceTransform &transform)
+{
+    const int row = sourceRow(id);
+    if (row < 0 || m_sources[row].locked || !SourceGeometry::valid(transform)
+        || transform.size.width() < 1 || transform.size.height() < 1)
+        return false;
+    SourceTransform normalized = transform;
+    normalized.rotation = SourceGeometry::normalizedAngle(normalized.rotation);
+    if (m_sources[row].transform != normalized) {
+        m_sources[row].transform = normalized;
+        emit dataChanged(index(row, 0), index(row, 0), {TransformRole});
     }
     return true;
 }

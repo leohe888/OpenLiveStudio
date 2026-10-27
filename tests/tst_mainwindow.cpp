@@ -52,6 +52,7 @@ private slots:
     void canShowAndClose();
     void hasWindowShell();
     void previewDisplaysImageSources();
+    void previewEditsModelAndSynchronizesSelection();
     void previewShowsRenderingError();
     void dockTitlesStayVerticallyCentered();
     void themeRestoresAndUpdatesOuterWidgets();
@@ -583,6 +584,95 @@ void MainWindowTest::previewDisplaysImageSources()
     verifyFrame();
     QVERIFY(sources->removeSource(sources->index(0, 0).data(SourceListModel::IdRole).toString()));
     QCOMPARE(sampleCanvas(.6, .6), QColor(Qt::black));
+    QVERIFY(window.close());
+}
+
+void MainWindowTest::previewEditsModelAndSynchronizesSelection()
+{
+    MainWindow window(*m_theme);
+    auto *preview = window.findChild<PreviewWidget *>("previewWidget");
+    if (!preview) QSKIP("Native desktop OpenGL is required for mouse editing integration.");
+    window.show();
+    QVERIFY(QTest::qWaitForWindowActive(&window));
+    auto *model = window.findChild<SourceListModel *>();
+    auto *controller = window.findChild<ImageSourceController *>();
+    QTemporaryDir dir;
+    QImage background(1200, 800, QImage::Format_RGBA8888);
+    background.fill(Qt::red);
+    QImage foreground(400, 200, QImage::Format_RGBA8888);
+    foreground.fill(Qt::blue);
+    const QString backPath = dir.filePath("back.png"), frontPath = dir.filePath("front.png");
+    QVERIFY(background.save(backPath));
+    QVERIFY(foreground.save(frontPath));
+    QObject request;
+    controller->addImage("Background", backPath, &request);
+    QTRY_COMPARE(model->rowCount(), 1);
+    const QString backId = model->currentSourceId();
+    controller->addImage("Foreground", frontPath, &request);
+    QTRY_COMPARE(model->rowCount(), 2);
+    const QString frontId = model->currentSourceId();
+    const auto currentTransform = [&] {
+        return model->index(0, 0).data(SourceListModel::TransformRole).value<SourceTransform>();
+    };
+    const auto canvasPoint = [&](const QPointF &point) {
+        return SourceGeometry::canvasToWidget(preview->size()).map(point).toPoint();
+    };
+    preview->grabFramebuffer();
+    QTest::mouseClick(preview, Qt::LeftButton, Qt::NoModifier, canvasPoint(QPointF(600, 500)));
+    QCOMPARE(model->currentSourceId(), backId);
+    QTest::mouseClick(preview, Qt::LeftButton, Qt::NoModifier, canvasPoint(QPointF(960, 540)));
+    QCOMPARE(model->currentSourceId(), frontId);
+    const auto move = [&](const QPoint &from, const QPoint &to) {
+        QTest::mousePress(preview, Qt::LeftButton, Qt::NoModifier, from);
+        QTest::mouseMove(preview, to);
+        QTest::mouseRelease(preview, Qt::LeftButton, Qt::NoModifier, to);
+    };
+    const SourceTransform before = currentTransform();
+    const QPoint from = canvasPoint(before.center), to = from + QPoint(30, 15);
+    move(from, to);
+    const auto inverse = SourceGeometry::canvasToWidget(preview->size()).inverted();
+    const auto expectedCenter = before.center + inverse.map(QPointF(to)) - inverse.map(QPointF(from));
+    QVERIFY(std::hypot(currentTransform().center.x() - expectedCenter.x(),
+                       currentTransform().center.y() - expectedCenter.y()) < 1e-6);
+    const auto moved = currentTransform();
+    window.resize(qMax(window.minimumWidth(), window.width() - 40), window.height());
+    QCoreApplication::processEvents();
+    QVERIFY(currentTransform() == moved);
+    move(canvasPoint(moved.center), canvasPoint(moved.center) + QPoint(10, 5));
+    QVERIFY(currentTransform().center != moved.center);
+    SourceTransform rotated = currentTransform();
+    rotated.rotation = 30;
+    rotated.size = QSizeF(450, 250);
+    QVERIFY(model->setSourceTransform(frontId, rotated));
+    const auto frame = preview->grabFramebuffer();
+    const auto center = canvasPoint(rotated.center);
+    QCOMPARE(frame.pixelColor(qRound(center.x() * preview->devicePixelRatioF()),
+                              qRound(center.y() * preview->devicePixelRatioF())), QColor(Qt::blue));
+    QVERIFY(model->setSourceLocked(frontId, true));
+    QVERIFY(!model->setSourceTransform(frontId, before));
+    QTest::mouseClick(preview, Qt::LeftButton, Qt::NoModifier, center);
+    QCOMPARE(model->currentSourceId(), backId);
+    QVERIFY(model->selectSource(frontId));
+    const auto locked = preview->grabFramebuffer();
+    QVERIFY(model->setSourceLocked(frontId, false));
+    const auto unlocked = preview->grabFramebuffer();
+    QVERIFY(locked != unlocked);
+    QVERIFY(model->setSourceVisible(frontId, false));
+    QTest::mouseClick(preview, Qt::LeftButton, Qt::NoModifier, center);
+    QCOMPARE(model->currentSourceId(), backId);
+    QVERIFY(model->setSourceVisible(frontId, true));
+    QVERIFY(model->selectSource(frontId));
+    QVERIFY(m_theme->setTheme("light"));
+    QCoreApplication::processEvents();
+    const auto overlayFrame = preview->grabFramebuffer();
+    const auto corner = canvasPoint(SourceGeometry::sourceToCanvas(rotated).map(QPointF()));
+    QCOMPARE(overlayFrame.pixelColor(qRound(corner.x() * preview->devicePixelRatioF()),
+                                    qRound(corner.y() * preview->devicePixelRatioF())),
+             m_theme->color("border.focus"));
+    QVERIFY(overlayFrame.save(QCoreApplication::applicationDirPath() + "/preview-transforms.png"));
+    QVERIFY(m_theme->setTheme("dark"));
+    QCOMPARE(window.findChild<QStackedWidget *>("previewPages")->currentWidget(), preview);
+    QVERIFY(preview->lastError().isEmpty());
     QVERIFY(window.close());
 }
 

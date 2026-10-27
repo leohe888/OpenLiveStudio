@@ -1,6 +1,8 @@
 #ifndef SOURCE_H
 #define SOURCE_H
 
+#include "sourcetransform.h"
+
 #include <QColor>
 #include <QFont>
 #include <QSize>
@@ -58,6 +60,7 @@ struct SourceData {
     SourceRuntimeInfo runtime;
     bool visible = true;
     bool locked = false;
+    SourceTransform transform;
 
     SourceType type() const;
 };

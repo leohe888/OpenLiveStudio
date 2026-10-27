@@ -164,8 +164,10 @@ void MainWindow::applyTheme()
             "QWidget#previewContainer { background-color: %1; }")
             .arg(hex("preview.surrounding")));
     }
-    if (auto *preview = findChild<PreviewWidget *>(QStringLiteral("previewWidget")))
+    if (auto *preview = findChild<PreviewWidget *>(QStringLiteral("previewWidget"))) {
         preview->setSurroundingColor(color("preview.surrounding"));
+        preview->setSelectionColor(color("border.focus"));
+    }
 }
 
 void MainWindow::configureQuickWidget(QQuickWidget *view)
@@ -391,6 +393,12 @@ void MainWindow::setupPreview()
     preview->setObjectName(QStringLiteral("previewWidget"));
     connect(preview, &PreviewWidget::renderingError, pages, showError, Qt::QueuedConnection);
     connect(m_imageSources, &ImageSourceController::sourcesChanged, preview, &PreviewWidget::setSources);
+    connect(preview, &PreviewWidget::selectionRequested, m_sourceListModel, &SourceListModel::selectSource);
+    connect(preview, &PreviewWidget::transformRequested, m_sourceListModel, &SourceListModel::setSourceTransform);
+    connect(m_sourceListModel, &SourceListModel::currentSourceIdChanged, preview, [this, preview] {
+        preview->setSelectedSourceId(m_sourceListModel->currentSourceId());
+    });
+    preview->setSelectedSourceId(m_sourceListModel->currentSourceId());
     pages->addWidget(preview);
     pages->setCurrentWidget(preview);
 }

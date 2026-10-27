@@ -11,11 +11,19 @@
 #include <QScopeGuard>
 #include <QShowEvent>
 #include <QSurfaceFormat>
-#include <QVector2D>
+#include <QMatrix4x4>
+#include <QPainter>
+#include <QMouseEvent>
+#include <QKeyEvent>
+#include <QResizeEvent>
+#include <QFocusEvent>
+#include <QHideEvent>
 
 PreviewWidget::PreviewWidget(QWidget *parent)
     : QOpenGLWidget(parent)
 {
+    setFocusPolicy(Qt::StrongFocus);
+    setMouseTracking(true);
 }
 
 PreviewWidget::~PreviewWidget()
@@ -26,6 +34,30 @@ PreviewWidget::~PreviewWidget()
 void PreviewWidget::setSources(const QList<PreviewSource> &sources)
 {
     m_sources = sources;
+    for (auto &source : m_sources) {
+        if (source.transform.size.isEmpty())
+            source.transform = SourceGeometry::initial(source.image.size());
+    }
+    if (m_gesture != Gesture::None) {
+        const auto *source = selectedSource();
+        if (!source || source->id != m_gestureSourceId || source->locked)
+            endGesture();
+    }
+    update();
+}
+
+void PreviewWidget::setSelectedSourceId(const QString &id)
+{
+    if (m_selectedSourceId == id) return;
+    endGesture();
+    m_selectedSourceId = id;
+    update();
+}
+
+void PreviewWidget::setSelectionColor(const QColor &color)
+{
+    if (!color.isValid() || m_selectionColor == color) return;
+    m_selectionColor = color;
     update();
 }
 
@@ -154,6 +186,11 @@ void PreviewWidget::paintGL()
         glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
         glViewport(0, 0, pixelSize.width(), pixelSize.height());
         glDisable(GL_BLEND);
+        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_CULL_FACE);
+        glDisable(GL_SCISSOR_TEST);
+        glDisable(GL_STENCIL_TEST);
+        glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, 0);
         m_vertexArray->release();
         m_program->release();
@@ -205,37 +242,285 @@ void PreviewWidget::paintGL()
     }
     glActiveTexture(GL_TEXTURE0);
     m_vertexArray->bind();
-    const auto drawTexture = [&](GLuint texture, const QSize &sourceSize,
-                                  const QSize &targetSize, bool flipY, bool allowUpscale = true) {
-        double scale = qMin(double(targetSize.width()) / sourceSize.width(),
-                                  double(targetSize.height()) / sourceSize.height());
-        if (!allowUpscale) scale = qMin(1.0, scale);
-        m_program->setUniformValue("displayScale",
-            QVector2D(sourceSize.width() * scale / targetSize.width(),
-                      sourceSize.height() * scale / targetSize.height()));
+    const auto drawTexture = [&](GLuint texture, const QMatrix4x4 &matrix, bool flipY) {
+        m_program->setUniformValue("vertexTransform", matrix);
         m_program->setUniformValue("flipY", flipY);
         glBindTexture(GL_TEXTURE_2D, texture);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     };
+    QMatrix4x4 projection;
+    projection.ortho(0.f, float(canvasSize.width()), float(canvasSize.height()), 0.f, -1.f, 1.f);
 
     glEnable(GL_BLEND);
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     for (auto it = m_sources.crbegin(); it != m_sources.crend(); ++it) {
         const auto resource = m_textures.find(it->id);
-        if (it->visible && resource != m_textures.end() && resource->second.texture)
-            drawTexture(resource->second.texture->textureId(), it->image.size(), canvasSize,
-                        false, false);
+        if (drawable(*it)) {
+            QMatrix4x4 model(SourceGeometry::sourceToCanvas(it->transform));
+            model.translate(float(it->transform.size.width() / 2), float(it->transform.size.height() / 2));
+            model.scale(float(it->transform.size.width() / 2), float(-it->transform.size.height() / 2));
+            drawTexture(resource->second.texture->textureId(), projection * model, false);
+        }
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
     glViewport(0, 0, pixelSize.width(), pixelSize.height());
     glDisable(GL_BLEND);
     // FBO textures use bottom-left-origin coordinates, unlike uploaded images.
-    drawTexture(m_canvasFbo->texture(), canvasSize, pixelSize, true);
+    const qreal scale = qMin(qreal(pixelSize.width()) / canvasSize.width(),
+                            qreal(pixelSize.height()) / canvasSize.height());
+    QMatrix4x4 display;
+    display.scale(float(canvasSize.width() * scale / pixelSize.width()),
+                  float(canvasSize.height() * scale / pixelSize.height()));
+    drawTexture(m_canvasFbo->texture(), display, true);
+    m_vertexArray->release();
+    m_program->release();
+    paintSelection();
+}
+
+bool PreviewWidget::drawable(const PreviewSource &source) const
+{
+    const auto texture = m_textures.find(source.id);
+    return source.visible && !source.image.isNull() && SourceGeometry::valid(source.transform)
+        && texture != m_textures.end() && texture->second.texture
+        && texture->second.imageKey == source.image.cacheKey();
+}
+
+const PreviewSource *PreviewWidget::selectedSource() const
+{
+    for (const auto &source : m_sources)
+        if (source.id == m_selectedSourceId && drawable(source)) return &source;
+    return nullptr;
+}
+
+QPointF PreviewWidget::toCanvas(const QPointF &point) const
+{
+    return SourceGeometry::canvasToWidget(size()).inverted().map(point);
+}
+
+QPolygonF PreviewWidget::selectionHandles(const PreviewSource &source) const
+{
+    const auto local = SourceGeometry::sourceToCanvas(source.transform);
+    const auto display = SourceGeometry::canvasToWidget(size());
+    QPolygonF handles;
+    for (const auto &fraction : SourceGeometry::handleFractions)
+        handles.append(display.map(local.map(QPointF(fraction.x() * source.transform.size.width(),
+                                                     fraction.y() * source.transform.size.height()))));
+    const QPointF outward = handles[1] - display.map(source.transform.center);
+    const qreal length = std::hypot(outward.x(), outward.y());
+    handles.append(handles[1] + outward * (24 / length));
+    return handles;
+}
+
+int PreviewWidget::handleAt(const PreviewSource &source, const QPointF &point) const
+{
+    if (source.locked) return -1;
+    const auto handles = selectionHandles(source);
+    // Prefer rotation and corners if small sources make handle targets overlap.
+    for (int index : {8, 0, 2, 4, 6, 1, 3, 5, 7})
+        if (QRectF(handles[index] - QPointF(6, 6), QSizeF(12, 12)).contains(point)) return index;
+    return -1;
+}
+
+void PreviewWidget::paintSelection()
+{
+    const auto *source = selectedSource();
+    if (!source) return;
+    const auto handles = selectionHandles(*source);
+    const QPolygonF outline{handles[0], handles[2], handles[4], handles[6]};
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setBrush(Qt::NoBrush);
+    const auto style = source->locked ? Qt::DashLine : Qt::SolidLine;
+    painter.setPen(QPen(QColor(0, 0, 0, 220), 3, style));
+    painter.drawPolygon(outline);
+    painter.setPen(QPen(m_selectionColor, 1, style));
+    painter.drawPolygon(outline);
+    if (source->locked) return;
+    painter.setPen(QPen(Qt::black, 3));
+    painter.drawLine(handles[1], handles[8]);
+    painter.setPen(QPen(m_selectionColor, 1));
+    painter.drawLine(handles[1], handles[8]);
+    painter.setPen(QPen(Qt::black, 1));
+    painter.setBrush(m_selectionColor);
+    for (int index = 0; index < 8; ++index)
+        painter.drawRect(QRectF(handles[index] - QPointF(4, 4), QSizeF(8, 8)));
+    painter.drawEllipse(QRectF(handles[8] - QPointF(4, 4), QSizeF(8, 8)));
+}
+
+void PreviewWidget::endGesture()
+{
+    m_gesture = Gesture::None;
+    m_gestureSourceId.clear();
+    m_resizeHandle = -1;
+    unsetCursor();
+}
+
+void PreviewWidget::updateCursor(const QPointF &position)
+{
+    if (const auto *source = selectedSource()) {
+        const int handle = handleAt(*source, position);
+        if (handle == 8) { setCursor(Qt::CrossCursor); return; }
+        if (handle >= 0) {
+            const auto fraction = SourceGeometry::handleFractions[handle];
+            const qreal angle = source->transform.rotation
+                + std::atan2(fraction.y() - .5, fraction.x() - .5) * 180 / std::acos(-1.0);
+            const int direction = (qRound(angle / 45) % 4 + 4) % 4;
+            static constexpr Qt::CursorShape cursors[]{Qt::SizeHorCursor, Qt::SizeFDiagCursor,
+                                                       Qt::SizeVerCursor, Qt::SizeBDiagCursor};
+            setCursor(cursors[direction]);
+            return;
+        }
+    }
+    if (SourceGeometry::canvasRect(size()).contains(position)) {
+        for (const auto &source : m_sources) {
+            if (drawable(source) && !source.locked && SourceGeometry::contains(source.transform, toCanvas(position))) {
+                setCursor(Qt::SizeAllCursor);
+                return;
+            }
+        }
+    }
+    unsetCursor();
+}
+
+void PreviewWidget::mousePressEvent(QMouseEvent *event)
+{
+    if (event->button() != Qt::LeftButton || !m_initialized) {
+        QOpenGLWidget::mousePressEvent(event);
+        return;
+    }
+    endGesture();
+    setFocus(Qt::MouseFocusReason);
+    const QPointF position = event->position();
+    const auto *source = selectedSource();
+    const int handle = source ? handleAt(*source, position) : -1;
+    if (handle >= 0) {
+        m_gesture = handle == 8 ? Gesture::Rotate : Gesture::Resize;
+        m_resizeHandle = handle;
+    } else {
+        QString hit;
+        if (SourceGeometry::canvasRect(size()).contains(position)) {
+            for (const auto &candidate : m_sources) {
+                if (drawable(candidate) && !candidate.locked
+                    && SourceGeometry::contains(candidate.transform, toCanvas(position))) {
+                    hit = candidate.id;
+                    break;
+                }
+            }
+        }
+        emit selectionRequested(hit);
+        source = selectedSource();
+        if (hit.isEmpty() || !source || source->id != hit || source->locked) {
+            event->accept();
+            return;
+        }
+        m_gesture = Gesture::Move;
+    }
+    m_gestureSourceId = source->id;
+    m_gestureStart = source->transform;
+    m_pressCanvas = toCanvas(position);
+    event->accept();
+}
+
+void PreviewWidget::mouseMoveEvent(QMouseEvent *event)
+{
+    if (m_gesture == Gesture::None) {
+        updateCursor(event->position());
+        event->accept();
+        return;
+    }
+    if (!(event->buttons() & Qt::LeftButton)) endGesture();
+    else updateGesture(event->position());
+    event->accept();
+}
+
+void PreviewWidget::updateGesture(const QPointF &position)
+{
+    const auto *source = selectedSource();
+    if (m_gesture == Gesture::None || !source || source->locked || source->id != m_gestureSourceId) {
+        endGesture();
+        return;
+    }
+    const QPointF point = toCanvas(position);
+    SourceTransform result = m_gestureStart;
+    switch (m_gesture) {
+    case Gesture::Move:
+        result.center += point - m_pressCanvas;
+        break;
+    case Gesture::Resize:
+        result = SourceGeometry::resized(m_gestureStart, m_resizeHandle, point - m_pressCanvas);
+        break;
+    case Gesture::Rotate: {
+        const QPointF before = m_pressCanvas - result.center;
+        const QPointF after = point - result.center;
+        if (std::hypot(after.x(), after.y()) < 1e-9) break;
+        const qreal angle = (std::atan2(after.y(), after.x()) - std::atan2(before.y(), before.x()))
+            * 180 / std::acos(-1.0);
+        result.rotation = SourceGeometry::normalizedAngle(result.rotation + angle);
+        break;
+    }
+    case Gesture::None: break;
+    }
+    const QString id = m_gestureSourceId;
+    emit transformRequested(id, result);
+}
+
+void PreviewWidget::mouseReleaseEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton) {
+        if (m_gesture != Gesture::None) updateGesture(event->position());
+        endGesture();
+        updateCursor(event->position());
+        event->accept();
+    } else {
+        QOpenGLWidget::mouseReleaseEvent(event);
+    }
+}
+
+void PreviewWidget::keyPressEvent(QKeyEvent *event)
+{
+    if (event->key() == Qt::Key_Escape && m_gesture != Gesture::None) {
+        const QString id = m_gestureSourceId;
+        const auto start = m_gestureStart;
+        endGesture();
+        emit transformRequested(id, start);
+        event->accept();
+    } else {
+        QOpenGLWidget::keyPressEvent(event);
+    }
+}
+
+void PreviewWidget::resizeEvent(QResizeEvent *event)
+{
+    endGesture();
+    QOpenGLWidget::resizeEvent(event);
+}
+
+void PreviewWidget::focusOutEvent(QFocusEvent *event)
+{
+    endGesture();
+    QOpenGLWidget::focusOutEvent(event);
+}
+
+void PreviewWidget::hideEvent(QHideEvent *event)
+{
+    endGesture();
+    QOpenGLWidget::hideEvent(event);
+}
+
+bool PreviewWidget::event(QEvent *event)
+{
+    if (event->type() == QEvent::WindowDeactivate
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+        || event->type() == QEvent::DevicePixelRatioChange
+#endif
+    ) endGesture();
+    return QOpenGLWidget::event(event);
 }
 
 void PreviewWidget::cleanup()
 {
+    endGesture();
     disconnect(m_contextDestruction);
     m_initialized = false;
     if (!context())

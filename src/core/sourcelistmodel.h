@@ -23,7 +23,8 @@ public:
         FilePathRole,
         OriginalSizeRole,
         VisibleRole,
-        LockedRole
+        LockedRole,
+        TransformRole
     };
 
     explicit SourceListModel(QObject *parent = nullptr);
@@ -34,6 +35,7 @@ public:
     QVariant data(const QModelIndex &index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
 
+    bool setSourceTransform(const QString &id, const SourceTransform &transform);
     bool addSource(const SourceData &source);
     bool setSourceOriginalSize(const QString &id, const QSize &size);
 

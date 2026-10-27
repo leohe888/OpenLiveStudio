@@ -24,6 +24,7 @@ qt_add_executable(tst_sourcelistmodel
     tst_sourcelistmodel.cpp
     ../src/core/source.cpp
     ../src/core/source.h
+    ../src/core/sourcetransform.h
     ../src/core/sourcelistmodel.cpp
     ../src/core/sourcelistmodel.h
 )
@@ -50,6 +51,7 @@ qt_add_executable(tst_mainwindow
     ../src/preview/previewsource.h
     ../src/core/source.cpp
     ../src/core/source.h
+    ../src/core/sourcetransform.h
     ../src/core/sourcelistmodel.cpp
     ../src/core/sourcelistmodel.h
     ../src/core/imagesourcecontroller.cpp
@@ -112,6 +114,7 @@ qt_add_executable(tst_previewwidget
     ../src/preview/previewwidget.cpp
     ../src/preview/previewwidget.h
     ../src/preview/previewsource.h
+    ../src/core/sourcetransform.h
 )
 target_include_directories(tst_previewwidget PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_previewwidget PRIVATE Qt6::OpenGLWidgets Qt6::OpenGL Qt6::Test)
@@ -141,6 +144,7 @@ qt_add_executable(tst_imagesourcecontroller
     ../src/core/imagesourcecontroller.cpp
     ../src/core/imagesourcecontroller.h
     ../src/preview/previewsource.h
+    ../src/core/sourcetransform.h
 )
 target_include_directories(tst_imagesourcecontroller PRIVATE
     "${PROJECT_SOURCE_DIR}/src" "${PROJECT_SOURCE_DIR}/src/core")

@@ -1,6 +1,7 @@
 #include "sourcelistmodel.h"
 
 #include <QAbstractItemModelTester>
+#include <limits>
 #include <QFile>
 #include <QImage>
 #include <QPersistentModelIndex>
@@ -13,6 +14,8 @@ class SourceListModelTest : public QObject
     Q_OBJECT
 private slots:
     void insertsSourcesAtTop();
+    void initializesAndValidatesTransforms();
+    void sharesGeometryForMappingAndResizing();
     void startsWithEmptySourceList();
     void exposesSourceRolesAndRejectsInvalidIndexes();
     void supportsAllSourceConfigurations();
@@ -60,7 +63,7 @@ void SourceListModelTest::exposesSourceRolesAndRejectsInvalidIndexes()
         {SourceListModel::IdRole, "sourceId"}, {SourceListModel::NameRole, "sourceName"},
         {SourceListModel::TypeRole, "sourceType"}, {SourceListModel::FilePathRole, "sourceFilePath"},
         {SourceListModel::OriginalSizeRole, "sourceOriginalSize"},
-        {SourceListModel::VisibleRole, "sourceVisible"}, {SourceListModel::LockedRole, "sourceLocked"}};
+        {SourceListModel::VisibleRole, "sourceVisible"}, {SourceListModel::LockedRole, "sourceLocked"}, {SourceListModel::TransformRole, "sourceTransform"}};
     QCOMPARE(model->roleNames(), roles);
     const auto index = model->index(0, 0);
     QCOMPARE(index.data(SourceListModel::IdRole).toString(), QString("image"));
@@ -380,4 +383,89 @@ void SourceListModelTest::insertsSourcesAtTop()
     QVERIFY(model.setSourceOriginalSize("two", QSize(40, 20)));
     QCOMPARE(changed.count(), 1);
     QVERIFY(!model.setSourceOriginalSize("missing", QSize(40, 20)));
+}
+
+void SourceListModelTest::initializesAndValidatesTransforms()
+{
+    SourceListModel model;
+    QVERIFY(model.addSource({"image", "Image", ImageConfig{"image.png"}}));
+    const auto current = [&] { return model.index(0, 0).data(SourceListModel::TransformRole).value<SourceTransform>(); };
+    QVERIFY(current().size.isEmpty());
+    QVERIFY(model.setSourceOriginalSize("image", QSize(4000, 2000)));
+    QCOMPARE(current().center, QPointF(960, 540));
+    QCOMPARE(current().size, QSizeF(1920, 960));
+    SourceTransform edited{{-20.5, 95.25}, {300.5, 100.25}, -30};
+    QSignalSpy changes(&model, &QAbstractItemModel::dataChanged);
+    QVERIFY(model.setSourceTransform("image", edited));
+    QCOMPARE(current().rotation, 330.0);
+    QCOMPARE(changes.size(), 1);
+    QCOMPARE(changes.last()[2].value<QList<int>>(), QList<int>{SourceListModel::TransformRole});
+    edited.rotation = 690;
+    QVERIFY(model.setSourceTransform("image", edited));
+    QCOMPARE(changes.size(), 1);
+    QVERIFY(model.setSourceOriginalSize("image", QSize(600, 200)));
+    QCOMPARE(current().center, edited.center);
+    QCOMPARE(current().size, edited.size);
+    const SourceTransform before = current();
+    QVERIFY(!model.setSourceTransform("missing", before));
+    QVERIFY(model.setSourceLocked("image", true));
+    edited.center += QPointF(20, 20);
+    QVERIFY(!model.setSourceTransform("image", edited));
+    QVERIFY(model.setSourceLocked("image", false));
+    for (int part = 0; part < 5; ++part) {
+        auto invalid = before;
+        if (part == 0) invalid.center.setX(std::numeric_limits<qreal>::infinity());
+        if (part == 1) invalid.center.setY(std::numeric_limits<qreal>::quiet_NaN());
+        if (part == 2) invalid.size.setWidth(.5);
+        if (part == 3) invalid.size.setHeight(-1);
+        if (part == 4) invalid.rotation = std::numeric_limits<qreal>::quiet_NaN();
+        QVERIFY(!model.setSourceTransform("image", invalid));
+        QVERIFY(current() == before);
+    }
+    SourceListModel ready({{"ready", "Ready", ImageConfig{"ready.png"}, {QSize(40, 20)}}});
+    QCOMPARE(ready.index(0, 0).data(SourceListModel::TransformRole).value<SourceTransform>().size, QSizeF(40, 20));
+}
+
+void SourceListModelTest::sharesGeometryForMappingAndResizing()
+{
+    const auto thin = SourceGeometry::initial(QSizeF(1, 4000));
+    QVERIFY(SourceGeometry::valid(thin));
+    QCOMPARE(thin.size.height(), 1080.0);
+    QCOMPARE(thin.size.width(), .27);
+    for (const QSizeF &widget : {QSizeF(1000, 700), QSizeF(300, 900), QSizeF(1600, 400)}) {
+        const auto display = SourceGeometry::canvasToWidget(widget);
+        const QPointF point(135.25, 980.75);
+        const auto roundTrip = display.inverted().map(display.map(point));
+        QVERIFY(std::hypot(roundTrip.x() - point.x(), roundTrip.y() - point.y()) < 1e-8);
+        QVERIFY(SourceGeometry::canvasRect(widget).contains(display.map(point)));
+    }
+    for (qreal angle : {0., 37., 90., 225.}) {
+        const SourceTransform start{{960, 540}, {400, 200}, angle};
+        const auto matrix = SourceGeometry::sourceToCanvas(start);
+        QVERIFY(SourceGeometry::contains(start, matrix.map(QPointF(200, 100))));
+        QVERIFY(SourceGeometry::contains(start, matrix.map(QPointF(10, 10))));
+        QVERIFY(!SourceGeometry::contains(start, matrix.map(QPointF(-10, 100))));
+        QTransform rotation;
+        rotation.rotate(angle);
+        for (int handle = 0; handle < 8; ++handle) {
+            const auto result = SourceGeometry::resized(start, handle, rotation.map(QPointF(40, 30)));
+            QVERIFY(SourceGeometry::valid(result));
+            const auto fraction = SourceGeometry::handleFractions[handle];
+            const QPointF opposite(1 - fraction.x(), 1 - fraction.y());
+            const auto anchor = matrix.map(QPointF(opposite.x() * 400, opposite.y() * 200));
+            const auto after = SourceGeometry::sourceToCanvas(result).map(
+                QPointF(opposite.x() * result.size.width(), opposite.y() * result.size.height()));
+            QVERIFY(std::hypot(anchor.x() - after.x(), anchor.y() - after.y()) < 1e-8);
+            if (handle % 2 == 0)
+                QVERIFY(qAbs(result.size.width() / result.size.height() - 2) < 1e-8);
+            else if (fraction.x() == .5)
+                QCOMPARE(result.size.width(), 400.0);
+            else
+                QCOMPARE(result.size.height(), 200.0);
+        }
+        const auto crossed = SourceGeometry::resized(start, 0, rotation.map(QPointF(10000, 10000)));
+        QVERIFY(crossed.size.width() >= 1 && crossed.size.height() >= 1);
+        const auto narrow = SourceGeometry::resized(start, 3, rotation.map(QPointF(-10000, 0)));
+        QCOMPARE(narrow.size.width(), 1.0);
+    }
 }

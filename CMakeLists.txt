@@ -23,6 +23,7 @@ qt_add_executable(OpenLiveStudio
     src/core/thememanager.h
     src/core/source.cpp
     src/core/source.h
+    src/core/sourcetransform.h
     src/core/sourcelistmodel.cpp
     src/core/sourcelistmodel.h
     src/core/imagesourcecontroller.cpp
