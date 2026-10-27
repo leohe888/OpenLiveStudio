@@ -2,6 +2,7 @@
 
 #include <QApplication>
 #include <QOpenGLContext>
+#include <QOpenGLFramebufferObject>
 #include <QOpenGLFunctions>
 #include <QSignalSpy>
 #include <QSurfaceFormat>
@@ -28,6 +29,103 @@ private slots:
         QVERIFY(!widget.context()->isOpenGLES());
         widget.doneCurrent();
         QVERIFY2(widget.lastError().isEmpty(), qPrintable(widget.lastError()));
+    }
+
+    void createsFixedCanvasAndKeepsItAcrossImageAndWidgetChanges()
+    {
+        PreviewWidget widget;
+        QSignalSpy errors(&widget, &PreviewWidget::renderingError);
+        widget.resize(240, 200);
+        widget.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&widget));
+        QVERIFY(widget.m_initialized);
+        QVERIFY(widget.m_canvasFbo);
+        QVERIFY(widget.m_canvasFbo->isValid());
+        QCOMPARE(widget.m_canvasFbo->size(), QSize(1920, 1080));
+        QCOMPARE(widget.m_canvasFbo->format().textureTarget(), GLenum(GL_TEXTURE_2D));
+        QCOMPARE(widget.m_canvasFbo->format().internalTextureFormat(), GLenum(GL_RGBA8));
+        QCOMPARE(widget.m_canvasFbo->attachment(), QOpenGLFramebufferObject::NoAttachment);
+        QCOMPARE(widget.m_canvasFbo->format().samples(), 0);
+        const auto *canvas = widget.m_canvasFbo.get();
+        const GLuint framebuffer = canvas->handle();
+        const GLuint texture = canvas->texture();
+        QVERIFY(texture != 0);
+
+        widget.makeCurrent();
+        auto *functions = widget.context()->functions();
+        QVERIFY(functions->glIsTexture(texture));
+        QVERIFY(widget.m_canvasFbo->bind());
+        QCOMPARE(functions->glCheckFramebufferStatus(GL_FRAMEBUFFER), GLenum(GL_FRAMEBUFFER_COMPLETE));
+        functions->glBindFramebuffer(GL_FRAMEBUFFER, widget.defaultFramebufferObject());
+        QCOMPARE(functions->glGetError(), GLenum(GL_NO_ERROR));
+        widget.doneCurrent();
+
+        QImage image(32, 16, QImage::Format_RGBA8888);
+        image.fill(Qt::red);
+        widget.setImage(image);
+        QVERIFY(!widget.grabFramebuffer().isNull());
+        widget.resize(400, 100);
+        image.fill(Qt::blue);
+        widget.setImage(image);
+        QVERIFY(!widget.grabFramebuffer().isNull());
+        widget.setImage({});
+        QVERIFY(!widget.grabFramebuffer().isNull());
+        QCOMPARE(widget.m_canvasFbo.get(), canvas);
+        QCOMPARE(widget.m_canvasFbo->handle(), framebuffer);
+        QCOMPARE(widget.m_canvasFbo->texture(), texture);
+        QCOMPARE(widget.m_canvasFbo->size(), QSize(1920, 1080));
+        QCOMPARE(errors.count(), 0);
+    }
+
+    void preservesFramebufferBindingsDuringInitialization()
+    {
+        PreviewWidget widget;
+        widget.resize(100, 100);
+        widget.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&widget));
+        widget.cleanup();
+        widget.makeCurrent();
+        auto *functions = widget.context()->functions();
+        {
+            QOpenGLFramebufferObject readTarget(16, 16);
+            QOpenGLFramebufferObject drawTarget(16, 16);
+            QVERIFY(readTarget.isValid());
+            QVERIFY(drawTarget.isValid());
+            functions->glBindFramebuffer(GL_READ_FRAMEBUFFER, readTarget.handle());
+            functions->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, drawTarget.handle());
+
+            widget.initializeGL();
+            QVERIFY2(widget.m_initialized, qPrintable(widget.lastError()));
+            GLint readBinding = 0;
+            GLint drawBinding = 0;
+            functions->glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &readBinding);
+            functions->glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &drawBinding);
+            QCOMPARE(GLuint(readBinding), readTarget.handle());
+            QCOMPARE(GLuint(drawBinding), drawTarget.handle());
+            functions->glBindFramebuffer(GL_FRAMEBUFFER, widget.defaultFramebufferObject());
+        }
+        QCOMPARE(functions->glGetError(), GLenum(GL_NO_ERROR));
+        widget.doneCurrent();
+    }
+
+    void cleanupReleasesCanvasResources()
+    {
+        PreviewWidget widget;
+        widget.resize(100, 100);
+        widget.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&widget));
+        QVERIFY(widget.m_canvasFbo);
+        const GLuint framebuffer = widget.m_canvasFbo->handle();
+        const GLuint texture = widget.m_canvasFbo->texture();
+        widget.cleanup();
+        QVERIFY(!widget.m_canvasFbo);
+        QVERIFY(!widget.m_initialized);
+        widget.makeCurrent();
+        auto *functions = widget.context()->functions();
+        QVERIFY(!functions->glIsFramebuffer(framebuffer));
+        QVERIFY(!functions->glIsTexture(texture));
+        QCOMPARE(functions->glGetError(), GLenum(GL_NO_ERROR));
+        widget.doneCurrent();
     }
 
     void drawsImageWithCorrectOrientationAndLetterboxing()
@@ -101,13 +199,30 @@ private slots:
         firstWindow.show();
         QVERIFY(QTest::qWaitForWindowExposed(&firstWindow));
         QCOMPARE(sample(widget->grabFramebuffer(), .5, .5), QColor(Qt::blue));
+        QVERIFY(widget->m_canvasFbo);
+        QVERIFY(widget->m_canvasFbo->isValid());
+        bool canvasWasReleased = false;
+        connect(widget->context(), &QOpenGLContext::aboutToBeDestroyed, this, [&] {
+            canvasWasReleased = !widget->m_canvasFbo;
+        });
         QSignalSpy destroyed(widget->context(), &QOpenGLContext::aboutToBeDestroyed);
         widget->setParent(&secondWindow);
         secondWindow.show();
         widget->show();
         QVERIFY(QTest::qWaitForWindowExposed(&secondWindow));
         QCOMPARE(destroyed.count(), 1);
+        QVERIFY(canvasWasReleased);
         QCOMPARE(sample(widget->grabFramebuffer(), .5, .5), QColor(Qt::blue));
+        QVERIFY(widget->m_canvasFbo);
+        QVERIFY(widget->m_canvasFbo->isValid());
+        QCOMPARE(widget->m_canvasFbo->size(), QSize(1920, 1080));
+        widget->makeCurrent();
+        QVERIFY(widget->m_canvasFbo->bind());
+        auto *functions = widget->context()->functions();
+        QCOMPARE(functions->glCheckFramebufferStatus(GL_FRAMEBUFFER), GLenum(GL_FRAMEBUFFER_COMPLETE));
+        functions->glBindFramebuffer(GL_FRAMEBUFFER, widget->defaultFramebufferObject());
+        QCOMPARE(functions->glGetError(), GLenum(GL_NO_ERROR));
+        widget->doneCurrent();
         QVERIFY(widget->lastError().isEmpty());
     }
 

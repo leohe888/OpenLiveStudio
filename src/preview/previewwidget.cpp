@@ -3,6 +3,7 @@
 #include <QDebug>
 #include <QOpenGLBuffer>
 #include <QOpenGLContext>
+#include <QOpenGLFramebufferObject>
 #include <QOpenGLShaderProgram>
 #include <QOpenGLTexture>
 #include <QOpenGLVertexArrayObject>
@@ -85,6 +86,25 @@ void PreviewWidget::initializeGL()
         reportError(tr("无法分配预览顶点缓冲。"));
         return;
     }
+    GLint previousDrawFramebuffer = 0;
+    GLint previousReadFramebuffer = 0;
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previousDrawFramebuffer);
+    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &previousReadFramebuffer);
+    QOpenGLFramebufferObjectFormat canvasFormat;
+    canvasFormat.setTextureTarget(GL_TEXTURE_2D);
+    canvasFormat.setInternalTextureFormat(GL_RGBA8);
+    canvasFormat.setAttachment(QOpenGLFramebufferObject::NoAttachment);
+    canvasFormat.setSamples(0);
+    m_canvasFbo = std::make_unique<QOpenGLFramebufferObject>(QSize(1920, 1080), canvasFormat);
+    const bool canvasValid = m_canvasFbo->isValid();
+    if (!canvasValid)
+        m_canvasFbo.reset();
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, GLuint(previousDrawFramebuffer));
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, GLuint(previousReadFramebuffer));
+    if (!canvasValid) {
+        reportError(tr("无法创建 1920×1080 合成画布。"));
+        return;
+    }
     m_initialized = true;
 }
 
@@ -146,6 +166,7 @@ void PreviewWidget::cleanup()
         return;
 
     makeCurrent();
+    m_canvasFbo.reset();
     m_texture.reset();
     m_vertexArray.reset();
     m_vertexBuffer.reset();

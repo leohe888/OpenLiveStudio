@@ -10,6 +10,7 @@ class QOpenGLTexture;
 class QOpenGLShaderProgram;
 class QOpenGLBuffer;
 class QOpenGLVertexArrayObject;
+class QOpenGLFramebufferObject;
 
 class PreviewWidget : public QOpenGLWidget, protected QOpenGLFunctions
 {
@@ -31,6 +32,8 @@ protected:
     void paintGL() override;
 
 private:
+    friend class PreviewWidgetTest;
+
     void cleanup();
     void reportError(const QString &message);
 
@@ -42,6 +45,7 @@ private:
     std::unique_ptr<QOpenGLBuffer> m_vertexBuffer;
     std::unique_ptr<QOpenGLVertexArrayObject> m_vertexArray;
     std::unique_ptr<QOpenGLTexture> m_texture;
+    std::unique_ptr<QOpenGLFramebufferObject> m_canvasFbo;
     QMetaObject::Connection m_contextDestruction;
 };
 
