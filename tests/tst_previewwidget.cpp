@@ -63,13 +63,13 @@ private slots:
 
         QImage image(32, 16, QImage::Format_RGBA8888);
         image.fill(Qt::red);
-        widget.setImage(image);
+        widget.setSources({{"image", image, true}});
         QVERIFY(!widget.grabFramebuffer().isNull());
         widget.resize(400, 100);
         image.fill(Qt::blue);
-        widget.setImage(image);
+        widget.setSources({{"image", image, true}});
         QVERIFY(!widget.grabFramebuffer().isNull());
-        widget.setImage({});
+        widget.setSources({});
         QVERIFY(!widget.grabFramebuffer().isNull());
         QCOMPARE(widget.m_canvasFbo.get(), canvas);
         QCOMPARE(widget.m_canvasFbo->handle(), framebuffer);
@@ -147,16 +147,16 @@ private slots:
 
     void drawsImageWithCorrectOrientationAndLetterboxing()
     {
-        QImage image(80, 40, QImage::Format_RGBA8888);
+        QImage image(1920, 960, QImage::Format_RGBA8888);
         for (int y = 0; y < image.height(); ++y) {
             for (int x = 0; x < image.width(); ++x) {
-                image.setPixelColor(x, y, y < 20 ? (x < 40 ? Qt::red : Qt::green)
-                                                 : (x < 40 ? Qt::blue : Qt::white));
+                image.setPixelColor(x, y, y < image.height() / 2 ? (x < image.width() / 2 ? Qt::red : Qt::green)
+                                                 : (x < image.width() / 2 ? Qt::blue : Qt::white));
             }
         }
         PreviewWidget widget;
         QSignalSpy errors(&widget, &PreviewWidget::renderingError);
-        widget.setImage(image);
+        widget.setSources({{"image", image, true}});
         widget.resize(240, 200);
         widget.show();
         QVERIFY(QTest::qWaitForWindowExposed(&widget));
@@ -207,11 +207,11 @@ private slots:
         QVERIFY(QTest::qWaitForWindowExposed(&widget));
         QImage image(16, 16, QImage::Format_RGBA8888);
         image.fill(Qt::red);
-        widget.setImage(image);
+        widget.setSources({{"image", image, true}});
         QCOMPARE(sample(widget.grabFramebuffer(), .5, .5), QColor(Qt::red));
         QCOMPARE(sample(readCanvas(widget), .5, .5), QColor(Qt::red));
         image.fill(QColor(0, 255, 0, 128));
-        widget.setImage(image);
+        widget.setSources({{"image", image, true}});
         const QColor blended = sample(widget.grabFramebuffer(), .5, .5);
         QCOMPARE(blended.red(), 0);
         QVERIFY(qAbs(blended.green() - 128) <= 1);
@@ -219,7 +219,7 @@ private slots:
         QCOMPARE(blended.alpha(), 255);
         const QColor canvasBlended = sample(readCanvas(widget), .5, .5);
         QCOMPARE(canvasBlended, blended);
-        widget.setImage({});
+        widget.setSources({});
         QCOMPARE(sample(widget.grabFramebuffer(), .5, .5), QColor(Qt::black));
         const QImage clearedCanvas = readCanvas(widget);
         QCOMPARE(sample(clearedCanvas, .5, .5), QColor(Qt::black));
@@ -233,14 +233,22 @@ private slots:
         widget.resize(240, 240);
         QImage image(80, 40, QImage::Format_RGBA8888);
         image.fill(Qt::red);
-        widget.setImage(image);
+        widget.setSources({{"image", image, true}});
         widget.show();
         QVERIFY(QTest::qWaitForWindowExposed(&widget));
         const QImage before = widget.grabFramebuffer();
         QCOMPARE(sample(before, .5, .05), QColor(Qt::black));
         const QImage canvas = readCanvas(widget);
+        QCOMPARE(canvas.pixelColor(920, 540), QColor(Qt::red));
+        QCOMPARE(canvas.pixelColor(919, 540), QColor(Qt::black));
+        QCOMPARE(canvas.pixelColor(999, 540), QColor(Qt::red));
+        QCOMPARE(canvas.pixelColor(1000, 540), QColor(Qt::black));
+        QCOMPARE(canvas.pixelColor(960, 519), QColor(Qt::black));
+        QCOMPARE(canvas.pixelColor(960, 520), QColor(Qt::red));
+        QCOMPARE(canvas.pixelColor(960, 559), QColor(Qt::red));
+        QCOMPARE(canvas.pixelColor(960, 560), QColor(Qt::black));
         const auto *canvasResource = widget.m_canvasFbo.get();
-        const auto *imageResource = widget.m_textures.at(QStringLiteral("single-image")).texture.get();
+        const auto *imageResource = widget.m_textures.at(QStringLiteral("image")).texture.get();
         const auto *programResource = widget.m_program.get();
         widget.setSurroundingColor(QColor("#D4D7DC"));
         const QImage after = widget.grabFramebuffer();
@@ -249,7 +257,7 @@ private slots:
         QCOMPARE(sample(readCanvas(widget), .5, .02), QColor(Qt::black));
         QCOMPARE(readCanvas(widget), canvas);
         QCOMPARE(widget.m_canvasFbo.get(), canvasResource);
-        QCOMPARE(widget.m_textures.at(QStringLiteral("single-image")).texture.get(), imageResource);
+        QCOMPARE(widget.m_textures.at(QStringLiteral("image")).texture.get(), imageResource);
         QCOMPARE(widget.m_program.get(), programResource);
         widget.setSurroundingColor(Qt::black);
         QCOMPARE(sample(widget.grabFramebuffer(), .5, .05), QColor(Qt::black));
@@ -259,9 +267,9 @@ private slots:
     {
         PreviewWidget widget;
         widget.resize(240, 240);
-        QImage image(40, 80, QImage::Format_RGBA8888);
+        QImage image(540, 1080, QImage::Format_RGBA8888);
         image.fill(Qt::yellow);
-        widget.setImage(image);
+        widget.setSources({{"image", image, true}});
         widget.show();
         QVERIFY(QTest::qWaitForWindowExposed(&widget));
         const QImage frame = widget.grabFramebuffer();
@@ -282,7 +290,7 @@ private slots:
         widget.resize(100, 100);
         QImage image(16, 16, QImage::Format_RGBA8888);
         image.fill(Qt::red);
-        widget.setImage(image);
+        widget.setSources({{"image", image, true}});
         widget.show();
         QVERIFY(QTest::qWaitForWindowExposed(&widget));
         QCOMPARE(sample(widget.grabFramebuffer(), .5, .5), QColor(Qt::red));
@@ -293,7 +301,7 @@ private slots:
         QImage oversized(maxSize + 1, 1, QImage::Format_RGBA8888);
         QVERIFY(!oversized.isNull());
         oversized.fill(Qt::white);
-        widget.setImage(oversized);
+        widget.setSources({{"image", oversized, true}});
         QSignalSpy errors(&widget, &PreviewWidget::sourceError);
         widget.paintGL();
         QCOMPARE(errors.count(), 1);
@@ -311,7 +319,7 @@ private slots:
         widget.doneCurrent();
         QCOMPARE(sample(readCanvas(widget), .5, .5), QColor(Qt::black));
         QCOMPARE(sample(widget.grabFramebuffer(), .5, .5), QColor(Qt::black));
-        widget.setImage(image);
+        widget.setSources({{"image", image, true}});
         QCOMPARE(sample(widget.grabFramebuffer(), .5, .5), QColor(Qt::red));
         QVERIFY(widget.lastError().isEmpty());
     }
@@ -451,7 +459,7 @@ private slots:
         PreviewWidget widget;
         QImage image(16, 16, QImage::Format_RGBA8888);
         image.fill(Qt::white);
-        widget.setImage(image);
+        widget.setSources({{"image", image, true}});
         QVERIFY(!widget.isValid());
     }
 

@@ -22,9 +22,8 @@ public:
     explicit PreviewWidget(QWidget *parent = nullptr);
     ~PreviewWidget() override;
 
-    // Call on the GUI thread. A null image clears the preview.
-    void setImage(const QImage &image);
-    // Topmost first; images retain their native size unless larger than the canvas.
+    // Call on the GUI thread. Topmost first; an empty list clears the preview.
+    // Images retain their native size unless larger than the canvas.
     void setSources(const QList<PreviewSource> &sources);
     void setSurroundingColor(const QColor &color);
     QString lastError() const { return m_lastError; }
@@ -45,7 +44,6 @@ private:
     void reportError(const QString &message);
 
     QList<PreviewSource> m_sources;
-    bool m_fitSingleImage = false;
     QColor m_surroundingColor = Qt::black;
     QString m_lastError;
     bool m_initialized = false;

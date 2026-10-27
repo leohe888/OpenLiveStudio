@@ -23,18 +23,9 @@ PreviewWidget::~PreviewWidget()
     cleanup();
 }
 
-void PreviewWidget::setImage(const QImage &image)
-{
-    setSources(image.isNull() ? QList<PreviewSource>{}
-                             : QList<PreviewSource>{{QStringLiteral("single-image"), image, true}});
-    // Preserve the original single-image API's fit-to-canvas behavior.
-    m_fitSingleImage = true;
-}
-
 void PreviewWidget::setSources(const QList<PreviewSource> &sources)
 {
     m_sources = sources;
-    m_fitSingleImage = false;
     update();
 }
 
@@ -233,7 +224,7 @@ void PreviewWidget::paintGL()
         const auto resource = m_textures.find(it->id);
         if (it->visible && resource != m_textures.end() && resource->second.texture)
             drawTexture(resource->second.texture->textureId(), it->image.size(), canvasSize,
-                        false, m_fitSingleImage);
+                        false, false);
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
