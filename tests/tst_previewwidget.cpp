@@ -789,46 +789,58 @@ private slots:
     void captureFramesDoNotInterruptEditing_data()
     {
         QTest::addColumn<int>("operation");
-        QTest::newRow("move") << 0;
-        QTest::newRow("resize") << 1;
-        QTest::newRow("rotate") << 2;
+        QTest::addColumn<bool>("gpu");
+        QTest::newRow("cpu-move") << 0 << false;
+        QTest::newRow("cpu-resize") << 1 << false;
+        QTest::newRow("cpu-rotate") << 2 << false;
+        QTest::newRow("gpu-move") << 0 << true;
+        QTest::newRow("gpu-resize") << 1 << true;
+        QTest::newRow("gpu-rotate") << 2 << true;
     }
 
     void captureFramesDoNotInterruptEditing()
     {
         QFETCH(int, operation);
+        QFETCH(bool, gpu);
         PreviewWidget widget;
         widget.resize(640, 480);
         wireEditor(widget);
         QImage image(200, 100, QImage::Format_RGBA8888);
         image.fill(Qt::green);
         auto resource = std::make_shared<GpuFrameResource>();
+        if (gpu) {
 #ifdef Q_OS_WIN
-        QVERIFY(SUCCEEDED(D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
-            D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0, D3D11_SDK_VERSION,
-            &resource->device, nullptr, nullptr)));
-        D3D11_TEXTURE2D_DESC desc{};
-        desc.Width = UINT(image.width()); desc.Height = UINT(image.height());
-        desc.MipLevels = 1; desc.ArraySize = 1; desc.SampleDesc.Count = 1;
-        desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-        desc.Usage = D3D11_USAGE_DEFAULT;
-        desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
-        D3D11_SUBRESOURCE_DATA pixels{image.constBits(), UINT(image.bytesPerLine()), 0};
-        QVERIFY(SUCCEEDED(resource->device->CreateTexture2D(&desc, &pixels, &resource->texture)));
+            QVERIFY(SUCCEEDED(D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
+                D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0, D3D11_SDK_VERSION,
+                &resource->device, nullptr, nullptr)));
+            D3D11_TEXTURE2D_DESC desc{};
+            desc.Width = UINT(image.width()); desc.Height = UINT(image.height());
+            desc.MipLevels = 1; desc.ArraySize = 1; desc.SampleDesc.Count = 1;
+            desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+            desc.Usage = D3D11_USAGE_DEFAULT;
+            desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+            D3D11_SUBRESOURCE_DATA pixels{image.constBits(), UINT(image.bytesPerLine()), 0};
+            QVERIFY(SUCCEEDED(resource->device->CreateTexture2D(&desc, &pixels, &resource->texture)));
 #else
-        QSKIP("Capture frames require Windows D3D11");
+            QSKIP("Capture frames require Windows D3D11");
 #endif
+        }
         const SourceTransform start{{960, 540}, {600, 300}, 0};
         quint64 sequence = 0;
         const auto publish = [&] {
-            auto frame = std::make_shared<CaptureFrame>();
-            frame->size = image.size();
-            frame->gpu = resource;
-            frame->generation = 1;
-            frame->sequence = ++sequence;
             auto sources = widget.m_sources;
-            if (sources.isEmpty()) sources.append({"display", {}, true, start});
-            sources[0].frame = frame;
+            if (sources.isEmpty()) sources.append({"dynamic", {}, true, start});
+            if (gpu) {
+                auto frame = std::make_shared<CaptureFrame>();
+                frame->size = image.size();
+                frame->gpu = resource;
+                frame->generation = 1;
+                frame->sequence = ++sequence;
+                sources[0].frame = frame;
+            } else {
+                // Camera frames are independent images with a fresh cache key.
+                sources[0].image = image.copy();
+            }
             widget.setSources(sources);
         };
         publish();
@@ -844,12 +856,12 @@ private slots:
         const auto handles = widget.selectionHandles(widget.m_sources[0]);
         const auto center = display.map(start.center);
         const auto from = operation == 0 ? center : handles[operation == 1 ? 4 : 8];
-        if (operation != 0) widget.setSelectedSourceId("display");
+        if (operation != 0) widget.setSelectedSourceId("dynamic");
         // Receive a new frame before mouse input, without uploading it yet.
         publish();
         QVERIFY(!widget.drawable(widget.m_sources[0]));
         mouse(widget, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
-        QCOMPARE(widget.m_selectedSourceId, QString("display"));
+        QCOMPARE(widget.m_selectedSourceId, QString("dynamic"));
         const auto gesture = operation == 0 ? PreviewWidget::Gesture::Move
             : operation == 1 ? PreviewWidget::Gesture::Resize : PreviewWidget::Gesture::Rotate;
         QVERIFY(widget.m_gesture == gesture);

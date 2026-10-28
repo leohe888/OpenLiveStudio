@@ -4,6 +4,7 @@
 #include "imagesourcecontroller.h"
 #include "capture/cameracapturecontroller.h"
 #include <QPainter>
+#include <QLineF>
 #include <QFileDialog>
 #include <QTimer>
 #include "preview/previewwidget.h"
@@ -2920,6 +2921,41 @@ void MainWindowTest::cameraHardwarePreview()
     const auto frame = preview->grabFramebuffer(); QVERIFY(!frame.isNull());
     const QColor pixel = frame.pixelColor(frame.width() / 2, frame.height() / 2);
     QVERIFY(qAbs(pixel.red() - pixel.green()) <= 3 && qAbs(pixel.green() - pixel.blue()) <= 3);
+    // Keep the mouse pressed while real camera frames arrive between edits.
+    // Check the entire model -> controller -> preview -> model path.
+    const SourceTransform start{{960, 540}, {600, 300}, 0};
+    for (int operation = 0; operation < 3; ++operation) {
+        QVERIFY(model->setSourceTransform(id, start));
+        QTest::qWait(100);
+        const auto display = SourceGeometry::canvasToWidget(preview->size());
+        const auto center = display.map(start.center);
+        const QPointF from = operation == 0 ? center : operation == 1
+            ? display.map(SourceGeometry::sourceToCanvas(start).map(QPointF(600, 300)))
+            : display.map(SourceGeometry::sourceToCanvas(start).map(QPointF(300, 0))) - QPointF(0, 24);
+        QPointF to;
+        if (operation == 2) {
+            QTransform rotation; rotation.rotate(30);
+            to = center + rotation.map(from - center);
+        } else {
+            const QPointF delta = operation == 0 ? QPointF(120, 60) : QPointF(60, 30);
+            to = from + display.map(delta) - display.map(QPointF());
+        }
+        const auto mouse = [&](QEvent::Type type, const QPointF &position, Qt::MouseButton button, Qt::MouseButtons buttons) {
+            QMouseEvent event(type, position, preview->mapToGlobal(position), button, buttons, Qt::NoModifier);
+            QApplication::sendEvent(preview, &event);
+        };
+        mouse(QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
+        QTest::qWait(150);
+        mouse(QEvent::MouseMove, to, Qt::NoButton, Qt::LeftButton);
+        QTest::qWait(150);
+        mouse(QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
+        const auto actual = model->index(0, 0).data(SourceListModel::TransformRole).value<SourceTransform>();
+        if (operation == 0) QVERIFY(QLineF(actual.center, QPointF(1080, 600)).length() < 0.001);
+        else if (operation == 1) {
+            QVERIFY(qAbs(actual.size.width() - 660) < 0.001);
+            QVERIFY(qAbs(actual.size.height() - 330) < 0.001);
+        } else QVERIFY(qAbs(actual.rotation - 30) < 0.001);
+    }
     window.resize(1100, 720); QTest::qWait(100);
     QVERIFY(preview->lastError().isEmpty());
     QVERIFY(model->setSourceVisible(id, false));

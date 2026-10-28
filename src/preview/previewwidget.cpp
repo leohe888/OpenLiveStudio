@@ -386,15 +386,16 @@ bool PreviewWidget::selectable(const PreviewSource &source) const
     const auto texture = m_textures.find(source.id);
     return source.visible && source.hasFrame() && SourceGeometry::valid(source.transform)
         && texture != m_textures.end() && texture->second.texture && texture->second.ready
-        && (source.frame ? texture->second.generation == source.frame->generation
-                         : texture->second.imageKey == source.image.cacheKey());
+        && texture->second.generation == (source.frame ? source.frame->generation : 0);
 }
 
 bool PreviewWidget::drawable(const PreviewSource &source) const
 {
-    // A pending capture frame must not interrupt interaction with the displayed source.
+    // Interaction uses the displayed texture, even while a newer GPU or CPU frame
+    // is awaiting upload. Only drawing requires the latest frame to be ready.
     return selectable(source)
-        && (!source.frame || m_textures.at(source.id).sequence == source.frame->sequence);
+        && (source.frame ? m_textures.at(source.id).sequence == source.frame->sequence
+                         : m_textures.at(source.id).imageKey == source.image.cacheKey());
 }
 
 const PreviewSource *PreviewWidget::selectedSource() const
