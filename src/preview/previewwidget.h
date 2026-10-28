@@ -57,6 +57,7 @@ private:
     friend class PreviewWidgetTest;
 
     const PreviewSource *selectedSource() const;
+    bool selectable(const PreviewSource &source) const;
     bool drawable(const PreviewSource &source) const;
     QPointF toCanvas(const QPointF &point) const;
     QPolygonF selectionHandles(const PreviewSource &source) const;

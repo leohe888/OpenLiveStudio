@@ -381,19 +381,26 @@ GLuint PreviewWidget::filterTexture(const PreviewSource &source, GLuint original
     return input;
 }
 
-bool PreviewWidget::drawable(const PreviewSource &source) const
+bool PreviewWidget::selectable(const PreviewSource &source) const
 {
     const auto texture = m_textures.find(source.id);
     return source.visible && source.hasFrame() && SourceGeometry::valid(source.transform)
         && texture != m_textures.end() && texture->second.texture && texture->second.ready
-        && (source.frame ? (texture->second.generation == source.frame->generation && texture->second.sequence == source.frame->sequence)
+        && (source.frame ? texture->second.generation == source.frame->generation
                          : texture->second.imageKey == source.image.cacheKey());
+}
+
+bool PreviewWidget::drawable(const PreviewSource &source) const
+{
+    // A pending capture frame must not interrupt interaction with the displayed source.
+    return selectable(source)
+        && (!source.frame || m_textures.at(source.id).sequence == source.frame->sequence);
 }
 
 const PreviewSource *PreviewWidget::selectedSource() const
 {
     for (const auto &source : m_sources)
-        if (source.id == m_selectedSourceId && drawable(source)) return &source;
+        if (source.id == m_selectedSourceId && selectable(source)) return &source;
     return nullptr;
 }
 
@@ -478,7 +485,7 @@ void PreviewWidget::updateCursor(const QPointF &position)
     }
     if (SourceGeometry::canvasRect(size()).contains(position)) {
         for (const auto &source : m_sources) {
-            if (drawable(source) && !source.locked && SourceGeometry::contains(source.transform, toCanvas(position))) {
+            if (selectable(source) && !source.locked && SourceGeometry::contains(source.transform, toCanvas(position))) {
                 setCursor(Qt::SizeAllCursor);
                 return;
             }
@@ -505,7 +512,7 @@ void PreviewWidget::mousePressEvent(QMouseEvent *event)
         QString hit;
         if (SourceGeometry::canvasRect(size()).contains(position)) {
             for (const auto &candidate : m_sources) {
-                if (drawable(candidate) && !candidate.locked
+                if (selectable(candidate) && !candidate.locked
                     && SourceGeometry::contains(candidate.transform, toCanvas(position))) {
                     hit = candidate.id;
                     break;

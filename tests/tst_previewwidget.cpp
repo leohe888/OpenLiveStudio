@@ -785,6 +785,82 @@ private slots:
         QVERIFY(widget.m_selectedSourceId.isEmpty());
     }
 
+    void captureFramesDoNotInterruptEditing_data()
+    {
+        QTest::addColumn<int>("operation");
+        QTest::newRow("move") << 0;
+        QTest::newRow("resize") << 1;
+        QTest::newRow("rotate") << 2;
+    }
+
+    void captureFramesDoNotInterruptEditing()
+    {
+        QFETCH(int, operation);
+        PreviewWidget widget;
+        widget.resize(640, 480);
+        wireEditor(widget);
+        QImage image(200, 100, QImage::Format_RGBA8888);
+        image.fill(Qt::green);
+        const SourceTransform start{{960, 540}, {600, 300}, 0};
+        quint64 sequence = 0;
+        const auto publish = [&] {
+            auto frame = std::make_shared<CaptureFrame>();
+            frame->size = image.size();
+            frame->image = image;
+            frame->generation = 1;
+            frame->sequence = ++sequence;
+            auto sources = widget.m_sources;
+            if (sources.isEmpty()) sources.append({"display", {}, true, start});
+            sources[0].frame = frame;
+            widget.setSources(sources);
+        };
+        publish();
+        widget.show();
+        QVERIFY(QTest::qWaitForWindowActive(&widget));
+        widget.grabFramebuffer();
+        const auto display = SourceGeometry::canvasToWidget(widget.size());
+        const auto handles = widget.selectionHandles(widget.m_sources[0]);
+        const auto center = display.map(start.center);
+        const auto from = operation == 0 ? center : handles[operation == 1 ? 4 : 8];
+        if (operation != 0) widget.setSelectedSourceId("display");
+        // Receive a new frame before mouse input, without uploading it yet.
+        publish();
+        QVERIFY(!widget.drawable(widget.m_sources[0]));
+        mouse(widget, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
+        QCOMPARE(widget.m_selectedSourceId, QString("display"));
+        const auto gesture = operation == 0 ? PreviewWidget::Gesture::Move
+            : operation == 1 ? PreviewWidget::Gesture::Resize : PreviewWidget::Gesture::Rotate;
+        QVERIFY(widget.m_gesture == gesture);
+        QPointF to;
+        for (int step = 1; step <= 3; ++step) {
+            publish();
+            QVERIFY(widget.m_gesture == gesture);
+            if (operation == 2) {
+                QTransform rotation;
+                rotation.rotate(20 * step);
+                to = center + rotation.map(from - center);
+            } else {
+                const QPointF delta = operation == 0 ? QPointF(30 * step, 15 * step)
+                                                     : QPointF(40 * step, 20 * step);
+                to = from + display.map(delta) - display.map(QPointF());
+            }
+            mouse(widget, QEvent::MouseMove, to, Qt::NoButton, Qt::LeftButton);
+            QVERIFY(widget.m_gesture == gesture);
+            const auto transform = widget.m_sources[0].transform;
+            if (operation == 0)
+                QVERIFY(closePoint(transform.center, start.center + QPointF(30 * step, 15 * step)));
+            else if (operation == 1) {
+                QVERIFY(qAbs(transform.size.width() - (600 + 40 * step)) < 1e-6);
+                QVERIFY(qAbs(transform.size.height() - (300 + 20 * step)) < 1e-6);
+            } else
+                QVERIFY(qAbs(transform.rotation - 20 * step) < 1e-6);
+        }
+        mouse(widget, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
+        QVERIFY(widget.m_gesture == PreviewWidget::Gesture::None);
+        widget.grabFramebuffer();
+        QVERIFY(widget.drawable(widget.m_sources[0]));
+    }
+
     void interruptsGesturesWhenEditingBecomesUnavailable()
     {
         PreviewWidget widget;
