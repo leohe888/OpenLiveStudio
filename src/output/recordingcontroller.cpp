@@ -20,6 +20,8 @@ protected:
         Mp4Encoder encoder;
         RecordingStatus result=snapshot();
         const auto reset = qScopeGuard([&] { m_video.setOutputEnabled(false); m_audio.setOutputEnabled(false); });
+        // Deterministic acceptance-test hook; never enabled by the product UI.
+        const int artificialDelay=std::clamp(qEnvironmentVariableIntValue("OPENLIVE_RECORDING_ENCODER_DELAY_MS"),0,1000);
         try {
             if (m_stopAt.load()) { result.state="idle"; publish(result); return; }
             encoder.open(result.path,m_crf);
@@ -60,6 +62,11 @@ protected:
                 while (!images.empty() && images.front().timestampNs<=frameTime) {
                     lastImage=std::move(images.front().image); lastImageTime=images.front().timestampNs; images.pop_front();
                 }
+                // Resample to the nearest available snapshot, avoiding an extra
+                // frame of systematic video delay when the two 30 Hz clocks differ.
+                if (!images.empty() && images.front().timestampNs-frameTime < frameTime-lastImageTime) {
+                    lastImage=std::move(images.front().image); lastImageTime=images.front().timestampNs; images.pop_front();
+                }
                 if (lastImageTime==previousImageTime) ++result.repeatedFrames;
                 previousImageTime=lastImageTime;
                 encoder.video(lastImage,result.videoFrames);
@@ -84,6 +91,7 @@ protected:
                 }
                 result.missingAudioSamples+=std::max<qint64>(0,end-audioPosition-supplied);
                 encoder.audio(samples); audioPosition=end;
+                if (artificialDelay) QThread::msleep(unsigned(artificialDelay));
                 result.droppedFrames=m_video.droppedOutputFrames();
                 publishProgress(result,origin,stop);
             }

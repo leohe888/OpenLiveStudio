@@ -113,6 +113,10 @@ target_link_libraries(tst_mainwindow PRIVATE
     openlive_audio
     openlive_output
 )
+target_compile_definitions(tst_mainwindow PRIVATE OPENLIVE_FFPROBE="${OPENLIVE_FFPROBE}")
+if(WIN32)
+    target_link_libraries(tst_mainwindow PRIVATE psapi)
+endif()
 set_target_properties(tst_mainwindow PROPERTIES WIN32_EXECUTABLE FALSE)
 qt_add_resources(tst_mainwindow "mainwindow_shaders"
     PREFIX "/"

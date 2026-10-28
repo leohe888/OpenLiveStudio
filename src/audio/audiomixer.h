@@ -28,6 +28,7 @@ public:
     ~AudioMixer() override;
     void stop();
     void setInputs(const QList<AudioInput> &inputs);
+    QList<AudioInput> inputs() const;
     std::shared_ptr<const MixedAudioBlock> latestBlock() const;
     struct Levels { QHash<QString, AudioPeak> sources; AudioPeak master; bool clipped = false; };
     Levels takeLevels();

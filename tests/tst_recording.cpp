@@ -11,6 +11,7 @@
 #include <QProcess>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QScopeGuard>
 
 class RecordingTest : public QObject {
     Q_OBJECT
@@ -131,6 +132,26 @@ private slots:
         QVERIFY(recording.startRecording(directory.filePath("cancel.mp4"))); recording.stopRecording();
         QTRY_VERIFY_WITH_TIMEOUT(!recording.busy(),5000);
         compositor.stopRendering(); mixer.stop(); mixer.wait();
+    }
+    void overloadStopsWithPlayableFileAndCanRecover()
+    {
+        Compositor compositor; AudioMixer mixer; mixer.start();
+        QVERIFY(compositor.startRendering()); QVERIFY(!compositor.captureImage().isNull());
+        RecordingController recording(compositor,mixer);
+        QTemporaryDir directory;
+        qputenv("OPENLIVE_RECORDING_ENCODER_DELAY_MS","100");
+        const auto restore=qScopeGuard([] { qunsetenv("OPENLIVE_RECORDING_ENCODER_DELAY_MS"); });
+        QVERIFY(recording.startRecording(directory.filePath("overload.mp4")));
+        QTRY_COMPARE_WITH_TIMEOUT(recording.state(),QString("error"),10000);
+        QVERIFY(!recording.lastError().isEmpty()); QVERIFY(recording.fileComplete());
+        verifyFile(recording.filePath(),.1);
+        qunsetenv("OPENLIVE_RECORDING_ENCODER_DELAY_MS");
+        QVERIFY(recording.startRecording(directory.filePath("recovered.mp4")));
+        QTRY_COMPARE_WITH_TIMEOUT(recording.state(),QString("recording"),5000);
+        QTest::qWait(250); recording.stopRecording();
+        QTRY_VERIFY_WITH_TIMEOUT(!recording.busy(),5000);
+        QVERIFY2(recording.lastError().isEmpty(),qPrintable(recording.lastError()));
+        QVERIFY(recording.fileComplete()); verifyFile(recording.filePath(),.2);
     }
 };
 int main(int argc,char **argv)

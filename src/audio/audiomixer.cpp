@@ -74,6 +74,7 @@ AudioMixer::AudioMixer(QObject *parent) : QThread(parent) { setObjectName(QStrin
 AudioMixer::~AudioMixer() { stop(); wait(); }
 void AudioMixer::stop() { { std::lock_guard<std::mutex> lock(m_mutex); m_stop = true; } m_wake.notify_all(); }
 void AudioMixer::setInputs(const QList<AudioInput> &inputs) { std::lock_guard<std::mutex> lock(m_mutex); m_inputs = inputs; }
+QList<AudioInput> AudioMixer::inputs() const { std::lock_guard<std::mutex> lock(m_mutex); return m_inputs; }
 std::shared_ptr<const MixedAudioBlock> AudioMixer::latestBlock() const { std::lock_guard<std::mutex> lock(m_mutex); return m_latest; }
 AudioMixer::Levels AudioMixer::takeLevels() { std::lock_guard<std::mutex> lock(m_mutex); return std::exchange(m_levels, {}); }
 void AudioMixer::setOutputEnabled(bool enabled) { std::lock_guard<std::mutex> lock(m_mutex); m_outputEnabled = enabled; m_output.clear(); m_dropped = 0; }

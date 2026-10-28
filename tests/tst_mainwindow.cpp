@@ -45,6 +45,7 @@
 #include <QWheelEvent>
 #include <QtTest/QTest>
 #include <memory>
+#include "recordingacceptance.h"
 
 namespace {
 QQuickItem *findQuickItem(QQuickItem *item, const QString &name)
@@ -123,6 +124,7 @@ private slots:
     void soundHardwarePreview();
     void outputSettingsDialogDraftsAndTheme();
     void recordingControlsAndGracefulClose();
+    void recordingAcceptance();
     void loadsControlsPanelWithVerticalButtons();
     void embedsSourcePanelInFullHeightLeftDock();
     void embedsMixerPanelBelowPreview();
@@ -2291,6 +2293,14 @@ void MainWindowTest::recordingControlsAndGracefulClose()
     QVERIFY2(recorder->lastError().isEmpty(),qPrintable(recorder->lastError()));
     QVERIFY(recorder->fileComplete()); QVERIFY(QFileInfo(recorder->filePath()).size()>1000);
     QVERIFY(!settings->recordingLocked());
+}
+
+void MainWindowTest::recordingAcceptance()
+{
+    if (qEnvironmentVariableIntValue("OPENLIVE_RECORDING_SOAK_SECONDS")<=0)
+        QSKIP("Explicit real-time recording acceptance only");
+    MainWindow window(*m_theme);
+    RecordingAcceptance::run(window);
 }
 
 void MainWindowTest::loadsControlsPanelWithVerticalButtons()

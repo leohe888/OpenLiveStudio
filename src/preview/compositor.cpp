@@ -166,6 +166,7 @@ void Compositor::run()
             QList<PreviewSource> sources;
             quint64 revision = 0, readback = 0;
             bool needsReadback = false, outputEnabled = false;
+            qint64 timestamp = 0;
             {
                 std::unique_lock<std::mutex> lock(m_mutex);
                 // Diagnostic requests may wake early; normal output stays at 30 Hz.
@@ -178,6 +179,9 @@ void Compositor::run()
                 readback = m_requestedReadback;
                 needsReadback = readback > m_completedReadback;
                 outputEnabled = m_outputEnabled;
+                // The image represents this source snapshot. GPU rendering,
+                // cross-context synchronization and readback can finish later.
+                timestamp = MediaClock::nowNs();
             }
             if (!renderer.render(sources)) {
                 fail(renderer.lastError());
@@ -199,12 +203,11 @@ void Compositor::run()
                 frame->size = slot.fbo->size();
                 frame->sequence = ++sequence;
                 frame->revision = revision;
-                frame->timestamp = MediaClock::nowNs();
+                frame->timestamp = timestamp;
                 frame->sources = renderer.renderedSources();
                 slot.lease = frame;
                 break;
             }
-            const auto timestamp = MediaClock::nowNs();
             const QImage image = needsReadback || outputEnabled ? renderer.canvas()->toImage() : QImage();
             {
                 std::lock_guard<std::mutex> lock(m_mutex);
