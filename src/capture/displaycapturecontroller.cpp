@@ -68,7 +68,6 @@ bool DisplayCaptureController::retry(const QString &id)
     if (it == m_entries.end()) return false;
     stop(it->second);
     it->second.failed = false;
-    it->second.cpu = false;
     synchronize();
     return true;
 }
@@ -107,7 +106,6 @@ void DisplayCaptureController::synchronize()
             entry.displayId = displayId;
             entry.cursor = cursor;
             entry.failed = false;
-            entry.cpu = false;
         }
         if (!index.data(SourceListModel::VisibleRole).toBool()) {
             stop(entry);
@@ -115,7 +113,6 @@ void DisplayCaptureController::synchronize()
         } else if (!entry.worker && !entry.failed) {
             entry.generation = ++m_generation;
             entry.worker = std::make_unique<DisplayCaptureWorker>(displayId, cursor, entry.generation);
-            entry.cpu = qEnvironmentVariableIsSet("OPENLIVE_FORCE_CPU_CAPTURE");
             entry.worker->start();
             m_model.setSourceCaptureStatus(id, "starting", {});
         } else if (entry.failed) {
@@ -135,15 +132,17 @@ void DisplayCaptureController::setImageSources(const QList<PreviewSource> &image
     if (!m_busy) publish();
 }
 
-void DisplayCaptureController::useCpu(const QString &id, quint64 generation, const QString &reason)
+void DisplayCaptureController::failTransfer(const QString &id, quint64 generation, const QString &reason)
 {
     const auto it = m_entries.find(id);
-    if (it == m_entries.end() || it->second.generation != generation || !it->second.worker || it->second.cpu) return;
+    if (it == m_entries.end() || it->second.generation != generation || !it->second.worker || it->second.failed) return;
     auto &entry = it->second;
-    entry.cpu = true;
-    entry.frame.reset();
-    entry.worker->useCpu();
-    qWarning().noquote() << "Capture CPU fallback:" << id << reason;
+    entry.failed = true;
+    stop(entry);
+    const QString message = tr("GPU 画面传输失败，已停止采集。请检查显卡驱动后手动重试。");
+    m_model.setSourceCaptureStatus(id, "error", message);
+    qWarning().noquote() << "Display GPU transfer failed:" << id << reason;
+    emit sourceError(id, message);
     publish();
 }
 
@@ -163,7 +162,7 @@ void DisplayCaptureController::poll()
             emit sourceError(id, error);
             changed = true;
         } else if (auto frame = entry.worker->takeLatest()) {
-            if (frame->generation != entry.generation || (entry.cpu && frame->gpu)) continue;
+            if (frame->generation != entry.generation) continue;
             entry.frame = std::move(frame);
             m_model.setSourceOriginalSize(id, entry.frame->size);
             m_model.setSourceCaptureStatus(id, "capturing", {});

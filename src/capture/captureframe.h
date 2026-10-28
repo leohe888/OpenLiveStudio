@@ -1,7 +1,6 @@
 #ifndef CAPTUREFRAME_H
 #define CAPTUREFRAME_H
 
-#include <QImage>
 #include <QSize>
 #include <atomic>
 #include <memory>
@@ -15,7 +14,6 @@ struct CaptureFrame {
     qint64 timestamp = 0; // Monotonic capture time, in nanoseconds.
     quint64 sequence = 0;
     quint64 generation = 0;
-    QImage image;
     std::shared_ptr<GpuFrameResource> gpu;
     std::shared_ptr<std::atomic_bool> busy;
     ~CaptureFrame() { if (busy) busy->store(false, std::memory_order_release); }

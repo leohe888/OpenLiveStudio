@@ -236,7 +236,7 @@ void PreviewWidget::paintGL()
         if (source.frame ? (resource.generation == source.frame->generation && resource.sequence == source.frame->sequence)
                          : resource.imageKey == source.image.cacheKey()) continue;
         resource.ready = false;
-        resource.imageKey = source.cpuImage().cacheKey();
+        resource.imageKey = source.image.cacheKey();
         resource.generation = source.frame ? source.frame->generation : 0;
         resource.sequence = source.frame ? source.frame->sequence : 0;
         GLint maxTextureSize = 0;
@@ -264,7 +264,7 @@ void PreviewWidget::paintGL()
                 }
             } else {
                 resource.interop.reset();
-                const auto image = source.cpuImage().convertToFormat(QImage::Format_RGBA8888);
+                const auto image = source.image.convertToFormat(QImage::Format_RGBA8888);
                 resource.texture->setData(QOpenGLTexture::RGBA, QOpenGLTexture::UInt8, image.constBits());
             }
             const GLenum uploadError = glGetError();

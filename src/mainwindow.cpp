@@ -443,7 +443,7 @@ void MainWindow::setupPreview()
     preview->setObjectName(QStringLiteral("previewWidget"));
     connect(preview, &PreviewWidget::renderingError, pages, showError, Qt::QueuedConnection);
     connect(m_displaySources, &DisplayCaptureController::sourcesChanged, preview, &PreviewWidget::setSources);
-    connect(preview, &PreviewWidget::gpuTransferFailed, m_displaySources, &DisplayCaptureController::useCpu, Qt::QueuedConnection);
+    connect(preview, &PreviewWidget::gpuTransferFailed, m_displaySources, &DisplayCaptureController::failTransfer, Qt::QueuedConnection);
     connect(preview, &PreviewWidget::selectionRequested, m_sourceListModel, &SourceListModel::selectSource);
     connect(preview, &PreviewWidget::transformRequested, m_sourceListModel, &SourceListModel::setSourceTransform);
     connect(m_sourceListModel, &SourceListModel::currentSourceIdChanged, preview, [this, preview] {

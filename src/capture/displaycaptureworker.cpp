@@ -6,7 +6,6 @@
 #include <array>
 #include <algorithm>
 #include <chrono>
-#include <cstring>
 
 #ifdef Q_OS_WIN
 #include <dxgi1_2.h>
@@ -26,7 +25,6 @@ using namespace winrt::Windows::Graphics::DirectX::Direct3D11;
 DisplayCaptureWorker::DisplayCaptureWorker(QString displayId, bool cursor, quint64 generation)
     : m_displayId(std::move(displayId)), m_cursor(cursor), m_generation(generation)
 {
-    m_cpu.store(qEnvironmentVariableIsSet("OPENLIVE_FORCE_CPU_CAPTURE"));
 }
 
 DisplayCaptureWorker::~DisplayCaptureWorker()
@@ -97,7 +95,6 @@ void DisplayCaptureWorker::run()
             std::shared_ptr<std::atomic_bool> busy = std::make_shared<std::atomic_bool>(false);
         };
         std::array<Slot, 3> poolSlots;
-        ComPtr<ID3D11Texture2D> staging;
         ComPtr<ID3D11Query> query;
         D3D11_QUERY_DESC queryDesc{D3D11_QUERY_EVENT, 0};
         winrt::check_hresult(device->CreateQuery(&queryDesc, &query));
@@ -128,7 +125,6 @@ void DisplayCaptureWorker::run()
                     latest = nullptr;
                     m_frames.clear();
                     poolSlots = {};
-                    staging.Reset();
                     if (size.Width > 0 && size.Height > 0)
                         pool.Recreate(directDevice, DirectXPixelFormat::B8G8R8A8UIntNormalized, 2, size);
                 } else if (content.Width > 0 && content.Height > 0) {
@@ -142,40 +138,26 @@ void DisplayCaptureWorker::run()
                     frame->generation = m_generation;
                     D3D11_TEXTURE2D_DESC desc{};
                     input->GetDesc(&desc);
-                    const bool cpu = m_cpu.load();
-                    if (cpu) {
-                        if (!staging) {
-                            desc.Usage = D3D11_USAGE_STAGING;
-                            desc.BindFlags = 0;
-                            desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+                    for (auto &slot : poolSlots) {
+                        bool available = false;
+                        if (!slot.busy->compare_exchange_strong(available, true)) continue;
+                        frame->busy = slot.busy;
+                        if (!slot.resource) {
+                            slot.resource = std::make_shared<GpuFrameResource>();
+                            slot.resource->device = device;
+                            desc.Usage = D3D11_USAGE_DEFAULT;
+                            desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+                            desc.CPUAccessFlags = 0;
                             desc.MiscFlags = 0;
-                            winrt::check_hresult(device->CreateTexture2D(&desc, nullptr, &staging));
+                            winrt::check_hresult(device->CreateTexture2D(&desc, nullptr, &slot.resource->texture));
                         }
-                        context->CopyResource(staging.Get(), input.Get());
+                        frame->gpu = slot.resource;
+                        context->CopyResource(slot.resource->texture.Get(), input.Get());
                         context->End(query.Get());
                         context->Flush();
-                    } else {
-                        for (auto &slot : poolSlots) {
-                            bool available = false;
-                            if (!slot.busy->compare_exchange_strong(available, true)) continue;
-                            frame->busy = slot.busy;
-                            if (!slot.resource) {
-                                slot.resource = std::make_shared<GpuFrameResource>();
-                                slot.resource->device = device;
-                                desc.Usage = D3D11_USAGE_DEFAULT;
-                                desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
-                                desc.CPUAccessFlags = 0;
-                                desc.MiscFlags = 0;
-                                winrt::check_hresult(device->CreateTexture2D(&desc, nullptr, &slot.resource->texture));
-                            }
-                            frame->gpu = slot.resource;
-                            context->CopyResource(slot.resource->texture.Get(), input.Get());
-                            context->End(query.Get());
-                            context->Flush();
-                            break;
-                        }
+                        break;
                     }
-                    if (frame->gpu || cpu) {
+                    if (frame->gpu) {
                         BOOL ready = FALSE;
                         HRESULT result = S_FALSE;
                         // The worker waits for GPU completion; the GUI never waits on this query.
@@ -183,19 +165,7 @@ void DisplayCaptureWorker::run()
                             QThread::msleep(1);
                         winrt::check_hresult(result);
                         if (!m_stop.load() && ready) {
-                            if (!frame->gpu) {
-                                D3D11_MAPPED_SUBRESOURCE mapped{};
-                                winrt::check_hresult(context->Map(staging.Get(), 0, D3D11_MAP_READ, 0, &mapped));
-                                const auto unmap = qScopeGuard([&] { context->Unmap(staging.Get(), 0); });
-                                frame->image = QImage(frame->size, QImage::Format_ARGB32);
-                                if (frame->image.isNull()) throw std::bad_alloc();
-                                for (int y = 0; y < frame->size.height(); ++y)
-                                    std::memcpy(frame->image.scanLine(y), static_cast<const char *>(mapped.pData) + y * mapped.RowPitch,
-                                                size_t(frame->size.width()) * 4);
-                                frame->image = frame->image.convertToFormat(QImage::Format_RGBA8888);
-                                if (frame->image.isNull()) throw std::bad_alloc();
-                            }
-                            if (cpu == m_cpu.load()) m_frames.publish(std::move(frame));
+                            m_frames.publish(std::move(frame));
                         }
                     }
                     latest.Close();

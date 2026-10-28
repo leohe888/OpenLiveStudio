@@ -57,22 +57,32 @@ private slots:
         QTRY_COMPARE_WITH_TIMEOUT(controller.activeWorkerCount(), 0, 2000);
     }
 
-    void cpuRouteCanStartDirectly()
+    void transferFailureStopsAndRequiresExplicitRetry()
     {
-        const auto targets = displayTargets();
-        if (targets.isEmpty()) QSKIP("Interactive Windows desktop required");
-        qputenv("OPENLIVE_FORCE_CPU_CAPTURE", "1");
-        DisplayCaptureWorker worker(targets[0].id, false, 7);
-        qunsetenv("OPENLIVE_FORCE_CPU_CAPTURE");
-        worker.start();
-        std::shared_ptr<const CaptureFrame> frame;
-        QTRY_VERIFY_WITH_TIMEOUT(frame || (frame = worker.takeLatest()) || !worker.error().isEmpty(), 5000);
-        if (!worker.error().isEmpty() && !qEnvironmentVariableIsSet("OPENLIVE_REQUIRE_GPU_INTEROP")) QSKIP(qPrintable(worker.error()));
-        QVERIFY2(worker.error().isEmpty(), qPrintable(worker.error()));
-        QVERIFY(frame && !frame->gpu && !frame->image.isNull());
-        QCOMPARE(frame->image.format(), QImage::Format_RGBA8888);
-        worker.stop();
-        QVERIFY(worker.wait(2000));
+        SourceListModel model;
+        DisplayCaptureController controller(model);
+        QSignalSpy errors(&controller, &DisplayCaptureController::sourceError);
+        const QString id = controller.addDisplay("Screen", "missing-display", true);
+        controller.failTransfer(id, 0, "stale generation");
+        QCOMPARE(model.displayProperties(id).value("state").toString(), QString("starting"));
+        controller.failTransfer(id, 1, "unsupported interop");
+        QCOMPARE(model.displayProperties(id).value("state").toString(), QString("error"));
+        QVERIFY(model.displayProperties(id).value("error").toString().contains("GPU"));
+        QCOMPARE(model.rowCount(), 1);
+        controller.failTransfer(id, 1, "repeated failure");
+        QCOMPARE(errors.count(), 1);
+        QTRY_COMPARE_WITH_TIMEOUT(controller.activeWorkerCount(), 0, 2000);
+        QTest::qWait(100);
+        QCOMPARE(errors.count(), 1);
+        QVERIFY(controller.retry(id));
+        controller.failTransfer(id, 1, "old failure after retry");
+        QCOMPARE(model.displayProperties(id).value("state").toString(), QString("starting"));
+        controller.failTransfer(id, 2, "current failure");
+        QCOMPARE(errors.count(), 2);
+        QVERIFY(model.removeSource(id));
+        controller.failTransfer(id, 2, "failure after removal");
+        QCOMPARE(errors.count(), 2);
+        QTRY_COMPARE_WITH_TIMEOUT(controller.activeWorkerCount(), 0, 2000);
     }
 
     void failedSourcesStayEditableAndDoNotRetry()
@@ -133,9 +143,9 @@ private slots:
         connect(&controller, &DisplayCaptureController::sourcesChanged, &preview, &PreviewWidget::setSources);
         connect(&controller, &DisplayCaptureController::sourcesChanged, this,
             [&](const auto &sources) { snapshot = sources; });
-        connect(&preview, &PreviewWidget::gpuTransferFailed, &controller, &DisplayCaptureController::useCpu, Qt::QueuedConnection);
+        connect(&preview, &PreviewWidget::gpuTransferFailed, &controller, &DisplayCaptureController::failTransfer, Qt::QueuedConnection);
         QSignalSpy errors(&controller, &DisplayCaptureController::sourceError);
-        QSignalSpy fallback(&preview, &PreviewWidget::gpuTransferFailed);
+        QSignalSpy transferFailures(&preview, &PreviewWidget::gpuTransferFailed);
         const QString id = controller.addDisplay("Screen", targets[0].id, true);
         const auto hasFrame = [&] { return snapshot.size() == 1 && snapshot[0].hasFrame(); };
         QTRY_VERIFY_WITH_TIMEOUT(hasFrame() || !model.displayProperties(id).value("error").toString().isEmpty(), 5000);
@@ -145,8 +155,10 @@ private slots:
         }
         QVERIFY(!preview.grabFramebuffer().isNull());
         QCoreApplication::processEvents();
-        const int initialFallbacks = fallback.count();
-        if (qEnvironmentVariableIsSet("OPENLIVE_REQUIRE_GPU_INTEROP")) QCOMPARE(initialFallbacks, 0);
+        if (!transferFailures.isEmpty()) {
+            QVERIFY2(!qEnvironmentVariableIsSet("OPENLIVE_REQUIRE_GPU_INTEROP"), "GPU interop required");
+            QSKIP("GPU interop unavailable on this desktop");
+        }
         const QString filter = model.addColorCorrection(id);
         QVERIFY(model.setFilterParameters(id, filter, .1, .8, 1.2));
         QVERIFY(model.setSourceTransform(id, {{960, 540}, {1200, 700}, 17}));
@@ -190,7 +202,7 @@ private slots:
                     << seconds << updates << maximumUiGap;
             QVERIFY(updates > seconds * 10);
             QVERIFY(maximumUiGap < 250);
-            QCOMPARE(fallback.count(), initialFallbacks);
+            QCOMPARE(transferFailures.count(), 0);
 #ifdef Q_OS_WIN
             if (baselineBytes) {
                 qInfo() << "Private bytes baseline/end:" << baselineBytes << lastBytes
@@ -234,17 +246,25 @@ private slots:
         QCOMPARE(snapshot[0].filters[0].id, filter);
 
         qputenv("OPENLIVE_FORCE_INTEROP_FAILURE", "1");
-        const int beforeForcedFallback = fallback.count();
+        const quint64 beforeFailureGeneration = snapshot[0].frame->generation;
         QVERIFY(controller.retry(id));
-        QTRY_VERIFY_WITH_TIMEOUT(hasFrame() && !snapshot[0].cpuImage().isNull(), 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(model.displayProperties(id).value("state").toString(), QString("error"), 5000);
         qunsetenv("OPENLIVE_FORCE_INTEROP_FAILURE");
-        QCOMPARE(fallback.count(), beforeForcedFallback + 1);
-        const quint64 cpuGeneration = snapshot[0].frame->generation;
+        QCOMPARE(transferFailures.count(), 1);
+        QCOMPARE(errors.count(), 1);
+        QVERIFY(!snapshot[0].hasFrame());
+        QTRY_COMPARE_WITH_TIMEOUT(controller.activeWorkerCount(), 0, 2000);
         QTest::qWait(150);
-        QVERIFY(!snapshot[0].frame->gpu);
-        QCOMPARE(snapshot[0].frame->generation, cpuGeneration);
+        QVERIFY(!snapshot[0].hasFrame());
+        QCOMPARE(model.displayProperties(id).value("state").toString(), QString("error"));
+        QVERIFY(controller.retry(id));
+        QTRY_VERIFY_WITH_TIMEOUT(hasFrame(), 5000);
+        QVERIFY(snapshot[0].frame->gpu && snapshot[0].frame->generation > beforeFailureGeneration);
         QVERIFY(!preview.grabFramebuffer().isNull());
-        QCOMPARE(errors.count(), 0);
+        QCoreApplication::processEvents();
+        QCOMPARE(transferFailures.count(), 1);
+        controller.failTransfer(id, beforeFailureGeneration, "late failure");
+        QCOMPARE(model.displayProperties(id).value("state").toString(), QString("capturing"));
         QVERIFY(model.removeSource(id));
         QVERIFY(snapshot.isEmpty());
         QTRY_COMPARE_WITH_TIMEOUT(controller.activeWorkerCount(), 0, 2000);
@@ -366,16 +386,15 @@ private slots:
                 const QColor top = gpuResult.pixelColor(gpuResult.width() / 2, gpuResult.height() / 4);
                 QVERIFY(qAbs(top.red() - 128) <= 1);
                 QVERIFY(qAbs(top.green() - 23) <= 1);
-                auto cpuFrame = std::make_shared<CaptureFrame>();
-                cpuFrame->size = size; cpuFrame->generation = 1; cpuFrame->sequence = 2;
-                cpuFrame->image = QImage(reinterpret_cast<const uchar *>(pixels.constData()), size.width(), size.height(), QImage::Format_ARGB32).copy();
-                source.frame = cpuFrame;
+                source.frame.reset();
+                source.image = QImage(reinterpret_cast<const uchar *>(pixels.constData()), size.width(), size.height(), QImage::Format_ARGB32).copy();
                 preview.setSources({source});
-                const auto cpuResult = preview.grabFramebuffer();
-                QCOMPARE(cpuResult.pixelColor(cpuResult.width() / 2, cpuResult.height() / 4), top);
-                QCOMPARE(cpuResult.pixelColor(cpuResult.width() / 2, cpuResult.height() * 3 / 4),
+                const auto imageResult = preview.grabFramebuffer();
+                QCOMPARE(imageResult.pixelColor(imageResult.width() / 2, imageResult.height() / 4), top);
+                QCOMPARE(imageResult.pixelColor(imageResult.width() / 2, imageResult.height() * 3 / 4),
                          gpuResult.pixelColor(gpuResult.width() / 2, gpuResult.height() * 3 / 4));
                 source.frame = gpuFrame;
+                source.image = {};
                 preview.setSources({source});
                 preview.grabFramebuffer();
                 replacementHost.resize(480, 270);
@@ -408,7 +427,7 @@ private slots:
         QVERIFY(!worker.takeLatest());
     }
 
-    void realCaptureAndCpuFallback()
+    void realCaptureProducesGpuFramesAndStops()
     {
         const auto targets = displayTargets();
         if (targets.isEmpty()) QSKIP("Interactive Windows desktop required");
@@ -421,15 +440,6 @@ private slots:
         QVERIFY(frame && frame->gpu);
         QCOMPARE(frame->generation, quint64(9));
         QCOMPARE(frame->size, targets[0].size);
-        frame.reset();
-        worker.useCpu();
-        QTRY_VERIFY_WITH_TIMEOUT(([&] {
-            if (!frame || frame->image.isNull()) frame = worker.takeLatest();
-            return frame && !frame->image.isNull();
-        })(), 5000);
-        QVERIFY(!frame->gpu);
-        QCOMPARE(frame->image.size(), frame->size);
-        QCOMPARE(frame->image.format(), QImage::Format_RGBA8888);
         frame.reset();
         const int seconds = qEnvironmentVariableIntValue("OPENLIVE_CAPTURE_SOAK_SECONDS");
         if (seconds > 0) {

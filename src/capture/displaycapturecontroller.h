@@ -21,7 +21,7 @@ public:
     Q_INVOKABLE QString addDisplay(const QString &name, const QString &displayId, bool cursor);
     Q_INVOKABLE bool applyProperties(const QString &sourceId, const QString &displayId, bool cursor);
     Q_INVOKABLE bool retry(const QString &sourceId);
-    void useCpu(const QString &id, quint64 generation, const QString &reason);
+    void failTransfer(const QString &id, quint64 generation, const QString &reason);
     void setImageSources(const QList<PreviewSource> &images);
     int activeWorkerCount() const;
 signals:
@@ -31,7 +31,7 @@ signals:
 private:
     struct Entry {
         QString displayId;
-        bool cursor = true, failed = false, cpu = false;
+        bool cursor = true, failed = false;
         quint64 generation = 0;
         std::unique_ptr<DisplayCaptureWorker> worker;
         std::shared_ptr<const CaptureFrame> frame;

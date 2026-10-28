@@ -1,4 +1,5 @@
 #include "preview/previewwidget.h"
+#include "capture/d3dtexture.h"
 
 #include <QApplication>
 #include <QOpenGLContext>
@@ -801,12 +802,28 @@ private slots:
         wireEditor(widget);
         QImage image(200, 100, QImage::Format_RGBA8888);
         image.fill(Qt::green);
+        auto resource = std::make_shared<GpuFrameResource>();
+#ifdef Q_OS_WIN
+        QVERIFY(SUCCEEDED(D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
+            D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0, D3D11_SDK_VERSION,
+            &resource->device, nullptr, nullptr)));
+        D3D11_TEXTURE2D_DESC desc{};
+        desc.Width = UINT(image.width()); desc.Height = UINT(image.height());
+        desc.MipLevels = 1; desc.ArraySize = 1; desc.SampleDesc.Count = 1;
+        desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+        desc.Usage = D3D11_USAGE_DEFAULT;
+        desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+        D3D11_SUBRESOURCE_DATA pixels{image.constBits(), UINT(image.bytesPerLine()), 0};
+        QVERIFY(SUCCEEDED(resource->device->CreateTexture2D(&desc, &pixels, &resource->texture)));
+#else
+        QSKIP("Capture frames require Windows D3D11");
+#endif
         const SourceTransform start{{960, 540}, {600, 300}, 0};
         quint64 sequence = 0;
         const auto publish = [&] {
             auto frame = std::make_shared<CaptureFrame>();
             frame->size = image.size();
-            frame->image = image;
+            frame->gpu = resource;
             frame->generation = 1;
             frame->sequence = ++sequence;
             auto sources = widget.m_sources;
@@ -815,9 +832,14 @@ private slots:
             widget.setSources(sources);
         };
         publish();
+        QSignalSpy transferErrors(&widget, &PreviewWidget::gpuTransferFailed);
         widget.show();
         QVERIFY(QTest::qWaitForWindowActive(&widget));
         widget.grabFramebuffer();
+        if (!transferErrors.isEmpty()) {
+            QVERIFY2(!qEnvironmentVariableIsSet("OPENLIVE_REQUIRE_GPU_INTEROP"), "GPU interop required");
+            QSKIP("GPU interop unavailable for capture editing test");
+        }
         const auto display = SourceGeometry::canvasToWidget(widget.size());
         const auto handles = widget.selectionHandles(widget.m_sources[0]);
         const auto center = display.map(start.center);

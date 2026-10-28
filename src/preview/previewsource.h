@@ -19,8 +19,7 @@ struct PreviewSource {
     std::shared_ptr<const CaptureFrame> frame;
 
     QSize pixelSize() const { return frame ? frame->size : image.size(); }
-    const QImage &cpuImage() const { return frame ? frame->image : image; }
-    bool hasFrame() const { return frame ? (!frame->image.isNull() || bool(frame->gpu)) : !image.isNull(); }
+    bool hasFrame() const { return frame ? bool(frame->gpu) : !image.isNull(); }
 };
 
 #endif
