@@ -12,6 +12,7 @@ Rectangle {
     readonly property var state: typeof sourceListModel !== "undefined" ? sourceListModel : null
     signal sourceAddDialogRequested()
     signal sourceRemovalDialogRequested(string sourceId)
+    signal sourceFiltersDialogRequested(string sourceId)
 
     // Each operation opts in once its business implementation is available.
     component SourceButton: ToolButton {
@@ -203,6 +204,8 @@ Rectangle {
                 }
                 SourceButton {
                     objectName: "sourceFiltersButton"
+                    enabled: root.state !== null && root.state.canFilterCurrentSource
+                    onClicked: root.sourceFiltersDialogRequested(root.state.currentSourceId)
                     text: qsTr("来源滤镜")
                     icon.source: "qrc:/assets/icons/sliders-horizontal.svg"
                     Layout.preferredWidth: 30

@@ -12,6 +12,7 @@ class SourceListModel : public QAbstractListModel
 {
     Q_OBJECT
     Q_PROPERTY(QString currentSourceId READ currentSourceId NOTIFY currentSourceIdChanged)
+    Q_PROPERTY(bool canFilterCurrentSource READ canFilterCurrentSource NOTIFY currentSourceIdChanged)
     Q_PROPERTY(bool canMoveCurrentSourceUp READ canMoveCurrentSourceUp NOTIFY sourceMoveAvailabilityChanged)
     Q_PROPERTY(bool canMoveCurrentSourceDown READ canMoveCurrentSourceDown NOTIFY sourceMoveAvailabilityChanged)
 
@@ -24,7 +25,8 @@ public:
         OriginalSizeRole,
         VisibleRole,
         LockedRole,
-        TransformRole
+        TransformRole,
+        FiltersRole
     };
 
     explicit SourceListModel(QObject *parent = nullptr);
@@ -52,14 +54,26 @@ public:
     Q_INVOKABLE bool moveSource(const QString &sourceId, int offset);
     Q_INVOKABLE bool setSourceVisible(const QString &sourceId, bool visible);
     Q_INVOKABLE bool setSourceLocked(const QString &sourceId, bool locked);
+    bool canFilterCurrentSource() const { return canFilterSource(m_currentSourceId); }
+    Q_INVOKABLE bool canFilterSource(const QString &sourceId) const;
+    Q_INVOKABLE QVariantList sourceFilters(const QString &sourceId) const;
+    Q_INVOKABLE QString addColorCorrection(const QString &sourceId);
+    Q_INVOKABLE bool removeFilter(const QString &sourceId, const QString &filterId);
+    Q_INVOKABLE bool moveFilter(const QString &sourceId, const QString &filterId, int offset);
+    Q_INVOKABLE bool setFilterEnabled(const QString &sourceId, const QString &filterId, bool enabled);
+    Q_INVOKABLE bool setFilterParameters(const QString &sourceId, const QString &filterId,
+                                        double brightness, double contrast, double saturation);
 
 signals:
     void currentSourceIdChanged();
     void sourceMoveAvailabilityChanged();
+    void sourceFiltersChanged(const QString &sourceId);
 
 private:
     int sourceRow(const QString &sourceId) const;
     bool setSourceFlag(const QString &sourceId, int role, bool value);
+    int filterRow(int sourceRow, const QString &filterId) const;
+    void notifyFiltersChanged(int row);
     QList<SourceData> m_sources;
     QString m_currentSourceId;
 };

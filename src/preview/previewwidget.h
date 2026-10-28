@@ -65,6 +65,7 @@ private:
     void updateCursor(const QPointF &position);
     void cleanup();
     void reportError(const QString &message);
+    GLuint filterTexture(const PreviewSource &source, GLuint original, bool &flipY);
 
     QList<PreviewSource> m_sources;
     QString m_selectedSourceId;
@@ -84,9 +85,11 @@ private:
     struct TextureResource {
         qint64 imageKey = 0;
         std::unique_ptr<QOpenGLTexture> texture;
+        QString filterError;
     };
     std::map<QString, TextureResource> m_textures;
     std::unique_ptr<QOpenGLFramebufferObject> m_canvasFbo;
+    std::array<std::unique_ptr<QOpenGLFramebufferObject>, 2> m_filterFbos;
     QMetaObject::Connection m_contextDestruction;
 };
 

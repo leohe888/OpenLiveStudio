@@ -85,6 +85,8 @@ private slots:
     void sourceAddDialogHandlesTypeSelection_data();
     void sourceAddDialogHandlesTypeSelection();
     void sourcePanelRequestsRemoval_data();
+    void sourceFiltersDialogEditsAndRetainsState_data();
+    void sourceFiltersDialogEditsAndRetainsState();
     void sourcePanelRequestsRemoval();
     void sourceRemovalDialogHandlesConfirmation_data();
     void sourceRemovalDialogHandlesConfirmation();
@@ -1009,8 +1011,8 @@ void MainWindowTest::sourceThemes()
         QTest::mouseRelease(&panel, Qt::LeftButton, Qt::NoModifier, thumbPosition);
         if (prefix == "source") {
             auto *filters = find("sourceFiltersButton");
-            QVERIFY(filters && !filters->isEnabled());
-            QCOMPARE(QQmlProperty::read(filters, "icon.color").value<QColor>(), m_theme->color("icon.disabled"));
+            QVERIFY(filters && filters->isEnabled());
+            QCOMPARE(QQmlProperty::read(filters, "icon.color").value<QColor>(), m_theme->color("icon.primary"));
             QVERIFY(find("sourceVisibilityButton")->property("checked").toBool() == false);
             QVERIFY(find("sourceLockButton")->property("checked").toBool());
         }
@@ -2643,3 +2645,111 @@ int main(int argc, char **argv)
     return QTest::qExec(&test, argc, argv);
 }
 #include "tst_mainwindow.moc"
+
+void MainWindowTest::sourceFiltersDialogEditsAndRetainsState_data()
+{
+    QTest::addColumn<QString>("themeId");
+    QTest::newRow("dark") << QString("dark");
+    QTest::newRow("light") << QString("light");
+}
+
+void MainWindowTest::sourceFiltersDialogEditsAndRetainsState()
+{
+    QFETCH(QString, themeId);
+    QVERIFY(m_theme->setTheme(themeId));
+    MainWindow window(*m_theme);
+    window.show();
+    auto *model = window.findChild<SourceListModel *>();
+    auto *panel = window.findChild<QQuickWidget *>("sourcesQuickWidget");
+    QVERIFY(model && panel && panel->rootObject());
+    std::function<QQuickItem *(QQuickItem *, const QString &)> findItem;
+    findItem = [&](QQuickItem *parent, const QString &name) -> QQuickItem * {
+        if (parent->objectName() == name) return parent;
+        for (auto *child : parent->childItems())
+            if (auto *found = findItem(child, name)) return found;
+        return nullptr;
+    };
+    auto *button = findItem(panel->rootObject(), "sourceFiltersButton");
+    QVERIFY(button && !button->isEnabled());
+    QVERIFY(model->addSource({"camera", "Camera", CameraConfig{}}));
+    QVERIFY(!button->isEnabled());
+    QVERIFY(model->addSource({"image", "Image", ImageConfig{}}));
+    QVERIFY(button->isEnabled());
+    QVERIFY(QMetaObject::invokeMethod(button, "clicked"));
+    auto *dialog = window.findChild<QDialog *>();
+    QVERIFY(dialog);
+    auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
+    QTRY_VERIFY(view && view->rootObject());
+    auto *root = view->rootObject();
+    QCOMPARE(root->objectName(), QString("sourceFiltersDialog"));
+    QCOMPARE(root->property("sourceId").toString(), QString("image"));
+    QCOMPARE(root->property("color").value<QColor>(), m_theme->color("background.panel"));
+    const auto click = [&](const QString &name) {
+        auto *item = findItem(root, name);
+        QVERIFY2(item, qPrintable(name));
+        QVERIFY(item->isEnabled());
+        QVERIFY(QMetaObject::invokeMethod(item, "clicked"));
+    };
+    QVERIFY(!findItem(root, "brightnessSlider")->isEnabled());
+    click("addFilterButton");
+    QCOMPARE(model->sourceFilters("image").size(), 1);
+    const QString first = root->property("selectedId").toString();
+    auto *slider = findItem(root, "brightnessSlider");
+    QVERIFY(slider && slider->isEnabled());
+    slider->setProperty("value", .25);
+    QVERIFY(QMetaObject::invokeMethod(slider, "moved"));
+    QCOMPARE(model->sourceFilters("image")[0].toMap()["brightness"].toFloat(), .25f);
+    slider->forceActiveFocus();
+    QTest::keyClick(view, Qt::Key_Right);
+    QTRY_VERIFY(qAbs(model->sourceFilters("image")[0].toMap()["brightness"].toFloat() - .26f) < .001f);
+    auto *input = findItem(root, "contrastInput");
+    QVERIFY(input);
+    input->setProperty("value", 150);
+    QVERIFY(QMetaObject::invokeMethod(input, "valueModified"));
+    QCOMPARE(model->sourceFilters("image")[0].toMap()["contrast"].toFloat(), 1.5f);
+    // Exercise an actual keyboard edit through the decimal SpinBox editor.
+    auto *editor = input->property("contentItem").value<QQuickItem *>();
+    QVERIFY(editor);
+    editor->forceActiveFocus();
+    QTest::keyClick(view, Qt::Key_A, Qt::ControlModifier);
+    QTest::keyClicks(view, "1.25");
+    QTest::keyClick(view, Qt::Key_Return);
+    QTRY_COMPARE(model->sourceFilters("image")[0].toMap()["contrast"].toFloat(), 1.25f);
+    click("addFilterButton");
+    const QString second = root->property("selectedId").toString();
+    QVERIFY(second != first);
+    click("upFilterButton");
+    QCOMPARE(model->sourceFilters("image")[0].toMap()["id"].toString(), second);
+    click("downFilterButton");
+    QCOMPARE(model->sourceFilters("image")[1].toMap()["id"].toString(), second);
+    QVERIFY(!view->grabFramebuffer().isNull());
+    click("toggleFilter_" + second);
+    QVERIFY(!model->sourceFilters("image")[1].toMap()["enabled"].toBool());
+    click("removeFilterButton");
+    QCOMPARE(root->property("selectedId").toString(), first);
+    QVERIFY(model->selectSource("camera"));
+    QCOMPARE(root->property("sourceId").toString(), QString("image"));
+    QVERIFY(model->sourceFilters("camera").isEmpty());
+    QVERIFY(model->setSourceLocked("image", true));
+    click("resetFilterButton");
+    QCOMPARE(model->sourceFilters("image")[0].toMap()["brightness"].toFloat(), 0.f);
+    QCOMPARE(model->sourceFilters("image")[0].toMap()["contrast"].toFloat(), 1.f);
+    QVERIFY(model->setFilterParameters("image", first, .4, .8, 1.2));
+    QVERIFY(view->grabFramebuffer().save(QCoreApplication::applicationDirPath()
+        + QString("/filter-dialog-%1.png").arg(themeId)));
+    QPointer<QDialog> previous(dialog);
+    click("closeFiltersButton");
+    QTRY_VERIFY(previous.isNull());
+    QVERIFY(model->selectSource("image"));
+    QVERIFY(QMetaObject::invokeMethod(button, "clicked"));
+    dialog = window.findChild<QDialog *>();
+    QVERIFY(dialog);
+    view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
+    QTRY_VERIFY(view && view->rootObject());
+    root = view->rootObject();
+    QCOMPARE(root->property("selectedId").toString(), first);
+    QVERIFY(qAbs(findItem(root, "brightnessSlider")->property("value").toDouble() - .4) < .001);
+    previous = dialog;
+    QVERIFY(model->removeSource("image"));
+    QTRY_VERIFY(previous.isNull());
+}

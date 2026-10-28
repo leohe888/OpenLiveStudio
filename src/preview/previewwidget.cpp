@@ -256,16 +256,23 @@ void PreviewWidget::paintGL()
     for (auto it = m_sources.crbegin(); it != m_sources.crend(); ++it) {
         const auto resource = m_textures.find(it->id);
         if (drawable(*it)) {
+            bool flipY = false;
+            const GLuint texture = filterTexture(*it, resource->second.texture->textureId(), flipY);
+            m_canvasFbo->bind();
+            glViewport(0, 0, canvasSize.width(), canvasSize.height());
+            glEnable(GL_BLEND);
+            m_program->setUniformValue("colorCorrection", false);
             QMatrix4x4 model(SourceGeometry::sourceToCanvas(it->transform));
             model.translate(float(it->transform.size.width() / 2), float(it->transform.size.height() / 2));
             model.scale(float(it->transform.size.width() / 2), float(-it->transform.size.height() / 2));
-            drawTexture(resource->second.texture->textureId(), projection * model, false);
+            drawTexture(texture, projection * model, flipY);
         }
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
     glViewport(0, 0, pixelSize.width(), pixelSize.height());
     glDisable(GL_BLEND);
+    m_program->setUniformValue("colorCorrection", false);
     // FBO textures use bottom-left-origin coordinates, unlike uploaded images.
     const qreal scale = qMin(qreal(pixelSize.width()) / canvasSize.width(),
                             qreal(pixelSize.height()) / canvasSize.height());
@@ -276,6 +283,58 @@ void PreviewWidget::paintGL()
     m_vertexArray->release();
     m_program->release();
     paintSelection();
+}
+
+GLuint PreviewWidget::filterTexture(const PreviewSource &source, GLuint original, bool &flipY)
+{
+    flipY = false;
+    auto &error = m_textures.at(source.id).filterError;
+    const auto fail = [&](const QString &message) {
+        if (error != message) {
+            error = message;
+            emit sourceError(source.id, message);
+        }
+        flipY = false;
+        return original;
+    };
+    GLuint input = original;
+    int pass = 0;
+    for (const auto &filter : source.filters) {
+        if (!filter.enabled) continue;
+        if (!filter.valid()) return fail(tr("色彩校正参数无效，已使用原图。"));
+        if (filter.isIdentity()) continue;
+        auto &target = m_filterFbos[pass % 2];
+        if (!target || target->size() != source.image.size()) {
+            QOpenGLFramebufferObjectFormat format;
+            format.setInternalTextureFormat(GL_RGBA8);
+            format.setAttachment(QOpenGLFramebufferObject::NoAttachment);
+            target = std::make_unique<QOpenGLFramebufferObject>(source.image.size(), format);
+            if (!target->isValid()) {
+                target.reset();
+                return fail(tr("无法创建滤镜缓冲，已使用原图。"));
+            }
+            glBindTexture(GL_TEXTURE_2D, target->texture());
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        }
+        if (!target->bind()) return fail(tr("无法绑定滤镜缓冲，已使用原图。"));
+        glViewport(0, 0, source.image.width(), source.image.height());
+        glDisable(GL_BLEND);
+        m_program->setUniformValue("vertexTransform", QMatrix4x4());
+        m_program->setUniformValue("flipY", pass > 0);
+        m_program->setUniformValue("colorCorrection", true);
+        m_program->setUniformValue("correction", filter.brightness, filter.contrast, filter.saturation);
+        glBindTexture(GL_TEXTURE_2D, input);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        if (glGetError() != GL_NO_ERROR) return fail(tr("滤镜处理失败，已使用原图。"));
+        input = target->texture();
+        ++pass;
+    }
+    error.clear();
+    flipY = pass > 0;
+    return input;
 }
 
 bool PreviewWidget::drawable(const PreviewSource &source) const
@@ -529,6 +588,7 @@ void PreviewWidget::cleanup()
 
     makeCurrent();
     m_canvasFbo.reset();
+    for (auto &fbo : m_filterFbos) fbo.reset();
     m_textures.clear();
     m_vertexArray.reset();
     m_vertexBuffer.reset();

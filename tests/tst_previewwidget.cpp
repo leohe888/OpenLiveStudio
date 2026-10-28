@@ -17,6 +17,106 @@ class PreviewWidgetTest : public QObject
     Q_OBJECT
 
 private slots:
+    void sourceFiltersRunBeforeComposition()
+    {
+        PreviewWidget widget;
+        widget.resize(480, 270);
+        widget.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&widget));
+        QSignalSpy errors(&widget, &PreviewWidget::sourceError);
+        QImage image(32, 16, QImage::Format_RGBA8888);
+        image.fill(QColor(64, 128, 192));
+        PreviewSource source{"image", image, true, {{960, 540}, {1920, 1080}, 0}};
+        SourceFilter first{"first"};
+        source.filters = {first};
+        const auto render = [&] {
+            widget.setSources({source});
+            widget.grabFramebuffer();
+            return sample(readCanvas(widget), .5, .5);
+        };
+        QCOMPARE(render(), QColor(64, 128, 192));
+        const auto originalTexture = widget.m_textures.at(source.id).texture->textureId();
+        source.filters[0].brightness = .2f;
+        QCOMPARE(render(), QColor(115, 179, 243));
+        source.filters[0].brightness = 0;
+        source.filters[0].contrast = 0;
+        const auto gray = render();
+        QVERIFY(qAbs(gray.red() - 128) <= 1 && gray.red() == gray.green() && gray.red() == gray.blue());
+        source.filters[0].contrast = 1;
+        source.filters[0].saturation = 0;
+        const auto desaturated = render();
+        QVERIFY(qAbs(desaturated.red() - 119) <= 1);
+        QCOMPARE(desaturated.red(), desaturated.green());
+        QCOMPARE(desaturated.green(), desaturated.blue());
+        source.filters[0].enabled = false;
+        QCOMPARE(render(), QColor(64, 128, 192));
+        QCOMPARE(widget.m_textures.at(source.id).texture->textureId(), originalTexture);
+
+        source.image.fill(QColor(102, 102, 102));
+        first.brightness = .2f;
+        SourceFilter second{"second"};
+        second.contrast = 2;
+        source.filters = {first, second};
+        const auto forward = render();
+        source.filters = {second, first};
+        const auto reverse = render();
+        QVERIFY(qAbs(forward.red() - 179) <= 2);
+        QVERIFY(qAbs(reverse.red() - 128) <= 2);
+        QVERIFY(forward.red() > reverse.red() + 40);
+        QCOMPARE(widget.m_filterFbos[0]->size(), image.size());
+        QCOMPARE(widget.m_filterFbos[1]->size(), image.size());
+
+        // Both intermediate passes must preserve image orientation and alpha.
+        source.image.fill(QColor(128, 0, 0, 128));
+        for (int y = source.image.height() / 2; y < source.image.height(); ++y)
+            for (int x = 0; x < source.image.width(); ++x)
+                source.image.setPixelColor(x, y, QColor(0, 0, 128, 128));
+        first.brightness = .1f;
+        second.contrast = .5f;
+        source.filters = {first, second};
+        QImage background(16, 16, QImage::Format_RGBA8888);
+        background.fill(Qt::green);
+        PreviewSource other{"background", background, true, source.transform};
+        widget.setSources({source, other});
+        widget.grabFramebuffer();
+        const auto frame = readCanvas(widget);
+        const auto top = sample(frame, .5, .25);
+        const auto bottom = sample(frame, .5, .75);
+        QVERIFY(top.red() > top.blue() + 20);
+        QVERIFY(bottom.blue() > bottom.red() + 20);
+        QVERIFY(qAbs(top.green() - 165) <= 2);
+        widget.makeCurrent();
+        const auto filtered = widget.m_filterFbos[1]->toImage();
+        QVERIFY(qAbs(filtered.pixelColor(8, 4).alpha() - 128) <= 1);
+        widget.doneCurrent();
+
+        source.visible = false;
+        widget.setSources({source, other});
+        widget.grabFramebuffer();
+        QCOMPARE(sample(readCanvas(widget), .5, .5), QColor(Qt::green));
+        source.visible = true;
+        source.transform.rotation = 180;
+        widget.resize(300, 300);
+        widget.setSources({source, other});
+        widget.grabFramebuffer();
+        QVERIFY(sample(readCanvas(widget), .5, .25).blue() > sample(readCanvas(widget), .5, .25).red());
+        widget.setSources({other, source});
+        widget.grabFramebuffer();
+        QCOMPARE(sample(readCanvas(widget), .5, .5), QColor(Qt::green));
+        // Invalid input from a non-model caller falls back without affecting other sources.
+        source.filters[0].brightness = 4;
+        source.transform.rotation = 0;
+        widget.setSources({source});
+        widget.grabFramebuffer();
+        QVERIFY(errors.count() > 0);
+        QVERIFY(sample(readCanvas(widget), .5, .25).red() > 60);
+        widget.setSources({});
+        widget.grabFramebuffer();
+        QVERIFY(widget.m_textures.empty());
+        widget.cleanup();
+        QVERIFY(!widget.m_filterFbos[0] && !widget.m_filterFbos[1]);
+    }
+
     void initTestCase()
     {
         PreviewWidget widget;

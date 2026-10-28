@@ -187,6 +187,15 @@ void MainWindow::showDialog(const QUrl &source, const QString &title,
     dialog->setPalette(palette());
     dialog->setObjectName(QStringLiteral("qmlDialog"));
     dialog->setProperty("qmlSource", source);
+    if (source.fileName() == QStringLiteral("SourceFiltersDialog.qml")) {
+        const QString id = properties.value(QStringLiteral("sourceId")).toString();
+        dialog->setProperty("filterSourceId", id);
+        const auto closeIfRemoved = [this, dialog, id] {
+            if (!m_sourceListModel->canFilterSource(id)) dialog->close();
+        };
+        connect(m_sourceListModel, &QAbstractItemModel::rowsRemoved, dialog, closeIfRemoved);
+        connect(m_sourceListModel, &QAbstractItemModel::modelReset, dialog, closeIfRemoved);
+    }
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->setWindowTitle(title);
     dialog->resize(420, 240);
@@ -282,6 +291,21 @@ void MainWindow::showSourceRemovalDialog(const QString &sourceId)
                            {QStringLiteral("sourceName"), index.data(SourceListModel::NameRole)}});
         return;
     }
+}
+
+void MainWindow::showSourceFiltersDialog(const QString &sourceId)
+{
+    if (!m_sourceListModel->canFilterSource(sourceId)) return;
+    for (auto *dialog : findChildren<QDialog *>(QString(), Qt::FindDirectChildrenOnly)) {
+        if (dialog->property("filterSourceId").toString() == sourceId && dialog->isVisible()) {
+            dialog->raise();
+            dialog->activateWindow();
+            return;
+        }
+    }
+    showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceFiltersDialog.qml")),
+        tr("来源滤镜"), {{QStringLiteral("sourceListModel"), QVariant::fromValue(m_sourceListModel)},
+                         {QStringLiteral("sourceId"), sourceId}});
 }
 
 void MainWindow::setupMenuBar()
@@ -461,6 +485,8 @@ void MainWindow::setupSourcesDock()
                     this, SLOT(showSourceAddDialog()), Qt::UniqueConnection);
             connect(view->rootObject(), SIGNAL(sourceRemovalDialogRequested(QString)),
                     this, SLOT(showSourceRemovalDialog(QString)), Qt::UniqueConnection);
+            connect(view->rootObject(), SIGNAL(sourceFiltersDialogRequested(QString)),
+                    this, SLOT(showSourceFiltersDialog(QString)), Qt::UniqueConnection);
         }
     });
     connect(view, &QQuickWidget::sceneGraphError, this,

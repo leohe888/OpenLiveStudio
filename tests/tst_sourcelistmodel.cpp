@@ -28,6 +28,7 @@ private slots:
     void rejectsInvalidOperations();
     void suggestsUnusedSourceNames();
     void sameImageEntriesRemainIndependent();
+    void filtersAreOrderedValidatedAndIndependent();
 };
 
 static QList<SourceData> sources()
@@ -63,7 +64,8 @@ void SourceListModelTest::exposesSourceRolesAndRejectsInvalidIndexes()
         {SourceListModel::IdRole, "sourceId"}, {SourceListModel::NameRole, "sourceName"},
         {SourceListModel::TypeRole, "sourceType"}, {SourceListModel::FilePathRole, "sourceFilePath"},
         {SourceListModel::OriginalSizeRole, "sourceOriginalSize"},
-        {SourceListModel::VisibleRole, "sourceVisible"}, {SourceListModel::LockedRole, "sourceLocked"}, {SourceListModel::TransformRole, "sourceTransform"}};
+        {SourceListModel::VisibleRole, "sourceVisible"}, {SourceListModel::LockedRole, "sourceLocked"},
+        {SourceListModel::TransformRole, "sourceTransform"}, {SourceListModel::FiltersRole, "sourceFilters"}};
     QCOMPARE(model->roleNames(), roles);
     const auto index = model->index(0, 0);
     QCOMPARE(index.data(SourceListModel::IdRole).toString(), QString("image"));
@@ -468,4 +470,60 @@ void SourceListModelTest::sharesGeometryForMappingAndResizing()
         const auto narrow = SourceGeometry::resized(start, 3, rotation.map(QPointF(-10000, 0)));
         QCOMPARE(narrow.size.width(), 1.0);
     }
+}
+
+void SourceListModelTest::filtersAreOrderedValidatedAndIndependent()
+{
+    SourceListModel model(QList<SourceData>{{"a", "A", ImageConfig{"a.png"}},
+        {"b", "B", ImageConfig{"a.png"}}, {"camera", "Camera", CameraConfig{}}});
+    QSignalSpy changed(&model, &SourceListModel::sourceFiltersChanged);
+    QSignalSpy data(&model, &SourceListModel::dataChanged);
+    QVERIFY(!model.canFilterCurrentSource());
+    QVERIFY(model.selectSource("a"));
+    QVERIFY(model.canFilterCurrentSource());
+    QVERIFY(model.addColorCorrection("camera").isEmpty());
+    QVERIFY(model.addColorCorrection("missing").isEmpty());
+    const QString first = model.addColorCorrection("a");
+    const QString second = model.addColorCorrection("a");
+    QVERIFY(!first.isEmpty() && first != second);
+    QCOMPARE(changed.count(), 2);
+    QCOMPARE(data.last()[2].value<QList<int>>(), QList<int>{SourceListModel::FiltersRole});
+    QCOMPARE(model.sourceFilters("a")[0].toMap()["brightness"].toFloat(), 0.f);
+    QCOMPARE(model.sourceFilters("a")[0].toMap()["contrast"].toFloat(), 1.f);
+    QCOMPARE(model.sourceFilters("a")[0].toMap()["saturation"].toFloat(), 1.f);
+    QVERIFY(model.sourceFilters("b").isEmpty());
+    QVERIFY(model.setSourceLocked("a", true));
+    QVERIFY(model.setFilterParameters("a", first, .2, 1.5, 0));
+    QVERIFY(model.setFilterEnabled("a", first, false));
+    const int before = changed.count();
+    QVERIFY(model.setFilterEnabled("a", first, false));
+    QVERIFY(model.setFilterParameters("a", first, .2, 1.5, 0));
+    QCOMPARE(changed.count(), before);
+    for (double invalid : {-1.01, 1.01, std::numeric_limits<double>::infinity(),
+                           std::numeric_limits<double>::quiet_NaN()})
+        QVERIFY(!model.setFilterParameters("a", first, invalid, 1, 1));
+    for (double invalid : {-.01, 2.01, std::numeric_limits<double>::infinity(),
+                           std::numeric_limits<double>::quiet_NaN()}) {
+        QVERIFY(!model.setFilterParameters("a", first, 0, invalid, 1));
+        QVERIFY(!model.setFilterParameters("a", first, 0, 1, invalid));
+    }
+    QVERIFY(!model.moveFilter("a", first, -1));
+    QVERIFY(!model.moveFilter("a", second, 1));
+    QVERIFY(!model.moveFilter("a", first, 2));
+    QVERIFY(model.moveFilter("a", first, 1));
+    QCOMPARE(model.sourceFilters("a")[1].toMap()["id"].toString(), first);
+    QVERIFY(model.setFilterEnabled("a", first, true));
+    QCOMPARE(model.sourceFilters("a")[1].toMap()["brightness"].toFloat(), .2f);
+    const auto typed = model.index(0, 0).data(SourceListModel::FiltersRole).value<QList<SourceFilter>>();
+    QCOMPARE(typed[1].id, first);
+    QCOMPARE(typed[1].saturation, 0.f);
+    QVERIFY(!model.setFilterEnabled("b", first, false));
+    QVERIFY(!model.setFilterParameters("missing", first, 0, 1, 1));
+    QVERIFY(!model.moveFilter("missing", first, 1));
+    QVERIFY(!model.removeFilter("a", "missing"));
+    QVERIFY(model.removeFilter("a", first));
+    QCOMPARE(model.sourceFilters("a").size(), 1);
+    QVERIFY(model.removeSource("a"));
+    QVERIFY(model.sourceFilters("a").isEmpty());
+    QVERIFY(!model.removeFilter("a", second));
 }

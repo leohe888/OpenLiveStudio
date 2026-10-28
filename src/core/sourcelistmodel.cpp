@@ -1,4 +1,5 @@
 #include "sourcelistmodel.h"
+#include <QUuid>
 
 SourceListModel::SourceListModel(QObject *parent)
     : SourceListModel(QList<SourceData>{}, parent)
@@ -51,6 +52,7 @@ QVariant SourceListModel::data(const QModelIndex &index, int role) const
     case VisibleRole: return item.visible;
     case LockedRole: return item.locked;
     case TransformRole: return QVariant::fromValue(item.transform);
+    case FiltersRole: return QVariant::fromValue(item.filters);
     default: return {};
     }
 }
@@ -59,7 +61,8 @@ QHash<int, QByteArray> SourceListModel::roleNames() const
 {
     return {{IdRole, "sourceId"}, {NameRole, "sourceName"}, {TypeRole, "sourceType"},
             {FilePathRole, "sourceFilePath"}, {OriginalSizeRole, "sourceOriginalSize"},
-            {VisibleRole, "sourceVisible"}, {LockedRole, "sourceLocked"}, {TransformRole, "sourceTransform"}};
+            {VisibleRole, "sourceVisible"}, {LockedRole, "sourceLocked"}, {TransformRole, "sourceTransform"},
+            {FiltersRole, "sourceFilters"}};
 }
 
 bool SourceListModel::selectSource(const QString &id)
@@ -221,6 +224,105 @@ bool SourceListModel::setSourceTransform(const QString &id, const SourceTransfor
     if (m_sources[row].transform != normalized) {
         m_sources[row].transform = normalized;
         emit dataChanged(index(row, 0), index(row, 0), {TransformRole});
+    }
+    return true;
+}
+
+bool SourceListModel::canFilterSource(const QString &sourceId) const
+{
+    const int row = sourceRow(sourceId);
+    return row >= 0 && m_sources[row].type() == SourceType::Image;
+}
+
+QVariantList SourceListModel::sourceFilters(const QString &sourceId) const
+{
+    const int row = sourceRow(sourceId);
+    if (row < 0) return {};
+    QVariantList result;
+    for (const auto &filter : m_sources[row].filters)
+        result.append(QVariantMap{{"id", filter.id}, {"type", "colorCorrection"},
+            {"enabled", filter.enabled}, {"brightness", filter.brightness},
+            {"contrast", filter.contrast}, {"saturation", filter.saturation}});
+    return result;
+}
+
+int SourceListModel::filterRow(int row, const QString &filterId) const
+{
+    if (row < 0 || filterId.isEmpty()) return -1;
+    const auto &filters = m_sources[row].filters;
+    for (int i = 0; i < filters.size(); ++i)
+        if (filters[i].id == filterId) return i;
+    return -1;
+}
+
+void SourceListModel::notifyFiltersChanged(int row)
+{
+    const QString id = m_sources[row].id;
+    emit dataChanged(index(row, 0), index(row, 0), {FiltersRole});
+    emit sourceFiltersChanged(id);
+}
+
+QString SourceListModel::addColorCorrection(const QString &sourceId)
+{
+    if (!canFilterSource(sourceId)) return {};
+    const int row = sourceRow(sourceId);
+    SourceFilter filter;
+    filter.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    m_sources[row].filters.append(filter);
+    notifyFiltersChanged(row);
+    return filter.id;
+}
+
+bool SourceListModel::removeFilter(const QString &sourceId, const QString &filterId)
+{
+    const int row = sourceRow(sourceId);
+    const int filter = filterRow(row, filterId);
+    if (filter < 0) return false;
+    m_sources[row].filters.removeAt(filter);
+    notifyFiltersChanged(row);
+    return true;
+}
+
+bool SourceListModel::moveFilter(const QString &sourceId, const QString &filterId, int offset)
+{
+    const int row = sourceRow(sourceId);
+    const int from = filterRow(row, filterId);
+    if (from < 0 || (offset != -1 && offset != 1)) return false;
+    const int to = from + offset;
+    if (to < 0 || to >= m_sources[row].filters.size()) return false;
+    m_sources[row].filters.move(from, to);
+    notifyFiltersChanged(row);
+    return true;
+}
+
+bool SourceListModel::setFilterEnabled(const QString &sourceId, const QString &filterId, bool enabled)
+{
+    const int row = sourceRow(sourceId);
+    const int filter = filterRow(row, filterId);
+    if (filter < 0) return false;
+    auto &entry = m_sources[row].filters[filter];
+    if (entry.enabled != enabled) {
+        entry.enabled = enabled;
+        notifyFiltersChanged(row);
+    }
+    return true;
+}
+
+bool SourceListModel::setFilterParameters(const QString &sourceId, const QString &filterId,
+                                         double brightness, double contrast, double saturation)
+{
+    const int row = sourceRow(sourceId);
+    const int filter = filterRow(row, filterId);
+    if (filter < 0 || !std::isfinite(brightness) || brightness < -1 || brightness > 1
+        || !std::isfinite(contrast) || contrast < 0 || contrast > 2
+        || !std::isfinite(saturation) || saturation < 0 || saturation > 2) return false;
+    auto &entry = m_sources[row].filters[filter];
+    if (entry.brightness != float(brightness) || entry.contrast != float(contrast)
+        || entry.saturation != float(saturation)) {
+        entry.brightness = float(brightness);
+        entry.contrast = float(contrast);
+        entry.saturation = float(saturation);
+        notifyFiltersChanged(row);
     }
     return true;
 }

@@ -2,6 +2,7 @@
 #define PREVIEWSOURCE_H
 
 #include "../core/sourcetransform.h"
+#include "../core/sourcefilter.h"
 
 #include <QImage>
 #include <QList>
@@ -13,6 +14,7 @@ struct PreviewSource {
     bool visible = true;
     SourceTransform transform;
     bool locked = false;
+    QList<SourceFilter> filters;
 };
 
 #endif

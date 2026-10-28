@@ -2,6 +2,7 @@
 #define SOURCE_H
 
 #include "sourcetransform.h"
+#include "sourcefilter.h"
 
 #include <QColor>
 #include <QFont>
@@ -61,6 +62,7 @@ struct SourceData {
     bool visible = true;
     bool locked = false;
     SourceTransform transform;
+    QList<SourceFilter> filters;
 
     SourceType type() const;
 };

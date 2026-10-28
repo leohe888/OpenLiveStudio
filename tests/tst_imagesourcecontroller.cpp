@@ -39,6 +39,12 @@ private slots:
         QVERIFY(QFileInfo(model.index(0, 0).data(SourceListModel::FilePathRole).toString()).isAbsolute());
         const QString first = snapshot[0].id;
         const auto key = snapshot[0].image.cacheKey();
+        const auto filter = model.addColorCorrection(first);
+        QVERIFY(model.setFilterParameters(first, filter, .3, .7, 1.2));
+        QCOMPARE(snapshot[0].filters.size(), 1);
+        QCOMPARE(snapshot[0].filters[0].id, filter);
+        QCOMPARE(snapshot[0].filters[0].brightness, .3f);
+        QCOMPARE(snapshot[0].image.cacheKey(), key);
         controller.addImage("Second", path, &owner);
         QTRY_COMPARE(added.count(), 2);
         QCOMPARE(snapshot.size(), 2);

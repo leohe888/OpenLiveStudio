@@ -23,6 +23,7 @@ qt_add_executable(OpenLiveStudio
     src/core/thememanager.h
     src/core/source.cpp
     src/core/source.h
+    src/core/sourcefilter.h
     src/core/sourcetransform.h
     src/core/sourcelistmodel.cpp
     src/core/sourcelistmodel.h
@@ -37,6 +38,7 @@ set(OPENLIVE_STUDIO_QML_FILES
     "${PROJECT_SOURCE_DIR}/src/qml/AboutDialog.qml"
     "${PROJECT_SOURCE_DIR}/src/qml/SourceAddDialog.qml"
     "${PROJECT_SOURCE_DIR}/src/qml/SourceRemovalDialog.qml"
+    "${PROJECT_SOURCE_DIR}/src/qml/SourceFiltersDialog.qml"
 )
 
 # Preserve the existing qrc:/OpenLiveStudio/Ui/qml/<name>.qml URLs.

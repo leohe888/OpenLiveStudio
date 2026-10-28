@@ -32,6 +32,7 @@ protected:
 private slots:
     void showSourceAddDialog();
     void showSourceRemovalDialog(const QString &sourceId);
+    void showSourceFiltersDialog(const QString &sourceId);
 
 private:
     void applyTheme();
