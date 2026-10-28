@@ -36,6 +36,20 @@ add_library(openlive_compositor STATIC
 target_include_directories(openlive_compositor PUBLIC "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(openlive_compositor PUBLIC openlive_capture Qt::OpenGL)
 
+add_library(openlive_audio STATIC
+    src/audio/audiobuffer.h
+    src/audio/audioresampler.h src/audio/audioresampler.cpp
+    src/audio/audiocaptureworker.h src/audio/audiocaptureworker.cpp
+    src/audio/audiomixer.h src/audio/audiomixer.cpp
+    src/audio/audiosourcemodel.h src/audio/audiosourcemodel.cpp
+)
+target_include_directories(openlive_audio PUBLIC "${PROJECT_SOURCE_DIR}/src")
+target_link_libraries(openlive_audio PUBLIC Qt::Core PRIVATE FFmpeg::swresample FFmpeg::avutil)
+if(WIN32)
+    target_compile_definitions(openlive_audio PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_link_libraries(openlive_audio PRIVATE ole32 uuid)
+endif()
+
 qt_add_executable(OpenLiveStudio
     WIN32 MACOSX_BUNDLE
     src/main.cpp
@@ -57,6 +71,7 @@ qt_add_executable(OpenLiveStudio
 )
 
 set(OPENLIVE_STUDIO_QML_FILES
+    "${PROJECT_SOURCE_DIR}/src/qml/AudioSourceDialog.qml"
     "${PROJECT_SOURCE_DIR}/src/qml/SourcesPanel.qml"
     "${PROJECT_SOURCE_DIR}/src/qml/MixerPanel.qml"
     "${PROJECT_SOURCE_DIR}/src/qml/ControlsPanel.qml"
@@ -97,6 +112,7 @@ set(OPENLIVE_STUDIO_ICON_FILES
     "${PROJECT_SOURCE_DIR}/assets/icons/sliders-horizontal.svg"
     "${PROJECT_SOURCE_DIR}/assets/icons/settings.svg"
     "${PROJECT_SOURCE_DIR}/assets/icons/volume-2.svg"
+    "${PROJECT_SOURCE_DIR}/assets/icons/volume-x.svg"
     "${PROJECT_SOURCE_DIR}/assets/icons/arrow-right.svg"
     "${PROJECT_SOURCE_DIR}/assets/icons/circle.svg"
     "${PROJECT_SOURCE_DIR}/assets/icons/radio.svg"
@@ -142,6 +158,7 @@ target_link_libraries(OpenLiveStudio
         Qt::OpenGL
         Qt::OpenGLWidgets
         openlive_compositor
+        openlive_audio
         FFmpeg::avdevice
         FFmpeg::avformat
         FFmpeg::avcodec

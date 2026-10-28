@@ -1,5 +1,12 @@
 find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
 
+qt_add_executable(tst_audio tst_audio.cpp)
+target_link_libraries(tst_audio PRIVATE openlive_audio Qt6::Test)
+add_test(NAME audio.sources COMMAND "${CMAKE_COMMAND}" -E env
+    "PATH=$<TARGET_FILE_DIR:Qt6::Core>;${FFmpeg_RUNTIME_DIR};$ENV{PATH}"
+    "$<TARGET_FILE:tst_audio>" -o "${CMAKE_CURRENT_BINARY_DIR}/audio-results.txt,txt")
+set_tests_properties(audio.sources PROPERTIES LABELS "audio" TIMEOUT 30)
+
 qt_add_executable(tst_canvasrenderer tst_canvasrenderer.cpp)
 target_link_libraries(tst_canvasrenderer PRIVATE openlive_compositor Qt6::Test)
 qt_add_resources(tst_canvasrenderer "compositor_shaders" PREFIX "/" BASE "${PROJECT_SOURCE_DIR}"
@@ -91,6 +98,7 @@ target_link_libraries(tst_mainwindow PRIVATE
     Qt6::Widgets Qt6::Test Qt6::QuickWidgets Qt6::QuickControls2 Qt6::Svg
     Qt6::OpenGL Qt6::OpenGLWidgets
     openlive_compositor
+    openlive_audio
 )
 set_target_properties(tst_mainwindow PROPERTIES WIN32_EXECUTABLE FALSE)
 qt_add_resources(tst_mainwindow "mainwindow_shaders"
@@ -121,7 +129,7 @@ qt_add_resources(tst_mainwindow "mainwindow_themes"
 # This smoke test needs no desktop; future GPU tests need real GL.
 add_test(NAME ui.mainwindow
     COMMAND "${CMAKE_COMMAND}" -E env
-        "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
+        "PATH=$<TARGET_FILE_DIR:Qt6::Core>;${FFmpeg_RUNTIME_DIR};$ENV{PATH}"
         "QT_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../plugins"
         "QT_QPA_PLATFORM=offscreen"
         "QT_QUICK_BACKEND=software"

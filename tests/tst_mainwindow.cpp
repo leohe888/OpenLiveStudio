@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "audio/audiosourcemodel.h"
 #include "thememanager.h"
 #include "sourcelistmodel.h"
 #include "imagesourcecontroller.h"
@@ -44,6 +45,12 @@
 #include <memory>
 
 namespace {
+QQuickItem *findQuickItem(QQuickItem *item, const QString &name)
+{
+    if (item->objectName() == name) return item;
+    for (auto *child : item->childItems()) if (auto *found = findQuickItem(child, name)) return found;
+    return nullptr;
+}
 QImage grabPreview(PreviewWidget &preview)
 {
     preview.compositor()->captureImage();
@@ -110,6 +117,8 @@ private slots:
     void keepsOutputStatusVisibleWhenResized();
     void loadsSourcePanelWithEmptyState();
     void loadsMixerPanelWithUnavailableChannels();
+    void soundSourcesAndDialogs();
+    void soundHardwarePreview();
     void loadsControlsPanelWithVerticalButtons();
     void embedsSourcePanelInFullHeightLeftDock();
     void embedsMixerPanelBelowPreview();
@@ -1069,6 +1078,33 @@ void MainWindowTest::mixerAndControlThemes()
     QFETCH(QString, prefix);
     QFETCH(QString, themeId);
     QVERIFY(m_theme->setTheme(themeId));
+    if (prefix == "mixer") {
+        AudioSourceModel audio;
+        QQuickWidget panel;
+        panel.rootContext()->setContextProperty("uiTheme",m_theme.get());
+        panel.rootContext()->setContextProperty("audioSourceModel",&audio);
+        panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
+        panel.resize(286,240);
+        panel.setSource(QUrl("qrc:/OpenLiveStudio/Ui/qml/MixerPanel.qml"));
+        QTRY_COMPARE(panel.status(),QQuickWidget::Ready); panel.show();
+        auto *root = panel.rootObject(); QVERIFY(root);
+        auto *add = findQuickItem(root,"addSoundSourceButton"); QVERIFY(add && add->isEnabled());
+        const auto id = audio.addSource("Mic", "microphone", "missing-theme-audio"); QVERIFY(!id.isEmpty());
+        QTRY_VERIFY(findQuickItem(root,id + "MuteButton"));
+        for (const auto &theme : {themeId,themeId == "dark" ? QString("light") : QString("dark")}) {
+            QVERIFY(m_theme->setTheme(theme));
+            QCOMPARE(panel.rootObject(),root);
+            QTRY_COMPARE(root->property("color").value<QColor>(),m_theme->color("background.panel"));
+            auto *mute = findQuickItem(root,id + "MuteButton"); QVERIFY(mute);
+            QCOMPARE(QQmlProperty::read(mute,"icon.color").value<QColor>(),m_theme->color("icon.primary"));
+            auto *slider = findQuickItem(root,id + "VolumeSlider"); QVERIFY(slider && slider->isEnabled());
+            auto *handle = slider->property("handle").value<QQuickItem *>(); QVERIFY(handle);
+            QCOMPARE(handle->property("color").value<QColor>(),m_theme->color("slider.handle"));
+            if (QGuiApplication::platformName() != "offscreen")
+                QVERIFY(panel.grabFramebuffer().save(QCoreApplication::applicationDirPath() + "/sound-sources-" + theme + ".png"));
+        }
+        return;
+    }
     QQuickWidget panel;
     panel.rootContext()->setContextProperty("uiTheme", m_theme.get());
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
@@ -2049,74 +2085,135 @@ void MainWindowTest::loadsSourcePanelWithEmptyState()
 
 void MainWindowTest::loadsMixerPanelWithUnavailableChannels()
 {
+    AudioSourceModel audio;
     QQuickWidget panel;
-    panel.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
+    panel.rootContext()->setContextProperty("uiTheme", m_theme.get());
+    panel.rootContext()->setContextProperty("audioSourceModel", &audio);
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(238, 260);
-    panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/MixerPanel.qml")));
+    panel.setSource(QUrl("qrc:/OpenLiveStudio/Ui/qml/MixerPanel.qml"));
     QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
     panel.show();
-    auto *root = panel.rootObject();
-    QVERIFY(root);
-    auto *channels = root->findChild<QQuickItem *>(QStringLiteral("mixerChannels"));
-    auto *scroll = root->findChild<QQuickItem *>(QStringLiteral("mixerScrollView"));
-    QVERIFY(channels);
-    QVERIFY(scroll);
-    QList<QQuickItem *> channelItems;
-    for (auto *item : channels->childItems()) {
-        if (item->objectName().endsWith(QStringLiteral("Channel")))
-            channelItems.append(item);
+    auto *root = panel.rootObject(); QVERIFY(root);
+    auto *empty = findQuickItem(root, "emptySoundSourcesLabel"); QVERIFY(empty && empty->isVisible());
+    auto *add = findQuickItem(root, "addSoundSourceButton"); QVERIFY(add && add->isEnabled());
+    const auto first = audio.addSource("Mic", "microphone", "missing-ui-mic");
+    const auto second = audio.addSource("Desktop", "system", "missing-ui-system");
+    QVERIFY(!first.isEmpty() && !second.isEmpty());
+    QTRY_VERIFY(findQuickItem(root, "soundChannel_" + first));
+    QVERIFY(!empty->isVisible());
+    auto *slider = findQuickItem(root, first + "VolumeSlider"); QVERIFY(slider && slider->isEnabled());
+    QCOMPARE(slider->property("value").toDouble(), 1.0);
+    slider->setProperty("value", .25);
+    QVERIFY(QMetaObject::invokeMethod(slider, "moved"));
+    QCOMPARE(audio.source(first)["volume"].toDouble(), .25);
+    auto *mute = findQuickItem(root, first + "MuteButton"); QVERIFY(mute && mute->isEnabled());
+    QVERIFY(QMetaObject::invokeMethod(mute, "clicked"));
+    QVERIFY(audio.source(first)["muted"].toBool());
+    QVERIFY(QQmlProperty::read(mute,"icon.source").toUrl().toString().endsWith("volume-x.svg"));
+    for (const auto &size : {QSize(160,140), QSize(238,178), QSize(400,500)}) {
+        panel.resize(size); QTRY_COMPARE(root->size(), QSizeF(size));
+        auto *a = findQuickItem(root, "soundChannel_" + first);
+        auto *b = findQuickItem(root, "soundChannel_" + second); QVERIFY(a && b);
+        QVERIFY(!a->mapRectToScene(a->boundingRect()).intersects(b->mapRectToScene(b->boundingRect())));
     }
-    QCOMPARE(channelItems.size(), 2);
-    for (auto *channel : channelItems) {
-        QQuickItem *slider = nullptr;
-        // Repeater-created level tracks belong to the visual tree.
-        int tracks = 0;
-        const auto inspect = [&](auto &&self, QQuickItem *parent) -> void {
-            for (auto *item : parent->childItems()) {
-                if (item->objectName() == QStringLiteral("levelTrack"))
-                    ++tracks;
-                if (item->objectName().endsWith(QStringLiteral("VolumeSlider")))
-                    slider = item;
-                self(self, item);
-            }
-        };
-        inspect(inspect, channel);
-        QCOMPARE(tracks, 2);
-        QVERIFY(slider);
-        QVERIFY(slider->objectName().endsWith(QStringLiteral("VolumeSlider")));
-        QVERIFY(!slider->isEnabled());
-        const qreal value = slider->property("value").toReal();
-        const QPoint center = slider->mapToScene(slider->boundingRect().center()).toPoint();
-        QTest::mouseClick(&panel, Qt::LeftButton, Qt::NoModifier, center);
-        QCOMPARE(slider->property("value").toReal(), value);
-        auto *status = channel->findChild<QObject *>(QStringLiteral("channelStatus"));
-        auto *displayValue = channel->findChild<QObject *>(QStringLiteral("channelValue"));
-        QVERIFY(status);
-        QVERIFY(displayValue);
-        QVERIFY(!status->property("text").toString().isEmpty());
-        QCOMPARE(displayValue->property("text").toString(), QString::fromUtf8("—"));
-    }
-    QList<QRectF> originalChannels;
-    for (auto *channel : channelItems)
-        originalChannels.append(channel->mapRectToScene(channel->boundingRect()));
-    for (const auto &size : {QSize(160, 140), QSize(238, 178), QSize(400, 500)}) {
-        panel.resize(size);
-        QTRY_COMPARE(root->size(), QSizeF(size));
-        QVERIFY(scroll->property("contentWidth").toReal() >= scroll->width());
-        QVERIFY(!channelItems[0]->mapRectToScene(channelItems[0]->boundingRect()).intersects(
-            channelItems[1]->mapRectToScene(channelItems[1]->boundingRect())));
-        for (int i = 0; i < channelItems.size(); ++i) {
-            const QRectF rect = channelItems[i]->mapRectToScene(channelItems[i]->boundingRect());
-            QCOMPARE(rect.left(), originalChannels[i].left());
-            QCOMPARE(rect.width(), originalChannels[i].width());
-        }
-        if (size == QSize(238, 178))
-            QVERIFY(scroll->property("contentHeight").toReal() <= scroll->height());
-    }
-    // Short panels retain a scrollable channel layout instead of clipping controls.
-    panel.resize(160, 140);
+    auto *scroll = findQuickItem(root,"mixerScrollView"); QVERIFY(scroll);
+    panel.resize(160,140);
     QTRY_VERIFY(scroll->property("contentHeight").toReal() > scroll->height());
+    auto *bar = findQuickItem(root,"mixerVerticalScrollBar"); QVERIFY(bar);
+    QTRY_VERIFY(bar->height() > 20);
+    QVERIFY(bar->x() > scroll->width() / 2);
+    QVERIFY(audio.removeSource(first)); QVERIFY(audio.removeSource(second));
+    QTRY_VERIFY(empty->isVisible());
+}
+
+void MainWindowTest::soundSourcesAndDialogs()
+{
+    MainWindow window(*m_theme); window.show();
+    auto *audio = window.findChild<AudioSourceModel *>(); QVERIFY(audio);
+    QCOMPARE(audio->count(), 0);
+    QCOMPARE(window.findChild<QDockWidget *>("sourcesDock")->windowTitle(), QString::fromUtf8("画面来源"));
+    QCOMPARE(window.findChild<QDockWidget *>("mixerDock")->windowTitle(), QString::fromUtf8("声音来源"));
+    auto *panel = window.findChild<QQuickWidget *>("mixerQuickWidget"); QVERIFY(panel && panel->rootObject());
+    QVERIFY(QMetaObject::invokeMethod(panel->rootObject(), "soundSourceAddDialogRequested"));
+    QPointer<QDialog> dialog = window.findChild<QDialog *>(); QVERIFY(dialog);
+    auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget"); QTRY_VERIFY(view && view->rootObject());
+    auto *root = view->rootObject();
+    if (QGuiApplication::platformName() != "offscreen") {
+        QTRY_VERIFY(!audio->refreshing());
+        QVERIFY(dialog->grab().save(QCoreApplication::applicationDirPath()+"/sound-add-dialog.png"));
+    }
+    auto *name = root->findChild<QQuickItem *>("soundNameInput"); QVERIFY(name);
+    name->setProperty("text", "Microphone"); root->setProperty("deviceId", "missing-dialog-device");
+    auto *confirm = root->findChild<QQuickItem *>("confirmSoundSourceButton"); QVERIFY(confirm && confirm->isEnabled());
+    QVERIFY(QMetaObject::invokeMethod(confirm,"clicked")); QTRY_VERIFY(dialog.isNull());
+    QCOMPARE(audio->count(),1);
+    const QString id = audio->currentSourceId();
+    QVERIFY(QMetaObject::invokeMethod(panel->rootObject(), "soundSourcePropertiesDialogRequested", Q_ARG(QString,id)));
+    dialog = window.findChild<QDialog *>(); QVERIFY(dialog);
+    view = dialog->findChild<QQuickWidget *>("dialogQuickWidget"); QTRY_VERIFY(view && view->rootObject());
+    root = view->rootObject();
+    if (QGuiApplication::platformName() != "offscreen")
+        QVERIFY(dialog->grab().save(QCoreApplication::applicationDirPath()+"/sound-properties-dialog.png"));
+    name = root->findChild<QQuickItem *>("soundNameInput"); QVERIFY(name);
+    name->setProperty("text", "Canceled rename");
+    auto *cancel = root->findChild<QQuickItem *>("cancelSoundSourceButton"); QVERIFY(cancel);
+    QVERIFY(QMetaObject::invokeMethod(cancel,"clicked")); QTRY_VERIFY(dialog.isNull());
+    QCOMPARE(audio->source(id)["name"].toString(),QString("Microphone"));
+    QVERIFY(QMetaObject::invokeMethod(panel->rootObject(), "soundSourcePropertiesDialogRequested", Q_ARG(QString,id)));
+    dialog = window.findChild<QDialog *>(); QVERIFY(dialog);
+    view = dialog->findChild<QQuickWidget *>("dialogQuickWidget"); QTRY_VERIFY(view && view->rootObject());
+    name = view->rootObject()->findChild<QQuickItem *>("soundNameInput"); QVERIFY(name);
+    name->setProperty("text", "Renamed microphone");
+    confirm = view->rootObject()->findChild<QQuickItem *>("confirmSoundSourceButton"); QVERIFY(confirm);
+    QVERIFY(QMetaObject::invokeMethod(confirm,"clicked")); QTRY_VERIFY(dialog.isNull());
+    QCOMPARE(audio->source(id)["name"].toString(),QString("Renamed microphone"));
+    auto *pictures = window.findChild<SourceListModel *>(); QVERIFY(pictures);
+    QVERIFY(pictures->addSource({"camera-audio-independent", "Camera", CameraConfig{"missing-independent-camera"}}));
+    QVERIFY(pictures->setSourceVisible("camera-audio-independent",false));
+    QVERIFY(pictures->removeSource("camera-audio-independent")); QCOMPARE(audio->count(),1);
+    QVERIFY(QMetaObject::invokeMethod(panel->rootObject(),"soundSourceRemovalDialogRequested",Q_ARG(QString,id)));
+    dialog = window.findChild<QDialog *>(); QVERIFY(dialog);
+    view = dialog->findChild<QQuickWidget *>("dialogQuickWidget"); QTRY_VERIFY(view && view->rootObject());
+    auto *remove = view->rootObject()->findChild<QQuickItem *>("confirmSourceRemovalButton"); QVERIFY(remove);
+    QVERIFY(QMetaObject::invokeMethod(remove,"clicked")); QTRY_VERIFY(dialog.isNull());
+    QCOMPARE(audio->count(),0); QTRY_COMPARE(audio->activeWorkerCount(),0);
+}
+
+void MainWindowTest::soundHardwarePreview()
+{
+    if (!qEnvironmentVariableIsSet("OPENLIVE_AUDIO_HARDWARE")) QSKIP("Requires explicit WASAPI hardware validation");
+    MainWindow window(*m_theme); window.show();
+    auto *audio = window.findChild<AudioSourceModel *>(); QVERIFY(audio);
+    audio->refreshDevices(); QTRY_VERIFY(!audio->refreshing());
+    QString microphone, system;
+    for (const auto &value : audio->devices()) {
+        const auto device = value.toMap();
+        if (device["type"] == "microphone" && microphone.isEmpty()) microphone = device["id"].toString();
+        if (device["type"] == "system" && system.isEmpty()) system = device["id"].toString();
+    }
+    QVERIFY(!microphone.isEmpty() && !system.isEmpty());
+    const auto mic = audio->addSource(QString::fromUtf8("麦克风"),"microphone",microphone);
+    const auto desktop = audio->addSource(QString::fromUtf8("系统声音"),"system",system);
+    QVERIFY(!mic.isEmpty() && !desktop.isEmpty());
+    QTRY_COMPARE_WITH_TIMEOUT(audio->source(mic)["state"].toString(),QString("capturing"),5000);
+    QTRY_COMPARE_WITH_TIMEOUT(audio->source(desktop)["state"].toString(),QString("capturing"),5000);
+    auto *panel = window.findChild<QQuickWidget *>("mixerQuickWidget"); QVERIFY(panel && panel->rootObject());
+    auto *slider = findQuickItem(panel->rootObject(),mic+"VolumeSlider"); QVERIFY(slider);
+    slider->setProperty("value",.5); QVERIFY(QMetaObject::invokeMethod(slider,"moved"));
+    QCOMPARE(audio->source(mic)["volume"].toDouble(),.5);
+    auto *mute = findQuickItem(panel->rootObject(),mic+"MuteButton"); QVERIFY(mute);
+    QVERIFY(QMetaObject::invokeMethod(mute,"clicked")); QVERIFY(audio->source(mic)["muted"].toBool());
+    QTest::qWait(200);
+    QVERIFY(window.grab().save(QCoreApplication::applicationDirPath()+"/sound-hardware-mainwindow.png"));
+    window.showMinimized(); QCoreApplication::processEvents();
+    const auto sequence = audio->mixer()->latestBlock()->sequence;
+    QThread::msleep(150);
+    QVERIFY(audio->mixer()->latestBlock()->sequence > sequence + 5);
+    QCOMPARE(audio->source(desktop)["state"].toString(),QString("capturing"));
+    window.showNormal();
+    QVERIFY(audio->removeSource(mic)); QVERIFY(audio->removeSource(desktop));
+    QTRY_COMPARE_WITH_TIMEOUT(audio->activeWorkerCount(),0,2000);
 }
 
 void MainWindowTest::loadsControlsPanelWithVerticalButtons()
@@ -2545,8 +2642,8 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates_data()
     QTest::newRow("sources-light") << QStringLiteral("SourcesPanel") << 8 << false << QString("light");
     QTest::newRow("sources-hidden-locked-dark") << QStringLiteral("SourcesPanel") << 8 << true << QString("dark");
     QTest::newRow("sources-hidden-locked-light") << QStringLiteral("SourcesPanel") << 8 << true << QString("light");
-    QTest::newRow("mixer-dark") << QStringLiteral("MixerPanel") << 4 << false << QString("dark");
-    QTest::newRow("mixer-light") << QStringLiteral("MixerPanel") << 4 << false << QString("light");
+    QTest::newRow("mixer-dark") << QStringLiteral("MixerPanel") << 3 << false << QString("dark");
+    QTest::newRow("mixer-light") << QStringLiteral("MixerPanel") << 3 << false << QString("light");
     QTest::newRow("controls-dark") << QStringLiteral("ControlsPanel") << 2 << false << QString("dark");
     QTest::newRow("controls-light") << QStringLiteral("ControlsPanel") << 2 << false << QString("light");
 }

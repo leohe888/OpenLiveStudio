@@ -14,6 +14,7 @@ class SourceListModel;
 class ImageSourceController;
 class DisplayCaptureController;
 class CameraCaptureController;
+class AudioSourceModel;
 class ThemeManager;
 
 class MainWindow : public QMainWindow
@@ -36,6 +37,9 @@ private slots:
     void showSourceRemovalDialog(const QString &sourceId);
     void showSourceFiltersDialog(const QString &sourceId);
     void showSourcePropertiesDialog(const QString &sourceId);
+    void showAudioSourceAddDialog();
+    void showAudioSourcePropertiesDialog(const QString &sourceId);
+    void showAudioSourceRemovalDialog(const QString &sourceId);
 
 private:
     void applyTheme();
@@ -64,6 +68,7 @@ private:
     ImageSourceController *m_imageSources = nullptr;
     DisplayCaptureController *m_displaySources = nullptr;
     CameraCaptureController *m_cameraSources = nullptr;
+    AudioSourceModel *m_audioSources = nullptr;
     ThemeManager &m_theme;
 };
 #endif // MAINWINDOW_H

@@ -4,7 +4,7 @@ set(FFmpeg_ROOT "" CACHE PATH "FFmpeg development package root")
 
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)
-    pkg_check_modules(PC_FFmpeg QUIET libavdevice libavformat libavcodec libavutil)
+    pkg_check_modules(PC_FFmpeg QUIET libavdevice libavformat libavcodec libavutil libswresample)
 endif()
 
 find_path(FFmpeg_INCLUDE_DIR
@@ -13,7 +13,7 @@ find_path(FFmpeg_INCLUDE_DIR
 )
 
 set(_FFmpeg_required_vars FFmpeg_INCLUDE_DIR)
-foreach(_component avdevice avformat avcodec avutil)
+foreach(_component avdevice avformat avcodec avutil swresample)
     find_library(FFmpeg_${_component}_LIBRARY
         NAMES ${_component}
         HINTS "${FFmpeg_ROOT}/lib" ${PC_FFmpeg_LIBRARY_DIRS}
@@ -47,7 +47,7 @@ find_package_handle_standard_args(FFmpeg
 )
 
 if(FFmpeg_FOUND)
-    foreach(_component avdevice avformat avcodec avutil)
+    foreach(_component avdevice avformat avcodec avutil swresample)
         if(NOT TARGET FFmpeg::${_component})
             add_library(FFmpeg::${_component} UNKNOWN IMPORTED)
             set_target_properties(FFmpeg::${_component} PROPERTIES
@@ -64,4 +64,4 @@ endif()
 
 mark_as_advanced(FFmpeg_INCLUDE_DIR FFmpeg_RUNTIME_DIR
     FFmpeg_avdevice_LIBRARY FFmpeg_avformat_LIBRARY
-    FFmpeg_avcodec_LIBRARY FFmpeg_avutil_LIBRARY)
+    FFmpeg_avcodec_LIBRARY FFmpeg_avutil_LIBRARY FFmpeg_swresample_LIBRARY)

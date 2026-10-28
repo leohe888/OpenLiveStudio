@@ -4,6 +4,7 @@ These SVG files are unmodified copies from the [official Lucide repository](http
 
 - Upstream commit: [20aef31db93fe4d9f398dbb15b120d99c48eef95](https://github.com/lucide-icons/lucide/tree/20aef31db93fe4d9f398dbb15b120d99c48eef95).
 - Imported on: 2026-10-22; `eye-off` and `lock-open` added on 2026-10-23.
+- `volume-x` added on 2026-10-28 from the same pinned commit for sound-source mute state.
 - Modifications: none; original SVG bytes, dimensions and strokes are preserved.
 - License: the complete upstream LICENSE is reproduced below, including the ISC and Feather-derived MIT notices. The imported names `plus`, `minus`, `arrow-up`, `arrow-down`, `arrow-right`, `lock`, `circle` and `radio` occur in the upstream Feather-derived list; `eye`, `eye-off`, `lock-open`, `sliders-horizontal`, `settings` and `volume-2` do not occur in that list.
 
@@ -20,6 +21,7 @@ These SVG files are unmodified copies from the [official Lucide repository](http
 | [sliders-horizontal.svg](sliders-horizontal.svg) | Source filters | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/sliders-horizontal.svg) | `e43a00e5eb684e6cbb61083bed2528d7a3fa5f265693eb2b5f314cd432aa65f4` |
 | [settings.svg](settings.svg) | Source or audio properties | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/settings.svg) | `0ae27fd0f81999229e3127ac96c5b32edfea448e291d509e76212b917551d66b` |
 | [volume-2.svg](volume-2.svg) | Mixer mute action | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/volume-2.svg) | `fb404f9c128a0579de67b399177631e5edb3502fdc247ceb30e8b15754b46071` |
+| [volume-x.svg](volume-x.svg) | Muted sound source | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/volume-x.svg) | `f382e421b7aae01172989f2b749ee87e44c0c82c16970b13a9ad5a323b613be0` |
 | [arrow-right.svg](arrow-right.svg) | Execute transition | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/arrow-right.svg) | `288397fdb73bb4f783cf9eabb726ff47357df1d4e3f1201dd748090579f108b9` |
 | [circle.svg](circle.svg) | Start recording | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/circle.svg) | `3a991bd47beaf9874fba6fdf87bbba442970a89b5e6aa391558bc8b0a00a0513` |
 | [radio.svg](radio.svg) | Start streaming | [Original SVG](https://raw.githubusercontent.com/lucide-icons/lucide/20aef31db93fe4d9f398dbb15b120d99c48eef95/icons/radio.svg) | `e55ef723902350caaabb68c8814ba57c4c2d237e0747a5f0520624e6f2f8c861` |

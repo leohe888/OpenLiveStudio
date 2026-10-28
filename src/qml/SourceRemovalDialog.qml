@@ -13,6 +13,7 @@ Rectangle {
     required property string sourceId
     required property string sourceName
     property string errorText: ""
+    property string removalHint: qsTr("仅从来源列表移除，不会删除磁盘上的文件。")
     signal closeRequested()
 
     function removeSource() {
@@ -52,7 +53,7 @@ Rectangle {
         Label {
             Layout.fillWidth: true
             objectName: "sourceRemovalHint"
-            text: qsTr("仅从来源列表移除，不会删除磁盘上的文件。")
+            text: root.removalHint
             textFormat: Text.PlainText
             wrapMode: Text.WordWrap
             color: root.themeColors.text.secondary

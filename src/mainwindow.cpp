@@ -3,6 +3,7 @@
 #include "imagesourcecontroller.h"
 #include "capture/displaycapturecontroller.h"
 #include "capture/cameracapturecontroller.h"
+#include "audio/audiosourcemodel.h"
 #include "thememanager.h"
 #include "preview/previewwidget.h"
 
@@ -77,6 +78,7 @@ MainWindow::MainWindow(ThemeManager &theme, QWidget *parent)
     applyTheme();
     connect(&m_theme, &ThemeManager::themeChanged, this, &MainWindow::applyTheme);
     m_sourceListModel = new SourceListModel;
+    m_audioSources = new AudioSourceModel;
     m_imageSources = new ImageSourceController(*m_sourceListModel, this);
     m_displaySources = new DisplayCaptureController(*m_sourceListModel, this);
     m_cameraSources = new CameraCaptureController(*m_sourceListModel, this);
@@ -91,6 +93,9 @@ MainWindow::MainWindow(ThemeManager &theme, QWidget *parent)
     setupMenuBar();
     setupPreview();
     setupStatusBar();
+    connect(m_audioSources, &AudioSourceModel::sourceError, this, [this](const QString &id, const QString &message) {
+        statusBar()->showMessage(tr("声音来源“%1”：%2").arg(m_audioSources->source(id).value("name").toString(), message));
+    });
     const auto showSourceError = [this](const QString &id, const QString &message) {
         QString name = tr("图片");
         for (int row = 0; row < m_sourceListModel->rowCount(); ++row) {
@@ -117,6 +122,7 @@ MainWindow::MainWindow(ThemeManager &theme, QWidget *parent)
     updateStatusLayout();
     // Destroy the dock QML contexts before their shared state.
     m_sourceListModel->setParent(this);
+    m_audioSources->setParent(this);
     applyTheme();
     if (!m_theme.lastError().isEmpty())
         statusBar()->showMessage(tr("主题配置提示：%1").arg(m_theme.lastError()));
@@ -293,6 +299,41 @@ void MainWindow::showSourceAddDialog()
     showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml")),
         tr("添加来源"), {{QStringLiteral("sourceListModel"), QVariant::fromValue(m_sourceListModel)},
                        {QStringLiteral("initialName"), initialName}});
+}
+
+void MainWindow::showAudioSourceAddDialog()
+{
+    showAudioSourcePropertiesDialog({});
+}
+
+void MainWindow::showAudioSourcePropertiesDialog(const QString &sourceId)
+{
+    if (!sourceId.isEmpty() && m_audioSources->source(sourceId).isEmpty()) return;
+    const QUrl url(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/AudioSourceDialog.qml"));
+    for (auto *dialog : findChildren<QDialog *>()) {
+        if (dialog->property("qmlSource").toUrl() == url && dialog->property("audioSourceId").toString() == sourceId) {
+            dialog->show(); dialog->raise(); dialog->activateWindow(); return;
+        }
+    }
+    showDialog(url, sourceId.isEmpty() ? tr("添加声音来源") : tr("声音来源属性"),
+        {{"audioSources", QVariant::fromValue(m_audioSources)}, {"sourceId", sourceId}});
+    for (auto *dialog : findChildren<QDialog *>()) {
+        if (dialog->property("qmlSource").toUrl() != url || dialog->property("audioBound").toBool()) continue;
+        dialog->setProperty("audioBound", true);
+        dialog->setProperty("audioSourceId", sourceId);
+        if (!sourceId.isEmpty()) connect(m_audioSources, &QAbstractItemModel::rowsRemoved, dialog, [this, dialog, sourceId] {
+            if (m_audioSources->source(sourceId).isEmpty()) dialog->close();
+        });
+    }
+}
+
+void MainWindow::showAudioSourceRemovalDialog(const QString &sourceId)
+{
+    const auto source = m_audioSources->source(sourceId);
+    if (source.isEmpty()) return;
+    showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceRemovalDialog.qml")), tr("移除声音来源"),
+        {{"sourceListModel", QVariant::fromValue(m_audioSources)}, {"sourceId", sourceId}, {"sourceName", source.value("name")},
+         {"removalHint", tr("移除后将停止此设备的声音采集。")}});
 }
 
 void MainWindow::showSourceRemovalDialog(const QString &sourceId)
@@ -489,7 +530,7 @@ void MainWindow::setupStatusBar()
 
 void MainWindow::setupSourcesDock()
 {
-    m_sourcesDock = new ThemedDockWidget(tr("来源"), m_theme, this);
+    m_sourcesDock = new ThemedDockWidget(tr("画面来源"), m_theme, this);
     m_sourcesDock->setObjectName(QStringLiteral("sourcesDock"));
     m_sourcesDock->setMinimumWidth(220);
 
@@ -546,7 +587,7 @@ void MainWindow::setupSourcesDock()
 
 void MainWindow::setupMixerDock()
 {
-    m_mixerDock = new ThemedDockWidget(tr("混音器"), m_theme, this);
+    m_mixerDock = new ThemedDockWidget(tr("声音来源"), m_theme, this);
     m_mixerDock->setObjectName(QStringLiteral("mixerDock"));
     m_mixerDock->setMinimumWidth(200);
 
@@ -555,9 +596,10 @@ void MainWindow::setupMixerDock()
     view->setObjectName(QStringLiteral("mixerQuickWidget"));
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
     configureQuickWidget(view);
+    view->rootContext()->setContextProperty(QStringLiteral("audioSourceModel"), m_audioSources);
     pages->addWidget(view);
 
-    auto *errorLabel = new QLabel(tr("混音器面板加载失败，请查看日志。"), pages);
+    auto *errorLabel = new QLabel(tr("声音来源面板加载失败，请查看日志。"), pages);
     errorLabel->setObjectName(QStringLiteral("mixerLoadError"));
     errorLabel->setProperty("themeError", true);
     errorLabel->setAlignment(Qt::AlignCenter);
@@ -565,10 +607,10 @@ void MainWindow::setupMixerDock()
     pages->addWidget(errorLabel);
 
     const auto showError = [this, pages, errorLabel](const QString &details) {
-        qWarning().noquote() << tr("混音器面板加载失败：") << details;
+        qWarning().noquote() << tr("声音来源面板加载失败：") << details;
         errorLabel->setToolTip(details);
         pages->setCurrentWidget(errorLabel);
-        statusBar()->showMessage(tr("混音器面板加载失败，请查看日志。"));
+        statusBar()->showMessage(tr("声音来源面板加载失败，请查看日志。"));
     };
     connect(view, &QQuickWidget::statusChanged, this,
             [this, view, pages, errorLabel, showError](QQuickWidget::Status status) {
@@ -579,8 +621,11 @@ void MainWindow::setupMixerDock()
             showError(errors.join('\n'));
         } else if (status == QQuickWidget::Ready) {
             if (pages->currentWidget() == errorLabel)
-                statusBar()->showMessage(tr("混音器面板已加载"), 3000);
+                statusBar()->showMessage(tr("声音来源面板已加载"), 3000);
             pages->setCurrentWidget(view);
+            connect(view->rootObject(), SIGNAL(soundSourceAddDialogRequested()), this, SLOT(showAudioSourceAddDialog()), Qt::UniqueConnection);
+            connect(view->rootObject(), SIGNAL(soundSourcePropertiesDialogRequested(QString)), this, SLOT(showAudioSourcePropertiesDialog(QString)), Qt::UniqueConnection);
+            connect(view->rootObject(), SIGNAL(soundSourceRemovalDialogRequested(QString)), this, SLOT(showAudioSourceRemovalDialog(QString)), Qt::UniqueConnection);
         }
     });
     connect(view, &QQuickWidget::sceneGraphError, this,
@@ -665,7 +710,7 @@ void MainWindow::resetDockLayout()
     resizeDocks({m_sourcesDock}, {238}, Qt::Horizontal);
     resizeDocks({m_mixerDock, m_controlsDock},
                 {qMax(200, width() - 238 - 286 - 12), 286}, Qt::Horizontal);
-    resizeDocks({m_mixerDock}, {198}, Qt::Vertical);
+    resizeDocks({m_mixerDock}, {276}, Qt::Vertical);
     setUpdatesEnabled(wasUpdating);
 }
 
