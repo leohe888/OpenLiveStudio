@@ -43,6 +43,15 @@
 #include <QtTest/QTest>
 #include <memory>
 
+namespace {
+QImage grabPreview(PreviewWidget &preview)
+{
+    preview.compositor()->captureImage();
+    QCoreApplication::processEvents();
+    return preview.grabFramebuffer();
+}
+}
+
 class MainWindowTest : public QObject
 {
     Q_OBJECT
@@ -484,7 +493,7 @@ void MainWindowTest::previewDisplaysImageSources()
     auto *sources = window.findChild<SourceListModel *>();
     QVERIFY(sources);
     QCOMPARE(sources->rowCount(), 0);
-    const auto empty = preview->grabFramebuffer();
+    const auto empty = grabPreview(*preview);
     QCOMPARE(empty.pixelColor(empty.width() / 2, empty.height() / 2), QColor(Qt::black));
     QTemporaryDir images;
     QImage image(1920, 1080, QImage::Format_RGBA8888);
@@ -514,7 +523,7 @@ void MainWindowTest::previewDisplaysImageSources()
     }
 
     const auto verifyFrame = [&] {
-        const QImage frame = preview->grabFramebuffer();
+        const QImage frame = grabPreview(*preview);
         QVERIFY(!frame.isNull());
         const double scale = qMin(frame.width() / 1920.0, frame.height() / 1080.0);
         const double width = 1920 * scale;
@@ -551,7 +560,7 @@ void MainWindowTest::previewDisplaysImageSources()
     QTRY_COMPARE(sources->rowCount(), 2);
     const QString overlayId = sources->currentSourceId();
     const auto sampleCanvas = [&](double u, double v) {
-        const QImage frame = preview->grabFramebuffer();
+        const QImage frame = grabPreview(*preview);
         const double scale = qMin(frame.width() / 1920.0, frame.height() / 1080.0);
         return frame.pixelColor(int((frame.width() - 1920 * scale) / 2 + u * 1920 * scale),
             int((frame.height() - 1080 * scale) / 2 + v * 1080 * scale));
@@ -627,7 +636,7 @@ void MainWindowTest::previewEditsModelAndSynchronizesSelection()
     const auto canvasPoint = [&](const QPointF &point) {
         return SourceGeometry::canvasToWidget(preview->size()).map(point).toPoint();
     };
-    preview->grabFramebuffer();
+    grabPreview(*preview);
     QTest::mouseClick(preview, Qt::LeftButton, Qt::NoModifier, canvasPoint(QPointF(600, 500)));
     QCOMPARE(model->currentSourceId(), backId);
     QTest::mouseClick(preview, Qt::LeftButton, Qt::NoModifier, canvasPoint(QPointF(960, 540)));
@@ -654,7 +663,7 @@ void MainWindowTest::previewEditsModelAndSynchronizesSelection()
     rotated.rotation = 30;
     rotated.size = QSizeF(450, 250);
     QVERIFY(model->setSourceTransform(frontId, rotated));
-    const auto frame = preview->grabFramebuffer();
+    const auto frame = grabPreview(*preview);
     const auto center = canvasPoint(rotated.center);
     QCOMPARE(frame.pixelColor(qRound(center.x() * preview->devicePixelRatioF()),
                               qRound(center.y() * preview->devicePixelRatioF())), QColor(Qt::blue));
@@ -663,9 +672,9 @@ void MainWindowTest::previewEditsModelAndSynchronizesSelection()
     QTest::mouseClick(preview, Qt::LeftButton, Qt::NoModifier, center);
     QCOMPARE(model->currentSourceId(), backId);
     QVERIFY(model->selectSource(frontId));
-    const auto locked = preview->grabFramebuffer();
+    const auto locked = grabPreview(*preview);
     QVERIFY(model->setSourceLocked(frontId, false));
-    const auto unlocked = preview->grabFramebuffer();
+    const auto unlocked = grabPreview(*preview);
     QVERIFY(locked != unlocked);
     QVERIFY(model->setSourceVisible(frontId, false));
     QTest::mouseClick(preview, Qt::LeftButton, Qt::NoModifier, center);
@@ -674,7 +683,7 @@ void MainWindowTest::previewEditsModelAndSynchronizesSelection()
     QVERIFY(model->selectSource(frontId));
     QVERIFY(m_theme->setTheme("light"));
     QCoreApplication::processEvents();
-    const auto overlayFrame = preview->grabFramebuffer();
+    const auto overlayFrame = grabPreview(*preview);
     const auto corner = canvasPoint(SourceGeometry::sourceToCanvas(rotated).map(QPointF()));
     QCOMPARE(overlayFrame.pixelColor(qRound(corner.x() * preview->devicePixelRatioF()),
                                     qRound(corner.y() * preview->devicePixelRatioF())),
@@ -2918,7 +2927,7 @@ void MainWindowTest::cameraHardwarePreview()
     QVERIFY(model->setFilterParameters(id, filter, 0, 1, 0));
     QTest::qWait(500);
     QVERIFY(preview->lastError().isEmpty()); QVERIFY(failures.isEmpty());
-    const auto frame = preview->grabFramebuffer(); QVERIFY(!frame.isNull());
+    const auto frame = grabPreview(*preview); QVERIFY(!frame.isNull());
     const QColor pixel = frame.pixelColor(frame.width() / 2, frame.height() / 2);
     QVERIFY(qAbs(pixel.red() - pixel.green()) <= 3 && qAbs(pixel.green() - pixel.blue()) <= 3);
     // Keep the mouse pressed while real camera frames arrive between edits.
@@ -2958,6 +2967,17 @@ void MainWindowTest::cameraHardwarePreview()
     }
     window.resize(1100, 720); QTest::qWait(100);
     QVERIFY(preview->lastError().isEmpty());
+    window.showMinimized();
+    QCoreApplication::processEvents();
+    const auto minimizedSequence = preview->compositor()->latestFrame()->sequence;
+    const auto minimizedRevision = preview->compositor()->latestFrame()->revision;
+    QTRY_VERIFY(preview->compositor()->latestFrame()->sequence > minimizedSequence);
+    QTRY_VERIFY(preview->compositor()->latestFrame()->revision > minimizedRevision);
+    QVERIFY(preview->compositor()->latestFrame()->sources.contains(id));
+    QCOMPARE(controller->activeWorkerCount(), 1);
+    QVERIFY(!preview->compositor()->captureImage().isNull());
+    window.showNormal();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
     QVERIFY(model->setSourceVisible(id, false));
     QTRY_COMPARE_WITH_TIMEOUT(controller->activeWorkerCount(), 0, 10000);
     QVERIFY(model->removeSource(id));

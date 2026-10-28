@@ -5,7 +5,7 @@
 #include <QOpenGLFunctions>
 #include <memory>
 
-// Create, copy, and destroy only with the preview's GL context current.
+// Create, copy, and destroy only with the owning GL context current.
 class GpuInterop {
 public:
     GpuInterop();

@@ -1,9 +1,19 @@
 find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
 
+qt_add_executable(tst_canvasrenderer tst_canvasrenderer.cpp)
+target_link_libraries(tst_canvasrenderer PRIVATE openlive_compositor Qt6::Test)
+qt_add_resources(tst_canvasrenderer "compositor_shaders" PREFIX "/" BASE "${PROJECT_SOURCE_DIR}"
+    FILES ${OPENLIVE_STUDIO_SHADER_FILES})
+add_test(NAME gpu.compositor COMMAND "${CMAKE_COMMAND}" -E env
+    "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
+    "QT_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../plugins"
+    "$<TARGET_FILE:tst_canvasrenderer>" -o "${CMAKE_CURRENT_BINARY_DIR}/compositor-results.txt,txt")
+set_tests_properties(gpu.compositor PROPERTIES LABELS "gpu" TIMEOUT 30)
+
 qt_add_executable(tst_captureinterop tst_captureinterop.cpp
     ../src/preview/previewwidget.cpp ../src/preview/previewwidget.h
     ../src/core/source.cpp ../src/core/sourcelistmodel.cpp ../src/core/sourcelistmodel.h)
-target_link_libraries(tst_captureinterop PRIVATE openlive_capture Qt6::OpenGLWidgets Qt6::Widgets Qt6::Test)
+target_link_libraries(tst_captureinterop PRIVATE openlive_compositor Qt6::OpenGLWidgets Qt6::Widgets Qt6::Test)
 if(WIN32)
     target_link_libraries(tst_captureinterop PRIVATE psapi)
 endif()
@@ -80,7 +90,7 @@ target_include_directories(tst_mainwindow PRIVATE
 target_link_libraries(tst_mainwindow PRIVATE
     Qt6::Widgets Qt6::Test Qt6::QuickWidgets Qt6::QuickControls2 Qt6::Svg
     Qt6::OpenGL Qt6::OpenGLWidgets
-    openlive_capture
+    openlive_compositor
 )
 set_target_properties(tst_mainwindow PROPERTIES WIN32_EXECUTABLE FALSE)
 qt_add_resources(tst_mainwindow "mainwindow_shaders"
@@ -134,7 +144,7 @@ qt_add_executable(tst_previewwidget
 )
 target_include_directories(tst_previewwidget PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_previewwidget PRIVATE Qt6::OpenGLWidgets Qt6::OpenGL Qt6::Test)
-target_link_libraries(tst_previewwidget PRIVATE openlive_capture)
+target_link_libraries(tst_previewwidget PRIVATE openlive_compositor)
 set_target_properties(tst_previewwidget PROPERTIES WIN32_EXECUTABLE FALSE)
 qt_add_resources(tst_previewwidget "preview_shaders"
     PREFIX "/"

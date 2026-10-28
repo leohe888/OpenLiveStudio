@@ -3,9 +3,7 @@
 
 #include <QApplication>
 #include <QOpenGLContext>
-#include <QOpenGLFramebufferObject>
 #include <QOpenGLFunctions>
-#include <QOpenGLTexture>
 #include <QSignalSpy>
 #include <QSurfaceFormat>
 #include <QTest>
@@ -18,6 +16,41 @@ class PreviewWidgetTest : public QObject
     Q_OBJECT
 
 private slots:
+    void hiddenAndMinimizedPreviewKeepsComposing()
+    {
+        PreviewWidget widget;
+        widget.resize(480, 270);
+        QImage image(32, 16, QImage::Format_RGBA8888);
+        image.fill(Qt::red);
+        widget.setSources({{"image", image, true, {{960, 540}, {1920, 1080}, 0}}});
+        widget.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&widget));
+        QCOMPARE(sample(grabPreview(widget), .5, .5), QColor(Qt::red));
+        for (int mode = 0; mode < 2; ++mode) {
+            if (mode == 0) widget.showMinimized();
+            else widget.hide();
+            QCoreApplication::processEvents();
+            const auto before = widget.compositor()->latestFrame()->sequence;
+            QThread::msleep(180);
+            QVERIFY(widget.compositor()->latestFrame()->sequence >= before + 3);
+            image.fill(mode == 0 ? Qt::green : Qt::blue);
+            PreviewSource source{"image", image, true, {{960, 540}, {1920, 1080}, 0}};
+            SourceFilter filter{"brightness"};
+            filter.brightness = -.2f;
+            source.filters = {filter};
+            widget.setSources({source});
+            const auto canvas = readCanvas(widget);
+            const QColor expected = mode == 0 ? QColor(0, 204, 0) : QColor(0, 0, 204);
+            QCOMPARE(sample(canvas, .5, .5), expected);
+            widget.showNormal();
+            QVERIFY(QTest::qWaitForWindowExposed(&widget));
+            QCOMPARE(sample(grabPreview(widget), .5, .5), expected);
+        }
+        widget.hide();
+        widget.setSources({});
+        QCOMPARE(sample(readCanvas(widget), .5, .5), QColor(Qt::black));
+    }
+
     void sourceFiltersRunBeforeComposition()
     {
         PreviewWidget widget;
@@ -32,11 +65,10 @@ private slots:
         source.filters = {first};
         const auto render = [&] {
             widget.setSources({source});
-            widget.grabFramebuffer();
+            grabPreview(widget);
             return sample(readCanvas(widget), .5, .5);
         };
         QCOMPARE(render(), QColor(64, 128, 192));
-        const auto originalTexture = widget.m_textures.at(source.id).texture->textureId();
         source.filters[0].brightness = .2f;
         QCOMPARE(render(), QColor(115, 179, 243));
         source.filters[0].brightness = 0;
@@ -51,7 +83,6 @@ private slots:
         QCOMPARE(desaturated.green(), desaturated.blue());
         source.filters[0].enabled = false;
         QCOMPARE(render(), QColor(64, 128, 192));
-        QCOMPARE(widget.m_textures.at(source.id).texture->textureId(), originalTexture);
 
         source.image.fill(QColor(102, 102, 102));
         first.brightness = .2f;
@@ -64,8 +95,6 @@ private slots:
         QVERIFY(qAbs(forward.red() - 179) <= 2);
         QVERIFY(qAbs(reverse.red() - 128) <= 2);
         QVERIFY(forward.red() > reverse.red() + 40);
-        QCOMPARE(widget.m_filterFbos[0]->size(), image.size());
-        QCOMPARE(widget.m_filterFbos[1]->size(), image.size());
 
         // Both intermediate passes must preserve image orientation and alpha.
         source.image.fill(QColor(128, 0, 0, 128));
@@ -79,49 +108,46 @@ private slots:
         background.fill(Qt::green);
         PreviewSource other{"background", background, true, source.transform};
         widget.setSources({source, other});
-        widget.grabFramebuffer();
+        grabPreview(widget);
         const auto frame = readCanvas(widget);
         const auto top = sample(frame, .5, .25);
         const auto bottom = sample(frame, .5, .75);
         QVERIFY(top.red() > top.blue() + 20);
         QVERIFY(bottom.blue() > bottom.red() + 20);
         QVERIFY(qAbs(top.green() - 165) <= 2);
-        widget.makeCurrent();
-        const auto filtered = widget.m_filterFbos[1]->toImage();
-        QVERIFY(qAbs(filtered.pixelColor(8, 4).alpha() - 128) <= 1);
-        widget.doneCurrent();
-
         source.visible = false;
         widget.setSources({source, other});
-        widget.grabFramebuffer();
+        grabPreview(widget);
         QCOMPARE(sample(readCanvas(widget), .5, .5), QColor(Qt::green));
         source.visible = true;
         source.transform.rotation = 180;
         widget.resize(300, 300);
         widget.setSources({source, other});
-        widget.grabFramebuffer();
+        grabPreview(widget);
         QVERIFY(sample(readCanvas(widget), .5, .25).blue() > sample(readCanvas(widget), .5, .25).red());
         widget.setSources({other, source});
-        widget.grabFramebuffer();
+        grabPreview(widget);
         QCOMPARE(sample(readCanvas(widget), .5, .5), QColor(Qt::green));
         // Invalid input from a non-model caller falls back without affecting other sources.
         source.filters[0].brightness = 4;
         source.transform.rotation = 0;
         widget.setSources({source});
-        widget.grabFramebuffer();
+        grabPreview(widget);
         QVERIFY(errors.count() > 0);
         QVERIFY(sample(readCanvas(widget), .5, .25).red() > 60);
         widget.setSources({});
-        widget.grabFramebuffer();
-        QVERIFY(widget.m_textures.empty());
+        grabPreview(widget);
         widget.cleanup();
-        QVERIFY(!widget.m_filterFbos[0] && !widget.m_filterFbos[1]);
     }
 
     void initTestCase()
     {
         PreviewWidget widget;
         widget.resize(240, 200);
+        widget.show();
+        // Windows launchers may pass SW_HIDE for the first native ShowWindow.
+        // Show again so this GPU suite does not silently skip a usable desktop.
+        widget.hide();
         widget.show();
         if (!QTest::qWaitForWindowExposed(&widget) || !widget.isValid())
             QSKIP("Desktop OpenGL context unavailable; GPU rendering was not verified.");
@@ -143,110 +169,32 @@ private slots:
         widget.resize(240, 200);
         widget.show();
         QVERIFY(QTest::qWaitForWindowExposed(&widget));
-        QVERIFY(widget.m_initialized);
-        QVERIFY(widget.m_canvasFbo);
-        QVERIFY(widget.m_canvasFbo->isValid());
-        QCOMPARE(widget.m_canvasFbo->size(), QSize(1920, 1080));
-        QCOMPARE(widget.m_canvasFbo->format().textureTarget(), GLenum(GL_TEXTURE_2D));
-        QCOMPARE(widget.m_canvasFbo->format().internalTextureFormat(), GLenum(GL_RGBA8));
-        QCOMPARE(widget.m_canvasFbo->attachment(), QOpenGLFramebufferObject::NoAttachment);
-        QCOMPARE(widget.m_canvasFbo->format().samples(), 0);
-        const auto *canvas = widget.m_canvasFbo.get();
-        const GLuint framebuffer = canvas->handle();
-        const GLuint texture = canvas->texture();
-        QVERIFY(texture != 0);
-
-        widget.makeCurrent();
-        auto *functions = widget.context()->functions();
-        QVERIFY(functions->glIsTexture(texture));
-        QVERIFY(widget.m_canvasFbo->bind());
-        QCOMPARE(functions->glCheckFramebufferStatus(GL_FRAMEBUFFER), GLenum(GL_FRAMEBUFFER_COMPLETE));
-        functions->glBindFramebuffer(GL_FRAMEBUFFER, widget.defaultFramebufferObject());
-        QCOMPARE(functions->glGetError(), GLenum(GL_NO_ERROR));
-        widget.doneCurrent();
-
+        QCOMPARE(readCanvas(widget).size(), QSize(1920, 1080));
         QImage image(32, 16, QImage::Format_RGBA8888);
         image.fill(Qt::red);
         widget.setSources({{"image", image, true}});
-        QVERIFY(!widget.grabFramebuffer().isNull());
+        QCOMPARE(readCanvas(widget).size(), QSize(1920, 1080));
         widget.resize(400, 100);
         image.fill(Qt::blue);
         widget.setSources({{"image", image, true}});
-        QVERIFY(!widget.grabFramebuffer().isNull());
+        QCOMPARE(readCanvas(widget).size(), QSize(1920, 1080));
         widget.setSources({});
-        QVERIFY(!widget.grabFramebuffer().isNull());
-        QCOMPARE(widget.m_canvasFbo.get(), canvas);
-        QCOMPARE(widget.m_canvasFbo->handle(), framebuffer);
-        QCOMPARE(widget.m_canvasFbo->texture(), texture);
-        QCOMPARE(widget.m_canvasFbo->size(), QSize(1920, 1080));
+        QCOMPARE(readCanvas(widget).size(), QSize(1920, 1080));
         QCOMPARE(errors.count(), 0);
     }
 
-    void preservesFramebufferBindingsDuringInitialization()
+    void cleanupStopsWorkerAndReleasesOutput()
     {
         PreviewWidget widget;
         widget.resize(100, 100);
         widget.show();
         QVERIFY(QTest::qWaitForWindowExposed(&widget));
+        QVERIFY(!readCanvas(widget).isNull());
+        QVERIFY(widget.compositor()->isRunning());
         widget.cleanup();
-        widget.makeCurrent();
-        auto *functions = widget.context()->functions();
-        {
-            QOpenGLFramebufferObject readTarget(16, 16);
-            QOpenGLFramebufferObject drawTarget(16, 16);
-            QVERIFY(readTarget.isValid());
-            QVERIFY(drawTarget.isValid());
-            functions->glBindFramebuffer(GL_READ_FRAMEBUFFER, readTarget.handle());
-            functions->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, drawTarget.handle());
-            GLuint sentinelTexture = 0;
-            functions->glGenTextures(1, &sentinelTexture);
-            functions->glBindTexture(GL_TEXTURE_2D, sentinelTexture);
-
-            widget.initializeGL();
-            QVERIFY2(widget.m_initialized, qPrintable(widget.lastError()));
-            GLint readBinding = 0;
-            GLint drawBinding = 0;
-            functions->glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &readBinding);
-            functions->glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &drawBinding);
-            QCOMPARE(GLuint(readBinding), readTarget.handle());
-            QCOMPARE(GLuint(drawBinding), drawTarget.handle());
-            GLint textureBinding = 0;
-            functions->glGetIntegerv(GL_TEXTURE_BINDING_2D, &textureBinding);
-            QCOMPARE(GLuint(textureBinding), sentinelTexture);
-            functions->glBindTexture(GL_TEXTURE_2D, widget.m_canvasFbo->texture());
-            for (GLenum parameter : {GL_TEXTURE_MIN_FILTER, GL_TEXTURE_MAG_FILTER,
-                                     GL_TEXTURE_WRAP_S, GL_TEXTURE_WRAP_T}) {
-                GLint value = 0;
-                functions->glGetTexParameteriv(GL_TEXTURE_2D, parameter, &value);
-                QCOMPARE(value, parameter == GL_TEXTURE_MIN_FILTER || parameter == GL_TEXTURE_MAG_FILTER
-                                   ? GLint(GL_LINEAR) : GLint(GL_CLAMP_TO_EDGE));
-            }
-            functions->glBindTexture(GL_TEXTURE_2D, 0);
-            functions->glDeleteTextures(1, &sentinelTexture);
-            functions->glBindFramebuffer(GL_FRAMEBUFFER, widget.defaultFramebufferObject());
-        }
-        QCOMPARE(functions->glGetError(), GLenum(GL_NO_ERROR));
-        widget.doneCurrent();
-    }
-
-    void cleanupReleasesCanvasResources()
-    {
-        PreviewWidget widget;
-        widget.resize(100, 100);
-        widget.show();
-        QVERIFY(QTest::qWaitForWindowExposed(&widget));
-        QVERIFY(widget.m_canvasFbo);
-        const GLuint framebuffer = widget.m_canvasFbo->handle();
-        const GLuint texture = widget.m_canvasFbo->texture();
-        widget.cleanup();
-        QVERIFY(!widget.m_canvasFbo);
+        QVERIFY(!widget.compositor()->isRunning());
+        QVERIFY(!widget.compositor()->latestFrame());
         QVERIFY(!widget.m_initialized);
-        widget.makeCurrent();
-        auto *functions = widget.context()->functions();
-        QVERIFY(!functions->glIsFramebuffer(framebuffer));
-        QVERIFY(!functions->glIsTexture(texture));
-        QCOMPARE(functions->glGetError(), GLenum(GL_NO_ERROR));
-        widget.doneCurrent();
     }
 
     void drawsImageWithCorrectOrientationAndLetterboxing()
@@ -264,7 +212,7 @@ private slots:
         widget.resize(240, 200);
         widget.show();
         QVERIFY(QTest::qWaitForWindowExposed(&widget));
-        const QImage frame = widget.grabFramebuffer();
+        const QImage frame = grabPreview(widget);
         QVERIFY(!frame.isNull());
         QCOMPARE(sample(frame, .25, .35), QColor(Qt::red));
         QCOMPARE(sample(frame, .75, .35), QColor(Qt::green));
@@ -282,7 +230,7 @@ private slots:
         QCOMPARE(sample(canvas, .5, .98), QColor(Qt::black));
 
         widget.resize(400, 100);
-        const QImage wideFrame = widget.grabFramebuffer();
+        const QImage wideFrame = grabPreview(widget);
         QCOMPARE(sample(wideFrame, .05, .5), QColor(Qt::black));
         QCOMPARE(sample(wideFrame, .95, .5), QColor(Qt::black));
         QCOMPARE(sample(wideFrame, .4, .25), QColor(Qt::red));
@@ -312,11 +260,11 @@ private slots:
         QImage image(16, 16, QImage::Format_RGBA8888);
         image.fill(Qt::red);
         widget.setSources({{"image", image, true}});
-        QCOMPARE(sample(widget.grabFramebuffer(), .5, .5), QColor(Qt::red));
+        QCOMPARE(sample(grabPreview(widget), .5, .5), QColor(Qt::red));
         QCOMPARE(sample(readCanvas(widget), .5, .5), QColor(Qt::red));
         image.fill(QColor(0, 255, 0, 128));
         widget.setSources({{"image", image, true}});
-        const QColor blended = sample(widget.grabFramebuffer(), .5, .5);
+        const QColor blended = sample(grabPreview(widget), .5, .5);
         QCOMPARE(blended.red(), 0);
         QVERIFY(qAbs(blended.green() - 128) <= 1);
         QCOMPARE(blended.blue(), 0);
@@ -324,7 +272,7 @@ private slots:
         const QColor canvasBlended = sample(readCanvas(widget), .5, .5);
         QCOMPARE(canvasBlended, blended);
         widget.setSources({});
-        QCOMPARE(sample(widget.grabFramebuffer(), .5, .5), QColor(Qt::black));
+        QCOMPARE(sample(grabPreview(widget), .5, .5), QColor(Qt::black));
         const QImage clearedCanvas = readCanvas(widget);
         QCOMPARE(sample(clearedCanvas, .5, .5), QColor(Qt::black));
         QCOMPARE(sample(clearedCanvas, .05, .05), QColor(Qt::black));
@@ -340,7 +288,7 @@ private slots:
         widget.setSources({{"image", image, true}});
         widget.show();
         QVERIFY(QTest::qWaitForWindowExposed(&widget));
-        const QImage before = widget.grabFramebuffer();
+        const QImage before = grabPreview(widget);
         QCOMPARE(sample(before, .5, .05), QColor(Qt::black));
         const QImage canvas = readCanvas(widget);
         QCOMPARE(canvas.pixelColor(920, 540), QColor(Qt::red));
@@ -351,20 +299,16 @@ private slots:
         QCOMPARE(canvas.pixelColor(960, 520), QColor(Qt::red));
         QCOMPARE(canvas.pixelColor(960, 559), QColor(Qt::red));
         QCOMPARE(canvas.pixelColor(960, 560), QColor(Qt::black));
-        const auto *canvasResource = widget.m_canvasFbo.get();
-        const auto *imageResource = widget.m_textures.at(QStringLiteral("image")).texture.get();
         const auto *programResource = widget.m_program.get();
         widget.setSurroundingColor(QColor("#D4D7DC"));
-        const QImage after = widget.grabFramebuffer();
+        const QImage after = grabPreview(widget);
         QCOMPARE(sample(after, .5, .05), QColor("#D4D7DC"));
         QCOMPARE(sample(after, .5, .5), QColor(Qt::red));
         QCOMPARE(sample(readCanvas(widget), .5, .02), QColor(Qt::black));
         QCOMPARE(readCanvas(widget), canvas);
-        QCOMPARE(widget.m_canvasFbo.get(), canvasResource);
-        QCOMPARE(widget.m_textures.at(QStringLiteral("image")).texture.get(), imageResource);
         QCOMPARE(widget.m_program.get(), programResource);
         widget.setSurroundingColor(Qt::black);
-        QCOMPARE(sample(widget.grabFramebuffer(), .5, .05), QColor(Qt::black));
+        QCOMPARE(sample(grabPreview(widget), .5, .05), QColor(Qt::black));
     }
 
     void fitsPortraitImageIntoCanvasAndCanvasIntoWidget()
@@ -376,7 +320,7 @@ private slots:
         widget.setSources({{"image", image, true}});
         widget.show();
         QVERIFY(QTest::qWaitForWindowExposed(&widget));
-        const QImage frame = widget.grabFramebuffer();
+        const QImage frame = grabPreview(widget);
         const QImage canvas = readCanvas(widget);
         QCOMPARE(sample(canvas, .5, .05), QColor(Qt::yellow));
         QCOMPARE(sample(canvas, .5, .95), QColor(Qt::yellow));
@@ -397,7 +341,7 @@ private slots:
         widget.setSources({{"image", image, true}});
         widget.show();
         QVERIFY(QTest::qWaitForWindowExposed(&widget));
-        QCOMPARE(sample(widget.grabFramebuffer(), .5, .5), QColor(Qt::red));
+        QCOMPARE(sample(grabPreview(widget), .5, .5), QColor(Qt::red));
         widget.makeCurrent();
         auto *functions = widget.context()->functions();
         GLint maxSize = 0;
@@ -407,6 +351,9 @@ private slots:
         oversized.fill(Qt::white);
         widget.setSources({{"image", oversized, true}});
         QSignalSpy errors(&widget, &PreviewWidget::sourceError);
+        widget.compositor()->captureImage();
+        QCoreApplication::processEvents();
+        widget.makeCurrent();
         widget.paintGL();
         QCOMPARE(errors.count(), 1);
         QVERIFY(widget.lastError().isEmpty());
@@ -422,9 +369,9 @@ private slots:
         QCOMPARE(functions->glGetError(), GLenum(GL_NO_ERROR));
         widget.doneCurrent();
         QCOMPARE(sample(readCanvas(widget), .5, .5), QColor(Qt::black));
-        QCOMPARE(sample(widget.grabFramebuffer(), .5, .5), QColor(Qt::black));
+        QCOMPARE(sample(grabPreview(widget), .5, .5), QColor(Qt::black));
         widget.setSources({{"image", image, true}});
-        QCOMPARE(sample(widget.grabFramebuffer(), .5, .5), QColor(Qt::red));
+        QCOMPARE(sample(grabPreview(widget), .5, .5), QColor(Qt::red));
         QVERIFY(widget.lastError().isEmpty());
     }
 
@@ -447,13 +394,11 @@ private slots:
         widget->setSelectedSourceId("overlay");
         firstWindow.show();
         QVERIFY(QTest::qWaitForWindowExposed(&firstWindow));
-        QCOMPARE(sample(widget->grabFramebuffer(), .5, .5), QColor(Qt::yellow));
+        QCOMPARE(sample(grabPreview(*widget), .5, .5), QColor(Qt::yellow));
         QCOMPARE(sample(readCanvas(*widget), .5, .5), QColor(Qt::yellow));
-        QVERIFY(widget->m_canvasFbo);
-        QVERIFY(widget->m_canvasFbo->isValid());
         bool canvasWasReleased = false;
         connect(widget->context(), &QOpenGLContext::aboutToBeDestroyed, this, [&] {
-            canvasWasReleased = !widget->m_canvasFbo;
+            canvasWasReleased = !widget->compositor()->isRunning();
         });
         QSignalSpy destroyed(widget->context(), &QOpenGLContext::aboutToBeDestroyed);
         widget->setParent(&secondWindow);
@@ -462,17 +407,12 @@ private slots:
         QVERIFY(QTest::qWaitForWindowExposed(&secondWindow));
         QCOMPARE(destroyed.count(), 1);
         QVERIFY(canvasWasReleased);
-        QCOMPARE(sample(widget->grabFramebuffer(), .5, .5), QColor(Qt::yellow));
+        QCOMPARE(sample(grabPreview(*widget), .5, .5), QColor(Qt::yellow));
         QCOMPARE(sample(readCanvas(*widget), .5, .5), QColor(Qt::yellow));
-        QVERIFY(widget->m_canvasFbo);
-        QVERIFY(widget->m_canvasFbo->isValid());
-        QCOMPARE(widget->m_textures.size(), size_t(2));
         QVERIFY(widget->m_sources[0].transform == transform);
         QCOMPARE(widget->m_selectedSourceId, QString("overlay"));
         QCOMPARE(sample(readCanvas(*widget), .1, .5), QColor(Qt::blue));
-        QCOMPARE(widget->m_canvasFbo->size(), QSize(1920, 1080));
         widget->makeCurrent();
-        QVERIFY(widget->m_canvasFbo->bind());
         auto *functions = widget->context()->functions();
         QCOMPARE(functions->glCheckFramebufferStatus(GL_FRAMEBUFFER), GLenum(GL_FRAMEBUFFER_COMPLETE));
         functions->glBindFramebuffer(GL_FRAMEBUFFER, widget->defaultFramebufferObject());
@@ -493,42 +433,32 @@ private slots:
         widget.setSources(sources);
         widget.show();
         QVERIFY(QTest::qWaitForWindowExposed(&widget));
-        const auto blended = sample(widget.grabFramebuffer(), .5, .5);
+        const auto blended = sample(grabPreview(widget), .5, .5);
         QVERIFY(qAbs(blended.red() - 128) <= 1);
         QVERIFY(qAbs(blended.blue() - 127) <= 1);
         QCOMPARE(blended.alpha(), 255);
         const auto canvas = readCanvas(widget);
         QCOMPARE(canvas.pixelColor(600, 540), QColor(Qt::blue));
         QCOMPARE(canvas.pixelColor(960, 540), blended);
-        const GLuint top = widget.m_textures.at("top").texture->textureId();
-        const GLuint bottom = widget.m_textures.at("bottom").texture->textureId();
-        const GLuint fbo = widget.m_canvasFbo->handle();
         sources[0].visible = false;
         widget.setSources(sources);
-        QCOMPARE(sample(widget.grabFramebuffer(), .5, .5), QColor(Qt::blue));
+        QCOMPARE(sample(grabPreview(widget), .5, .5), QColor(Qt::blue));
         sources[0].visible = true;
         sources.swapItemsAt(0, 1);
         widget.setSources(sources);
-        QCOMPARE(sample(widget.grabFramebuffer(), .5, .5), QColor(Qt::blue));
-        QCOMPARE(widget.m_textures.at("top").texture->textureId(), top);
-        QCOMPARE(widget.m_textures.at("bottom").texture->textureId(), bottom);
+        QCOMPARE(sample(grabPreview(widget), .5, .5), QColor(Qt::blue));
         widget.resize(600, 160);
-        widget.grabFramebuffer();
-        QCOMPARE(widget.m_canvasFbo->handle(), fbo);
-        QCOMPARE(widget.m_textures.at("top").texture->textureId(), top);
+        grabPreview(widget);
         sources.removeFirst();
         widget.setSources(sources);
-        widget.grabFramebuffer();
-        QCOMPARE(widget.m_textures.size(), size_t(1));
+        grabPreview(widget);
         widget.makeCurrent();
-        QVERIFY(!widget.context()->functions()->glIsTexture(bottom));
         QCOMPARE(widget.context()->functions()->glGetError(), GLenum(GL_NO_ERROR));
         widget.doneCurrent();
         QCOMPARE(readCanvas(widget).pixelColor(600, 540), QColor(Qt::black));
         sources[0].image = {};
         widget.setSources(sources);
-        QCOMPARE(sample(widget.grabFramebuffer(), .5, .5), QColor(Qt::black));
-        QVERIFY(widget.m_textures.empty());
+        QCOMPARE(sample(grabPreview(widget), .5, .5), QColor(Qt::black));
     }
 
     void fitsOversizedSourcesAndSkipsFailedSource()
@@ -540,7 +470,7 @@ private slots:
         QImage tall(1200, 2400, QImage::Format_RGBA8888);
         tall.fill(Qt::yellow);
         widget.setSources({{"tall", tall, true}});
-        widget.grabFramebuffer();
+        grabPreview(widget);
         const auto canvas = readCanvas(widget);
         QCOMPARE(sample(canvas, .5, .05), QColor(Qt::yellow));
         QCOMPARE(sample(canvas, .3, .5), QColor(Qt::black));
@@ -553,13 +483,13 @@ private slots:
         QSignalSpy sourceErrors(&widget, &PreviewWidget::sourceError);
         QSignalSpy fatalErrors(&widget, &PreviewWidget::renderingError);
         widget.setSources({{"invalid", invalid, true}, {"tall", tall, true}});
-        QCOMPARE(sample(widget.grabFramebuffer(), .5, .5), QColor(Qt::yellow));
+        QCOMPARE(sample(grabPreview(widget), .5, .5), QColor(Qt::yellow));
         QCOMPARE(sourceErrors.size(), 1);
         QCOMPARE(fatalErrors.size(), 0);
-        widget.grabFramebuffer();
+        grabPreview(widget);
         QCOMPARE(sourceErrors.size(), 1);
         widget.setSources({});
-        QCOMPARE(sample(widget.grabFramebuffer(), .5, .5), QColor(Qt::black));
+        QCOMPARE(sample(grabPreview(widget), .5, .5), QColor(Qt::black));
     }
 
     void transformsRenderAndSelectionStaysOutOfCanvas()
@@ -575,7 +505,7 @@ private slots:
         widget.setSources({{"image", image, true, transform}});
         widget.show();
         QVERIFY(QTest::qWaitForWindowExposed(&widget));
-        widget.grabFramebuffer();
+        grabPreview(widget);
         const auto verifyColors = [&] {
             const auto canvas = readCanvas(widget);
             const auto matrix = SourceGeometry::sourceToCanvas(transform);
@@ -590,28 +520,23 @@ private slots:
             QCOMPARE(canvas.pixelColor(0, 0), QColor(Qt::black));
         };
         verifyColors();
-        const auto texture = widget.m_textures.at("image").texture->textureId();
-        const auto fbo = widget.m_canvasFbo->handle();
         const auto *program = widget.m_program.get();
         transform = {{900, 600}, {600, 300}, 37};
         widget.setSources({{"image", image, true, transform}});
-        const auto unselected = widget.grabFramebuffer();
+        const auto unselected = grabPreview(widget);
         verifyColors();
         const auto canvas = readCanvas(widget);
         widget.setSelectedSourceId("image");
-        const auto selected = widget.grabFramebuffer();
+        const auto selected = grabPreview(widget);
         QVERIFY(selected != unselected);
         QCOMPARE(readCanvas(widget), canvas);
-        QCOMPARE(widget.m_textures.at("image").texture->textureId(), texture);
-        QCOMPARE(widget.m_canvasFbo->handle(), fbo);
         QCOMPARE(widget.m_program.get(), program);
         widget.setSources({{"image", image, true, {{-50, 400}, {400, 200}, 0}}});
-        widget.grabFramebuffer();
+        grabPreview(widget);
         QCOMPARE(readCanvas(widget).pixelColor(10, 380), QColor(Qt::green));
         widget.setSources({{"image", image, true, {{-1000, 400}, {400, 200}, 0}}});
-        widget.grabFramebuffer();
+        grabPreview(widget);
         QCOMPARE(sample(readCanvas(widget), .5, .5), QColor(Qt::black));
-        QCOMPARE(widget.m_textures.at("image").texture->textureId(), texture);
         widget.setSources({{"image", image, true, transform}});
         widget.makeCurrent();
         widget.paintGL();
@@ -641,7 +566,7 @@ private slots:
         for (const QSize &size : {QSize(640, 480), QSize(800, 280), QSize(300, 500)}) {
             widget.resize(size);
             widget.setSources({{"image", image, true, start}});
-            widget.grabFramebuffer();
+            grabPreview(widget);
             const auto display = SourceGeometry::canvasToWidget(widget.size());
             drag(widget, display.map(start.center), display.map(start.center + QPointF(120, -60)));
             const auto moved = widget.m_sources[0].transform;
@@ -674,7 +599,7 @@ private slots:
         widget.resize(800, 500);
         start.rotation = 37;
         widget.setSources({{"image", image, true, start}});
-        widget.grabFramebuffer();
+        grabPreview(widget);
         QTransform rotation;
         rotation.rotate(37);
         auto handles = widget.selectionHandles(widget.m_sources[0]);
@@ -714,7 +639,7 @@ private slots:
         widget.setSelectedSourceId("image");
         widget.show();
         QVERIFY(QTest::qWaitForWindowActive(&widget));
-        widget.grabFramebuffer();
+        grabPreview(widget);
         const auto handle = widget.selectionHandles(widget.m_sources[0])[8];
         mouse(widget, QEvent::MouseMove, handle, Qt::NoButton, Qt::NoButton);
         QCOMPARE(widget.cursor().shape(), Qt::OpenHandCursor);
@@ -757,7 +682,7 @@ private slots:
         widget.setSources(sources);
         widget.show();
         QVERIFY(QTest::qWaitForWindowActive(&widget));
-        widget.grabFramebuffer();
+        grabPreview(widget);
         const auto display = SourceGeometry::canvasToWidget(widget.size());
         const auto center = display.map(QPointF(960, 540));
         drag(widget, center, center);
@@ -847,7 +772,7 @@ private slots:
         QSignalSpy transferErrors(&widget, &PreviewWidget::gpuTransferFailed);
         widget.show();
         QVERIFY(QTest::qWaitForWindowActive(&widget));
-        widget.grabFramebuffer();
+        grabPreview(widget);
         if (!transferErrors.isEmpty()) {
             QVERIFY2(!qEnvironmentVariableIsSet("OPENLIVE_REQUIRE_GPU_INTEROP"), "GPU interop required");
             QSKIP("GPU interop unavailable for capture editing test");
@@ -858,8 +783,12 @@ private slots:
         const auto from = operation == 0 ? center : handles[operation == 1 ? 4 : 8];
         if (operation != 0) widget.setSelectedSourceId("dynamic");
         // Receive a new frame before mouse input, without uploading it yet.
+        const auto pixelsPresented = [&] {
+            const auto &ready = widget.m_presentedFrame->sources[QStringLiteral("dynamic")];
+            return gpu ? ready.sequence == sequence : ready.imageKey == widget.m_sources[0].image.cacheKey();
+        };
         publish();
-        QVERIFY(!widget.drawable(widget.m_sources[0]));
+        QVERIFY(!pixelsPresented());
         mouse(widget, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
         QCOMPARE(widget.m_selectedSourceId, QString("dynamic"));
         const auto gesture = operation == 0 ? PreviewWidget::Gesture::Move
@@ -891,8 +820,8 @@ private slots:
         }
         mouse(widget, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
         QVERIFY(widget.m_gesture == PreviewWidget::Gesture::None);
-        widget.grabFramebuffer();
-        QVERIFY(widget.drawable(widget.m_sources[0]));
+        grabPreview(widget);
+        QVERIFY(pixelsPresented());
     }
 
     void interruptsGesturesWhenEditingBecomesUnavailable()
@@ -910,7 +839,7 @@ private slots:
             QVERIFY(QTest::qWaitForWindowActive(&widget));
             widget.setSources({{"image", image, true, {{960, 540}, {600, 300}, 0}}});
             widget.setSelectedSourceId("image");
-            widget.grabFramebuffer();
+            grabPreview(widget);
             const QPointF center = SourceGeometry::canvasToWidget(widget.size()).map(QPointF(960, 540));
             mouse(widget, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
             mouse(widget, QEvent::MouseMove, center + QPointF(10, 0), Qt::NoButton, Qt::LeftButton);
@@ -988,11 +917,16 @@ private:
 
     static QImage readCanvas(PreviewWidget &widget)
     {
-        widget.makeCurrent();
-        const QImage result = widget.m_canvasFbo->toImage();
-        widget.context()->functions()->glBindFramebuffer(GL_FRAMEBUFFER, widget.defaultFramebufferObject());
-        widget.doneCurrent();
-        return result;
+        const QImage image = widget.compositor()->captureImage();
+        QCoreApplication::processEvents();
+        return image;
+    }
+
+    static QImage grabPreview(PreviewWidget &widget)
+    {
+        widget.compositor()->captureImage();
+        QCoreApplication::processEvents();
+        return widget.grabFramebuffer();
     }
 
     static QColor sample(const QImage &image, double x, double y)

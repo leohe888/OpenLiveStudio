@@ -45,6 +45,13 @@ private:
 
 class CaptureInteropTest : public QObject {
     Q_OBJECT
+private:
+    static QImage grabPreview(PreviewWidget &preview)
+    {
+        preview.compositor()->captureImage();
+        QCoreApplication::processEvents();
+        return preview.grabFramebuffer();
+    }
 private slots:
     void removalDuringErrorNotificationIsSafe()
     {
@@ -153,7 +160,7 @@ private slots:
             QVERIFY2(!qEnvironmentVariableIsSet("OPENLIVE_REQUIRE_GPU_INTEROP"), qPrintable(model.displayProperties(id).value("error").toString()));
             QSKIP("Windows capture unavailable on this desktop");
         }
-        QVERIFY(!preview.grabFramebuffer().isNull());
+        QVERIFY(!grabPreview(preview).isNull());
         QCoreApplication::processEvents();
         if (!transferFailures.isEmpty()) {
             QVERIFY2(!qEnvironmentVariableIsSet("OPENLIVE_REQUIRE_GPU_INTEROP"), "GPU interop required");
@@ -162,7 +169,7 @@ private slots:
         const QString filter = model.addColorCorrection(id);
         QVERIFY(model.setFilterParameters(id, filter, .1, .8, 1.2));
         QVERIFY(model.setSourceTransform(id, {{960, 540}, {1200, 700}, 17}));
-        QVERIFY(!preview.grabFramebuffer().isNull());
+        QVERIFY(!grabPreview(preview).isNull());
 
         const int seconds = qEnvironmentVariableIntValue("OPENLIVE_CAPTURE_SOAK_SECONDS");
         if (seconds > 0) {
@@ -217,15 +224,18 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(snapshot.size() == 2 && snapshot[0].hasFrame() && snapshot[1].hasFrame(), 5000);
         QVERIFY(snapshot[0].frame->generation != snapshot[1].frame->generation);
         QVERIFY(snapshot[0].filters.isEmpty());
-        QVERIFY(!preview.grabFramebuffer().isNull());
+        QVERIFY(!grabPreview(preview).isNull());
         const bool duplicateGpu = bool(snapshot[0].frame->gpu);
         std::weak_ptr<GpuFrameResource> releasedGpu = snapshot[0].frame->gpu;
         preview.showMinimized();
+        const quint64 composedBeforeMinimize = preview.compositor()->latestFrame()->sequence;
         const quint64 beforeMinimize = snapshot[1].frame->sequence;
         QTRY_VERIFY(snapshot[1].frame->sequence > beforeMinimize);
+        QTRY_VERIFY(preview.compositor()->latestFrame()->sequence > composedBeforeMinimize);
         QVERIFY(model.setSourceVisible(duplicate, false));
         QVERIFY(!snapshot[0].hasFrame() && snapshot[1].hasFrame());
         QVERIFY(model.removeSource(duplicate));
+        QTRY_VERIFY(!preview.compositor()->latestFrame()->sources.contains(duplicate));
         QTRY_COMPARE_WITH_TIMEOUT(controller.activeWorkerCount(), 1, 2000);
         if (duplicateGpu) QTRY_VERIFY_WITH_TIMEOUT(releasedGpu.expired(), 2000);
         preview.showNormal();
@@ -260,7 +270,7 @@ private slots:
         QVERIFY(controller.retry(id));
         QTRY_VERIFY_WITH_TIMEOUT(hasFrame(), 5000);
         QVERIFY(snapshot[0].frame->gpu && snapshot[0].frame->generation > beforeFailureGeneration);
-        QVERIFY(!preview.grabFramebuffer().isNull());
+        QVERIFY(!grabPreview(preview).isNull());
         QCoreApplication::processEvents();
         QCOMPARE(transferFailures.count(), 1);
         controller.failTransfer(id, beforeFailureGeneration, "late failure");
@@ -382,28 +392,28 @@ private slots:
                 SourceFilter correction{"correction"}; correction.brightness = .1f;
                 source.filters = {correction};
                 preview.setSources({source});
-                const auto gpuResult = preview.grabFramebuffer();
+                const auto gpuResult = grabPreview(preview);
                 const QColor top = gpuResult.pixelColor(gpuResult.width() / 2, gpuResult.height() / 4);
                 QVERIFY(qAbs(top.red() - 128) <= 1);
                 QVERIFY(qAbs(top.green() - 23) <= 1);
                 source.frame.reset();
                 source.image = QImage(reinterpret_cast<const uchar *>(pixels.constData()), size.width(), size.height(), QImage::Format_ARGB32).copy();
                 preview.setSources({source});
-                const auto imageResult = preview.grabFramebuffer();
+                const auto imageResult = grabPreview(preview);
                 QCOMPARE(imageResult.pixelColor(imageResult.width() / 2, imageResult.height() / 4), top);
                 QCOMPARE(imageResult.pixelColor(imageResult.width() / 2, imageResult.height() * 3 / 4),
                          gpuResult.pixelColor(gpuResult.width() / 2, gpuResult.height() * 3 / 4));
                 source.frame = gpuFrame;
                 source.image = {};
                 preview.setSources({source});
-                preview.grabFramebuffer();
+                grabPreview(preview);
                 replacementHost.resize(480, 270);
                 preview.setParent(&replacementHost);
                 preview.resize(480, 270);
                 replacementHost.show();
                 preview.show();
                 QVERIFY(QTest::qWaitForWindowExposed(&replacementHost));
-                const auto restored = preview.grabFramebuffer();
+                const auto restored = grabPreview(preview);
                 QCOMPARE(restored.pixelColor(restored.width() / 2, restored.height() / 4), top);
                 preview.setSources({});
                 QVERIFY(glContext.makeCurrent(&surface));

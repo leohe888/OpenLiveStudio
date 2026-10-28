@@ -28,6 +28,14 @@ if(Qt6_VERSION VERSION_GREATER_EQUAL 6.8)
     qt_policy(SET QTP0004 NEW)
 endif()
 
+add_library(openlive_compositor STATIC
+    src/preview/canvasrenderer.h src/preview/canvasrenderer.cpp
+    src/preview/compositor.h src/preview/compositor.cpp
+    src/preview/previewsource.h
+)
+target_include_directories(openlive_compositor PUBLIC "${PROJECT_SOURCE_DIR}/src")
+target_link_libraries(openlive_compositor PUBLIC openlive_capture Qt::OpenGL)
+
 qt_add_executable(OpenLiveStudio
     WIN32 MACOSX_BUNDLE
     src/main.cpp
@@ -133,7 +141,7 @@ target_link_libraries(OpenLiveStudio
         Qt::Svg
         Qt::OpenGL
         Qt::OpenGLWidgets
-        openlive_capture
+        openlive_compositor
         FFmpeg::avdevice
         FFmpeg::avformat
         FFmpeg::avcodec

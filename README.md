@@ -18,3 +18,4 @@
 
 - [显示器采集](docs/display-capture.md)：WGC 与 GPU 纹理交接。
 - [摄像头采集](docs/camera-capture.md)：Media Foundation 异步视频采集、模式设置和故障恢复。
+- [独立画布合成](docs/compositor.md)：后台合成、共享纹理输出，以及隐藏和最小化时持续输出。
