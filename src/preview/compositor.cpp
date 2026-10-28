@@ -1,4 +1,5 @@
 #include "compositor.h"
+#include "core/mediaclock.h"
 
 #include <QOffscreenSurface>
 #include <QOpenGLContext>
@@ -7,6 +8,7 @@
 #include <QScopeGuard>
 #include <array>
 #include <chrono>
+#include <utility>
 
 Compositor::Compositor(QObject *parent) : QThread(parent) {}
 Compositor::~Compositor() { stopRendering(); }
@@ -66,6 +68,21 @@ void Compositor::stopRendering()
     wait(); // Worker cleanup never waits for GUI events.
     m_surface.reset();
     if (previousContext && previousSurface) previousContext->makeCurrent(previousSurface);
+}
+
+void Compositor::setOutputEnabled(bool enabled)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_outputEnabled = enabled; m_output.clear(); m_droppedOutput = 0;
+}
+std::deque<ComposedImage> Compositor::takeOutput()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return std::exchange(m_output, {});
+}
+quint64 Compositor::droppedOutputFrames() const
+{
+    std::lock_guard<std::mutex> lock(m_mutex); return m_droppedOutput;
 }
 
 void Compositor::setSources(const QList<PreviewSource> &sources)
@@ -148,7 +165,7 @@ void Compositor::run()
         while (true) {
             QList<PreviewSource> sources;
             quint64 revision = 0, readback = 0;
-            bool needsReadback = false;
+            bool needsReadback = false, outputEnabled = false;
             {
                 std::unique_lock<std::mutex> lock(m_mutex);
                 // Diagnostic requests may wake early; normal output stays at 30 Hz.
@@ -160,6 +177,7 @@ void Compositor::run()
                 revision = m_revision;
                 readback = m_requestedReadback;
                 needsReadback = readback > m_completedReadback;
+                outputEnabled = m_outputEnabled;
             }
             if (!renderer.render(sources)) {
                 fail(renderer.lastError());
@@ -181,12 +199,13 @@ void Compositor::run()
                 frame->size = slot.fbo->size();
                 frame->sequence = ++sequence;
                 frame->revision = revision;
-                frame->timestamp = std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch()).count();
+                frame->timestamp = MediaClock::nowNs();
                 frame->sources = renderer.renderedSources();
                 slot.lease = frame;
                 break;
             }
-            const QImage image = needsReadback ? renderer.canvas()->toImage() : QImage();
+            const auto timestamp = MediaClock::nowNs();
+            const QImage image = needsReadback || outputEnabled ? renderer.canvas()->toImage() : QImage();
             {
                 std::lock_guard<std::mutex> lock(m_mutex);
                 if (m_failed) break;
@@ -194,6 +213,10 @@ void Compositor::run()
                 if (readback > m_completedReadback) {
                     m_readback = image;
                     m_completedReadback = readback;
+                }
+                if (outputEnabled && m_outputEnabled && !m_stop) {
+                    m_output.push_back({image, timestamp});
+                    if (m_output.size() > 8) { m_output.pop_front(); ++m_droppedOutput; }
                 }
             }
             m_wake.notify_all();

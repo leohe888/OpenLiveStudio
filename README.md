@@ -20,3 +20,4 @@
 - [摄像头采集](docs/camera-capture.md)：Media Foundation 异步视频采集、模式设置和故障恢复。
 - [独立画布合成](docs/compositor.md)：后台合成、共享纹理输出，以及隐藏和最小化时持续输出。
 - [声音来源与混音](docs/audio-sources.md)：WASAPI 麦克风与系统声音、多设备管理、电平和后台混音。
+- [MP4 录制](docs/recording.md)：后台 H.264/AAC 编码、统一时间线和正常停止封装。

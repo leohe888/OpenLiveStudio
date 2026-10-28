@@ -6,13 +6,14 @@
 #include <QSurfaceFormat>
 #include <condition_variable>
 #include <mutex>
+#include <deque>
 
 class QOffscreenSurface;
 class QOpenGLContext;
 
 // An immutable lease on one of three shared output textures. A consumer must
 // finish its GL reads before releasing the lease. Release all leases before stop().
-// timestamp is composition time on steady_clock, in nanoseconds (not capture PTS).
+// timestamp is composition time on the shared monotonic media clock (not capture PTS).
 struct CompositionFrame {
     GLuint texture = 0;
     QSize size;
@@ -20,6 +21,11 @@ struct CompositionFrame {
     quint64 revision = 0;
     qint64 timestamp = 0;
     QHash<QString, RenderedSource> sources;
+};
+
+struct ComposedImage {
+    QImage image;
+    qint64 timestampNs = 0;
 };
 
 // GUI-thread control API; rendering, imports and GL cleanup run on this thread's
@@ -37,6 +43,10 @@ public:
     // Blocking diagnostic readback, not used by the preview or output hot path.
     // Returns a composition at least as new as the snapshot at call time.
     QImage captureImage(int timeoutMs = 3000);
+    // Bounded CPU output tap, enabled only while recording. Independent of GUI paints.
+    void setOutputEnabled(bool enabled);
+    std::deque<ComposedImage> takeOutput();
+    quint64 droppedOutputFrames() const;
 
 signals:
     void sourceError(const QString &sourceId, const QString &message);
@@ -58,6 +68,9 @@ private:
     std::shared_ptr<const CompositionFrame> m_latest;
     std::unique_ptr<QOffscreenSurface> m_surface;
     std::unique_ptr<QOpenGLContext> m_context;
+    bool m_outputEnabled = false;
+    std::deque<ComposedImage> m_output;
+    quint64 m_droppedOutput = 0;
 };
 
 #endif

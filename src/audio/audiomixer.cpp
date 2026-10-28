@@ -1,4 +1,5 @@
 #include "audiomixer.h"
+#include "core/mediaclock.h"
 #include <chrono>
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -6,13 +7,7 @@
 
 qint64 audioClockNs()
 {
-#ifdef Q_OS_WIN
-    static const qint64 frequency = [] { LARGE_INTEGER value; QueryPerformanceFrequency(&value); return value.QuadPart; }();
-    LARGE_INTEGER value; QueryPerformanceCounter(&value);
-    return (value.QuadPart / frequency) * 1000000000LL + (value.QuadPart % frequency) * 1000000000LL / frequency;
-#else
-    return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-#endif
+    return MediaClock::nowNs();
 }
 
 MixedAudioBlock AudioMixerCore::mix(const QList<AudioInput> &inputs, qint64 timestampNs,

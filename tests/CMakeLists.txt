@@ -1,5 +1,17 @@
 find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
 
+find_program(OPENLIVE_FFPROBE NAMES ffprobe HINTS "${FFmpeg_RUNTIME_DIR}" REQUIRED)
+qt_add_executable(tst_recording tst_recording.cpp)
+target_link_libraries(tst_recording PRIVATE openlive_output Qt6::Test)
+target_compile_definitions(tst_recording PRIVATE OPENLIVE_FFPROBE="${OPENLIVE_FFPROBE}")
+qt_add_resources(tst_recording "recording_shaders" PREFIX "/" BASE "${PROJECT_SOURCE_DIR}"
+    FILES ${OPENLIVE_STUDIO_SHADER_FILES})
+add_test(NAME output.recording COMMAND "${CMAKE_COMMAND}" -E env
+    "PATH=$<TARGET_FILE_DIR:Qt6::Core>;${FFmpeg_RUNTIME_DIR};$ENV{PATH}"
+    "QT_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../plugins"
+    "$<TARGET_FILE:tst_recording>" -o "${CMAKE_CURRENT_BINARY_DIR}/recording-results.txt,txt")
+set_tests_properties(output.recording PROPERTIES LABELS "output;gpu" TIMEOUT 60)
+
 qt_add_executable(tst_audio tst_audio.cpp)
 target_link_libraries(tst_audio PRIVATE openlive_audio Qt6::Test)
 add_test(NAME audio.sources COMMAND "${CMAKE_COMMAND}" -E env

@@ -50,6 +50,15 @@ if(WIN32)
     target_link_libraries(openlive_audio PRIVATE ole32 uuid)
 endif()
 
+add_library(openlive_output STATIC
+    src/output/mp4encoder.h src/output/mp4encoder.cpp
+    src/output/recordingcontroller.h src/output/recordingcontroller.cpp
+    src/core/mediaclock.h
+)
+target_include_directories(openlive_output PUBLIC "${PROJECT_SOURCE_DIR}/src")
+target_link_libraries(openlive_output PUBLIC openlive_compositor openlive_audio
+    PRIVATE FFmpeg::avcodec FFmpeg::avformat FFmpeg::avutil FFmpeg::swscale)
+
 qt_add_executable(OpenLiveStudio
     WIN32 MACOSX_BUNDLE
     src/main.cpp
