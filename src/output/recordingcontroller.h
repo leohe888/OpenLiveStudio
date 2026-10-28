@@ -18,6 +18,7 @@ class RecordingController : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString state READ state NOTIFY statusChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY statusChanged)
+    Q_PROPERTY(bool ready READ ready NOTIFY availabilityChanged)
     Q_PROPERTY(QString filePath READ filePath NOTIFY statusChanged)
     Q_PROPERTY(QString lastError READ lastError NOTIFY statusChanged)
     Q_PROPERTY(bool fileComplete READ fileComplete NOTIFY statusChanged)
@@ -29,6 +30,7 @@ public:
     ~RecordingController() override;
     QString state() const { return m_status.state; }
     bool busy() const { return state()=="starting" || state()=="recording" || state()=="stopping"; }
+    bool ready() const;
     QString filePath() const { return m_status.path; }
     QString lastError() const { return m_status.error; }
     bool fileComplete() const { return m_status.fileComplete; }
@@ -41,6 +43,7 @@ public:
 signals:
     void statusChanged();
     void finished();
+    void availabilityChanged();
 private:
     void poll();
     Compositor &m_video;

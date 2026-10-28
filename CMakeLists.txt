@@ -53,6 +53,7 @@ endif()
 add_library(openlive_output STATIC
     src/output/mp4encoder.h src/output/mp4encoder.cpp
     src/output/recordingcontroller.h src/output/recordingcontroller.cpp
+    src/output/outputsettings.h src/output/outputsettings.cpp
     src/core/mediaclock.h
 )
 target_include_directories(openlive_output PUBLIC "${PROJECT_SOURCE_DIR}/src")
@@ -80,6 +81,7 @@ qt_add_executable(OpenLiveStudio
 )
 
 set(OPENLIVE_STUDIO_QML_FILES
+    "${PROJECT_SOURCE_DIR}/src/qml/OutputSettingsDialog.qml"
     "${PROJECT_SOURCE_DIR}/src/qml/AudioSourceDialog.qml"
     "${PROJECT_SOURCE_DIR}/src/qml/SourcesPanel.qml"
     "${PROJECT_SOURCE_DIR}/src/qml/MixerPanel.qml"
@@ -168,6 +170,7 @@ target_link_libraries(OpenLiveStudio
         Qt::OpenGLWidgets
         openlive_compositor
         openlive_audio
+        openlive_output
         FFmpeg::avdevice
         FFmpeg::avformat
         FFmpeg::avcodec

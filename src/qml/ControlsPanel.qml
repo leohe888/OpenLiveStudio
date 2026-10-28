@@ -9,6 +9,10 @@ Rectangle {
     implicitWidth: 286
     implicitHeight: 174
     color: themeColors.background.panel
+    readonly property var recorder: typeof recordingController !== "undefined" ? recordingController : null
+    readonly property var settings: typeof outputSettings !== "undefined" ? outputSettings : null
+    signal recordingToggleRequested()
+    signal settingsDialogRequested()
 
     // Retain Basic's thumb geometry, visibility and fade behavior.
     component PanelScrollBar: ScrollBar {
@@ -29,7 +33,7 @@ Rectangle {
         icon.height: 16
         icon.color: enabled ? root.themeColors.icon.primary : root.themeColors.icon.disabled
         palette.buttonText: enabled ? root.themeColors.text.primary : root.themeColors.text.disabled
-        Accessible.name: text + qsTr("（未接入）")
+        Accessible.name: enabled ? text : text + qsTr("（不可用）")
         background: Rectangle {
             color: !controlButton.enabled ? root.themeColors.button.background.disabled
                 : (controlButton.down ? root.themeColors.button.background.pressed
@@ -74,14 +78,18 @@ Rectangle {
             height: scroll.contentHeight - 16
             spacing: 6
 
-            // Independent entries; output state will be supplied by C++ later.
             ControlButton {
                 objectName: "recordButton"
                 Layout.minimumWidth: 110
                 Layout.fillWidth: true
                 Layout.minimumHeight: 32
-                text: qsTr("开始录制")
+                enabled: root.recorder !== null && (root.recorder.state === "recording"
+                    || (!root.recorder.busy && root.recorder.ready))
+                text: !root.recorder ? qsTr("开始录制") : root.recorder.state === "recording" ? qsTr("停止录制")
+                    : root.recorder.state === "starting" ? qsTr("正在启动…")
+                    : root.recorder.state === "stopping" ? qsTr("正在停止…") : qsTr("开始录制")
                 icon.source: "qrc:/assets/icons/circle.svg"
+                onClicked: root.recordingToggleRequested()
             }
             ControlButton {
                 objectName: "streamButton"
@@ -97,6 +105,8 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.minimumHeight: 32
                 text: qsTr("设置")
+                enabled: root.settings !== null
+                onClicked: root.settingsDialogRequested()
             }
             Item {
                 objectName: "controlsSpacer"

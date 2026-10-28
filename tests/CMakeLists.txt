@@ -111,6 +111,7 @@ target_link_libraries(tst_mainwindow PRIVATE
     Qt6::OpenGL Qt6::OpenGLWidgets
     openlive_compositor
     openlive_audio
+    openlive_output
 )
 set_target_properties(tst_mainwindow PROPERTIES WIN32_EXECUTABLE FALSE)
 qt_add_resources(tst_mainwindow "mainwindow_shaders"
@@ -147,7 +148,7 @@ add_test(NAME ui.mainwindow
         "QT_QUICK_BACKEND=software"
         "QML_IMPORT_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../qml"
         "$<TARGET_FILE:tst_mainwindow>"
-        -o "-,txt"
+        -o "${CMAKE_CURRENT_BINARY_DIR}/mainwindow-results.txt,txt"
 )
 # Timeout covers the complete UI suite; allow headroom for QML setup and CI variance.
 set_tests_properties(ui.mainwindow PROPERTIES

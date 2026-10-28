@@ -1,5 +1,7 @@
 #include "output/mp4encoder.h"
 #include "output/recordingcontroller.h"
+#include "output/outputsettings.h"
+#include <QDir>
 #include "preview/compositor.h"
 #include "audio/audiomixer.h"
 #include <QGuiApplication>
@@ -41,6 +43,29 @@ class RecordingTest : public QObject {
         QVERIFY(std::abs(audio["start_time"].toString().toDouble())<.025);
     }
 private slots:
+    void temporarySettingsValidateLockAndGenerateUniquePaths()
+    {
+        QTemporaryDir directory;
+        OutputSettings settings;
+        const auto defaults=settings.recordingDirectory();
+        QCOMPARE(settings.quality(),1); QVERIFY(settings.streamKey().isEmpty());
+        const auto selected=directory.filePath("new/output");
+        QVERIFY(settings.apply(selected,2,"rtmps://example.test/live","unit-test-key"));
+        QVERIFY(!QFileInfo::exists(selected));
+        QVERIFY(!settings.apply(selected,3,"",""));
+        QVERIFY(!settings.apply(selected,2,"https://example.test/live",""));
+        QCOMPARE(settings.quality(),2);
+        settings.setRecordingLocked(true);
+        QVERIFY(!settings.apply(directory.path(),1,"",""));
+        QVERIFY(settings.apply(selected,2,"rtmp://example.test/app","new-unit-key"));
+        const auto first=settings.nextRecordingPath(); QVERIFY(!first.isEmpty());
+        QVERIFY(QFileInfo(selected).isDir()); QVERIFY(!QFileInfo::exists(first));
+        QFile file(first); QVERIFY(file.open(QIODevice::WriteOnly|QIODevice::NewOnly)); file.write("keep"); file.close();
+        const auto next=settings.nextRecordingPath(); QVERIFY(next!=first);
+        QVERIFY(file.open(QIODevice::ReadOnly)); QCOMPARE(file.readAll(),QByteArray("keep"));
+        OutputSettings fresh;
+        QCOMPARE(fresh.recordingDirectory(),defaults); QCOMPARE(fresh.quality(),1); QVERIFY(fresh.streamKey().isEmpty());
+    }
     void encoderUnicodeNoOverwriteAndTracks()
     {
         QTemporaryDir directory; QVERIFY(directory.isValid());

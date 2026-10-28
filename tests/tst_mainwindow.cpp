@@ -1,5 +1,7 @@
 #include "mainwindow.h"
 #include "audio/audiosourcemodel.h"
+#include "output/outputsettings.h"
+#include "output/recordingcontroller.h"
 #include "thememanager.h"
 #include "sourcelistmodel.h"
 #include "imagesourcecontroller.h"
@@ -119,6 +121,8 @@ private slots:
     void loadsMixerPanelWithUnavailableChannels();
     void soundSourcesAndDialogs();
     void soundHardwarePreview();
+    void outputSettingsDialogDraftsAndTheme();
+    void recordingControlsAndGracefulClose();
     void loadsControlsPanelWithVerticalButtons();
     void embedsSourcePanelInFullHeightLeftDock();
     void embedsMixerPanelBelowPreview();
@@ -2216,6 +2220,79 @@ void MainWindowTest::soundHardwarePreview()
     QTRY_COMPARE_WITH_TIMEOUT(audio->activeWorkerCount(),0,2000);
 }
 
+void MainWindowTest::outputSettingsDialogDraftsAndTheme()
+{
+    MainWindow window(*m_theme); window.show();
+    auto *settings=window.findChild<OutputSettings *>(); QVERIFY(settings);
+    auto *controls=window.findChild<QQuickWidget *>("controlsQuickWidget"); QVERIFY(controls && controls->rootObject());
+    auto *button=controls->rootObject()->findChild<QQuickItem *>("settingsButton"); QVERIFY(button && button->isEnabled());
+    QVERIFY(QMetaObject::invokeMethod(button,"clicked"));
+    QPointer<QDialog> dialog=window.findChild<QDialog *>(); QVERIFY(dialog);
+    auto *view=dialog->findChild<QQuickWidget *>("dialogQuickWidget"); QTRY_VERIFY(view && view->rootObject());
+    auto *root=view->rootObject();
+    QVERIFY(QMetaObject::invokeMethod(controls->rootObject(),"settingsDialogRequested"));
+    QCOMPARE(window.findChildren<QDialog *>().size(),1);
+    QTemporaryDir directory;
+    const auto defaults=settings->recordingDirectory();
+    root->setProperty("directory",directory.path()); root->setProperty("quality",2);
+    root->setProperty("server","rtmps://example.test/live"); root->setProperty("key","unit-test-secret");
+    auto *key=root->findChild<QQuickItem *>("streamKeyInput"); QVERIFY(key);
+    QCOMPARE(key->property("echoMode").toInt(),2);
+    for (const auto &theme : {QString("dark"),QString("light")}) {
+        QVERIFY(m_theme->setTheme(theme));
+        QTRY_COMPARE(root->property("color").value<QColor>(),m_theme->color("background.panel"));
+        if (QGuiApplication::platformName()!="offscreen")
+            QVERIFY(view->grabFramebuffer().save(QCoreApplication::applicationDirPath()+"/output-settings-"+theme+".png"));
+    }
+    auto *cancel=root->findChild<QQuickItem *>("cancelOutputSettingsButton"); QVERIFY(cancel);
+    QVERIFY(QMetaObject::invokeMethod(cancel,"clicked")); QTRY_VERIFY(dialog.isNull());
+    QCOMPARE(settings->recordingDirectory(),defaults); QVERIFY(settings->streamKey().isEmpty());
+    QVERIFY(QMetaObject::invokeMethod(button,"clicked"));
+    dialog=window.findChild<QDialog *>(); QVERIFY(dialog);
+    view=dialog->findChild<QQuickWidget *>("dialogQuickWidget"); QTRY_VERIFY(view && view->rootObject()); root=view->rootObject();
+    auto *apply=root->findChild<QQuickItem *>("applyOutputSettingsButton"); QVERIFY(apply);
+    root->setProperty("directory",""); QVERIFY(QMetaObject::invokeMethod(apply,"clicked"));
+    QVERIFY(dialog); QVERIFY(!root->property("errorText").toString().isEmpty());
+    root->setProperty("directory",directory.path()); root->setProperty("quality",0);
+    root->setProperty("server","rtmp://example.test/app"); root->setProperty("key","memory-only-test-key");
+    QVERIFY(QMetaObject::invokeMethod(apply,"clicked")); QTRY_VERIFY(dialog.isNull());
+    QCOMPARE(settings->recordingDirectory(),directory.path()); QCOMPARE(settings->quality(),0);
+    QCOMPARE(settings->streamKey(),QString("memory-only-test-key"));
+    OutputSettings fresh; QVERIFY(fresh.streamKey().isEmpty()); QCOMPARE(fresh.recordingDirectory(),defaults);
+}
+
+void MainWindowTest::recordingControlsAndGracefulClose()
+{
+    MainWindow window(*m_theme); window.show();
+    auto *recorder=window.findChild<RecordingController *>();
+    if (!recorder) QSKIP("Native desktop OpenGL required");
+    QTRY_VERIFY_WITH_TIMEOUT(recorder->ready(),5000);
+    auto *settings=window.findChild<OutputSettings *>(); QVERIFY(settings);
+    QTemporaryDir directory; QVERIFY(settings->apply(directory.path(),1,"",""));
+    auto *controls=window.findChild<QQuickWidget *>("controlsQuickWidget"); QVERIFY(controls && controls->rootObject());
+    auto *record=controls->rootObject()->findChild<QQuickItem *>("recordButton"); QVERIFY(record);
+    QTRY_VERIFY(record->isEnabled()); QVERIFY(QMetaObject::invokeMethod(record,"clicked"));
+    QTRY_COMPARE_WITH_TIMEOUT(recorder->state(),QString("recording"),5000);
+    QVERIFY(settings->recordingLocked()); QCOMPARE(record->property("text").toString(),QString::fromUtf8("停止录制"));
+    QVERIFY(QMetaObject::invokeMethod(controls->rootObject(),"settingsDialogRequested"));
+    QPointer<QDialog> dialog=window.findChild<QDialog *>(); QVERIFY(dialog);
+    auto *view=dialog->findChild<QQuickWidget *>("dialogQuickWidget"); QTRY_VERIFY(view && view->rootObject());
+    auto *root=view->rootObject();
+    QVERIFY(!root->findChild<QQuickItem *>("recordingDirectoryInput")->isEnabled());
+    QVERIFY(!root->findChild<QQuickItem *>("recordingQualityInput")->isEnabled());
+    QVERIFY(!settings->apply(directory.filePath("other"),2,"",""));
+    QVERIFY(QMetaObject::invokeMethod(root->findChild<QQuickItem *>("cancelOutputSettingsButton"),"clicked"));
+    QTRY_VERIFY(dialog.isNull());
+    window.showMinimized(); QTest::qWait(350);
+    QCOMPARE(recorder->state(),QString("recording"));
+    QVERIFY(!window.close());
+    QTRY_VERIFY_WITH_TIMEOUT(!recorder->busy(),10000);
+    QTRY_VERIFY(!window.isVisible());
+    QVERIFY2(recorder->lastError().isEmpty(),qPrintable(recorder->lastError()));
+    QVERIFY(recorder->fileComplete()); QVERIFY(QFileInfo(recorder->filePath()).size()>1000);
+    QVERIFY(!settings->recordingLocked());
+}
+
 void MainWindowTest::loadsControlsPanelWithVerticalButtons()
 {
     QQuickWidget panel;
@@ -2318,7 +2395,7 @@ void MainWindowTest::embedsSourcePanelInFullHeightLeftDock()
         for (auto *button : actions->childItems()) {
             if (!button->objectName().endsWith(QStringLiteral("Button")))
                 continue;
-            QCOMPARE(button->isEnabled(), button->objectName() == QStringLiteral("addSourceButton"));
+            QCOMPARE(button->isEnabled(), button->objectName()==QStringLiteral("addSourceButton"));
             QVERIFY(view->rootObject()->boundingRect().contains(
                 button->mapRectToScene(button->boundingRect())));
         }
@@ -2402,7 +2479,9 @@ void MainWindowTest::embedsControlsPanelAtBottomRight()
         for (const auto *name : {"recordButton", "streamButton", "settingsButton"}) {
             auto *button = view->rootObject()->findChild<QQuickItem *>(QLatin1String(name));
             QVERIFY(button);
-            QCOMPARE(button->isEnabled(), button->objectName() == QStringLiteral("addSourceButton"));
+            const auto *recorder=window.findChild<RecordingController *>();
+            QCOMPARE(button->isEnabled(), button->objectName()=="settingsButton"
+                || (button->objectName()=="recordButton" && recorder && recorder->ready()));
             QVERIFY(view->rootObject()->boundingRect().contains(
                 button->mapRectToScene(button->boundingRect())));
         }

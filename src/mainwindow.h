@@ -15,6 +15,9 @@ class ImageSourceController;
 class DisplayCaptureController;
 class CameraCaptureController;
 class AudioSourceModel;
+class RecordingController;
+class OutputSettings;
+class QCloseEvent;
 class ThemeManager;
 
 class MainWindow : public QMainWindow
@@ -31,6 +34,7 @@ public:
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
+    void closeEvent(QCloseEvent *event) override;
 
 private slots:
     void showSourceAddDialog();
@@ -40,6 +44,9 @@ private slots:
     void showAudioSourceAddDialog();
     void showAudioSourcePropertiesDialog(const QString &sourceId);
     void showAudioSourceRemovalDialog(const QString &sourceId);
+    void showOutputSettingsDialog();
+    void browseRecordingDirectory();
+    void toggleRecording();
 
 private:
     void applyTheme();
@@ -55,6 +62,7 @@ private:
     void setupHelpActions();
     void resetDockLayout();
     void updateStatusLayout();
+    void updateRecordingStatus();
 
     QLabel *m_outputStatus = nullptr;
     QLabel *m_outputMetrics = nullptr;
@@ -69,6 +77,10 @@ private:
     DisplayCaptureController *m_displaySources = nullptr;
     CameraCaptureController *m_cameraSources = nullptr;
     AudioSourceModel *m_audioSources = nullptr;
+    RecordingController *m_recording = nullptr;
+    OutputSettings *m_outputSettings = nullptr;
+    bool m_closePending = false;
+    QString m_previousRecordingError;
     ThemeManager &m_theme;
 };
 #endif // MAINWINDOW_H

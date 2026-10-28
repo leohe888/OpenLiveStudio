@@ -115,7 +115,12 @@ RecordingController::RecordingController(Compositor &video,AudioMixer &audio,QOb
     : QObject(parent), m_video(video), m_audio(audio)
 {
     m_poll.setInterval(50); connect(&m_poll,&QTimer::timeout,this,&RecordingController::poll); m_poll.start();
+    for (auto *thread : {static_cast<QThread *>(&m_video),static_cast<QThread *>(&m_audio)}) {
+        connect(thread,&QThread::started,this,&RecordingController::availabilityChanged);
+        connect(thread,&QThread::finished,this,&RecordingController::availabilityChanged);
+    }
 }
+bool RecordingController::ready() const { return m_video.isRunning() && m_audio.isRunning(); }
 RecordingController::~RecordingController() { m_poll.stop(); if (m_worker) { m_worker->requestStop(); m_worker->wait(); } }
 bool RecordingController::startRecording(const QString &path,int quality)
 {

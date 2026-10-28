@@ -6,6 +6,12 @@
 #include "audio/audiosourcemodel.h"
 #include "thememanager.h"
 #include "preview/previewwidget.h"
+#include "output/recordingcontroller.h"
+#include "output/outputsettings.h"
+#include <QCloseEvent>
+#include <QFileDialog>
+#include <QPointer>
+#include <QtAlgorithms>
 
 #include <QAction>
 #include <QActionGroup>
@@ -79,6 +85,7 @@ MainWindow::MainWindow(ThemeManager &theme, QWidget *parent)
     connect(&m_theme, &ThemeManager::themeChanged, this, &MainWindow::applyTheme);
     m_sourceListModel = new SourceListModel;
     m_audioSources = new AudioSourceModel;
+    m_outputSettings = new OutputSettings;
     m_imageSources = new ImageSourceController(*m_sourceListModel, this);
     m_displaySources = new DisplayCaptureController(*m_sourceListModel, this);
     m_cameraSources = new CameraCaptureController(*m_sourceListModel, this);
@@ -92,6 +99,13 @@ MainWindow::MainWindow(ThemeManager &theme, QWidget *parent)
 
     setupMenuBar();
     setupPreview();
+    if (auto *preview=findChild<PreviewWidget *>(QStringLiteral("previewWidget"))) {
+        m_recording=new RecordingController(*preview->compositor(),*m_audioSources->mixer(),this);
+        connect(m_recording,&RecordingController::statusChanged,this,&MainWindow::updateRecordingStatus);
+        connect(m_recording,&RecordingController::finished,this,[this] {
+            if (m_closePending) { m_closePending=false; QTimer::singleShot(0,this,&QWidget::close); }
+        });
+    }
     setupStatusBar();
     connect(m_audioSources, &AudioSourceModel::sourceError, this, [this](const QString &id, const QString &message) {
         statusBar()->showMessage(tr("声音来源“%1”：%2").arg(m_audioSources->source(id).value("name").toString(), message));
@@ -123,12 +137,76 @@ MainWindow::MainWindow(ThemeManager &theme, QWidget *parent)
     // Destroy the dock QML contexts before their shared state.
     m_sourceListModel->setParent(this);
     m_audioSources->setParent(this);
+    m_outputSettings->setParent(this);
     applyTheme();
     if (!m_theme.lastError().isEmpty())
         statusBar()->showMessage(tr("主题配置提示：%1").arg(m_theme.lastError()));
 }
 
-MainWindow::~MainWindow() = default;
+MainWindow::~MainWindow()
+{
+    qDeleteAll(findChildren<QDialog *>(QString(),Qt::FindDirectChildrenOnly));
+    // Finish encoding while its compositor and audio mixer are still alive.
+    delete m_recording; m_recording=nullptr;
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    if (m_recording && m_recording->busy()) {
+        m_closePending=true; m_recording->stopRecording(); event->ignore(); return;
+    }
+    QMainWindow::closeEvent(event);
+}
+
+void MainWindow::updateRecordingStatus()
+{
+    if (!m_recording || !m_outputStatus) return;
+    m_outputSettings->setRecordingLocked(m_recording->busy());
+    const auto state=m_recording->state();
+    const auto ms=m_recording->durationMs();
+    const auto duration=QStringLiteral("%1:%2:%3").arg(ms/3600000,2,10,QLatin1Char('0'))
+        .arg(ms/60000%60,2,10,QLatin1Char('0')).arg(ms/1000%60,2,10,QLatin1Char('0'));
+    const auto label=state=="starting" ? tr("正在启动") : state=="recording" ? tr("录制中")
+        : state=="stopping" ? tr("正在停止") : state=="error" ? tr("失败")
+        : m_recording->fileComplete() ? tr("已完成") : tr("未开始");
+    m_outputStatus->setText(tr("REC %1 · 时长 %2   |   LIVE 未开始 · 时长 —").arg(label,
+        state=="idle" && !m_recording->fileComplete() ? QStringLiteral("—") : duration));
+    m_outputStatus->setToolTip(m_recording->lastError().isEmpty() ? m_recording->filePath() : m_recording->lastError());
+    m_outputMetrics->setText(tr("输出帧率 %1   |   重复帧 %2   |   跳过画面 %3   |   CPU —")
+        .arg(m_recording->busy() ? QStringLiteral("30 FPS") : QStringLiteral("—"))
+        .arg(m_recording->repeatedFrames()).arg(m_recording->droppedFrames()));
+    if (!m_recording->lastError().isEmpty() && m_previousRecordingError!=m_recording->lastError())
+        statusBar()->showMessage(tr("录制失败：%1%2").arg(m_recording->lastError(),
+            m_recording->fileComplete() ? tr("（已有内容已完成封装）") : tr("（文件未完整完成）")));
+    m_previousRecordingError=m_recording->lastError();
+    updateStatusLayout();
+}
+
+void MainWindow::toggleRecording()
+{
+    if (!m_recording) return;
+    if (m_recording->busy()) { m_recording->stopRecording(); return; }
+    const auto path=m_outputSettings->nextRecordingPath();
+    if (path.isEmpty()) { statusBar()->showMessage(m_outputSettings->lastError()); return; }
+    statusBar()->clearMessage();
+    m_recording->startRecording(path,m_outputSettings->quality());
+}
+
+void MainWindow::showOutputSettingsDialog()
+{
+    const QUrl url(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/OutputSettingsDialog.qml"));
+    for (auto *dialog:findChildren<QDialog *>()) if (dialog->property("qmlSource").toUrl()==url) {
+        dialog->show(); dialog->raise(); dialog->activateWindow(); return;
+    }
+    showDialog(url,tr("设置"),{{"outputSettings",QVariant::fromValue(m_outputSettings)}});
+}
+
+void MainWindow::browseRecordingDirectory()
+{
+    QPointer<QObject> root=sender(); if (!root) return;
+    const auto path=QFileDialog::getExistingDirectory(this,tr("选择录制保存目录"),root->property("directory").toString());
+    if (root && !path.isEmpty()) root->setProperty("directory",path);
+}
 
 void MainWindow::applyTheme()
 {
@@ -280,6 +358,8 @@ void MainWindow::showDialog(const QUrl &source, const QString &title,
             }
             if (root->metaObject()->indexOfSignal("closeRequested()") >= 0)
                 connect(root, SIGNAL(closeRequested()), dialog, SLOT(close()));
+            if (root->metaObject()->indexOfSignal("browseDirectoryRequested()") >= 0)
+                connect(root,SIGNAL(browseDirectoryRequested()),this,SLOT(browseRecordingDirectory()));
             const QSize contentSize(qMax(1, qRound(root->implicitWidth())),
                                     qMax(1, qRound(root->implicitHeight())));
             view->setContent(source, component, root);
@@ -649,6 +729,8 @@ void MainWindow::setupControlsDock()
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
     view->setMinimumHeight(124);
     configureQuickWidget(view);
+    view->rootContext()->setContextProperty(QStringLiteral("outputSettings"),m_outputSettings);
+    view->rootContext()->setContextProperty(QStringLiteral("recordingController"),m_recording);
     pages->addWidget(view);
 
     auto *errorLabel = new QLabel(tr("控制面板加载失败，请查看日志。"), pages);
@@ -675,6 +757,8 @@ void MainWindow::setupControlsDock()
             if (pages->currentWidget() == errorLabel)
                 statusBar()->showMessage(tr("控制面板已加载"), 3000);
             pages->setCurrentWidget(view);
+            connect(view->rootObject(),SIGNAL(settingsDialogRequested()),this,SLOT(showOutputSettingsDialog()),Qt::UniqueConnection);
+            connect(view->rootObject(),SIGNAL(recordingToggleRequested()),this,SLOT(toggleRecording()),Qt::UniqueConnection);
         }
     });
     connect(view, &QQuickWidget::sceneGraphError, this,
