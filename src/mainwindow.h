@@ -12,6 +12,7 @@ class QResizeEvent;
 class QQuickWidget;
 class SourceListModel;
 class ImageSourceController;
+class DisplayCaptureController;
 class ThemeManager;
 
 class MainWindow : public QMainWindow
@@ -33,6 +34,7 @@ private slots:
     void showSourceAddDialog();
     void showSourceRemovalDialog(const QString &sourceId);
     void showSourceFiltersDialog(const QString &sourceId);
+    void showSourcePropertiesDialog(const QString &sourceId);
 
 private:
     void applyTheme();
@@ -59,6 +61,7 @@ private:
     QDockWidget *m_controlsDock = nullptr;
     SourceListModel *m_sourceListModel = nullptr;
     ImageSourceController *m_imageSources = nullptr;
+    DisplayCaptureController *m_displaySources = nullptr;
     ThemeManager &m_theme;
 };
 #endif // MAINWINDOW_H

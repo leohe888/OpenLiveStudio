@@ -85,6 +85,8 @@ private slots:
     void sourceAddDialogHandlesTypeSelection_data();
     void sourceAddDialogHandlesTypeSelection();
     void sourcePanelRequestsRemoval_data();
+    void displayCaptureDialogs_data();
+    void displayCaptureDialogs();
     void sourceFiltersDialogEditsAndRetainsState_data();
     void sourceFiltersDialogEditsAndRetainsState();
     void sourcePanelRequestsRemoval();
@@ -1236,7 +1238,7 @@ void MainWindowTest::basicDialogThemes()
                 }
                 const auto token = name.endsWith("Error") ? "status.error"
                     : (disabledActionText ? "text.disabled"
-                    : (name == "aboutVersion" || name == "aboutQtVersion" || name == "sourceRemovalHint" || name == "sourceTypeUnavailableHint" ? "text.secondary" : "text.primary"));
+                    : (name == "aboutVersion" || name == "aboutQtVersion" || name == "sourceRemovalHint" || name == "sourceTypeUnavailableHint" || name == "displayCaptureHint" ? "text.secondary" : "text.primary"));
                 QCOMPARE(item->property("color").value<QColor>(), m_theme->color(token));
                 if (name.endsWith("Error")) QCOMPARE(item->property("text").toString(), "Validation sample");
             }
@@ -1703,6 +1705,7 @@ void MainWindowTest::sourceAddDialogHandlesInput()
     QTRY_VERIFY(name->hasActiveFocus());
     QCOMPARE(name->property("selectedText").toString(), name->property("text").toString());
     QTest::keyClicks(view, "Custom source");
+    root->findChild<QQuickItem *>("sourceTypeInput")->setProperty("currentIndex", 1);
     QVERIFY(!confirm->isEnabled());
     QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
         confirm->mapToScene(confirm->boundingRect().center()).toPoint());
@@ -1776,18 +1779,21 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
         activateType(index);
         QCOMPARE(type->property("currentValue").toString(), keys.at(index));
         QVERIFY(root->property("errorText").toString().isEmpty());
-        QCOMPARE(hint->isVisible(), index != 3);
+        QCOMPARE(hint->isVisible(), index != 3 && index != 0);
         QCOMPARE(hint->property("color").value<QColor>(), m_theme->color("text.secondary"));
         QPointer<QQuickItem> imageInput = root->findChild<QQuickItem *>("sourceFileInput");
         QVERIFY(imageInput);
         QCOMPARE(imageInput->isVisible(), index == 3);
-        QCOMPARE(confirm->isEnabled(), index == 3);
+        const auto displaySettings = root->findChild<QQuickItem *>("displaySettings");
+        QVERIFY(displaySettings);
+        QCOMPARE(confirm->isEnabled(), index == 3 || (index == 0 && !displaySettings->property("displayId").toString().isEmpty()));
         auto *background = confirm->property("background").value<QQuickItem *>();
         QVERIFY(background);
-        if (index != 3)
+        if (!confirm->isEnabled())
             QCOMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.disabled"));
         QCOMPARE(type->property("currentText").toString(), labels.at(index));
         QCOMPARE(name->property("text").toString(), labels.at(index));
+        if (index == 0) continue; // Display submission is exercised by the capture UI test.
         // A direct call or Return in the name field must also reject these types.
         QVERIFY(QMetaObject::invokeMethod(root, "submit"));
         QVERIFY(!root->property("errorText").toString().isEmpty());
@@ -1803,8 +1809,8 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
         activateType(index);
         QCOMPARE(name->property("text").toString(), QString("Custom source"));
     }
-    QVERIFY(hint->isVisible());
-    QVERIFY(!confirm->isEnabled());
+    QVERIFY(!hint->isVisible());
+    QCOMPARE(confirm->isEnabled(), !root->findChild<QQuickItem *>("displaySettings")->property("displayId").toString().isEmpty());
     auto *cancel = root->findChild<QQuickItem *>("cancelSourceAddButton");
     QVERIFY(cancel);
     QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
@@ -2551,7 +2557,7 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
         QQmlComponent component(panel.engine());
         component.setData(QStringLiteral("import QtQml.Models\nListModel { ListElement { "
                           "sourceId: 'image'; sourceName: 'A long source name for layout verification'; "
-                          "sourceVisible: %1; sourceLocked: %2 } }")
+                          "sourceVisible: %1; sourceLocked: %2; sourceCaptureState: ''; sourceCaptureError: '' } }")
                           .arg(alternateSourceState ? "false" : "true",
                                alternateSourceState ? "true" : "false").toUtf8(), QUrl());
         sourceModel.reset(component.create());
@@ -2752,4 +2758,86 @@ void MainWindowTest::sourceFiltersDialogEditsAndRetainsState()
     previous = dialog;
     QVERIFY(model->removeSource("image"));
     QTRY_VERIFY(previous.isNull());
+}
+
+void MainWindowTest::displayCaptureDialogs_data()
+{
+    QTest::addColumn<QString>("themeId");
+    QTest::newRow("dark") << QString("dark");
+    QTest::newRow("light") << QString("light");
+}
+
+void MainWindowTest::displayCaptureDialogs()
+{
+    QFETCH(QString, themeId);
+    QVERIFY(m_theme->setTheme(themeId));
+    MainWindow window(*m_theme);
+    window.show();
+    auto *model = window.findChild<SourceListModel *>();
+    auto *panel = window.findChild<QQuickWidget *>("sourcesQuickWidget");
+    QVERIFY(model && panel);
+    QVERIFY(QMetaObject::invokeMethod(panel->rootObject(), "sourceAddDialogRequested"));
+    QPointer<QDialog> add = window.findChild<QDialog *>();
+    QVERIFY(add);
+    auto *view = add->findChild<QQuickWidget *>("dialogQuickWidget");
+    QTRY_VERIFY(view && view->rootObject());
+    auto *root = view->rootObject();
+    auto *settings = root->findChild<QQuickItem *>("displaySettings");
+    QVERIFY(settings && settings->isVisible());
+    settings->setProperty("displayId", "missing-test-display");
+    settings->setProperty("captureCursor", false);
+    root->findChild<QQuickItem *>("sourceNameInput")->setProperty("text", "Screen");
+    QVERIFY(view->grabFramebuffer().save(QCoreApplication::applicationDirPath() + QString("/display-add-%1.png").arg(themeId)));
+    auto *confirm = root->findChild<QQuickItem *>("confirmSourceAddButton");
+    QVERIFY(confirm && confirm->isEnabled());
+    QVERIFY(QMetaObject::invokeMethod(confirm, "clicked"));
+    QTRY_VERIFY(add.isNull());
+    QCOMPARE(model->rowCount(), 1);
+    const QString id = model->currentSourceId();
+    QCOMPARE(model->displayProperties(id).value("displayId").toString(), QString("missing-test-display"));
+    QVERIFY(!model->displayProperties(id).value("captureCursor").toBool());
+    QTRY_COMPARE(model->displayProperties(id).value("state").toString(), QString("error"));
+    QVERIFY(model->canEditCurrentDisplay() && model->canFilterCurrentSource());
+    const QString filter = model->addColorCorrection(id);
+    const SourceTransform transform{{800, 400}, {600, 300}, 25};
+    QVERIFY(model->setSourceTransform(id, transform));
+    QVERIFY(QMetaObject::invokeMethod(panel->rootObject(), "sourcePropertiesDialogRequested", Q_ARG(QString, id)));
+    QPointer<QDialog> properties = window.findChild<QDialog *>();
+    QVERIFY(properties);
+    view = properties->findChild<QQuickWidget *>("dialogQuickWidget");
+    QTRY_VERIFY(view && view->rootObject());
+    root = view->rootObject();
+    QCOMPARE(root->objectName(), QString("displayPropertiesDialog"));
+    settings = root->findChild<QQuickItem *>("displaySettings");
+    QCOMPARE(settings->property("displayId").toString(), QString("missing-test-display"));
+    QVERIFY(!settings->property("captureCursor").toBool());
+    auto *target = settings->findChild<QQuickItem *>("displayTargetInput");
+    QVERIFY(target && target->property("currentIndex").toInt() >= 0);
+    QVERIFY(target->property("currentText").toString().contains(QString::fromUtf8("断开")));
+    auto *error = root->findChild<QQuickItem *>("captureErrorLabel");
+    QVERIFY(error && !error->property("text").toString().isEmpty());
+    settings->setProperty("displayId", "another-missing-test-display");
+    settings->setProperty("captureCursor", true);
+    QVERIFY(QMetaObject::invokeMethod(root->findChild<QQuickItem *>("applyDisplayPropertiesButton"), "clicked"));
+    QCOMPARE(model->displayProperties(id).value("displayId").toString(), QString("another-missing-test-display"));
+    QVERIFY(model->displayProperties(id).value("captureCursor").toBool());
+    QTRY_COMPARE(model->displayProperties(id).value("state").toString(), QString("error"));
+    QCOMPARE(model->index(0, 0).data(SourceListModel::TransformRole).value<SourceTransform>(), transform);
+    QCOMPARE(model->sourceFilters(id)[0].toMap()["id"].toString(), filter);
+    QVERIFY(QMetaObject::invokeMethod(root->findChild<QQuickItem *>("retryDisplayButton"), "clicked"));
+    QTRY_COMPARE(model->displayProperties(id).value("state").toString(), QString("error"));
+    for (const auto &theme : {themeId == "dark" ? QString("light") : QString("dark"), themeId}) {
+        QVERIFY(m_theme->setTheme(theme));
+        QCOMPARE(root->property("color").value<QColor>(), m_theme->color("background.panel"));
+        QCOMPARE(error->property("color").value<QColor>(), m_theme->color("status.error"));
+        QCOMPARE(settings->property("displayId").toString(), QString("another-missing-test-display"));
+    }
+    QVERIFY(view->grabFramebuffer().save(QCoreApplication::applicationDirPath() + QString("/display-properties-%1.png").arg(themeId)));
+    QVERIFY(QMetaObject::invokeMethod(panel->rootObject(), "sourceFiltersDialogRequested", Q_ARG(QString, id)));
+    QTRY_COMPARE(window.findChildren<QDialog *>(QString(), Qt::FindDirectChildrenOnly).size(), 2);
+    QVERIFY(QMetaObject::invokeMethod(panel->rootObject(), "sourcePropertiesDialogRequested", Q_ARG(QString, id)));
+    QCOMPARE(window.findChildren<QDialog *>(QString(), Qt::FindDirectChildrenOnly).size(), 2);
+    QVERIFY(model->removeSource(id));
+    QTRY_VERIFY(properties.isNull());
+    QTRY_VERIFY(window.findChildren<QDialog *>(QString(), Qt::FindDirectChildrenOnly).isEmpty());
 }

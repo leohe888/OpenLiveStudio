@@ -36,7 +36,27 @@ void PreviewWidget::setSources(const QList<PreviewSource> &sources)
     m_sources = sources;
     for (auto &source : m_sources) {
         if (source.transform.size.isEmpty())
-            source.transform = SourceGeometry::initial(source.image.size());
+            source.transform = SourceGeometry::initial(source.pixelSize());
+    }
+    // Release imports even when a minimized preview will not receive paintGL().
+    const auto obsolete = [&](const auto &resource) {
+        const auto source = std::find_if(m_sources.cbegin(), m_sources.cend(),
+            [&](const PreviewSource &entry) { return entry.id == resource.first; });
+        return source == m_sources.cend() || !source->hasFrame()
+            || (source->frame && source->frame->generation != resource.second.generation);
+    };
+    if (m_initialized && context() && std::any_of(m_textures.cbegin(), m_textures.cend(), obsolete)) {
+        auto *previousContext = QOpenGLContext::currentContext();
+        auto *previousSurface = previousContext ? previousContext->surface() : nullptr;
+        if (previousContext != context()) makeCurrent();
+        for (auto it = m_textures.begin(); it != m_textures.end();) {
+            if (obsolete(*it)) it = m_textures.erase(it);
+            else ++it;
+        }
+        if (previousContext != context()) {
+            doneCurrent();
+            if (previousContext && previousSurface) previousContext->makeCurrent(previousSurface);
+        }
     }
     if (m_gesture != Gesture::None) {
         const auto *source = selectedSource();
@@ -206,34 +226,58 @@ void PreviewWidget::paintGL()
 
     for (auto it = m_textures.begin(); it != m_textures.end();) {
         const bool retained = std::any_of(m_sources.cbegin(), m_sources.cend(),
-            [&](const PreviewSource &source) { return source.id == it->first && !source.image.isNull(); });
+            [&](const PreviewSource &source) { return source.id == it->first && source.hasFrame(); });
         if (!retained) it = m_textures.erase(it);
         else ++it;
     }
     for (const auto &source : m_sources) {
-        if (!source.visible || source.image.isNull()) continue;
+        if (!source.visible || !source.hasFrame()) continue;
         auto &resource = m_textures[source.id];
-        if (resource.imageKey == source.image.cacheKey()) continue;
-        resource.texture.reset();
-        resource.imageKey = source.image.cacheKey();
+        if (source.frame ? (resource.generation == source.frame->generation && resource.sequence == source.frame->sequence)
+                         : resource.imageKey == source.image.cacheKey()) continue;
+        resource.ready = false;
+        resource.imageKey = source.cpuImage().cacheKey();
+        resource.generation = source.frame ? source.frame->generation : 0;
+        resource.sequence = source.frame ? source.frame->sequence : 0;
         GLint maxTextureSize = 0;
         glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
         QString error;
-        if (source.image.width() > maxTextureSize || source.image.height() > maxTextureSize) {
+        if (source.pixelSize().width() > maxTextureSize || source.pixelSize().height() > maxTextureSize) {
             error = tr("预览图片尺寸超过显卡纹理限制。");
         } else {
-            resource.texture = std::make_unique<QOpenGLTexture>(source.image, QOpenGLTexture::DontGenerateMipMaps);
+            if (!resource.texture || QSize(resource.texture->width(), resource.texture->height()) != source.pixelSize()) {
+                resource.texture = std::make_unique<QOpenGLTexture>(QOpenGLTexture::Target2D);
+                resource.texture->setFormat(QOpenGLTexture::RGBA8_UNorm);
+                resource.texture->setSize(source.pixelSize().width(), source.pixelSize().height());
+                resource.texture->allocateStorage(QOpenGLTexture::RGBA, QOpenGLTexture::UInt8);
+                resource.texture->setMinMagFilters(QOpenGLTexture::Linear, QOpenGLTexture::Linear);
+                resource.texture->setWrapMode(QOpenGLTexture::ClampToEdge);
+            }
+            if (source.frame && source.frame->gpu) {
+                if (resource.transferFailed) continue;
+                if (!resource.interop) resource.interop = std::make_unique<GpuInterop>();
+                QString reason;
+                if (!resource.interop->copy(*source.frame, resource.texture->textureId(), &reason)) {
+                    resource.transferFailed = true;
+                    emit gpuTransferFailed(source.id, source.frame->generation, reason);
+                    continue;
+                }
+            } else {
+                resource.interop.reset();
+                const auto image = source.cpuImage().convertToFormat(QImage::Format_RGBA8888);
+                resource.texture->setData(QOpenGLTexture::RGBA, QOpenGLTexture::UInt8, image.constBits());
+            }
             const GLenum uploadError = glGetError();
             if (!resource.texture->isCreated() || !resource.texture->isStorageAllocated()
                 || uploadError != GL_NO_ERROR) {
                 resource.texture.reset();
                 error = tr("无法创建预览图片纹理。");
             } else {
-                resource.texture->setMinMagFilters(QOpenGLTexture::Linear, QOpenGLTexture::Linear);
-                resource.texture->setWrapMode(QOpenGLTexture::ClampToEdge);
+                resource.ready = true;
             }
         }
-        if (!error.isEmpty()) emit sourceError(source.id, error);
+        if (!error.isEmpty() && error != resource.uploadError) emit sourceError(source.id, error);
+        resource.uploadError = error;
     }
     if (!m_program->bind()) {
         m_initialized = false;
@@ -304,11 +348,11 @@ GLuint PreviewWidget::filterTexture(const PreviewSource &source, GLuint original
         if (!filter.valid()) return fail(tr("色彩校正参数无效，已使用原图。"));
         if (filter.isIdentity()) continue;
         auto &target = m_filterFbos[pass % 2];
-        if (!target || target->size() != source.image.size()) {
+        if (!target || target->size() != source.pixelSize()) {
             QOpenGLFramebufferObjectFormat format;
             format.setInternalTextureFormat(GL_RGBA8);
             format.setAttachment(QOpenGLFramebufferObject::NoAttachment);
-            target = std::make_unique<QOpenGLFramebufferObject>(source.image.size(), format);
+            target = std::make_unique<QOpenGLFramebufferObject>(source.pixelSize(), format);
             if (!target->isValid()) {
                 target.reset();
                 return fail(tr("无法创建滤镜缓冲，已使用原图。"));
@@ -320,7 +364,7 @@ GLuint PreviewWidget::filterTexture(const PreviewSource &source, GLuint original
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         }
         if (!target->bind()) return fail(tr("无法绑定滤镜缓冲，已使用原图。"));
-        glViewport(0, 0, source.image.width(), source.image.height());
+        glViewport(0, 0, source.pixelSize().width(), source.pixelSize().height());
         glDisable(GL_BLEND);
         m_program->setUniformValue("vertexTransform", QMatrix4x4());
         m_program->setUniformValue("flipY", pass > 0);
@@ -340,9 +384,10 @@ GLuint PreviewWidget::filterTexture(const PreviewSource &source, GLuint original
 bool PreviewWidget::drawable(const PreviewSource &source) const
 {
     const auto texture = m_textures.find(source.id);
-    return source.visible && !source.image.isNull() && SourceGeometry::valid(source.transform)
-        && texture != m_textures.end() && texture->second.texture
-        && texture->second.imageKey == source.image.cacheKey();
+    return source.visible && source.hasFrame() && SourceGeometry::valid(source.transform)
+        && texture != m_textures.end() && texture->second.texture && texture->second.ready
+        && (source.frame ? (texture->second.generation == source.frame->generation && texture->second.sequence == source.frame->sequence)
+                         : texture->second.imageKey == source.image.cacheKey());
 }
 
 const PreviewSource *PreviewWidget::selectedSource() const

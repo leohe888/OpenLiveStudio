@@ -53,6 +53,12 @@ QVariant SourceListModel::data(const QModelIndex &index, int role) const
     case LockedRole: return item.locked;
     case TransformRole: return QVariant::fromValue(item.transform);
     case FiltersRole: return QVariant::fromValue(item.filters);
+    case DisplayConfigRole:
+        if (const auto *display = std::get_if<DisplayCaptureConfig>(&item.config))
+            return QVariantMap{{"displayId", display->displayId}, {"captureCursor", display->captureCursor}};
+        return {};
+    case CaptureStateRole: return item.runtime.captureState;
+    case CaptureErrorRole: return item.runtime.captureError;
     default: return {};
     }
 }
@@ -62,7 +68,8 @@ QHash<int, QByteArray> SourceListModel::roleNames() const
     return {{IdRole, "sourceId"}, {NameRole, "sourceName"}, {TypeRole, "sourceType"},
             {FilePathRole, "sourceFilePath"}, {OriginalSizeRole, "sourceOriginalSize"},
             {VisibleRole, "sourceVisible"}, {LockedRole, "sourceLocked"}, {TransformRole, "sourceTransform"},
-            {FiltersRole, "sourceFilters"}};
+            {FiltersRole, "sourceFilters"}, {DisplayConfigRole, "sourceDisplayConfig"},
+            {CaptureStateRole, "sourceCaptureState"}, {CaptureErrorRole, "sourceCaptureError"}};
 }
 
 bool SourceListModel::selectSource(const QString &id)
@@ -231,7 +238,7 @@ bool SourceListModel::setSourceTransform(const QString &id, const SourceTransfor
 bool SourceListModel::canFilterSource(const QString &sourceId) const
 {
     const int row = sourceRow(sourceId);
-    return row >= 0 && m_sources[row].type() == SourceType::Image;
+    return row >= 0 && (m_sources[row].type() == SourceType::Image || m_sources[row].type() == SourceType::DisplayCapture);
 }
 
 QVariantList SourceListModel::sourceFilters(const QString &sourceId) const
@@ -323,6 +330,49 @@ bool SourceListModel::setFilterParameters(const QString &sourceId, const QString
         entry.contrast = float(contrast);
         entry.saturation = float(saturation);
         notifyFiltersChanged(row);
+    }
+    return true;
+}
+
+bool SourceListModel::canEditCurrentDisplay() const
+{
+    const int row = sourceRow(m_currentSourceId);
+    return row >= 0 && m_sources[row].type() == SourceType::DisplayCapture;
+}
+
+QVariantMap SourceListModel::displayProperties(const QString &id) const
+{
+    const int row = sourceRow(id);
+    if (row < 0) return {};
+    const auto *config = std::get_if<DisplayCaptureConfig>(&m_sources[row].config);
+    if (!config) return {};
+    return {{"displayId", config->displayId}, {"captureCursor", config->captureCursor},
+            {"state", m_sources[row].runtime.captureState}, {"error", m_sources[row].runtime.captureError}};
+}
+
+bool SourceListModel::setDisplayConfig(const QString &id, const QString &displayId, bool cursor)
+{
+    const int row = sourceRow(id);
+    if (row < 0 || displayId.trimmed().isEmpty()) return false;
+    auto *config = std::get_if<DisplayCaptureConfig>(&m_sources[row].config);
+    if (!config) return false;
+    if (config->displayId != displayId || config->captureCursor != cursor) {
+        *config = {displayId, cursor};
+        emit dataChanged(index(row, 0), index(row, 0), {DisplayConfigRole});
+    }
+    return true;
+}
+
+bool SourceListModel::setSourceCaptureStatus(const QString &id, const QString &state, const QString &error)
+{
+    const int row = sourceRow(id);
+    if (row < 0) return false;
+    auto &runtime = m_sources[row].runtime;
+    if (runtime.captureState != state || runtime.captureError != error) {
+        runtime.captureState = state;
+        runtime.captureError = error;
+        emit dataChanged(index(row, 0), index(row, 0), {CaptureStateRole, CaptureErrorRole});
+        emit captureStatusChanged(id);
     }
     return true;
 }

@@ -7,18 +7,27 @@ Rectangle {
     readonly property var themeColors: uiTheme.colors
     objectName: "sourceAddDialogContent"
     implicitWidth: 520
-    implicitHeight: 300
+    implicitHeight: supportsDisplay ? 390 : 300
     color: root.themeColors.background.panel
     required property var sourceListModel
     property var imageSourceController: null
+    property var displayCaptureController: null
     property bool loading: false
     readonly property bool isImage: sourceType.currentValue === "image"
+    readonly property bool isDisplay: sourceType.currentValue === "displayCapture"
+    readonly property bool supportsDisplay: isDisplay && displayCaptureController !== null
     property string initialName: qsTr("显示器采集")
     property string errorText: ""
     property bool nameEdited: false
     signal closeRequested()
 
     function submit() {
+        if (supportsDisplay) {
+            const id = displayCaptureController.addDisplay(nameInput.text, displaySettings.displayId, displaySettings.captureCursor)
+            if (id.length) closeRequested()
+            else errorText = qsTr("请输入来源名称并选择显示器。")
+            return
+        }
         if (!isImage) {
             errorText = qsTr("该类型尚未接入添加功能。")
             return
@@ -190,9 +199,16 @@ Rectangle {
                 }
             }
         }
+        DisplayCaptureSettings {
+            id: displaySettings
+            objectName: "displaySettings"
+            Layout.fillWidth: true
+            visible: root.supportsDisplay
+            displayCaptureController: root.displayCaptureController
+        }
         Label {
             objectName: "sourceTypeUnavailableHint"
-            visible: !root.isImage
+            visible: !root.isImage && !root.supportsDisplay
             Layout.fillWidth: true
             text: qsTr("该类型尚未接入添加功能。")
             textFormat: Text.PlainText
@@ -214,7 +230,8 @@ Rectangle {
             ActionButton {
                 objectName: "confirmSourceAddButton"
                 text: root.loading ? qsTr("加载中…") : qsTr("确定")
-                enabled: root.isImage && !root.loading && root.imageSourceController !== null
+                enabled: !root.loading && ((root.isImage && root.imageSourceController !== null)
+                    || (root.supportsDisplay && displaySettings.displayId.length > 0))
                 onClicked: root.submit()
             }
             ActionButton {

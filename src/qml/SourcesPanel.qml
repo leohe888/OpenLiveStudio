@@ -13,6 +13,7 @@ Rectangle {
     signal sourceAddDialogRequested()
     signal sourceRemovalDialogRequested(string sourceId)
     signal sourceFiltersDialogRequested(string sourceId)
+    signal sourcePropertiesDialogRequested(string sourceId)
 
     // Each operation opts in once its business implementation is available.
     component SourceButton: ToolButton {
@@ -83,6 +84,8 @@ Rectangle {
                     required property string sourceName
                     required property bool sourceVisible
                     required property bool sourceLocked
+                    required property string sourceCaptureState
+                    required property string sourceCaptureError
                     readonly property bool selected: root.state !== null
                         && root.state.currentSourceId === sourceId
                     objectName: "sourceRow_" + sourceId
@@ -106,7 +109,10 @@ Rectangle {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             Layout.minimumWidth: 0
-                            text: sourceName
+                            text: sourceName + (sourceCaptureState === "error" ? qsTr(" · 采集失败") : "")
+                            ToolTip.visible: sourceErrorHover.hovered && sourceCaptureError.length > 0
+                            ToolTip.text: sourceCaptureError
+                            HoverHandler { id: sourceErrorHover }
                             textFormat: Text.PlainText
                             elide: Text.ElideRight
                             color: root.themeColors.text.primary
@@ -213,6 +219,8 @@ Rectangle {
                 Item { Layout.fillWidth: true }
                 SourceButton {
                     objectName: "sourcePropertiesButton"
+                    enabled: root.state !== null && root.state.canEditCurrentDisplay
+                    onClicked: root.sourcePropertiesDialogRequested(root.state.currentSourceId)
                     text: qsTr("来源属性")
                     icon.source: "qrc:/assets/icons/settings.svg"
                     Layout.preferredWidth: 30

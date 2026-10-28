@@ -13,6 +13,7 @@ class SourceListModel : public QAbstractListModel
     Q_OBJECT
     Q_PROPERTY(QString currentSourceId READ currentSourceId NOTIFY currentSourceIdChanged)
     Q_PROPERTY(bool canFilterCurrentSource READ canFilterCurrentSource NOTIFY currentSourceIdChanged)
+    Q_PROPERTY(bool canEditCurrentDisplay READ canEditCurrentDisplay NOTIFY currentSourceIdChanged)
     Q_PROPERTY(bool canMoveCurrentSourceUp READ canMoveCurrentSourceUp NOTIFY sourceMoveAvailabilityChanged)
     Q_PROPERTY(bool canMoveCurrentSourceDown READ canMoveCurrentSourceDown NOTIFY sourceMoveAvailabilityChanged)
 
@@ -26,7 +27,10 @@ public:
         VisibleRole,
         LockedRole,
         TransformRole,
-        FiltersRole
+        FiltersRole,
+        DisplayConfigRole,
+        CaptureStateRole,
+        CaptureErrorRole
     };
 
     explicit SourceListModel(QObject *parent = nullptr);
@@ -40,6 +44,10 @@ public:
     bool setSourceTransform(const QString &id, const SourceTransform &transform);
     bool addSource(const SourceData &source);
     bool setSourceOriginalSize(const QString &id, const QSize &size);
+    bool setSourceCaptureStatus(const QString &id, const QString &state, const QString &error);
+    bool canEditCurrentDisplay() const;
+    Q_INVOKABLE QVariantMap displayProperties(const QString &id) const;
+    Q_INVOKABLE bool setDisplayConfig(const QString &id, const QString &displayId, bool cursor);
 
     QString currentSourceId() const { return m_currentSourceId; }
     // An empty ID clears selection; other IDs must belong to the source list.
@@ -68,6 +76,7 @@ signals:
     void currentSourceIdChanged();
     void sourceMoveAvailabilityChanged();
     void sourceFiltersChanged(const QString &sourceId);
+    void captureStatusChanged(const QString &sourceId);
 
 private:
     int sourceRow(const QString &sourceId) const;

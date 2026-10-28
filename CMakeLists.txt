@@ -7,6 +7,21 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets QuickWidgets QuickControls
 
 qt_standard_project_setup()
 
+add_library(openlive_capture STATIC
+    src/capture/captureframe.h
+    src/capture/d3dtexture.h
+    src/capture/displaytargets.h src/capture/displaytargets.cpp
+    src/capture/displaycaptureworker.h src/capture/displaycaptureworker.cpp
+    src/capture/gpuinterop.h src/capture/gpuinterop.cpp
+    src/capture/displaycapturecontroller.h src/capture/displaycapturecontroller.cpp
+)
+target_include_directories(openlive_capture PUBLIC "${PROJECT_SOURCE_DIR}/src")
+target_link_libraries(openlive_capture PUBLIC Qt::Core Qt::Gui Qt::OpenGL)
+if(WIN32)
+    target_compile_definitions(openlive_capture PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_link_libraries(openlive_capture PRIVATE d3d11 dxgi windowsapp opengl32)
+endif()
+
 if(Qt6_VERSION VERSION_GREATER_EQUAL 6.8)
     qt_policy(SET QTP0004 NEW)
 endif()
@@ -39,6 +54,8 @@ set(OPENLIVE_STUDIO_QML_FILES
     "${PROJECT_SOURCE_DIR}/src/qml/SourceAddDialog.qml"
     "${PROJECT_SOURCE_DIR}/src/qml/SourceRemovalDialog.qml"
     "${PROJECT_SOURCE_DIR}/src/qml/SourceFiltersDialog.qml"
+    "${PROJECT_SOURCE_DIR}/src/qml/DisplayCaptureSettings.qml"
+    "${PROJECT_SOURCE_DIR}/src/qml/DisplayPropertiesDialog.qml"
 )
 
 # Preserve the existing qrc:/OpenLiveStudio/Ui/qml/<name>.qml URLs.
@@ -112,6 +129,7 @@ target_link_libraries(OpenLiveStudio
         Qt::Svg
         Qt::OpenGL
         Qt::OpenGLWidgets
+        openlive_capture
         FFmpeg::avdevice
         FFmpeg::avformat
         FFmpeg::avcodec

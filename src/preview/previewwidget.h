@@ -2,6 +2,7 @@
 #define PREVIEWWIDGET_H
 
 #include "previewsource.h"
+#include "capture/gpuinterop.h"
 
 #include <QColor>
 #include <QOpenGLFunctions>
@@ -37,6 +38,7 @@ signals:
     void transformRequested(const QString &id, const SourceTransform &transform);
     void sourceError(const QString &sourceId, const QString &message);
     void renderingError(const QString &message);
+    void gpuTransferFailed(const QString &sourceId, quint64 generation, const QString &message);
 
 protected:
     bool event(QEvent *event) override;
@@ -86,6 +88,11 @@ private:
         qint64 imageKey = 0;
         std::unique_ptr<QOpenGLTexture> texture;
         QString filterError;
+        QString uploadError;
+        std::unique_ptr<GpuInterop> interop;
+        quint64 generation = 0, sequence = 0;
+        bool ready = false;
+        bool transferFailed = false;
     };
     std::map<QString, TextureResource> m_textures;
     std::unique_ptr<QOpenGLFramebufferObject> m_canvasFbo;

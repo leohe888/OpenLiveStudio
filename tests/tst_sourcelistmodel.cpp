@@ -14,6 +14,7 @@ class SourceListModelTest : public QObject
     Q_OBJECT
 private slots:
     void insertsSourcesAtTop();
+    void displayPropertiesPreserveSourceState();
     void initializesAndValidatesTransforms();
     void sharesGeometryForMappingAndResizing();
     void startsWithEmptySourceList();
@@ -65,7 +66,9 @@ void SourceListModelTest::exposesSourceRolesAndRejectsInvalidIndexes()
         {SourceListModel::TypeRole, "sourceType"}, {SourceListModel::FilePathRole, "sourceFilePath"},
         {SourceListModel::OriginalSizeRole, "sourceOriginalSize"},
         {SourceListModel::VisibleRole, "sourceVisible"}, {SourceListModel::LockedRole, "sourceLocked"},
-        {SourceListModel::TransformRole, "sourceTransform"}, {SourceListModel::FiltersRole, "sourceFilters"}};
+        {SourceListModel::TransformRole, "sourceTransform"}, {SourceListModel::FiltersRole, "sourceFilters"},
+        {SourceListModel::DisplayConfigRole, "sourceDisplayConfig"},
+        {SourceListModel::CaptureStateRole, "sourceCaptureState"}, {SourceListModel::CaptureErrorRole, "sourceCaptureError"}};
     QCOMPARE(model->roleNames(), roles);
     const auto index = model->index(0, 0);
     QCOMPARE(index.data(SourceListModel::IdRole).toString(), QString("image"));
@@ -526,4 +529,46 @@ void SourceListModelTest::filtersAreOrderedValidatedAndIndependent()
     QVERIFY(model.removeSource("a"));
     QVERIFY(model.sourceFilters("a").isEmpty());
     QVERIFY(!model.removeFilter("a", second));
+}
+
+void SourceListModelTest::displayPropertiesPreserveSourceState()
+{
+    SourceListModel model(QList<SourceData>{{"screen", "Screen", DisplayCaptureConfig{"physical-path", true}},
+        {"image", "Image", ImageConfig{"a.png"}}, {"camera", "Camera", CameraConfig{}}});
+    QSignalSpy changed(&model, &SourceListModel::dataChanged);
+    QSignalSpy status(&model, &SourceListModel::captureStatusChanged);
+    QVERIFY(model.selectSource("screen"));
+    QVERIFY(model.canEditCurrentDisplay() && model.canFilterCurrentSource());
+    QVERIFY(model.setSourceOriginalSize("screen", QSize(1920, 1080)));
+    const SourceTransform transform{{300, 500}, {640, 360}, 45};
+    QVERIFY(model.setSourceTransform("screen", transform));
+    const auto filter = model.addColorCorrection("screen");
+    QVERIFY(model.setSourceLocked("screen", true));
+    const int before = changed.count();
+    QVERIFY(!model.setDisplayConfig("screen", " ", true));
+    QVERIFY(!model.setDisplayConfig("image", "another", true));
+    QVERIFY(!model.setDisplayConfig("missing", "another", true));
+    QVERIFY(model.setDisplayConfig("screen", "physical-path", true));
+    QCOMPARE(changed.count(), before);
+    QVERIFY(model.setDisplayConfig("screen", "another-physical-path", false));
+    QCOMPARE(changed.last()[2].value<QList<int>>(), QList<int>{SourceListModel::DisplayConfigRole});
+    QCOMPARE(model.index(0, 0).data(SourceListModel::TransformRole).value<SourceTransform>(), transform);
+    QCOMPARE(model.sourceFilters("screen")[0].toMap()["id"].toString(), filter);
+    QCOMPARE(model.displayProperties("screen").value("displayId").toString(), QString("another-physical-path"));
+    QVERIFY(!model.displayProperties("screen").value("captureCursor").toBool());
+    QVERIFY(model.setSourceCaptureStatus("screen", "error", "Disconnected"));
+    QCOMPARE(status.count(), 1);
+    QVERIFY(model.setSourceCaptureStatus("screen", "error", "Disconnected"));
+    QCOMPARE(status.count(), 1);
+    QCOMPARE(model.index(0, 0).data(SourceListModel::CaptureStateRole).toString(), QString("error"));
+    QCOMPARE(model.displayProperties("screen").value("error").toString(), QString("Disconnected"));
+    QVERIFY(model.setSourceCaptureStatus("screen", "starting", {}));
+    QVERIFY(model.displayProperties("screen").value("error").toString().isEmpty());
+    QVERIFY(model.selectSource("image"));
+    QVERIFY(!model.canEditCurrentDisplay() && model.canFilterCurrentSource());
+    QVERIFY(model.selectSource("camera"));
+    QVERIFY(!model.canEditCurrentDisplay() && !model.canFilterCurrentSource());
+    QVERIFY(model.removeSource("screen"));
+    QVERIFY(model.displayProperties("screen").isEmpty());
+    QVERIFY(!model.setSourceCaptureStatus("screen", "error", "Removed"));
 }

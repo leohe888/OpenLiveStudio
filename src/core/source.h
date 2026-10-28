@@ -53,6 +53,8 @@ using SourceConfig = std::variant<
 struct SourceRuntimeInfo {
     // Invalid until loading, capture, or rendering supplies the actual size.
     QSize originalSize;
+    QString captureState;
+    QString captureError;
 };
 struct SourceData {
     QString id;
