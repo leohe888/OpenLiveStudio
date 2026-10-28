@@ -13,3 +13,8 @@
 7. **编码**：优先 FFmpeg 软件编码，能加 NVENC/QSV 更好。
 8. **快捷键**：开始/停止录制。
 9. **断线重连/异常恢复**：推流断开重连，MKV 崩溃可修复。
+
+## 已实现的采集链路
+
+- [显示器采集](docs/display-capture.md)：WGC 与 GPU 纹理交接。
+- [摄像头采集](docs/camera-capture.md)：Media Foundation 异步视频采集、模式设置和故障恢复。

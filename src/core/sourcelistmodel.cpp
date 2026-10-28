@@ -57,6 +57,12 @@ QVariant SourceListModel::data(const QModelIndex &index, int role) const
         if (const auto *display = std::get_if<DisplayCaptureConfig>(&item.config))
             return QVariantMap{{"displayId", display->displayId}, {"captureCursor", display->captureCursor}};
         return {};
+    case CameraConfigRole:
+        if (const auto *camera = std::get_if<CameraConfig>(&item.config))
+            return QVariantMap{{"deviceId", camera->deviceId}, {"width", camera->requestedResolution.width()},
+                {"height", camera->requestedResolution.height()}, {"numerator", camera->requestedFrameRate},
+                {"denominator", camera->frameRateDenominator}};
+        return {};
     case CaptureStateRole: return item.runtime.captureState;
     case CaptureErrorRole: return item.runtime.captureError;
     default: return {};
@@ -69,7 +75,7 @@ QHash<int, QByteArray> SourceListModel::roleNames() const
             {FilePathRole, "sourceFilePath"}, {OriginalSizeRole, "sourceOriginalSize"},
             {VisibleRole, "sourceVisible"}, {LockedRole, "sourceLocked"}, {TransformRole, "sourceTransform"},
             {FiltersRole, "sourceFilters"}, {DisplayConfigRole, "sourceDisplayConfig"},
-            {CaptureStateRole, "sourceCaptureState"}, {CaptureErrorRole, "sourceCaptureError"}};
+            {CameraConfigRole, "sourceCameraConfig"}, {CaptureStateRole, "sourceCaptureState"}, {CaptureErrorRole, "sourceCaptureError"}};
 }
 
 bool SourceListModel::selectSource(const QString &id)
@@ -194,6 +200,9 @@ bool SourceListModel::addSource(const SourceData &source)
 {
     if (source.id.trimmed().isEmpty() || sourceRow(source.id) >= 0)
         return false;
+    if (const auto *camera = std::get_if<CameraConfig>(&source.config)) {
+        if (!camera->valid() || cameraDeviceInUse(camera->deviceId)) return false;
+    }
     beginInsertRows({}, 0, 0);
     SourceData initialized = source;
     if (initialized.transform.size.isEmpty())
@@ -209,10 +218,16 @@ bool SourceListModel::setSourceOriginalSize(const QString &id, const QSize &size
     const int row = sourceRow(id);
     if (row < 0) return false;
     if (m_sources[row].runtime.originalSize != size) {
+        const QSize previous = m_sources[row].runtime.originalSize;
         m_sources[row].runtime.originalSize = size;
         QList<int> roles{OriginalSizeRole};
         if (m_sources[row].transform.size.isEmpty() && !size.isEmpty()) {
             m_sources[row].transform = SourceGeometry::initial(size);
+            roles.append(TransformRole);
+        } else if (m_sources[row].type() == SourceType::Camera && !size.isEmpty()
+                   && previous != size && !m_sources[row].transform.size.isEmpty()) {
+            auto &transform = m_sources[row].transform;
+            transform.size.setHeight(transform.size.width() * size.height() / size.width());
             roles.append(TransformRole);
         }
         emit dataChanged(index(row, 0), index(row, 0), roles);
@@ -238,7 +253,7 @@ bool SourceListModel::setSourceTransform(const QString &id, const SourceTransfor
 bool SourceListModel::canFilterSource(const QString &sourceId) const
 {
     const int row = sourceRow(sourceId);
-    return row >= 0 && (m_sources[row].type() == SourceType::Image || m_sources[row].type() == SourceType::DisplayCapture);
+    return row >= 0 && (m_sources[row].type() == SourceType::Image || m_sources[row].type() == SourceType::DisplayCapture || m_sources[row].type() == SourceType::Camera);
 }
 
 QVariantList SourceListModel::sourceFilters(const QString &sourceId) const
@@ -375,4 +390,54 @@ bool SourceListModel::setSourceCaptureStatus(const QString &id, const QString &s
         emit captureStatusChanged(id);
     }
     return true;
+}
+
+bool SourceListModel::canEditCurrentSource() const
+{
+    const int row = sourceRow(m_currentSourceId);
+    return row >= 0 && (m_sources[row].type() == SourceType::DisplayCapture || m_sources[row].type() == SourceType::Camera);
+}
+
+bool SourceListModel::cameraDeviceInUse(const QString &deviceId, const QString &exceptId) const
+{
+    for (const auto &source : m_sources)
+        if (const auto *config = std::get_if<CameraConfig>(&source.config))
+            if (source.id != exceptId && config->deviceId == deviceId) return true;
+    return false;
+}
+
+QVariantMap SourceListModel::cameraProperties(const QString &id) const
+{
+    const int row = sourceRow(id);
+    if (row < 0 || m_sources[row].type() != SourceType::Camera) return {};
+    auto result = data(index(row, 0), CameraConfigRole).toMap();
+    const auto &runtime = m_sources[row].runtime;
+    result.insert("state", runtime.captureState); result.insert("error", runtime.captureError);
+    result.insert("actualWidth", runtime.originalSize.width()); result.insert("actualHeight", runtime.originalSize.height());
+    result.insert("actualNumerator", runtime.actualRateNumerator); result.insert("actualDenominator", runtime.actualRateDenominator);
+    return result;
+}
+
+bool SourceListModel::setCameraConfig(const QString &id, const CameraConfig &value)
+{
+    const int row = sourceRow(id);
+    if (row < 0 || !value.valid() || cameraDeviceInUse(value.deviceId, id)) return false;
+    auto *config = std::get_if<CameraConfig>(&m_sources[row].config);
+    if (!config) return false;
+    if (*config != value) {
+        *config = value;
+        emit dataChanged(index(row, 0), index(row, 0), {CameraConfigRole});
+    }
+    return true;
+}
+
+void SourceListModel::setCameraActualMode(const QString &id, const QSize &size, int numerator, int denominator)
+{
+    const int row = sourceRow(id);
+    if (row < 0) return;
+    setSourceOriginalSize(id, size);
+    auto &runtime = m_sources[row].runtime;
+    if (runtime.actualRateNumerator == numerator && runtime.actualRateDenominator == denominator) return;
+    runtime.actualRateNumerator = numerator; runtime.actualRateDenominator = denominator;
+    emit captureStatusChanged(id);
 }

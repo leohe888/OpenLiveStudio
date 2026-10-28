@@ -2,6 +2,7 @@
 #include "sourcelistmodel.h"
 #include "imagesourcecontroller.h"
 #include "capture/displaycapturecontroller.h"
+#include "capture/cameracapturecontroller.h"
 #include "thememanager.h"
 #include "preview/previewwidget.h"
 
@@ -78,6 +79,9 @@ MainWindow::MainWindow(ThemeManager &theme, QWidget *parent)
     m_sourceListModel = new SourceListModel;
     m_imageSources = new ImageSourceController(*m_sourceListModel, this);
     m_displaySources = new DisplayCaptureController(*m_sourceListModel, this);
+    m_cameraSources = new CameraCaptureController(*m_sourceListModel, this);
+    connect(m_displaySources, &DisplayCaptureController::sourcesChanged,
+            m_cameraSources, &CameraCaptureController::setOtherSources);
     connect(m_imageSources, &ImageSourceController::sourcesChanged,
             m_displaySources, &DisplayCaptureController::setImageSources);
     setWindowTitle(QStringLiteral("OpenLive Studio"));
@@ -100,6 +104,7 @@ MainWindow::MainWindow(ThemeManager &theme, QWidget *parent)
     };
     connect(m_imageSources, &ImageSourceController::sourceError, this, showSourceError);
     connect(m_displaySources, &DisplayCaptureController::sourceError, this, showSourceError);
+    connect(m_cameraSources, &CameraCaptureController::sourceError, this, showSourceError);
     if (auto *preview = findChild<PreviewWidget *>(QStringLiteral("previewWidget")))
         connect(preview, &PreviewWidget::sourceError, this, showSourceError, Qt::QueuedConnection);
     setupSourcesDock();
@@ -193,7 +198,8 @@ void MainWindow::showDialog(const QUrl &source, const QString &title,
     dialog->setObjectName(QStringLiteral("qmlDialog"));
     dialog->setProperty("qmlSource", source);
     if (source.fileName() == QStringLiteral("SourceFiltersDialog.qml")
-        || source.fileName() == QStringLiteral("DisplayPropertiesDialog.qml")) {
+        || source.fileName() == QStringLiteral("DisplayPropertiesDialog.qml")
+        || source.fileName() == QStringLiteral("CameraPropertiesDialog.qml")) {
         const QString id = properties.value(QStringLiteral("sourceId")).toString();
         dialog->setProperty(source.fileName() == QStringLiteral("SourceFiltersDialog.qml")
             ? "filterSourceId" : "displaySourceId", id);
@@ -247,6 +253,9 @@ void MainWindow::showDialog(const QUrl &source, const QString &title,
             if (source.fileName() == QStringLiteral("SourceAddDialog.qml")
                 || source.fileName() == QStringLiteral("DisplayPropertiesDialog.qml"))
                 initialProperties.insert(QStringLiteral("displayCaptureController"), QVariant::fromValue(m_displaySources));
+            if (source.fileName() == QStringLiteral("SourceAddDialog.qml")
+                || source.fileName() == QStringLiteral("CameraPropertiesDialog.qml"))
+                initialProperties.insert(QStringLiteral("cameraCaptureController"), QVariant::fromValue(m_cameraSources));
             auto *object = component->createWithInitialProperties(initialProperties, view->rootContext());
             auto *root = qobject_cast<QQuickItem *>(object);
             if (!root) {
@@ -320,13 +329,21 @@ void MainWindow::showSourceFiltersDialog(const QString &sourceId)
 
 void MainWindow::showSourcePropertiesDialog(const QString &sourceId)
 {
-    if (m_sourceListModel->displayProperties(sourceId).isEmpty()) return;
+    const bool camera = !m_sourceListModel->cameraProperties(sourceId).isEmpty();
+    if (!camera && m_sourceListModel->displayProperties(sourceId).isEmpty()) return;
     for (auto *dialog : findChildren<QDialog *>(QString(), Qt::FindDirectChildrenOnly)) {
         if (dialog->property("displaySourceId").toString() == sourceId && dialog->isVisible()) {
             dialog->raise();
             dialog->activateWindow();
             return;
         }
+    }
+    if (camera) {
+        m_cameraSources->refreshDevices();
+        showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/CameraPropertiesDialog.qml")),
+            tr("摄像头来源属性"), {{QStringLiteral("sourceListModel"), QVariant::fromValue(m_sourceListModel)},
+                                   {QStringLiteral("sourceId"), sourceId}});
+        return;
     }
     m_displaySources->refreshDisplays();
     showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/DisplayPropertiesDialog.qml")),
@@ -442,7 +459,7 @@ void MainWindow::setupPreview()
     auto *preview = new PreviewWidget(pages);
     preview->setObjectName(QStringLiteral("previewWidget"));
     connect(preview, &PreviewWidget::renderingError, pages, showError, Qt::QueuedConnection);
-    connect(m_displaySources, &DisplayCaptureController::sourcesChanged, preview, &PreviewWidget::setSources);
+    connect(m_cameraSources, &CameraCaptureController::sourcesChanged, preview, &PreviewWidget::setSources);
     connect(preview, &PreviewWidget::gpuTransferFailed, m_displaySources, &DisplayCaptureController::failTransfer, Qt::QueuedConnection);
     connect(preview, &PreviewWidget::selectionRequested, m_sourceListModel, &SourceListModel::selectSource);
     connect(preview, &PreviewWidget::transformRequested, m_sourceListModel, &SourceListModel::setSourceTransform);

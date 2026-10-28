@@ -68,6 +68,7 @@ void SourceListModelTest::exposesSourceRolesAndRejectsInvalidIndexes()
         {SourceListModel::VisibleRole, "sourceVisible"}, {SourceListModel::LockedRole, "sourceLocked"},
         {SourceListModel::TransformRole, "sourceTransform"}, {SourceListModel::FiltersRole, "sourceFilters"},
         {SourceListModel::DisplayConfigRole, "sourceDisplayConfig"},
+        {SourceListModel::CameraConfigRole, "sourceCameraConfig"},
         {SourceListModel::CaptureStateRole, "sourceCaptureState"}, {SourceListModel::CaptureErrorRole, "sourceCaptureError"}};
     QCOMPARE(model->roleNames(), roles);
     const auto index = model->index(0, 0);
@@ -484,7 +485,7 @@ void SourceListModelTest::filtersAreOrderedValidatedAndIndependent()
     QVERIFY(!model.canFilterCurrentSource());
     QVERIFY(model.selectSource("a"));
     QVERIFY(model.canFilterCurrentSource());
-    QVERIFY(model.addColorCorrection("camera").isEmpty());
+    QVERIFY(model.canFilterSource("camera"));
     QVERIFY(model.addColorCorrection("missing").isEmpty());
     const QString first = model.addColorCorrection("a");
     const QString second = model.addColorCorrection("a");
@@ -567,7 +568,7 @@ void SourceListModelTest::displayPropertiesPreserveSourceState()
     QVERIFY(model.selectSource("image"));
     QVERIFY(!model.canEditCurrentDisplay() && model.canFilterCurrentSource());
     QVERIFY(model.selectSource("camera"));
-    QVERIFY(!model.canEditCurrentDisplay() && !model.canFilterCurrentSource());
+    QVERIFY(!model.canEditCurrentDisplay() && model.canFilterCurrentSource() && model.canEditCurrentSource());
     QVERIFY(model.removeSource("screen"));
     QVERIFY(model.displayProperties("screen").isEmpty());
     QVERIFY(!model.setSourceCaptureStatus("screen", "error", "Removed"));

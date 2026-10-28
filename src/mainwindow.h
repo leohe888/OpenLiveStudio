@@ -13,6 +13,7 @@ class QQuickWidget;
 class SourceListModel;
 class ImageSourceController;
 class DisplayCaptureController;
+class CameraCaptureController;
 class ThemeManager;
 
 class MainWindow : public QMainWindow
@@ -62,6 +63,7 @@ private:
     SourceListModel *m_sourceListModel = nullptr;
     ImageSourceController *m_imageSources = nullptr;
     DisplayCaptureController *m_displaySources = nullptr;
+    CameraCaptureController *m_cameraSources = nullptr;
     ThemeManager &m_theme;
 };
 #endif // MAINWINDOW_H

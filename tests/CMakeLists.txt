@@ -173,3 +173,14 @@ add_test(NAME core.imagesourcecontroller
         "QT_QPA_PLATFORM=offscreen"
         "$<TARGET_FILE:tst_imagesourcecontroller>" -o "-,txt")
 set_tests_properties(core.imagesourcecontroller PROPERTIES LABELS "core;smoke" TIMEOUT 30)
+
+qt_add_executable(tst_cameracapture tst_cameracapture.cpp
+    ../src/core/source.cpp ../src/core/sourcelistmodel.cpp ../src/core/sourcelistmodel.h)
+target_link_libraries(tst_cameracapture PRIVATE openlive_capture Qt6::Test)
+if(WIN32)
+    target_link_libraries(tst_cameracapture PRIVATE psapi)
+endif()
+add_test(NAME capture.camera COMMAND "${CMAKE_COMMAND}" -E env
+    "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
+    "$<TARGET_FILE:tst_cameracapture>" -o "-,txt")
+set_tests_properties(capture.camera PROPERTIES LABELS "capture;camera" TIMEOUT 60)

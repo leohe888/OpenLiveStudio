@@ -13,6 +13,7 @@ class SourceListModel : public QAbstractListModel
     Q_OBJECT
     Q_PROPERTY(QString currentSourceId READ currentSourceId NOTIFY currentSourceIdChanged)
     Q_PROPERTY(bool canFilterCurrentSource READ canFilterCurrentSource NOTIFY currentSourceIdChanged)
+    Q_PROPERTY(bool canEditCurrentSource READ canEditCurrentSource NOTIFY currentSourceIdChanged)
     Q_PROPERTY(bool canEditCurrentDisplay READ canEditCurrentDisplay NOTIFY currentSourceIdChanged)
     Q_PROPERTY(bool canMoveCurrentSourceUp READ canMoveCurrentSourceUp NOTIFY sourceMoveAvailabilityChanged)
     Q_PROPERTY(bool canMoveCurrentSourceDown READ canMoveCurrentSourceDown NOTIFY sourceMoveAvailabilityChanged)
@@ -30,7 +31,8 @@ public:
         FiltersRole,
         DisplayConfigRole,
         CaptureStateRole,
-        CaptureErrorRole
+        CaptureErrorRole,
+        CameraConfigRole
     };
 
     explicit SourceListModel(QObject *parent = nullptr);
@@ -46,6 +48,12 @@ public:
     bool setSourceOriginalSize(const QString &id, const QSize &size);
     bool setSourceCaptureStatus(const QString &id, const QString &state, const QString &error);
     bool canEditCurrentDisplay() const;
+    bool canEditCurrentSource() const;
+    Q_INVOKABLE QVariantMap cameraProperties(const QString &id) const;
+    bool setCameraConfig(const QString &id, const CameraConfig &config);
+    bool cameraDeviceInUse(const QString &deviceId, const QString &exceptId = {}) const;
+    void setCameraActualMode(const QString &id, const QSize &size, int numerator, int denominator);
+
     Q_INVOKABLE QVariantMap displayProperties(const QString &id) const;
     Q_INVOKABLE bool setDisplayConfig(const QString &id, const QString &displayId, bool cursor);
 

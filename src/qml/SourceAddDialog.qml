@@ -7,11 +7,14 @@ Rectangle {
     readonly property var themeColors: uiTheme.colors
     objectName: "sourceAddDialogContent"
     implicitWidth: 520
-    implicitHeight: supportsDisplay ? 390 : 300
+    implicitHeight: supportsDisplay || supportsCamera ? 430 : 300
     color: root.themeColors.background.panel
     required property var sourceListModel
     property var imageSourceController: null
     property var displayCaptureController: null
+    property var cameraCaptureController: null
+    readonly property bool isCamera: sourceType.currentValue === "camera"
+    readonly property bool supportsCamera: isCamera && cameraCaptureController !== null
     property bool loading: false
     readonly property bool isImage: sourceType.currentValue === "image"
     readonly property bool isDisplay: sourceType.currentValue === "displayCapture"
@@ -22,6 +25,12 @@ Rectangle {
     signal closeRequested()
 
     function submit() {
+        if (supportsCamera) {
+            const id = cameraCaptureController.addCamera(nameInput.text, cameraSettings.deviceId, cameraSettings.selectedMode)
+            if (id.length) closeRequested()
+            else errorText = qsTr("请输入名称并选择设备；同一摄像头不能重复添加。")
+            return
+        }
         if (supportsDisplay) {
             const id = displayCaptureController.addDisplay(nameInput.text, displaySettings.displayId, displaySettings.captureCursor)
             if (id.length) closeRequested()
@@ -199,6 +208,13 @@ Rectangle {
                 }
             }
         }
+        CameraCaptureSettings {
+            id: cameraSettings
+            objectName: "cameraSettings"
+            Layout.fillWidth: true
+            visible: root.supportsCamera
+            cameraCaptureController: root.cameraCaptureController
+        }
         DisplayCaptureSettings {
             id: displaySettings
             objectName: "displaySettings"
@@ -208,7 +224,7 @@ Rectangle {
         }
         Label {
             objectName: "sourceTypeUnavailableHint"
-            visible: !root.isImage && !root.supportsDisplay
+            visible: !root.isImage && !root.supportsDisplay && !root.supportsCamera
             Layout.fillWidth: true
             text: qsTr("该类型尚未接入添加功能。")
             textFormat: Text.PlainText
@@ -231,7 +247,8 @@ Rectangle {
                 objectName: "confirmSourceAddButton"
                 text: root.loading ? qsTr("加载中…") : qsTr("确定")
                 enabled: !root.loading && ((root.isImage && root.imageSourceController !== null)
-                    || (root.supportsDisplay && displaySettings.displayId.length > 0))
+                    || (root.supportsDisplay && displaySettings.displayId.length > 0)
+                    || (root.supportsCamera && cameraSettings.deviceId.length > 0 && !cameraSettings.loadingModes))
                 onClicked: root.submit()
             }
             ActionButton {

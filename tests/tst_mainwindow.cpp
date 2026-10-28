@@ -2,6 +2,7 @@
 #include "thememanager.h"
 #include "sourcelistmodel.h"
 #include "imagesourcecontroller.h"
+#include "capture/cameracapturecontroller.h"
 #include <QPainter>
 #include <QFileDialog>
 #include <QTimer>
@@ -87,6 +88,10 @@ private slots:
     void sourcePanelRequestsRemoval_data();
     void displayCaptureDialogs_data();
     void displayCaptureDialogs();
+    void cameraPropertiesDialogs_data();
+    void cameraPropertiesDialogs();
+    void cameraHardwarePreview();
+    void addsCameraThroughDialog();
     void sourceFiltersDialogEditsAndRetainsState_data();
     void sourceFiltersDialogEditsAndRetainsState();
     void sourcePanelRequestsRemoval();
@@ -1779,21 +1784,22 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
         activateType(index);
         QCOMPARE(type->property("currentValue").toString(), keys.at(index));
         QVERIFY(root->property("errorText").toString().isEmpty());
-        QCOMPARE(hint->isVisible(), index != 3 && index != 0);
+        QCOMPARE(hint->isVisible(), index != 3 && index != 0 && index != 2);
         QCOMPARE(hint->property("color").value<QColor>(), m_theme->color("text.secondary"));
         QPointer<QQuickItem> imageInput = root->findChild<QQuickItem *>("sourceFileInput");
         QVERIFY(imageInput);
         QCOMPARE(imageInput->isVisible(), index == 3);
         const auto displaySettings = root->findChild<QQuickItem *>("displaySettings");
         QVERIFY(displaySettings);
-        QCOMPARE(confirm->isEnabled(), index == 3 || (index == 0 && !displaySettings->property("displayId").toString().isEmpty()));
+        if (index != 2)
+            QCOMPARE(confirm->isEnabled(), index == 3 || (index == 0 && !displaySettings->property("displayId").toString().isEmpty()));
         auto *background = confirm->property("background").value<QQuickItem *>();
         QVERIFY(background);
         if (!confirm->isEnabled())
             QCOMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.disabled"));
         QCOMPARE(type->property("currentText").toString(), labels.at(index));
         QCOMPARE(name->property("text").toString(), labels.at(index));
-        if (index == 0) continue; // Display submission is exercised by the capture UI test.
+        if (index == 0 || index == 2) continue; // Capture submission has its own UI tests.
         // A direct call or Return in the name field must also reject these types.
         QVERIFY(QMetaObject::invokeMethod(root, "submit"));
         QVERIFY(!root->property("errorText").toString().isEmpty());
@@ -2677,8 +2683,8 @@ void MainWindowTest::sourceFiltersDialogEditsAndRetainsState()
     };
     auto *button = findItem(panel->rootObject(), "sourceFiltersButton");
     QVERIFY(button && !button->isEnabled());
-    QVERIFY(model->addSource({"camera", "Camera", CameraConfig{}}));
-    QVERIFY(!button->isEnabled());
+    QVERIFY(model->addSource({"camera", "Camera", CameraConfig{"unavailable-test-camera"}}));
+    QVERIFY(button->isEnabled());
     QVERIFY(model->addSource({"image", "Image", ImageConfig{}}));
     QVERIFY(button->isEnabled());
     QVERIFY(QMetaObject::invokeMethod(button, "clicked"));
@@ -2840,4 +2846,111 @@ void MainWindowTest::displayCaptureDialogs()
     QVERIFY(model->removeSource(id));
     QTRY_VERIFY(properties.isNull());
     QTRY_VERIFY(window.findChildren<QDialog *>(QString(), Qt::FindDirectChildrenOnly).isEmpty());
+}
+
+void MainWindowTest::cameraPropertiesDialogs_data() { displayCaptureDialogs_data(); }
+void MainWindowTest::cameraPropertiesDialogs()
+{
+    QFETCH(QString, themeId);
+    QVERIFY(m_theme->setTheme(themeId));
+    MainWindow window(*m_theme); window.show();
+    auto *model = window.findChild<SourceListModel *>();
+    auto *controller = window.findChild<CameraCaptureController *>();
+    auto *panel = window.findChild<QQuickWidget *>("sourcesQuickWidget");
+    QVERIFY(model && controller && panel && panel->rootObject());
+    const QVariantMap mode{{"width", 1280}, {"height", 720}, {"numerator", 30000}, {"denominator", 1001}};
+    const QString id = controller->addCamera("Test Camera", "unavailable-ui-camera", mode);
+    QVERIFY(!id.isEmpty()); QVERIFY(model->setSourceVisible(id, false));
+    const auto original = model->cameraProperties(id);
+    const auto open = [&] {
+        QVERIFY(QMetaObject::invokeMethod(panel->rootObject(), "sourcePropertiesDialogRequested", Q_ARG(QString, id)));
+    };
+    open();
+    auto *dialog = window.findChild<QDialog *>(); QVERIFY(dialog);
+    auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
+    QTRY_VERIFY(view && view->rootObject());
+    auto *root = view->rootObject(); QCOMPARE(root->objectName(), QString("cameraPropertiesDialog"));
+    auto *settings = root->findChild<QQuickItem *>("cameraSettings"); QVERIFY(settings);
+    QCOMPARE(settings->property("deviceId").toString(), QString("unavailable-ui-camera"));
+    QTRY_VERIFY(!settings->property("loadingModes").toBool());
+    QCOMPARE(settings->property("selectedMode").toMap().value("denominator").toInt(), 1001);
+    const QVariantMap changed{{"width", 640}, {"height", 480}, {"numerator", 30}, {"denominator", 1}};
+    QVERIFY(view->grabFramebuffer().save(QCoreApplication::applicationDirPath() + "/camera-properties-" + themeId + ".png"));
+    settings->setProperty("selectedMode", changed);
+    QCOMPARE(model->cameraProperties(id), original);
+    QPointer<QDialog> first(dialog);
+    auto *cancel = root->findChild<QQuickItem *>("cancelCameraPropertiesButton"); QVERIFY(cancel);
+    QVERIFY(QMetaObject::invokeMethod(cancel, "clicked")); QTRY_VERIFY(first.isNull());
+    QCOMPARE(model->cameraProperties(id), original);
+    open(); dialog = window.findChild<QDialog *>(); QVERIFY(dialog);
+    view = dialog->findChild<QQuickWidget *>("dialogQuickWidget"); QTRY_VERIFY(view->rootObject()); root = view->rootObject();
+    settings = root->findChild<QQuickItem *>("cameraSettings"); QVERIFY(settings);
+    QTRY_VERIFY(!settings->property("loadingModes").toBool()); settings->setProperty("selectedMode", changed);
+    auto *confirm = root->findChild<QQuickItem *>("confirmCameraPropertiesButton"); QVERIFY(confirm && confirm->isEnabled());
+    QPointer<QDialog> second(dialog);
+    QVERIFY(QMetaObject::invokeMethod(confirm, "clicked")); QTRY_VERIFY(second.isNull());
+    QCOMPARE(model->cameraProperties(id).value("width").toInt(), 640);
+    QCOMPARE(model->cameraProperties(id).value("state").toString(), QString("paused"));
+    open(); QPointer<QDialog> third(window.findChild<QDialog *>()); QVERIFY(third);
+    open(); QCOMPARE(window.findChildren<QDialog *>(QString(), Qt::FindDirectChildrenOnly).size(), 1);
+    QVERIFY(model->removeSource(id)); QTRY_VERIFY(third.isNull());
+}
+
+void MainWindowTest::cameraHardwarePreview()
+{
+    if (!qEnvironmentVariableIsSet("OPENLIVE_CAMERA_HARDWARE")) QSKIP("Requires explicit camera hardware validation");
+    MainWindow window(*m_theme); window.show();
+    auto *preview = window.findChild<PreviewWidget *>("previewWidget");
+    QVERIFY2(preview, "Requires an interactive desktop OpenGL preview");
+    QTRY_VERIFY_WITH_TIMEOUT(preview->isValid(), 10000);
+    auto *model = window.findChild<SourceListModel *>();
+    auto *controller = window.findChild<CameraCaptureController *>();
+    controller->refreshDevices();
+    QTRY_VERIFY_WITH_TIMEOUT(!controller->refreshing(), 10000);
+    QVERIFY2(controller->catalogError().isEmpty(), qPrintable(controller->catalogError()));
+    const auto devices = controller->devices(); QVERIFY(!devices.isEmpty());
+    QSignalSpy failures(preview, &PreviewWidget::sourceError);
+    const QString id = controller->addCamera("Camera", devices[0].toMap().value("id").toString(), {});
+    QVERIFY(!id.isEmpty());
+    QTRY_COMPARE_WITH_TIMEOUT(model->cameraProperties(id).value("state").toString(), QString("capturing"), 15000);
+    const auto filter = model->addColorCorrection(id);
+    QVERIFY(model->setFilterParameters(id, filter, 0, 1, 0));
+    QTest::qWait(500);
+    QVERIFY(preview->lastError().isEmpty()); QVERIFY(failures.isEmpty());
+    const auto frame = preview->grabFramebuffer(); QVERIFY(!frame.isNull());
+    const QColor pixel = frame.pixelColor(frame.width() / 2, frame.height() / 2);
+    QVERIFY(qAbs(pixel.red() - pixel.green()) <= 3 && qAbs(pixel.green() - pixel.blue()) <= 3);
+    window.resize(1100, 720); QTest::qWait(100);
+    QVERIFY(preview->lastError().isEmpty());
+    QVERIFY(model->setSourceVisible(id, false));
+    QTRY_COMPARE_WITH_TIMEOUT(controller->activeWorkerCount(), 0, 10000);
+    QVERIFY(model->removeSource(id));
+}
+
+void MainWindowTest::addsCameraThroughDialog()
+{
+    MainWindow window(*m_theme); window.show();
+    auto *model = window.findChild<SourceListModel *>();
+    auto *panel = window.findChild<QQuickWidget *>("sourcesQuickWidget");
+    QVERIFY(model && panel && panel->rootObject());
+    QVERIFY(QMetaObject::invokeMethod(panel->rootObject(), "sourceAddDialogRequested"));
+    QPointer<QDialog> dialog(window.findChild<QDialog *>()); QVERIFY(dialog);
+    auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget"); QTRY_VERIFY(view && view->rootObject());
+    auto *root = view->rootObject();
+    auto *type = root->findChild<QQuickItem *>("sourceTypeInput"); QVERIFY(type);
+    type->setProperty("currentIndex", 2);
+    auto *settings = root->findChild<QQuickItem *>("cameraSettings"); QVERIFY(settings && settings->isVisible());
+    settings->setProperty("deviceId", "missing-add-dialog-camera");
+    QTRY_VERIFY(!settings->property("loadingModes").toBool());
+    auto *name = root->findChild<QQuickItem *>("sourceNameInput"); QVERIFY(name);
+    name->setProperty("text", "Camera fixture");
+    auto *confirm = root->findChild<QQuickItem *>("confirmSourceAddButton"); QVERIFY(confirm && confirm->isEnabled());
+    QVERIFY(QMetaObject::invokeMethod(confirm, "clicked")); QTRY_VERIFY(dialog.isNull());
+    QCOMPARE(model->rowCount(), 1);
+    QCOMPARE(model->index(0, 0).data(SourceListModel::TypeRole).toString(), QString("camera"));
+    const QString id = model->currentSourceId();
+    QCOMPARE(model->cameraProperties(id).value("deviceId").toString(), QString("missing-add-dialog-camera"));
+    QVERIFY(model->canFilterCurrentSource()); QVERIFY(model->canEditCurrentSource());
+    QTRY_COMPARE_WITH_TIMEOUT(model->cameraProperties(id).value("state").toString(), QString("error"), 10000);
+    QVERIFY(model->removeSource(id));
 }

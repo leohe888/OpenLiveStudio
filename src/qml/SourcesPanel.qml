@@ -219,7 +219,7 @@ Rectangle {
                 Item { Layout.fillWidth: true }
                 SourceButton {
                     objectName: "sourcePropertiesButton"
-                    enabled: root.state !== null && root.state.canEditCurrentDisplay
+                    enabled: root.state !== null && root.state.canEditCurrentSource
                     onClicked: root.sourcePropertiesDialogRequested(root.state.currentSourceId)
                     text: qsTr("来源属性")
                     icon.source: "qrc:/assets/icons/settings.svg"
