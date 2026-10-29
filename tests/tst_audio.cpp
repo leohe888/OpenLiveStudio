@@ -16,6 +16,18 @@ private:
         return block;
     }
 private slots:
+    void mixerCatchesUpAfterShortSchedulingPause()
+    {
+        qputenv("OPENLIVE_AUDIO_MIXER_PAUSE_ONCE_MS","80");
+        const auto restore=qScopeGuard([] { qunsetenv("OPENLIVE_AUDIO_MIXER_PAUSE_ONCE_MS"); });
+        AudioMixer mixer; auto tap=mixer.subscribeOutput(); mixer.start();
+        const auto cleanup=qScopeGuard([&] { mixer.stop(); mixer.wait(); });
+        QTest::qWait(650);
+        const auto blocks=tap->take(); QVERIFY(blocks.size()>50);
+        for (size_t i=1;i<blocks.size();++i)
+            QCOMPARE(blocks[i]->timestampNs-blocks[i-1]->timestampNs,qint64(10000000));
+        QCOMPARE(mixer.discontinuities(),quint64(0)); QCOMPARE(tap->dropped(),quint64(0));
+    }
     void emptyModelAndSourceManagement()
     {
         AudioSourceModel model;

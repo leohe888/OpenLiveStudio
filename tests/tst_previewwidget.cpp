@@ -831,12 +831,14 @@ private slots:
         wireEditor(widget);
         QImage image(100, 100, QImage::Format_RGBA8888);
         image.fill(Qt::green);
+        // Gestures and deactivation are injected below; foreground ownership
+        // is not a prerequisite and Windows may retain focus in another app.
         widget.show();
-        QVERIFY(QTest::qWaitForWindowActive(&widget));
+        QVERIFY(QTest::qWaitForWindowExposed(&widget));
         QSignalSpy transforms(&widget, &PreviewWidget::transformRequested);
         for (int reason = 0; reason < 9; ++reason) {
             widget.show();
-            QVERIFY(QTest::qWaitForWindowActive(&widget));
+            QVERIFY(QTest::qWaitForWindowExposed(&widget));
             widget.setSources({{"image", image, true, {{960, 540}, {600, 300}, 0}}});
             widget.setSelectedSourceId("image");
             grabPreview(widget);

@@ -7,19 +7,21 @@ Rectangle {
     objectName: "outputSettingsDialog"
     required property var outputSettings
     property string directory: ""
-    property int quality: 1
+    property int recordingBitrate: 12000
+    property int streamingBitrate: 6000
     property string server: ""
     property string key: ""
     property string errorText: ""
     readonly property var colors: uiTheme.colors
     implicitWidth: 620
-    implicitHeight: 410
+    implicitHeight: 460
     color: colors.background.panel
     signal closeRequested()
     signal browseDirectoryRequested()
     Component.onCompleted: {
         directory=outputSettings.recordingDirectory
-        quality=outputSettings.quality
+        recordingBitrate=outputSettings.recordingBitrate
+        streamingBitrate=outputSettings.streamingBitrate
         server=outputSettings.streamServer
         key=outputSettings.streamKey
     }
@@ -86,6 +88,7 @@ Rectangle {
                 Label { text: qsTr("服务器地址"); color: root.colors.text.primary }
                 SettingField {
                     objectName: "streamServerInput"
+                    enabled: !root.outputSettings.streamingLocked
                     text: root.server
                     placeholderText: "rtmp://server/app"
                     onTextEdited: root.server=text
@@ -93,12 +96,22 @@ Rectangle {
                 Label { text: qsTr("串流密钥"); color: root.colors.text.primary }
                 SettingField {
                     objectName: "streamKeyInput"
+                    enabled: !root.outputSettings.streamingLocked
                     text: root.key
                     echoMode: TextInput.Password
                     onTextEdited: root.key=text
                 }
+                Label { text: qsTr("视频码率（kbps，500–50000）"); color: root.colors.text.primary }
+                SettingField {
+                    objectName: "streamingBitrateInput"
+                    enabled: !root.outputSettings.streamingLocked
+                    text: String(root.streamingBitrate)
+                    inputMethodHints: Qt.ImhDigitsOnly
+                    validator: IntValidator { bottom: 500; top: 50000 }
+                    onTextEdited: root.streamingBitrate=Number(text)
+                }
                 Label {
-                    text: qsTr("直播输出暂不可用，配置可在本次运行中保留。")
+                    text: qsTr("RTMP · H.264 / AAC · 1080p · 30 FPS；连接和重连期间设置锁定。")
                     color: root.colors.text.secondary
                     wrapMode: Text.WordWrap
                     Layout.fillWidth: true
@@ -123,36 +136,18 @@ Rectangle {
                         onClicked: root.browseDirectoryRequested()
                     }
                 }
-                Label { text: qsTr("录制质量"); color: root.colors.text.primary }
-                ComboBox {
-                    objectName: "recordingQualityInput"
-                    Layout.fillWidth: true
-                    implicitHeight: 34
+                Label { text: qsTr("视频码率（kbps，500–50000）"); color: root.colors.text.primary }
+                SettingField {
+                    objectName: "recordingBitrateInput"
                     enabled: !root.outputSettings.recordingLocked
-                    model: [qsTr("标准"),qsTr("高质量"),qsTr("更高质量")]
-                    currentIndex: root.quality
-                    onActivated: root.quality=currentIndex
-                    palette.text: root.colors.text.primary
-                    palette.buttonText: root.colors.text.primary
-                    palette.base: root.colors.background.input
-                    palette.window: root.colors.background.panel
-                    palette.highlight: root.colors.background.selected
-                    palette.highlightedText: root.colors.text.primary
-                    contentItem: Text {
-                        text: parent.displayText
-                        leftPadding: 8; rightPadding: 28
-                        color: parent.enabled ? root.colors.text.primary : root.colors.text.disabled
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    background: Rectangle {
-                        color: root.colors.background.input
-                        border.color: parent.activeFocus ? root.colors.border.focus : root.colors.border.default
-                        radius: 2
-                    }
+                    text: String(root.recordingBitrate)
+                    inputMethodHints: Qt.ImhDigitsOnly
+                    validator: IntValidator { bottom: 500; top: 50000 }
+                    onTextEdited: root.recordingBitrate=Number(text)
                 }
                 Label { text: qsTr("MP4 · 1080p · 30 FPS"); color: root.colors.text.secondary }
                 Label {
-                    text: qsTr("录制期间，保存目录和质量保持不变。")
+                    text: qsTr("录制期间，保存目录和码率保持不变。")
                     color: root.colors.text.secondary
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
@@ -177,7 +172,7 @@ Rectangle {
                 objectName: "applyOutputSettingsButton"
                 text: qsTr("确定")
                 onClicked: {
-                    if (root.outputSettings.apply(root.directory,root.quality,root.server,root.key)) root.closeRequested()
+                    if (root.outputSettings.apply(root.directory,root.recordingBitrate,root.server,root.key,root.streamingBitrate)) root.closeRequested()
                     else root.errorText=root.outputSettings.lastError
                 }
             }

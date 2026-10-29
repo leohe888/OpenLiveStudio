@@ -67,6 +67,7 @@ void AudioCaptureWorker::setStatus(const QString &state, const QString &error) {
 
 void AudioCaptureWorker::run()
 {
+    setPriority(QThread::HighPriority);
 #ifdef Q_OS_WIN
     const HRESULT initialized = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     if (FAILED(initialized)) { setStatus("error", audioError(QStringLiteral("无法初始化音频采集"), initialized)); return; }

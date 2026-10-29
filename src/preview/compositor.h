@@ -3,6 +3,7 @@
 
 #include "canvasrenderer.h"
 #include <QThread>
+#include "core/outputtap.h"
 #include <QSurfaceFormat>
 #include <condition_variable>
 #include <mutex>
@@ -43,7 +44,9 @@ public:
     // Blocking diagnostic readback, not used by the preview or output hot path.
     // Returns a composition at least as new as the snapshot at call time.
     QImage captureImage(int timeoutMs = 3000);
-    // Bounded CPU output tap, enabled only while recording. Independent of GUI paints.
+    // Independent bounded CPU subscriptions. Read back once while any output
+    // is subscribed. The legacy tap below is retained for diagnostics/tests.
+    std::shared_ptr<OutputTap<ComposedImage>> subscribeOutput();
     void setOutputEnabled(bool enabled);
     std::deque<ComposedImage> takeOutput();
     quint64 droppedOutputFrames() const;
@@ -57,6 +60,7 @@ protected:
     void run() override;
 
 private:
+    OutputBus<ComposedImage> m_bus;
     mutable std::mutex m_mutex;
     std::condition_variable m_wake;
     QList<PreviewSource> m_sources;

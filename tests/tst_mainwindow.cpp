@@ -2,6 +2,7 @@
 #include "audio/audiosourcemodel.h"
 #include "output/outputsettings.h"
 #include "output/recordingcontroller.h"
+#include "output/streamingcontroller.h"
 #include "thememanager.h"
 #include "sourcelistmodel.h"
 #include "imagesourcecontroller.h"
@@ -124,6 +125,7 @@ private slots:
     void soundHardwarePreview();
     void outputSettingsDialogDraftsAndTheme();
     void recordingControlsAndGracefulClose();
+    void streamingControlsAndGracefulClose();
     void recordingAcceptance();
     void loadsControlsPanelWithVerticalButtons();
     void embedsSourcePanelInFullHeightLeftDock();
@@ -2236,7 +2238,7 @@ void MainWindowTest::outputSettingsDialogDraftsAndTheme()
     QCOMPARE(window.findChildren<QDialog *>().size(),1);
     QTemporaryDir directory;
     const auto defaults=settings->recordingDirectory();
-    root->setProperty("directory",directory.path()); root->setProperty("quality",2);
+    root->setProperty("directory",directory.path()); root->setProperty("recordingBitrate",16000);
     root->setProperty("server","rtmps://example.test/live"); root->setProperty("key","unit-test-secret");
     auto *key=root->findChild<QQuickItem *>("streamKeyInput"); QVERIFY(key);
     QCOMPARE(key->property("echoMode").toInt(),2);
@@ -2255,10 +2257,10 @@ void MainWindowTest::outputSettingsDialogDraftsAndTheme()
     auto *apply=root->findChild<QQuickItem *>("applyOutputSettingsButton"); QVERIFY(apply);
     root->setProperty("directory",""); QVERIFY(QMetaObject::invokeMethod(apply,"clicked"));
     QVERIFY(dialog); QVERIFY(!root->property("errorText").toString().isEmpty());
-    root->setProperty("directory",directory.path()); root->setProperty("quality",0);
+    root->setProperty("directory",directory.path()); root->setProperty("recordingBitrate",8000);
     root->setProperty("server","rtmp://example.test/app"); root->setProperty("key","memory-only-test-key");
     QVERIFY(QMetaObject::invokeMethod(apply,"clicked")); QTRY_VERIFY(dialog.isNull());
-    QCOMPARE(settings->recordingDirectory(),directory.path()); QCOMPARE(settings->quality(),0);
+    QCOMPARE(settings->recordingDirectory(),directory.path()); QCOMPARE(settings->recordingBitrate(),8000);
     QCOMPARE(settings->streamKey(),QString("memory-only-test-key"));
     OutputSettings fresh; QVERIFY(fresh.streamKey().isEmpty()); QCOMPARE(fresh.recordingDirectory(),defaults);
 }
@@ -2270,7 +2272,7 @@ void MainWindowTest::recordingControlsAndGracefulClose()
     if (!recorder) QSKIP("Native desktop OpenGL required");
     QTRY_VERIFY_WITH_TIMEOUT(recorder->ready(),5000);
     auto *settings=window.findChild<OutputSettings *>(); QVERIFY(settings);
-    QTemporaryDir directory; QVERIFY(settings->apply(directory.path(),1,"",""));
+    QTemporaryDir directory; QVERIFY(settings->apply(directory.path(),12000,"",""));
     auto *controls=window.findChild<QQuickWidget *>("controlsQuickWidget"); QVERIFY(controls && controls->rootObject());
     auto *record=controls->rootObject()->findChild<QQuickItem *>("recordButton"); QVERIFY(record);
     QTRY_VERIFY(record->isEnabled()); QVERIFY(QMetaObject::invokeMethod(record,"clicked"));
@@ -2281,8 +2283,8 @@ void MainWindowTest::recordingControlsAndGracefulClose()
     auto *view=dialog->findChild<QQuickWidget *>("dialogQuickWidget"); QTRY_VERIFY(view && view->rootObject());
     auto *root=view->rootObject();
     QVERIFY(!root->findChild<QQuickItem *>("recordingDirectoryInput")->isEnabled());
-    QVERIFY(!root->findChild<QQuickItem *>("recordingQualityInput")->isEnabled());
-    QVERIFY(!settings->apply(directory.filePath("other"),2,"",""));
+    QVERIFY(!root->findChild<QQuickItem *>("recordingBitrateInput")->isEnabled());
+    QVERIFY(!settings->apply(directory.filePath("other"),16000,"",""));
     QVERIFY(QMetaObject::invokeMethod(root->findChild<QQuickItem *>("cancelOutputSettingsButton"),"clicked"));
     QTRY_VERIFY(dialog.isNull());
     window.showMinimized(); QTest::qWait(350);
@@ -2293,6 +2295,36 @@ void MainWindowTest::recordingControlsAndGracefulClose()
     QVERIFY2(recorder->lastError().isEmpty(),qPrintable(recorder->lastError()));
     QVERIFY(recorder->fileComplete()); QVERIFY(QFileInfo(recorder->filePath()).size()>1000);
     QVERIFY(!settings->recordingLocked());
+}
+
+void MainWindowTest::streamingControlsAndGracefulClose()
+{
+    if (QGuiApplication::platformName()=="offscreen") QSKIP("Native desktop OpenGL required");
+    MainWindow window(*m_theme); window.show();
+    auto *stream=window.findChild<StreamingController *>(); QVERIFY(stream);
+    auto *recording=window.findChild<RecordingController *>(); QVERIFY(recording);
+    auto *settings=window.findChild<OutputSettings *>(); QVERIFY(settings);
+    QTemporaryDir directory; QVERIFY(settings->apply(directory.path(),12000,"rtmp://127.0.0.1:1/live","test"));
+    auto *controls=window.findChild<QQuickWidget *>("controlsQuickWidget"); QVERIFY(controls && controls->rootObject());
+    auto *button=controls->rootObject()->findChild<QQuickItem *>("streamButton"); QVERIFY(button);
+    QTRY_VERIFY(button->isEnabled()); QVERIFY(QMetaObject::invokeMethod(button,"clicked"));
+    QTRY_COMPARE_WITH_TIMEOUT(stream->state(),QString("reconnecting"),5000);
+    QVERIFY(settings->streamingLocked()); QVERIFY(!settings->recordingLocked()); QVERIFY(button->isEnabled());
+    QVERIFY(QMetaObject::invokeMethod(controls->rootObject(),"settingsDialogRequested"));
+    QPointer<QDialog> dialog=window.findChild<QDialog *>(); QVERIFY(dialog);
+    auto *view=dialog->findChild<QQuickWidget *>("dialogQuickWidget"); QTRY_VERIFY(view && view->rootObject());
+    auto *root=view->rootObject();
+    for (const auto *name:{"streamServerInput","streamKeyInput","streamingBitrateInput"}) QVERIFY(!root->findChild<QQuickItem *>(name)->isEnabled());
+    QVERIFY(root->findChild<QQuickItem *>("recordingBitrateInput")->isEnabled());
+    QVERIFY(QMetaObject::invokeMethod(root->findChild<QQuickItem *>("cancelOutputSettingsButton"),"clicked"));
+    QTRY_VERIFY(dialog.isNull());
+    QVERIFY(QMetaObject::invokeMethod(controls->rootObject(),"recordingToggleRequested"));
+    QTRY_COMPARE_WITH_TIMEOUT(recording->state(),QString("recording"),5000);
+    QTest::qWait(300);
+    QVERIFY(!window.close());
+    QTRY_VERIFY_WITH_TIMEOUT(!stream->busy() && !recording->busy(),5000);
+    QTRY_VERIFY(!window.isVisible()); QVERIFY(recording->fileComplete());
+    QVERIFY(!settings->streamingLocked()); QVERIFY(!settings->recordingLocked());
 }
 
 void MainWindowTest::recordingAcceptance()

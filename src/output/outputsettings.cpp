@@ -14,12 +14,32 @@ OutputSettings::OutputSettings(QObject *parent) : QObject(parent)
 bool OutputSettings::fail(const QString &message) { m_error=message; emit lastErrorChanged(); return false; }
 void OutputSettings::setRecordingLocked(bool locked)
 { if (m_locked!=locked) { m_locked=locked; emit recordingLockedChanged(); } }
-bool OutputSettings::apply(const QString &directory,int quality,const QString &server,const QString &key)
+void OutputSettings::setStreamingLocked(bool locked)
+{ if (m_streamingLocked!=locked) { m_streamingLocked=locked; emit streamingLockedChanged(); } }
+QString OutputSettings::validateStream(const QString &server,const QString &key,int bitrateKbps,bool allowEmpty)
+{
+    if (bitrateKbps<500 || bitrateKbps>50000) return tr("视频码率应为 500–50000 kbps。");
+    const auto endpoint=server.trimmed();
+    if (allowEmpty && endpoint.isEmpty() && key.isEmpty()) return {};
+    if (endpoint.size()>4096 || key.size()>4096) return tr("推流配置过长。");
+    const QUrl url(endpoint,QUrl::StrictMode);
+    if (!url.isValid() || url.scheme()!="rtmp" || url.host().isEmpty()
+        || url.path().isEmpty() || url.path()=="/" || url.hasQuery() || url.hasFragment() || !url.userInfo().isEmpty()
+        || url.port(1935)<=0 || url.port(1935)>65535)
+        return tr("首版仅支持 RTMP，请填写 rtmp://服务器/应用，勿在服务器地址中填写账号、查询参数或片段。");
+    if (key.isEmpty() || key.startsWith('/') || key.contains('#')) return tr("请输入有效的串流密钥。");
+    for (const auto c:endpoint+key) if (c.isSpace() || c.category()==QChar::Other_Control)
+        return tr("推流配置不能包含空白或控制字符。");
+    const QUrl combined(endpoint+"/"+key,QUrl::StrictMode);
+    if (!combined.isValid()) return tr("推流地址或串流密钥格式无效。");
+    return {};
+}
+bool OutputSettings::apply(const QString &directory,int recordingBitrate,const QString &server,const QString &key,int streamingBitrate)
 {
     const QString path=QDir::cleanPath(directory.trimmed());
-    if (directory.trimmed().isEmpty() || !QFileInfo(path).isAbsolute() || quality<0 || quality>2)
-        return fail(tr("请选择绝对保存路径和有效的录制质量。"));
-    if (m_locked && (path!=m_directory || quality!=m_quality)) return fail(tr("录制停止后才能修改录屏设置。"));
+    if (directory.trimmed().isEmpty() || !QFileInfo(path).isAbsolute() || recordingBitrate<500 || recordingBitrate>50000)
+        return fail(tr("请选择绝对保存路径和 500–50000 kbps 的录制码率。"));
+    if (m_locked && (path!=m_directory || recordingBitrate!=m_recordingBitrate)) return fail(tr("录制停止后才能修改录屏设置。"));
     QFileInfo ancestor(path);
     while (!ancestor.exists()) {
         const QFileInfo parent(ancestor.absolutePath());
@@ -28,13 +48,11 @@ bool OutputSettings::apply(const QString &directory,int quality,const QString &s
     }
     if (!ancestor.isDir() || !ancestor.isWritable()) return fail(tr("保存路径不是可写目录。"));
     const QString endpoint=server.trimmed();
-    if (!endpoint.isEmpty()) {
-        const QUrl url(endpoint,QUrl::StrictMode);
-        if (!url.isValid() || (url.scheme()!="rtmp" && url.scheme()!="rtmps") || url.host().isEmpty())
-            return fail(tr("请输入有效的 RTMP 或 RTMPS 服务器地址。"));
-    }
-    if (endpoint.size()>4096 || key.size()>4096) return fail(tr("推流配置过长。"));
-    m_directory=path; m_quality=quality; m_server=endpoint; m_key=key;
+    const auto error=validateStream(endpoint,key,streamingBitrate);
+    if (!error.isEmpty()) return fail(error);
+    if (m_streamingLocked && (endpoint!=m_server || key!=m_key || streamingBitrate!=m_streamingBitrate))
+        return fail(tr("停止直播后才能修改推流设置。"));
+    m_directory=path; m_recordingBitrate=recordingBitrate; m_server=endpoint; m_key=key; m_streamingBitrate=streamingBitrate;
     m_error.clear(); emit lastErrorChanged(); emit settingsChanged(); return true;
 }
 QString OutputSettings::nextRecordingPath()

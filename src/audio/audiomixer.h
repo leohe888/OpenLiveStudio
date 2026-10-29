@@ -3,6 +3,7 @@
 
 #include "audiobuffer.h"
 #include <QThread>
+#include "core/outputtap.h"
 #include <condition_variable>
 #include <map>
 
@@ -32,7 +33,8 @@ public:
     std::shared_ptr<const MixedAudioBlock> latestBlock() const;
     struct Levels { QHash<QString, AudioPeak> sources; AudioPeak master; bool clipped = false; };
     Levels takeLevels();
-    // Optional bounded output tap for the later encoder. No queue while disabled.
+    // Independent bounded subscriptions; legacy diagnostic tap below.
+    std::shared_ptr<OutputTap<std::shared_ptr<const MixedAudioBlock>>> subscribeOutput();
     void setOutputEnabled(bool enabled);
     std::deque<std::shared_ptr<const MixedAudioBlock>> takeOutput();
     quint64 droppedOutputBlocks() const;
@@ -40,6 +42,7 @@ public:
 protected:
     void run() override;
 private:
+    OutputBus<std::shared_ptr<const MixedAudioBlock>> m_bus;
     mutable std::mutex m_mutex;
     std::condition_variable m_wake;
     bool m_stop = false, m_outputEnabled = false;

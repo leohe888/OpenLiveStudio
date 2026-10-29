@@ -7,6 +7,7 @@
 #include "thememanager.h"
 #include "preview/previewwidget.h"
 #include "output/recordingcontroller.h"
+#include "output/streamingcontroller.h"
 #include "output/outputsettings.h"
 #include <QCloseEvent>
 #include <QFileDialog>
@@ -101,9 +102,13 @@ MainWindow::MainWindow(ThemeManager &theme, QWidget *parent)
     setupPreview();
     if (auto *preview=findChild<PreviewWidget *>(QStringLiteral("previewWidget"))) {
         m_recording=new RecordingController(*preview->compositor(),*m_audioSources->mixer(),this);
-        connect(m_recording,&RecordingController::statusChanged,this,&MainWindow::updateRecordingStatus);
+        m_streaming=new StreamingController(*preview->compositor(),*m_audioSources->mixer(),this);
+        connect(m_streaming,&StreamingController::statusChanged,this,&MainWindow::updateOutputStatus);
+        connect(m_streaming,&StreamingController::finished,this,[this] { if (m_closePending) QTimer::singleShot(0,this,&QWidget::close); });
+        connect(m_recording,&RecordingController::overloaded,m_streaming,&StreamingController::stopForOverload);
+        connect(m_recording,&RecordingController::statusChanged,this,&MainWindow::updateOutputStatus);
         connect(m_recording,&RecordingController::finished,this,[this] {
-            if (m_closePending) { m_closePending=false; QTimer::singleShot(0,this,&QWidget::close); }
+            if (m_closePending) QTimer::singleShot(0,this,&QWidget::close);
         });
     }
     setupStatusBar();
@@ -147,21 +152,27 @@ MainWindow::~MainWindow()
 {
     qDeleteAll(findChildren<QDialog *>(QString(),Qt::FindDirectChildrenOnly));
     // Finish encoding while its compositor and audio mixer are still alive.
+    delete m_streaming; m_streaming=nullptr;
     delete m_recording; m_recording=nullptr;
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-    if (m_recording && m_recording->busy()) {
-        m_closePending=true; m_recording->stopRecording(); event->ignore(); return;
+    if ((m_recording && m_recording->busy()) || (m_streaming && m_streaming->busy())) {
+        m_closePending=true;
+        if (m_streaming) m_streaming->stopStreaming();
+        if (m_recording) m_recording->stopRecording();
+        event->ignore(); return;
     }
+    m_closePending=false;
     QMainWindow::closeEvent(event);
 }
 
-void MainWindow::updateRecordingStatus()
+void MainWindow::updateOutputStatus()
 {
     if (!m_recording || !m_outputStatus) return;
     m_outputSettings->setRecordingLocked(m_recording->busy());
+    if (m_streaming) m_outputSettings->setStreamingLocked(m_streaming->busy());
     const auto state=m_recording->state();
     const auto ms=m_recording->durationMs();
     const auto duration=QStringLiteral("%1:%2:%3").arg(ms/3600000,2,10,QLatin1Char('0'))
@@ -169,12 +180,21 @@ void MainWindow::updateRecordingStatus()
     const auto label=state=="starting" ? tr("正在启动") : state=="recording" ? tr("录制中")
         : state=="stopping" ? tr("正在停止") : state=="error" ? tr("失败")
         : m_recording->fileComplete() ? tr("已完成") : tr("未开始");
-    m_outputStatus->setText(tr("REC %1 · 时长 %2   |   LIVE 未开始 · 时长 —").arg(label,
-        state=="idle" && !m_recording->fileComplete() ? QStringLiteral("—") : duration));
-    m_outputStatus->setToolTip(m_recording->lastError().isEmpty() ? m_recording->filePath() : m_recording->lastError());
-    m_outputMetrics->setText(tr("输出帧率 %1   |   重复帧 %2   |   跳过画面 %3   |   CPU —")
-        .arg(m_recording->busy() ? QStringLiteral("30 FPS") : QStringLiteral("—"))
+    const auto live=m_streaming ? m_streaming->status() : StreamingStatus{};
+    const auto liveLabel=live.state=="connecting" ? tr("连接中") : live.state=="live" ? tr("直播中")
+        : live.state=="reconnecting" ? tr("重连中（%1 秒）").arg(live.retryInSeconds)
+        : live.state=="stopping" ? tr("正在停止") : live.state=="error" ? tr("失败") : live.durationMs ? tr("已停止") : tr("未开始");
+    const auto liveDuration=QStringLiteral("%1:%2:%3").arg(live.durationMs/3600000,2,10,QLatin1Char('0'))
+        .arg(live.durationMs/60000%60,2,10,QLatin1Char('0')).arg(live.durationMs/1000%60,2,10,QLatin1Char('0'));
+    m_outputStatus->setText(tr("REC %1 · %2   |   LIVE %3 · %4").arg(label,
+        state=="idle" && !m_recording->fileComplete() ? QStringLiteral("—") : duration,liveLabel,
+        live.durationMs ? liveDuration : QStringLiteral("—")));
+    m_outputStatus->setToolTip(tr("录制：%1\n直播：%2").arg(m_recording->lastError().isEmpty() ? m_recording->filePath() : m_recording->lastError(),live.error));
+    m_outputMetrics->setText(tr("LIVE %1 kbps · 丢帧 %2 · 重连 %3   |   REC 重复 %4 · 跳过 %5")
+        .arg(live.bitrateKbps).arg(live.droppedFrames).arg(live.reconnects)
         .arg(m_recording->repeatedFrames()).arg(m_recording->droppedFrames()));
+    if (!live.error.isEmpty() && live.error!=m_previousStreamingError) statusBar()->showMessage(tr("直播：%1").arg(live.error));
+    m_previousStreamingError=live.error;
     if (!m_recording->lastError().isEmpty() && m_previousRecordingError!=m_recording->lastError())
         statusBar()->showMessage(tr("录制失败：%1%2").arg(m_recording->lastError(),
             m_recording->fileComplete() ? tr("（已有内容已完成封装）") : tr("（文件未完整完成）")));
@@ -189,7 +209,15 @@ void MainWindow::toggleRecording()
     const auto path=m_outputSettings->nextRecordingPath();
     if (path.isEmpty()) { statusBar()->showMessage(m_outputSettings->lastError()); return; }
     statusBar()->clearMessage();
-    m_recording->startRecording(path,m_outputSettings->quality());
+    m_recording->startRecording(path,m_outputSettings->recordingBitrate());
+}
+
+void MainWindow::toggleStreaming()
+{
+    if (!m_streaming) return;
+    if (m_streaming->busy()) { m_streaming->stopStreaming(); return; }
+    statusBar()->clearMessage();
+    m_streaming->startStreaming(m_outputSettings->streamServer(),m_outputSettings->streamKey(),m_outputSettings->streamingBitrate());
 }
 
 void MainWindow::showOutputSettingsDialog()
@@ -731,6 +759,7 @@ void MainWindow::setupControlsDock()
     configureQuickWidget(view);
     view->rootContext()->setContextProperty(QStringLiteral("outputSettings"),m_outputSettings);
     view->rootContext()->setContextProperty(QStringLiteral("recordingController"),m_recording);
+    view->rootContext()->setContextProperty(QStringLiteral("streamingController"),m_streaming);
     pages->addWidget(view);
 
     auto *errorLabel = new QLabel(tr("控制面板加载失败，请查看日志。"), pages);
@@ -759,6 +788,7 @@ void MainWindow::setupControlsDock()
             pages->setCurrentWidget(view);
             connect(view->rootObject(),SIGNAL(settingsDialogRequested()),this,SLOT(showOutputSettingsDialog()),Qt::UniqueConnection);
             connect(view->rootObject(),SIGNAL(recordingToggleRequested()),this,SLOT(toggleRecording()),Qt::UniqueConnection);
+            connect(view->rootObject(),SIGNAL(streamingToggleRequested()),this,SLOT(toggleStreaming()),Qt::UniqueConnection);
         }
     });
     connect(view, &QQuickWidget::sceneGraphError, this,

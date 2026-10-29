@@ -70,6 +70,8 @@ void Compositor::stopRendering()
     if (previousContext && previousSurface) previousContext->makeCurrent(previousSurface);
 }
 
+std::shared_ptr<OutputTap<ComposedImage>> Compositor::subscribeOutput()
+{ std::lock_guard<std::mutex> lock(m_mutex); return m_bus.subscribe(32); }
 void Compositor::setOutputEnabled(bool enabled)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
@@ -178,7 +180,7 @@ void Compositor::run()
                 revision = m_revision;
                 readback = m_requestedReadback;
                 needsReadback = readback > m_completedReadback;
-                outputEnabled = m_outputEnabled;
+                outputEnabled = m_outputEnabled || m_bus.active();
                 // The image represents this source snapshot. GPU rendering,
                 // cross-context synchronization and readback can finish later.
                 timestamp = MediaClock::nowNs();
@@ -217,9 +219,12 @@ void Compositor::run()
                     m_readback = image;
                     m_completedReadback = readback;
                 }
-                if (outputEnabled && m_outputEnabled && !m_stop) {
-                    m_output.push_back({image, timestamp});
-                    if (m_output.size() > 8) { m_output.pop_front(); ++m_droppedOutput; }
+                if (outputEnabled && !m_stop) {
+                    m_bus.publish({image, timestamp});
+                    if (m_outputEnabled) {
+                        m_output.push_back({image, timestamp});
+                        if (m_output.size() > 8) { m_output.pop_front(); ++m_droppedOutput; }
+                    }
                 }
             }
             m_wake.notify_all();

@@ -11,6 +11,8 @@ Rectangle {
     color: themeColors.background.panel
     readonly property var recorder: typeof recordingController !== "undefined" ? recordingController : null
     readonly property var settings: typeof outputSettings !== "undefined" ? outputSettings : null
+    readonly property var streamer: typeof streamingController !== "undefined" ? streamingController : null
+    signal streamingToggleRequested()
     signal recordingToggleRequested()
     signal settingsDialogRequested()
 
@@ -83,10 +85,9 @@ Rectangle {
                 Layout.minimumWidth: 110
                 Layout.fillWidth: true
                 Layout.minimumHeight: 32
-                enabled: root.recorder !== null && (root.recorder.state === "recording"
-                    || (!root.recorder.busy && root.recorder.ready))
+                enabled: root.recorder !== null && root.recorder.state !== "stopping" && (root.recorder.busy || root.recorder.ready)
                 text: !root.recorder ? qsTr("开始录制") : root.recorder.state === "recording" ? qsTr("停止录制")
-                    : root.recorder.state === "starting" ? qsTr("正在启动…")
+                    : root.recorder.state === "starting" ? qsTr("取消启动")
                     : root.recorder.state === "stopping" ? qsTr("正在停止…") : qsTr("开始录制")
                 icon.source: "qrc:/assets/icons/circle.svg"
                 onClicked: root.recordingToggleRequested()
@@ -96,7 +97,12 @@ Rectangle {
                 Layout.minimumWidth: 110
                 Layout.fillWidth: true
                 Layout.minimumHeight: 32
-                text: qsTr("开始直播")
+                enabled: root.streamer !== null && root.streamer.state !== "stopping" && (root.streamer.busy || root.streamer.ready)
+                text: !root.streamer ? qsTr("开始直播") : root.streamer.state === "live" ? qsTr("停止直播")
+                    : root.streamer.state === "connecting" ? qsTr("取消连接")
+                    : root.streamer.state === "reconnecting" ? qsTr("停止重连")
+                    : root.streamer.state === "stopping" ? qsTr("正在停止…") : qsTr("开始直播")
+                onClicked: root.streamingToggleRequested()
                 icon.source: "qrc:/assets/icons/radio.svg"
             }
             ControlButton {

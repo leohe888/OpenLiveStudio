@@ -83,7 +83,7 @@ inline void run(MainWindow &window)
         .arg(QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss"),QUuid::createUuid().toString(QUuid::WithoutBraces).left(6)));
     QVERIFY(QDir().mkpath(directory));
     qInfo()<<"Acceptance artifacts:"<<directory;
-    QVERIFY(settings->apply(directory,1,"",""));
+    QVERIFY(settings->apply(directory,12000,"",""));
     display->refreshDisplays(); QVERIFY(!display->displays().isEmpty());
     camera->refreshDevices(); audio->refreshDevices();
     QTRY_VERIFY_WITH_TIMEOUT(!camera->refreshing() && !audio->refreshing(),10000);

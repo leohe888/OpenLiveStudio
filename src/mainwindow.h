@@ -16,6 +16,7 @@ class DisplayCaptureController;
 class CameraCaptureController;
 class AudioSourceModel;
 class RecordingController;
+class StreamingController;
 class OutputSettings;
 class QCloseEvent;
 class ThemeManager;
@@ -47,6 +48,7 @@ private slots:
     void showOutputSettingsDialog();
     void browseRecordingDirectory();
     void toggleRecording();
+    void toggleStreaming();
 
 private:
     void applyTheme();
@@ -62,7 +64,7 @@ private:
     void setupHelpActions();
     void resetDockLayout();
     void updateStatusLayout();
-    void updateRecordingStatus();
+    void updateOutputStatus();
 
     QLabel *m_outputStatus = nullptr;
     QLabel *m_outputMetrics = nullptr;
@@ -78,9 +80,10 @@ private:
     CameraCaptureController *m_cameraSources = nullptr;
     AudioSourceModel *m_audioSources = nullptr;
     RecordingController *m_recording = nullptr;
+    StreamingController *m_streaming = nullptr;
     OutputSettings *m_outputSettings = nullptr;
     bool m_closePending = false;
-    QString m_previousRecordingError;
+    QString m_previousRecordingError,m_previousStreamingError;
     ThemeManager &m_theme;
 };
 #endif // MAINWINDOW_H

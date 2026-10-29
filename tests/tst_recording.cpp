@@ -1,4 +1,4 @@
-#include "output/mp4encoder.h"
+#include "output/mediaencoder.h"
 #include "output/recordingcontroller.h"
 #include "output/outputsettings.h"
 #include <QDir>
@@ -12,6 +12,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QScopeGuard>
+#include <QSignalSpy>
 
 class RecordingTest : public QObject {
     Q_OBJECT
@@ -49,30 +50,30 @@ private slots:
         QTemporaryDir directory;
         OutputSettings settings;
         const auto defaults=settings.recordingDirectory();
-        QCOMPARE(settings.quality(),1); QVERIFY(settings.streamKey().isEmpty());
+        QCOMPARE(settings.recordingBitrate(),12000); QVERIFY(settings.streamKey().isEmpty());
         const auto selected=directory.filePath("new/output");
-        QVERIFY(settings.apply(selected,2,"rtmps://example.test/live","unit-test-key"));
+        QVERIFY(settings.apply(selected,16000,"rtmp://example.test/live","unit-test-key"));
         QVERIFY(!QFileInfo::exists(selected));
-        QVERIFY(!settings.apply(selected,3,"",""));
-        QVERIFY(!settings.apply(selected,2,"https://example.test/live",""));
-        QCOMPARE(settings.quality(),2);
+        QVERIFY(!settings.apply(selected,0,"",""));
+        QVERIFY(!settings.apply(selected,16000,"https://example.test/live",""));
+        QCOMPARE(settings.recordingBitrate(),16000);
         settings.setRecordingLocked(true);
-        QVERIFY(!settings.apply(directory.path(),1,"",""));
-        QVERIFY(settings.apply(selected,2,"rtmp://example.test/app","new-unit-key"));
+        QVERIFY(!settings.apply(directory.path(),12000,"",""));
+        QVERIFY(settings.apply(selected,16000,"rtmp://example.test/app","new-unit-key"));
         const auto first=settings.nextRecordingPath(); QVERIFY(!first.isEmpty());
         QVERIFY(QFileInfo(selected).isDir()); QVERIFY(!QFileInfo::exists(first));
         QFile file(first); QVERIFY(file.open(QIODevice::WriteOnly|QIODevice::NewOnly)); file.write("keep"); file.close();
         const auto next=settings.nextRecordingPath(); QVERIFY(next!=first);
         QVERIFY(file.open(QIODevice::ReadOnly)); QCOMPARE(file.readAll(),QByteArray("keep"));
         OutputSettings fresh;
-        QCOMPARE(fresh.recordingDirectory(),defaults); QCOMPARE(fresh.quality(),1); QVERIFY(fresh.streamKey().isEmpty());
+        QCOMPARE(fresh.recordingDirectory(),defaults); QCOMPARE(fresh.recordingBitrate(),12000); QVERIFY(fresh.streamKey().isEmpty());
     }
     void encoderUnicodeNoOverwriteAndTracks()
     {
         QTemporaryDir directory; QVERIFY(directory.isValid());
         const auto path=directory.filePath(QString::fromUtf8("测试录制.mp4"));
         try {
-            Mp4Encoder encoder; encoder.open(path);
+            MediaEncoder encoder; encoder.open(path);
             QImage image(1920,1080,QImage::Format_RGBA8888); image.fill(Qt::red);
             for (int i=0;i<6;++i) { encoder.video(image,i); encoder.audio(QVector<float>(3200,0)); }
             encoder.finish(); QVERIFY(encoder.completed());
@@ -80,8 +81,28 @@ private slots:
         verifyFile(path,.19);
         const auto size=QFileInfo(path).size();
         bool failed=false;
-        try { Mp4Encoder duplicate; duplicate.open(path); } catch (const QString &) { failed=true; }
+        try { MediaEncoder duplicate; duplicate.open(path); } catch (const QString &) { failed=true; }
         QVERIFY(failed); QCOMPARE(QFileInfo(path).size(),size);
+    }
+    void nativeReadbackKeepsRedAndBlueChannels()
+    {
+        QTemporaryDir directory;
+        for (auto format:{QImage::Format_RGBA8888,QImage::Format_ARGB32_Premultiplied}) {
+            const auto path=directory.filePath(QString::number(int(format))+".mp4");
+            try {
+                MediaEncoder encoder; encoder.open(path);
+                QImage image(1920,1080,format); image.fill(QColor(240,30,10));
+                for (int i=0;i<3;++i) { encoder.video(image,i); encoder.audio(QVector<float>(3200,0)); }
+                encoder.finish();
+            } catch (const QString &error) { QFAIL(qPrintable(error)); }
+            QProcess decoder;
+            decoder.start(QDir(QFileInfo(QStringLiteral(OPENLIVE_FFPROBE)).absolutePath()).filePath("ffmpeg.exe"),
+                {"-v","error","-threads","1","-filter_threads","1","-i",path,"-frames:v","1","-vf","scale=1:1", "-pix_fmt","rgb24","-f","rawvideo","pipe:1"});
+            QVERIFY(decoder.waitForFinished(10000)); QCOMPARE(decoder.exitCode(),0);
+            const auto rgb=decoder.readAllStandardOutput(); QCOMPARE(rgb.size(),3);
+            QVERIFY(static_cast<unsigned char>(rgb[0])>180);
+            QVERIFY(static_cast<unsigned char>(rgb[1])<80); QVERIFY(static_cast<unsigned char>(rgb[2])<80);
+        }
     }
     void recordsCompositionWithSilentAudioAndRestarts()
     {
@@ -109,6 +130,9 @@ private slots:
         verifyFile(path,.65);
         QVERIFY(compositor.isRunning()); QVERIFY(mixer.isRunning());
         QVERIFY(mixer.takeOutput().empty());
+        QVERIFY(!recording.startRecording(directory.filePath("invalid.mp4"),0));
+        QTest::qWait(150); QCOMPARE(recording.state(),QString("error"));
+        QVERIFY(!recording.lastError().isEmpty());
         QVERIFY(recording.startRecording(directory.filePath("again.mp4")));
         QTRY_COMPARE_WITH_TIMEOUT(recording.state(),QString("recording"),5000);
         QTest::qWait(200); recording.stopRecording();
@@ -132,6 +156,23 @@ private slots:
         QVERIFY(recording.startRecording(directory.filePath("cancel.mp4"))); recording.stopRecording();
         QTRY_VERIFY_WITH_TIMEOUT(!recording.busy(),5000);
         compositor.stopRendering(); mixer.stop(); mixer.wait();
+    }
+    void temporarySchedulingPauseRecoversWithoutSheddingStreaming()
+    {
+        Compositor compositor; AudioMixer mixer; mixer.start();
+        QVERIFY(compositor.startRendering()); QVERIFY(!compositor.captureImage().isNull());
+        const auto cleanup=qScopeGuard([&] { compositor.stopRendering(); mixer.stop(); mixer.wait(); });
+        RecordingController recording(compositor,mixer); QSignalSpy overloaded(&recording,&RecordingController::overloaded);
+        QTemporaryDir directory;
+        qputenv("OPENLIVE_RECORDING_PAUSE_ONCE_MS","550");
+        const auto restore=qScopeGuard([] { qunsetenv("OPENLIVE_RECORDING_PAUSE_ONCE_MS"); });
+        QVERIFY(recording.startRecording(directory.filePath("pause.mp4")));
+        QTRY_COMPARE_WITH_TIMEOUT(recording.state(),QString("recording"),5000);
+        QTest::qWait(2000);
+        QCOMPARE(recording.state(),QString("recording")); QCOMPARE(overloaded.count(),0);
+        QVERIFY(recording.status().lagMs<400);
+        recording.stopRecording(); QTRY_VERIFY_WITH_TIMEOUT(!recording.busy(),5000);
+        QVERIFY(recording.fileComplete()); verifyFile(recording.filePath(),1.9);
     }
     void overloadStopsWithPlayableFileAndCanRecover()
     {

@@ -3,7 +3,7 @@ project(OpenLiveStudio LANGUAGES CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 find_package(FFmpeg REQUIRED)
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets QuickWidgets QuickControls2 Svg OpenGL OpenGLWidgets)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Network Widgets QuickWidgets QuickControls2 Svg OpenGL OpenGLWidgets)
 
 qt_standard_project_setup()
 
@@ -51,14 +51,16 @@ if(WIN32)
 endif()
 
 add_library(openlive_output STATIC
-    src/output/mp4encoder.h src/output/mp4encoder.cpp
+    src/output/outputtimeline.h src/output/outputtimeline.cpp
+    src/output/streamingcontroller.h src/output/streamingcontroller.cpp
+    src/output/mediaencoder.h src/output/mediaencoder.cpp
     src/output/recordingcontroller.h src/output/recordingcontroller.cpp
     src/output/outputsettings.h src/output/outputsettings.cpp
     src/core/mediaclock.h
 )
 target_include_directories(openlive_output PUBLIC "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(openlive_output PUBLIC openlive_compositor openlive_audio
-    PRIVATE FFmpeg::avcodec FFmpeg::avformat FFmpeg::avutil FFmpeg::swscale)
+    PRIVATE Qt::Network FFmpeg::avcodec FFmpeg::avformat FFmpeg::avutil FFmpeg::swscale)
 
 qt_add_executable(OpenLiveStudio
     WIN32 MACOSX_BUNDLE
