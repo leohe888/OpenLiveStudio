@@ -15,7 +15,6 @@
 #include <QtAlgorithms>
 
 #include <QAction>
-#include <QAbstractButton>
 #include <QApplication>
 #include <QCoreApplication>
 #include <QDebug>
@@ -24,7 +23,6 @@
 #include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
-#include <QPainter>
 #include <QQmlComponent>
 #include <QQmlContext>
 #include <QQmlError>
@@ -35,46 +33,6 @@
 #include <QShortcut>
 #include <QStackedWidget>
 #include <QVBoxLayout>
-
-namespace {
-// Preserve Qt's title-bar glyphs and actions, but tint their pixmaps because
-// native Windows styles can return black icons regardless of the palette.
-class ThemedDockWidget final : public QDockWidget
-{
-public:
-    ThemedDockWidget(const QString &title, QWidget *parent)
-        : QDockWidget(title, parent) {}
-protected:
-    bool event(QEvent *event) override
-    {
-        const bool handled = QDockWidget::event(event);
-        if (!m_refreshing && (event->type() == QEvent::StyleChange
-            || event->type() == QEvent::PaletteChange || event->type() == QEvent::Show)) {
-            m_refreshing = true;
-            for (auto *button : findChildren<QAbstractButton *>(QString(), Qt::FindDirectChildrenOnly)) {
-                const auto original = button->icon();
-                if (original.isNull()) continue;
-                QIcon tinted;
-                for (auto mode : {QIcon::Normal, QIcon::Disabled}) {
-                    auto pixmap = original.pixmap(button->iconSize(), button->devicePixelRatioF());
-                    {
-                        QPainter painter(&pixmap);
-                        painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-                        painter.fillRect(pixmap.rect(), UiColors::color(mode == QIcon::Disabled
-                            ? QStringLiteral("icon.disabled") : QStringLiteral("icon.primary")));
-                    }
-                    tinted.addPixmap(pixmap, mode);
-                }
-                button->setIcon(tinted);
-            }
-            m_refreshing = false;
-        }
-        return handled;
-    }
-private:
-    bool m_refreshing = false;
-};
-}
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -597,7 +555,7 @@ void MainWindow::setupStatusBar()
 
 void MainWindow::setupSourcesDock()
 {
-    m_sourcesDock = new ThemedDockWidget(tr("画面来源"), this);
+    m_sourcesDock = new QDockWidget(tr("画面来源"), this);
     m_sourcesDock->setObjectName(QStringLiteral("sourcesDock"));
     m_sourcesDock->setMinimumWidth(220);
 
@@ -654,7 +612,7 @@ void MainWindow::setupSourcesDock()
 
 void MainWindow::setupMixerDock()
 {
-    m_mixerDock = new ThemedDockWidget(tr("声音来源"), this);
+    m_mixerDock = new QDockWidget(tr("声音来源"), this);
     m_mixerDock->setObjectName(QStringLiteral("mixerDock"));
     m_mixerDock->setMinimumWidth(200);
 
@@ -706,7 +664,7 @@ void MainWindow::setupMixerDock()
 
 void MainWindow::setupControlsDock()
 {
-    m_controlsDock = new ThemedDockWidget(tr("控制"), this);
+    m_controlsDock = new QDockWidget(tr("控制"), this);
     m_controlsDock->setObjectName(QStringLiteral("controlsDock"));
     m_controlsDock->setMinimumWidth(200);
 

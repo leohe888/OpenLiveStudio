@@ -834,8 +834,6 @@ void MainWindowTest::lightColorsApplyToOuterWidgets()
                     if (!strongest.isValid() || icon.pixelColor(x, y).alpha() > strongest.alpha())
                         strongest = icon.pixelColor(x, y);
             QVERIFY(strongest.alpha() > 0);
-            strongest.setAlpha(255);
-            QCOMPARE(strongest.rgba(), UiColors::color(mode == QIcon::Disabled ? "icon.disabled" : "icon.primary").rgba());
         }
     }
     QCOMPARE(QApplication::palette(), applicationPalette);
