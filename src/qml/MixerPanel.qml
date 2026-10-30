@@ -7,7 +7,7 @@ Rectangle {
     objectName: "mixerPanel"
     readonly property var themeColors: uiColors
     readonly property var audioState: typeof audioSourceModel !== "undefined" ? audioSourceModel : null
-    implicitWidth: 238
+    implicitWidth: 220
     implicitHeight: 240
     color: themeColors.background.panel
     signal soundSourceAddDialogRequested()

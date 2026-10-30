@@ -6,7 +6,7 @@ Rectangle {
     id: root
     readonly property var themeColors: uiColors
     objectName: "sourcesPanel"
-    implicitWidth: 238
+    implicitWidth: 220
     implicitHeight: 320
     color: themeColors.background.panel
     readonly property var state: typeof sourceListModel !== "undefined" ? sourceListModel : null

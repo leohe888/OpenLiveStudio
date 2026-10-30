@@ -555,7 +555,7 @@ void MainWindow::setupMixerDock()
 {
     m_mixerDock = new QDockWidget(tr("声音来源"), this);
     m_mixerDock->setObjectName(QStringLiteral("mixerDock"));
-    m_mixerDock->setMinimumWidth(200);
+    m_mixerDock->setMinimumWidth(220);
 
     auto *pages = new QStackedWidget(m_mixerDock);
     auto *view = new QQuickWidget(pages);
@@ -666,7 +666,7 @@ void MainWindow::setupDockLayout()
     addDockWidget(Qt::LeftDockWidgetArea, m_mixerDock);
     addDockWidget(Qt::BottomDockWidgetArea, m_controlsDock);
     splitDockWidget(m_sourcesDock, m_mixerDock, Qt::Vertical);
-    resizeDocks({m_sourcesDock}, {238}, Qt::Horizontal);
+    resizeDocks({m_sourcesDock, m_mixerDock}, {220, 220}, Qt::Horizontal);
     resizeDocks({m_controlsDock}, {174}, Qt::Vertical);
     resizeDocks({m_sourcesDock, m_mixerDock}, {height() / 2, height() / 2}, Qt::Vertical);
 }
