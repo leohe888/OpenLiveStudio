@@ -33,6 +33,10 @@
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
+    setWindowTitle(QStringLiteral("OpenLive Studio"));
+    setMinimumSize(960, 640);
+    resize(1280, 720);
+
     applyColors();
     m_videoSourceModel = new VideoSourceModel;
     m_videoSourceAggregator = new VideoSourceAggregator(*m_videoSourceModel, this);
@@ -47,19 +51,15 @@ MainWindow::MainWindow(QWidget *parent)
             m_videoSourceAggregator, &VideoSourceAggregator::setImageSources);
     connect(m_cameraSourceController, &CameraSourceController::sourcesChanged,
             m_videoSourceAggregator, &VideoSourceAggregator::setCameraSources);
-    setWindowTitle(QStringLiteral("OpenLive Studio"));
-    setMinimumSize(960, 640);
-    resize(1280, 720);
-
     setupPreview();
     if (auto *preview=findChild<PreviewWidget *>(QStringLiteral("previewWidget"))) {
-        m_recording=new RecordingController(*preview->compositor(),*m_audioSourceModel->mixer(),this);
-        m_streaming=new StreamingController(*preview->compositor(),*m_audioSourceModel->mixer(),this);
-        connect(m_streaming,&StreamingController::statusChanged,this,&MainWindow::updateOutputStatus);
-        connect(m_streaming,&StreamingController::finished,this,[this] { if (m_closePending) QTimer::singleShot(0,this,&QWidget::close); });
-        connect(m_recording,&RecordingController::overloaded,m_streaming,&StreamingController::stopForOverload);
-        connect(m_recording,&RecordingController::statusChanged,this,&MainWindow::updateOutputStatus);
-        connect(m_recording,&RecordingController::finished,this,[this] {
+        m_recordingController=new RecordingController(*preview->compositor(),*m_audioSourceModel->mixer(),this);
+        m_streamingController=new StreamingController(*preview->compositor(),*m_audioSourceModel->mixer(),this);
+        connect(m_streamingController,&StreamingController::statusChanged,this,&MainWindow::updateOutputStatus);
+        connect(m_streamingController,&StreamingController::finished,this,[this] { if (m_closePending) QTimer::singleShot(0,this,&QWidget::close); });
+        connect(m_recordingController,&RecordingController::overloaded,m_streamingController,&StreamingController::stopForOverload);
+        connect(m_recordingController,&RecordingController::statusChanged,this,&MainWindow::updateOutputStatus);
+        connect(m_recordingController,&RecordingController::finished,this,[this] {
             if (m_closePending) QTimer::singleShot(0,this,&QWidget::close);
         });
     }
@@ -98,16 +98,16 @@ MainWindow::~MainWindow()
 {
     qDeleteAll(findChildren<QDialog *>(QString(),Qt::FindDirectChildrenOnly));
     // Finish encoding while its compositor and audio mixer are still alive.
-    delete m_streaming; m_streaming=nullptr;
-    delete m_recording; m_recording=nullptr;
+    delete m_streamingController; m_streamingController=nullptr;
+    delete m_recordingController; m_recordingController=nullptr;
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-    if ((m_recording && m_recording->busy()) || (m_streaming && m_streaming->busy())) {
+    if ((m_recordingController && m_recordingController->busy()) || (m_streamingController && m_streamingController->busy())) {
         m_closePending=true;
-        if (m_streaming) m_streaming->stopStreaming();
-        if (m_recording) m_recording->stopRecording();
+        if (m_streamingController) m_streamingController->stopStreaming();
+        if (m_recordingController) m_recordingController->stopRecording();
         event->ignore(); return;
     }
     m_closePending=false;
@@ -116,41 +116,41 @@ void MainWindow::closeEvent(QCloseEvent *event)
 
 void MainWindow::updateOutputStatus()
 {
-    if (!m_recording || !m_outputStatus) return;
-    m_outputSettings->setRecordingLocked(m_recording->busy());
-    if (m_streaming) m_outputSettings->setStreamingLocked(m_streaming->busy());
+    if (!m_recordingController || !m_outputStatus) return;
+    m_outputSettings->setRecordingLocked(m_recordingController->busy());
+    if (m_streamingController) m_outputSettings->setStreamingLocked(m_streamingController->busy());
     const auto formatDuration=[](qint64 ms) {
         return QStringLiteral("%1:%2:%3").arg(ms/3600000,2,10,QLatin1Char('0'))
             .arg(ms/60000%60,2,10,QLatin1Char('0')).arg(ms/1000%60,2,10,QLatin1Char('0'));
     };
-    const auto live=m_streaming ? m_streaming->status() : StreamingStatus{};
+    const auto live=m_streamingController ? m_streamingController->status() : StreamingStatus{};
     m_outputStatus->setText(tr("录制 %1   |   直播 %2").arg(
-        formatDuration(m_recording->busy() ? m_recording->durationMs() : 0),
-        formatDuration(m_streaming && m_streaming->busy() ? live.durationMs : 0)));
+        formatDuration(m_recordingController->busy() ? m_recordingController->durationMs() : 0),
+        formatDuration(m_streamingController && m_streamingController->busy() ? live.durationMs : 0)));
     if (!live.error.isEmpty() && live.error!=m_previousStreamingError) statusBar()->showMessage(tr("直播：%1").arg(live.error));
     m_previousStreamingError=live.error;
-    if (!m_recording->lastError().isEmpty() && m_previousRecordingError!=m_recording->lastError())
-        statusBar()->showMessage(tr("录制失败：%1%2").arg(m_recording->lastError(),
-            m_recording->fileComplete() ? tr("（已有内容已完成封装）") : tr("（文件未完整完成）")));
-    m_previousRecordingError=m_recording->lastError();
+    if (!m_recordingController->lastError().isEmpty() && m_previousRecordingError!=m_recordingController->lastError())
+        statusBar()->showMessage(tr("录制失败：%1%2").arg(m_recordingController->lastError(),
+            m_recordingController->fileComplete() ? tr("（已有内容已完成封装）") : tr("（文件未完整完成）")));
+    m_previousRecordingError=m_recordingController->lastError();
 }
 
 void MainWindow::toggleRecording()
 {
-    if (!m_recording) return;
-    if (m_recording->busy()) { m_recording->stopRecording(); return; }
+    if (!m_recordingController) return;
+    if (m_recordingController->busy()) { m_recordingController->stopRecording(); return; }
     const auto path=m_outputSettings->nextRecordingPath();
     if (path.isEmpty()) { statusBar()->showMessage(m_outputSettings->lastError()); return; }
     statusBar()->clearMessage();
-    m_recording->startRecording(path,m_outputSettings->recordingBitrate());
+    m_recordingController->startRecording(path,m_outputSettings->recordingBitrate());
 }
 
 void MainWindow::toggleStreaming()
 {
-    if (!m_streaming) return;
-    if (m_streaming->busy()) { m_streaming->stopStreaming(); return; }
+    if (!m_streamingController) return;
+    if (m_streamingController->busy()) { m_streamingController->stopStreaming(); return; }
     statusBar()->clearMessage();
-    m_streaming->startStreaming(m_outputSettings->streamServer(),m_outputSettings->streamKey(),m_outputSettings->streamingBitrate());
+    m_streamingController->startStreaming(m_outputSettings->streamServer(),m_outputSettings->streamKey(),m_outputSettings->streamingBitrate());
 }
 
 void MainWindow::showOutputSettingsDialog()
@@ -205,7 +205,7 @@ void MainWindow::applyColors()
     // afterwards, including child windows (floating docks and dialogs).
     // Keep the application's global palette untouched.
     setPalette(colors);
-    for (auto *dock : {m_sourcesDock, m_mixerDock, m_controlsDock})
+    for (auto *dock : {m_videoSourceDock, m_audioSourceDock, m_controlDock})
         if (dock) dock->setPalette(colors);
     for (auto *dialog : findChildren<QDialog *>()) dialog->setPalette(colors);
     if (auto *container = findChild<QWidget *>(QStringLiteral("previewContainer"))) {
@@ -480,13 +480,13 @@ void MainWindow::setupStatusBar()
 
 void MainWindow::setupSourcesDock()
 {
-    m_sourcesDock = new QDockWidget(tr("画面来源"), this);
-    m_sourcesDock->setFeatures(QDockWidget::NoDockWidgetFeatures);
-    m_sourcesDock->setObjectName(QStringLiteral("sourcesDock"));
-    m_sourcesDock->setMinimumWidth(220);
-    m_sourcesDock->setMaximumWidth(320);
+    m_videoSourceDock = new QDockWidget(tr("画面来源"), this);
+    m_videoSourceDock->setFeatures(QDockWidget::NoDockWidgetFeatures);
+    m_videoSourceDock->setObjectName(QStringLiteral("sourcesDock"));
+    m_videoSourceDock->setMinimumWidth(220);
+    m_videoSourceDock->setMaximumWidth(320);
 
-    auto *pages = new QStackedWidget(m_sourcesDock);
+    auto *pages = new QStackedWidget(m_videoSourceDock);
     auto *view = new QQuickWidget(pages);
     view->setObjectName(QStringLiteral("sourcesQuickWidget"));
     view->rootContext()->setContextProperty(QStringLiteral("videoSourceModel"), m_videoSourceModel);
@@ -533,19 +533,19 @@ void MainWindow::setupSourcesDock()
         showError(message);
     });
 
-    m_sourcesDock->setWidget(pages);
+    m_videoSourceDock->setWidget(pages);
     view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml")));
 }
 
 void MainWindow::setupMixerDock()
 {
-    m_mixerDock = new QDockWidget(tr("声音来源"), this);
-    m_mixerDock->setFeatures(QDockWidget::NoDockWidgetFeatures);
-    m_mixerDock->setObjectName(QStringLiteral("mixerDock"));
-    m_mixerDock->setMinimumWidth(220);
-    m_mixerDock->setMaximumWidth(320);
+    m_audioSourceDock = new QDockWidget(tr("声音来源"), this);
+    m_audioSourceDock->setFeatures(QDockWidget::NoDockWidgetFeatures);
+    m_audioSourceDock->setObjectName(QStringLiteral("mixerDock"));
+    m_audioSourceDock->setMinimumWidth(220);
+    m_audioSourceDock->setMaximumWidth(320);
 
-    auto *pages = new QStackedWidget(m_mixerDock);
+    auto *pages = new QStackedWidget(m_audioSourceDock);
     auto *view = new QQuickWidget(pages);
     view->setObjectName(QStringLiteral("mixerQuickWidget"));
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
@@ -587,26 +587,26 @@ void MainWindow::setupMixerDock()
         showError(message);
     });
 
-    m_mixerDock->setWidget(pages);
+    m_audioSourceDock->setWidget(pages);
     view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/MixerPanel.qml")));
 }
 
 void MainWindow::setupControlsDock()
 {
-    m_controlsDock = new QDockWidget(tr("控制"), this);
-    m_controlsDock->setFeatures(QDockWidget::NoDockWidgetFeatures);
-    m_controlsDock->setObjectName(QStringLiteral("controlsDock"));
-    m_controlsDock->setMinimumHeight(80);
-    m_controlsDock->setMaximumHeight(180);
+    m_controlDock = new QDockWidget(tr("控制"), this);
+    m_controlDock->setFeatures(QDockWidget::NoDockWidgetFeatures);
+    m_controlDock->setObjectName(QStringLiteral("controlsDock"));
+    m_controlDock->setMinimumHeight(80);
+    m_controlDock->setMaximumHeight(180);
 
-    auto *pages = new QStackedWidget(m_controlsDock);
+    auto *pages = new QStackedWidget(m_controlDock);
     auto *view = new QQuickWidget(pages);
     view->setObjectName(QStringLiteral("controlsQuickWidget"));
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
     configureQuickWidget(view);
     view->rootContext()->setContextProperty(QStringLiteral("outputSettings"),m_outputSettings);
-    view->rootContext()->setContextProperty(QStringLiteral("recordingController"),m_recording);
-    view->rootContext()->setContextProperty(QStringLiteral("streamingController"),m_streaming);
+    view->rootContext()->setContextProperty(QStringLiteral("recordingController"),m_recordingController);
+    view->rootContext()->setContextProperty(QStringLiteral("streamingController"),m_streamingController);
     pages->addWidget(view);
 
     auto *errorLabel = new QLabel(tr("控制面板加载失败，请查看日志。"), pages);
@@ -643,7 +643,7 @@ void MainWindow::setupControlsDock()
         showError(message);
     });
 
-    m_controlsDock->setWidget(pages);
+    m_controlDock->setWidget(pages);
     view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ControlsPanel.qml")));
 }
 
@@ -651,11 +651,11 @@ void MainWindow::setupDockLayout()
 {
     setCorner(Qt::BottomLeftCorner, Qt::LeftDockWidgetArea);
     setCorner(Qt::BottomRightCorner, Qt::BottomDockWidgetArea);
-    addDockWidget(Qt::LeftDockWidgetArea, m_sourcesDock);
-    addDockWidget(Qt::LeftDockWidgetArea, m_mixerDock);
-    addDockWidget(Qt::BottomDockWidgetArea, m_controlsDock);
-    splitDockWidget(m_sourcesDock, m_mixerDock, Qt::Vertical);
-    resizeDocks({m_sourcesDock, m_mixerDock}, {220, 220}, Qt::Horizontal);
-    resizeDocks({m_controlsDock}, {80}, Qt::Vertical);
-    resizeDocks({m_sourcesDock, m_mixerDock}, {height() / 2, height() / 2}, Qt::Vertical);
+    addDockWidget(Qt::LeftDockWidgetArea, m_videoSourceDock);
+    addDockWidget(Qt::LeftDockWidgetArea, m_audioSourceDock);
+    addDockWidget(Qt::BottomDockWidgetArea, m_controlDock);
+    splitDockWidget(m_videoSourceDock, m_audioSourceDock, Qt::Vertical);
+    resizeDocks({m_videoSourceDock, m_audioSourceDock}, {220, 220}, Qt::Horizontal);
+    resizeDocks({m_controlDock}, {80}, Qt::Vertical);
+    resizeDocks({m_videoSourceDock, m_audioSourceDock}, {height() / 2, height() / 2}, Qt::Vertical);
 }

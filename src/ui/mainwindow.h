@@ -56,19 +56,18 @@ private:
     void setupControlsDock();
     void setupDockLayout();
     void updateOutputStatus();
-
+    QDockWidget *m_videoSourceDock = nullptr;
+    QDockWidget *m_audioSourceDock = nullptr;
+    QDockWidget *m_controlDock = nullptr;
     QLabel *m_outputStatus = nullptr;
-    QDockWidget *m_sourcesDock = nullptr;
-    QDockWidget *m_mixerDock = nullptr;
-    QDockWidget *m_controlsDock = nullptr;
     VideoSourceModel *m_videoSourceModel = nullptr;
     VideoSourceAggregator *m_videoSourceAggregator = nullptr;
     ImageSourceController *m_imageSourceController = nullptr;
     DisplaySourceController *m_displaySourceController = nullptr;
     CameraSourceController *m_cameraSourceController = nullptr;
     AudioSourceModel *m_audioSourceModel = nullptr;
-    RecordingController *m_recording = nullptr;
-    StreamingController *m_streaming = nullptr;
+    RecordingController *m_recordingController = nullptr;
+    StreamingController *m_streamingController = nullptr;
     OutputSettings *m_outputSettings = nullptr;
     bool m_closePending = false;
     QString m_previousRecordingError,m_previousStreamingError;
