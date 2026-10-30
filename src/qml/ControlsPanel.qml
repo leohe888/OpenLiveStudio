@@ -6,7 +6,7 @@ Rectangle {
     id: root
     readonly property var themeColors: uiColors
     objectName: "controlsPanel"
-    implicitWidth: 286
+    implicitWidth: 358
     implicitHeight: 174
     color: themeColors.background.panel
     readonly property var recorder: typeof recordingController !== "undefined" ? recordingController : null
@@ -52,8 +52,8 @@ Rectangle {
         anchors.fill: parent
         clip: true
         // Keep viewport sizing independent of the layout it sizes.
-        contentWidth: Math.max(root.width, 180)
-        contentHeight: Math.max(root.height, 130)
+        contentWidth: Math.max(root.width, 358)
+        contentHeight: Math.max(root.height, 48)
         ScrollBar.horizontal: PanelScrollBar {
             objectName: "controlsHorizontalScrollBar"
             parent: scroll
@@ -71,13 +71,13 @@ Rectangle {
             active: scroll.ScrollBar.horizontal.active
         }
 
-        ColumnLayout {
+        RowLayout {
             id: controls
             objectName: "controlActions"
             x: 8
             y: 8
             width: scroll.contentWidth - 16
-            height: scroll.contentHeight - 16
+            height: 32
             spacing: 6
 
             ControlButton {
@@ -113,10 +113,6 @@ Rectangle {
                 text: qsTr("设置")
                 enabled: root.settings !== null
                 onClicked: root.settingsDialogRequested()
-            }
-            Item {
-                objectName: "controlsSpacer"
-                Layout.fillHeight: true
             }
         }
     }

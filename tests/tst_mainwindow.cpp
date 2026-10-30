@@ -114,7 +114,7 @@ private slots:
     void recordingControlsAndGracefulClose();
     void streamingControlsAndGracefulClose();
     void recordingAcceptance();
-    void loadsControlsPanelWithVerticalButtons();
+    void loadsControlsPanelWithHorizontalButtons();
     void embedsSourcePanelAtTopLeft();
     void embedsMixerPanelAtBottomLeft();
     void hasNoTransitionsDock();
@@ -1067,6 +1067,10 @@ void MainWindowTest::mixerAndControlColors()
         for (const auto &axis : {QString("Horizontal"), QString("Vertical")}) {
             auto *bar = root->findChild<QQuickItem *>(prefix + axis + "ScrollBar");
             QVERIFY(bar);
+            if (prefix == "controls" && axis == "Vertical") {
+                QTRY_COMPARE(bar->property("size").toReal(), qreal(1));
+                continue;
+            }
             QTRY_VERIFY(bar->property("size").toReal() < 1);
             auto *thumb = bar->property("contentItem").value<QQuickItem *>();
             QVERIFY(thumb);
@@ -2130,12 +2134,12 @@ void MainWindowTest::recordingAcceptance()
     RecordingAcceptance::run(window);
 }
 
-void MainWindowTest::loadsControlsPanelWithVerticalButtons()
+void MainWindowTest::loadsControlsPanelWithHorizontalButtons()
 {
     QQuickWidget panel;
     panel.rootContext()->setContextProperty(QStringLiteral("uiColors"), UiColors::values());
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
-    panel.resize(286, 174);
+    panel.resize(358, 174);
     panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ControlsPanel.qml")));
     QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
     panel.show();
@@ -2143,10 +2147,8 @@ void MainWindowTest::loadsControlsPanelWithVerticalButtons()
     QVERIFY(root);
     auto *scroll = root->findChild<QQuickItem *>(QStringLiteral("controlsScrollView"));
     auto *actions = root->findChild<QQuickItem *>(QStringLiteral("controlActions"));
-    auto *spacer = root->findChild<QQuickItem *>(QStringLiteral("controlsSpacer"));
     QVERIFY(scroll);
     QVERIFY(actions);
-    QVERIFY(spacer);
     QVERIFY(!root->findChild<QObject *>(QStringLiteral("exitButton")));
     QVERIFY(!root->findChild<QObject *>(QStringLiteral("recordDuration")));
     QVERIFY(!root->findChild<QObject *>(QStringLiteral("streamDuration")));
@@ -2168,7 +2170,7 @@ void MainWindowTest::loadsControlsPanelWithVerticalButtons()
         buttons.append(button);
     }
     QCOMPARE(buttons.size(), 3);
-    for (const auto &size : {QSize(180, 124), QSize(286, 174), QSize(400, 320)}) {
+    for (const auto &size : {QSize(358, 48), QSize(500, 174), QSize(800, 320)}) {
         panel.resize(size);
         QTRY_COMPARE(root->size(), QSizeF(size));
         QVERIFY(scroll->property("contentWidth").toReal() >= scroll->width());
@@ -2178,24 +2180,20 @@ void MainWindowTest::loadsControlsPanelWithVerticalButtons()
             QVERIFY(root->boundingRect().contains(rect));
             QCOMPARE(rect.height(), qreal(32));
             if (!previous.isNull()) {
-                QVERIFY(previous.bottom() < rect.top());
-                QCOMPARE(rect.left(), previous.left());
-                QCOMPARE(rect.width(), previous.width());
-                QVERIFY(qAbs(rect.height() - previous.height()) <= 1);
+                QVERIFY(previous.right() < rect.left());
+                QCOMPARE(rect.top(), previous.top());
+                QCOMPARE(rect.height(), previous.height());
+                QVERIFY(qAbs(rect.width() - previous.width()) <= 1);
             }
             previous = rect;
         }
-        if (size.height() > 130) {
-            QVERIFY(spacer->height() > 0);
-            QVERIFY(spacer->mapRectToScene(spacer->boundingRect()).top() > previous.bottom());
-        }
     }
     panel.resize(180, 80);
-    QTRY_VERIFY(scroll->property("contentHeight").toReal() > scroll->height());
+    QTRY_VERIFY(scroll->property("contentWidth").toReal() > scroll->width());
     auto *flickable = scroll->property("contentItem").value<QQuickItem *>();
     QVERIFY(flickable);
-    QVERIFY(flickable->setProperty("contentY",
-        flickable->property("contentHeight").toReal() - flickable->height()));
+    QVERIFY(flickable->setProperty("contentX",
+        flickable->property("contentWidth").toReal() - flickable->width()));
     QTRY_VERIFY(root->boundingRect().contains(
         buttons.last()->mapRectToScene(buttons.last()->boundingRect())));
     QVERIFY(panel.isVisible());
