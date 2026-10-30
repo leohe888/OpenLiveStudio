@@ -189,26 +189,6 @@ add_test(NAME capture.interop COMMAND "${CMAKE_COMMAND}" -E env
     "$<TARGET_FILE:tst_captureinterop>" -o "${CMAKE_CURRENT_BINARY_DIR}/captureinterop-results.txt,txt")
 set_tests_properties(capture.interop PROPERTIES LABELS "capture;gpu" TIMEOUT 30)
 
-qt_add_executable(tst_thememanager
-    tst_thememanager.cpp
-    ../src/core/thememanager.cpp
-    ../src/core/thememanager.h
-)
-target_include_directories(tst_thememanager PRIVATE "${PROJECT_SOURCE_DIR}/src/core")
-target_link_libraries(tst_thememanager PRIVATE Qt6::Gui Qt6::Test)
-set_target_properties(tst_thememanager PROPERTIES WIN32_EXECUTABLE FALSE)
-qt_add_resources(tst_thememanager "test_themes"
-    PREFIX "/"
-    BASE "${PROJECT_SOURCE_DIR}"
-    FILES ${OPENLIVE_STUDIO_THEME_FILES}
-)
-add_test(NAME core.thememanager
-    COMMAND "${CMAKE_COMMAND}" -E env
-        "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
-        "$<TARGET_FILE:tst_thememanager>" -o "${CMAKE_CURRENT_BINARY_DIR}/thememanager-results.txt,txt"
-)
-set_tests_properties(core.thememanager PROPERTIES LABELS "core;smoke" TIMEOUT 15)
-
 qt_add_executable(tst_sourcelistmodel
     tst_sourcelistmodel.cpp
     ../src/core/source.cpp
@@ -231,8 +211,7 @@ set_tests_properties(core.sourcelistmodel PROPERTIES LABELS "core;smoke" TIMEOUT
 
 qt_add_executable(tst_mainwindow
     tst_mainwindow.cpp
-    ../src/core/thememanager.cpp
-    ../src/core/thememanager.h
+    ../src/core/uicolors.h
     ../src/mainwindow.cpp
     ../src/mainwindow.h
     ../src/preview/previewwidget.cpp
@@ -312,12 +291,6 @@ qt_add_resources(tst_mainwindow "test_icons"
     PREFIX "/"
     BASE "${PROJECT_SOURCE_DIR}"
     FILES ${OPENLIVE_STUDIO_ICON_FILES}
-)
-
-qt_add_resources(tst_mainwindow "mainwindow_themes"
-    PREFIX "/"
-    BASE "${PROJECT_SOURCE_DIR}"
-    FILES ${OPENLIVE_STUDIO_THEME_FILES}
 )
 
 # This smoke test needs no desktop; future GPU tests need real GL.

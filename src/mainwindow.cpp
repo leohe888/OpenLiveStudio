@@ -4,7 +4,7 @@
 #include "capture/displaycapturecontroller.h"
 #include "capture/cameracapturecontroller.h"
 #include "audio/audiosourcemodel.h"
-#include "core/thememanager.h"
+#include "core/uicolors.h"
 #include "preview/previewwidget.h"
 #include "output/recordingcontroller.h"
 #include "output/streamingcontroller.h"
@@ -15,7 +15,6 @@
 #include <QtAlgorithms>
 
 #include <QAction>
-#include <QActionGroup>
 #include <QAbstractButton>
 #include <QApplication>
 #include <QCoreApplication>
@@ -43,8 +42,8 @@ namespace {
 class ThemedDockWidget final : public QDockWidget
 {
 public:
-    ThemedDockWidget(const QString &title, ThemeManager &theme, QWidget *parent)
-        : QDockWidget(title, parent), m_theme(theme) {}
+    ThemedDockWidget(const QString &title, QWidget *parent)
+        : QDockWidget(title, parent) {}
 protected:
     bool event(QEvent *event) override
     {
@@ -61,7 +60,7 @@ protected:
                     {
                         QPainter painter(&pixmap);
                         painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-                        painter.fillRect(pixmap.rect(), m_theme.color(mode == QIcon::Disabled
+                        painter.fillRect(pixmap.rect(), UiColors::color(mode == QIcon::Disabled
                             ? QStringLiteral("icon.disabled") : QStringLiteral("icon.primary")));
                     }
                     tinted.addPixmap(pixmap, mode);
@@ -73,17 +72,14 @@ protected:
         return handled;
     }
 private:
-    ThemeManager &m_theme;
     bool m_refreshing = false;
 };
 }
 
-MainWindow::MainWindow(ThemeManager &theme, QWidget *parent)
-    : QMainWindow(parent), m_theme(theme)
+MainWindow::MainWindow(QWidget *parent)
+    : QMainWindow(parent)
 {
-    Q_ASSERT(m_theme.isReady());
-    applyTheme();
-    connect(&m_theme, &ThemeManager::themeChanged, this, &MainWindow::applyTheme);
+    applyColors();
     m_sourceListModel = new SourceListModel;
     m_audioSources = new AudioSourceModel;
     m_outputSettings = new OutputSettings;
@@ -135,7 +131,6 @@ MainWindow::MainWindow(ThemeManager &theme, QWidget *parent)
     setupMixerDock();
     setupControlsDock();
     setupViewActions();
-    setupThemeActions();
     setupHelpActions();
     resetDockLayout();
     updateStatusLayout();
@@ -143,9 +138,7 @@ MainWindow::MainWindow(ThemeManager &theme, QWidget *parent)
     m_sourceListModel->setParent(this);
     m_audioSources->setParent(this);
     m_outputSettings->setParent(this);
-    applyTheme();
-    if (!m_theme.lastError().isEmpty())
-        statusBar()->showMessage(tr("主题配置提示：%1").arg(m_theme.lastError()));
+    applyColors();
 }
 
 MainWindow::~MainWindow()
@@ -236,9 +229,9 @@ void MainWindow::browseRecordingDirectory()
     if (root && !path.isEmpty()) root->setProperty("directory",path);
 }
 
-void MainWindow::applyTheme()
+void MainWindow::applyColors()
 {
-    const auto color = [this](const char *key) { return m_theme.color(QLatin1String(key)); };
+    const auto color = [](const char *key) { return UiColors::color(QLatin1String(key)); };
     QPalette colors = QApplication::palette();
     colors.setColor(QPalette::Window, color("background.window"));
     colors.setColor(QPalette::WindowText, color("text.primary"));
@@ -270,7 +263,7 @@ void MainWindow::applyTheme()
         "QStatusBar::item { border: none; }"
         "QLabel { color: %2; }"
         "QLabel:disabled { color: %7; }"
-        "QLabel[themeError=\"true\"] { color: %9; background-color: %3; }")
+        "QLabel[uiError=\"true\"] { color: %9; background-color: %3; }")
         .arg(hex("background.header"), hex("text.primary"), hex("background.panel"),
              hex("border.default"), hex("background.hovered"), hex("background.selected"),
              hex("text.disabled"), hex("border.focus"), hex("status.error")));
@@ -294,12 +287,8 @@ void MainWindow::applyTheme()
 
 void MainWindow::configureQuickWidget(QQuickWidget *view)
 {
-    auto *theme = &m_theme;
-    view->rootContext()->setContextProperty(QStringLiteral("uiTheme"), theme);
-    view->setClearColor(theme->color(QStringLiteral("background.panel")));
-    connect(theme, &ThemeManager::themeChanged, view, [theme, view] {
-        view->setClearColor(theme->color(QStringLiteral("background.panel")));
-    });
+    view->rootContext()->setContextProperty(QStringLiteral("uiColors"), UiColors::values());
+    view->setClearColor(UiColors::color(QStringLiteral("background.panel")));
 }
 
 void MainWindow::showDialog(const QUrl &source, const QString &title,
@@ -335,7 +324,7 @@ void MainWindow::showDialog(const QUrl &source, const QString &title,
     pages->addWidget(view);
     auto *errorLabel = new QLabel(tr("对话框加载失败，请查看日志。"), pages);
     errorLabel->setObjectName(QStringLiteral("dialogLoadError"));
-    errorLabel->setProperty("themeError", true);
+    errorLabel->setProperty("uiError", true);
     errorLabel->setAlignment(Qt::AlignCenter);
     errorLabel->setWordWrap(true);
     pages->addWidget(errorLabel);
@@ -505,9 +494,6 @@ void MainWindow::setupMenuBar()
     m_viewMenu = menuBar()->addMenu(tr("视图"));
     m_viewMenu->setObjectName(QStringLiteral("viewMenu"));
 
-    m_themeMenu = menuBar()->addMenu(tr("主题"));
-    m_themeMenu->setObjectName(QStringLiteral("themeMenu"));
-
     m_helpMenu = menuBar()->addMenu(tr("帮助"));
     m_helpMenu->setObjectName(QStringLiteral("helpMenu"));
 }
@@ -549,33 +535,6 @@ void MainWindow::setupHelpActions()
     });
 }
 
-void MainWindow::setupThemeActions()
-{
-    auto *group = new QActionGroup(m_themeMenu);
-    group->setExclusive(true);
-    for (const auto *id : {"dark", "light"}) {
-        auto *action = m_themeMenu->addAction(QLatin1String(id) == QLatin1String("dark") ? tr("深色") : tr("浅色"));
-        action->setObjectName(QLatin1String(id) + QStringLiteral("ThemeAction"));
-        action->setData(QString::fromLatin1(id));
-        action->setCheckable(true);
-        group->addAction(action);
-    }
-    const auto syncSelection = [this, group] {
-        for (auto *action : group->actions())
-            action->setChecked(action->data().toString() == m_theme.themeId());
-    };
-    syncSelection();
-    connect(&m_theme, &ThemeManager::themeChanged, group, syncSelection);
-    connect(group, &QActionGroup::triggered, this, [this, syncSelection](QAction *action) {
-        if (m_theme.setTheme(action->data().toString()))
-            statusBar()->clearMessage();
-        else
-            statusBar()->showMessage(tr("无法切换主题：%1").arg(m_theme.lastError()));
-        // QAction checks itself before triggered(); failed saves emit no themeChanged.
-        syncSelection();
-    });
-}
-
 void MainWindow::setupPreview()
 {
     auto *container = new QWidget(this);
@@ -586,7 +545,7 @@ void MainWindow::setupPreview()
     pages->setObjectName(QStringLiteral("previewPages"));
     auto *errorLabel = new QLabel(pages);
     errorLabel->setObjectName(QStringLiteral("previewErrorLabel"));
-    errorLabel->setProperty("themeError", true);
+    errorLabel->setProperty("uiError", true);
     errorLabel->setTextFormat(Qt::PlainText);
     errorLabel->setAlignment(Qt::AlignCenter);
     errorLabel->setWordWrap(true);
@@ -638,7 +597,7 @@ void MainWindow::setupStatusBar()
 
 void MainWindow::setupSourcesDock()
 {
-    m_sourcesDock = new ThemedDockWidget(tr("画面来源"), m_theme, this);
+    m_sourcesDock = new ThemedDockWidget(tr("画面来源"), this);
     m_sourcesDock->setObjectName(QStringLiteral("sourcesDock"));
     m_sourcesDock->setMinimumWidth(220);
 
@@ -652,7 +611,7 @@ void MainWindow::setupSourcesDock()
 
     auto *errorLabel = new QLabel(tr("来源面板加载失败，请查看日志。"), pages);
     errorLabel->setObjectName(QStringLiteral("sourcesLoadError"));
-    errorLabel->setProperty("themeError", true);
+    errorLabel->setProperty("uiError", true);
     errorLabel->setAlignment(Qt::AlignCenter);
     errorLabel->setWordWrap(true);
     pages->addWidget(errorLabel);
@@ -695,7 +654,7 @@ void MainWindow::setupSourcesDock()
 
 void MainWindow::setupMixerDock()
 {
-    m_mixerDock = new ThemedDockWidget(tr("声音来源"), m_theme, this);
+    m_mixerDock = new ThemedDockWidget(tr("声音来源"), this);
     m_mixerDock->setObjectName(QStringLiteral("mixerDock"));
     m_mixerDock->setMinimumWidth(200);
 
@@ -709,7 +668,7 @@ void MainWindow::setupMixerDock()
 
     auto *errorLabel = new QLabel(tr("声音来源面板加载失败，请查看日志。"), pages);
     errorLabel->setObjectName(QStringLiteral("mixerLoadError"));
-    errorLabel->setProperty("themeError", true);
+    errorLabel->setProperty("uiError", true);
     errorLabel->setAlignment(Qt::AlignCenter);
     errorLabel->setWordWrap(true);
     pages->addWidget(errorLabel);
@@ -747,7 +706,7 @@ void MainWindow::setupMixerDock()
 
 void MainWindow::setupControlsDock()
 {
-    m_controlsDock = new ThemedDockWidget(tr("控制"), m_theme, this);
+    m_controlsDock = new ThemedDockWidget(tr("控制"), this);
     m_controlsDock->setObjectName(QStringLiteral("controlsDock"));
     m_controlsDock->setMinimumWidth(200);
 
@@ -764,7 +723,7 @@ void MainWindow::setupControlsDock()
 
     auto *errorLabel = new QLabel(tr("控制面板加载失败，请查看日志。"), pages);
     errorLabel->setObjectName(QStringLiteral("controlsLoadError"));
-    errorLabel->setProperty("themeError", true);
+    errorLabel->setProperty("uiError", true);
     errorLabel->setAlignment(Qt::AlignCenter);
     errorLabel->setWordWrap(true);
     pages->addWidget(errorLabel);

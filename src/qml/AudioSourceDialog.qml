@@ -10,7 +10,7 @@ Rectangle {
     readonly property bool editing: sourceId.length > 0
     property string deviceId: ""
     property string errorText: ""
-    readonly property var colors: uiTheme.colors
+    readonly property var colors: uiColors
     readonly property var original: editing ? audioSources.source(sourceId) : ({})
     readonly property string selectedType: typeInput.currentIndex === 0 ? "microphone" : "system"
     readonly property var targets: {

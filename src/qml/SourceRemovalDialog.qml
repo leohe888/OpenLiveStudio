@@ -4,7 +4,7 @@ import QtQuick.Layouts
 
 Rectangle {
     id: root
-    readonly property var themeColors: uiTheme.colors
+    readonly property var themeColors: uiColors
     objectName: "sourceRemovalDialogContent"
     implicitWidth: 460
     implicitHeight: 220

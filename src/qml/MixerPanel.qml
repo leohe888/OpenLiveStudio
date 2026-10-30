@@ -5,7 +5,7 @@ import QtQuick.Layouts
 Rectangle {
     id: root
     objectName: "mixerPanel"
-    readonly property var themeColors: uiTheme.colors
+    readonly property var themeColors: uiColors
     readonly property var audioState: typeof audioSourceModel !== "undefined" ? audioSourceModel : null
     implicitWidth: 238
     implicitHeight: 240

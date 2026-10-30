@@ -4,7 +4,7 @@ import QtQuick.Layouts
 
 Rectangle {
     id: root
-    readonly property var themeColors: uiTheme.colors
+    readonly property var themeColors: uiColors
     objectName: "sourcesPanel"
     implicitWidth: 238
     implicitHeight: 320

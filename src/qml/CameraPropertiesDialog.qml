@@ -10,7 +10,7 @@ Rectangle {
     required property string sourceId
     property var status: ({})
     property string errorText: ""
-    readonly property var colors: uiTheme.colors
+    readonly property var colors: uiColors
     implicitWidth: 600
     implicitHeight: 440
     color: colors.background.panel

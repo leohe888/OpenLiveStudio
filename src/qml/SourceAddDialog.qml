@@ -4,7 +4,7 @@ import QtQuick.Layouts
 
 Rectangle {
     id: root
-    readonly property var themeColors: uiTheme.colors
+    readonly property var themeColors: uiColors
     objectName: "sourceAddDialogContent"
     implicitWidth: 520
     implicitHeight: supportsDisplay || supportsCamera ? 430 : 300

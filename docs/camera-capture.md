@@ -34,7 +34,7 @@ Windows 摄像头视频使用原生 Media Foundation 的异步 Source Reader；�
 
 ## 验证
 
-普通 `ctest --test-dir build/camera-capture-Debug --output-on-failure` 包含 `capture.camera`，覆盖配置、分数帧率、重复设备、锁定时尺寸适配、滤镜保留、无效设备错误、故障显隐、手动重试、删除及图片合并；UI 测试覆盖深浅主题、属性草稿取消/确定、窗口复用和来源删除关闭窗口。普通测试不要求打开摄像头。
+普通 `ctest --test-dir build/camera-capture-Debug --output-on-failure` 包含 `capture.camera`，覆盖配置、分数帧率、重复设备、锁定时尺寸适配、滤镜保留、无效设备错误、故障显隐、手动重试、删除及图片合并；UI 测试覆盖固定浅色配色、属性草稿取消/确定、窗口复用和来源删除关闭窗口。普通测试不要求打开摄像头。
 
 手动运行硬件验收时设置：
 

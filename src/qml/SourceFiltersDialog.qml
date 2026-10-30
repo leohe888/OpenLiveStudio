@@ -7,7 +7,7 @@ Rectangle {
     objectName: "sourceFiltersDialog"
     required property var sourceListModel
     required property string sourceId
-    readonly property var themeColors: uiTheme.colors
+    readonly property var themeColors: uiColors
     property var filters: []
     property string selectedId: ""
     readonly property int selectedIndex: filters.findIndex(f => f.id === selectedId)

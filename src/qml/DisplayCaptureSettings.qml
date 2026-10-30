@@ -7,7 +7,7 @@ ColumnLayout {
     property var displayCaptureController: null
     property string displayId: ""
     property bool captureCursor: true
-    readonly property var colors: uiTheme.colors
+    readonly property var colors: uiColors
     readonly property var targets: {
         const entries = displayCaptureController ? displayCaptureController.displays.slice() : []
         if (displayId.length && !entries.some(e => e.id === displayId))

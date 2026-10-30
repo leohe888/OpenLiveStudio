@@ -12,7 +12,7 @@ Rectangle {
     property string server: ""
     property string key: ""
     property string errorText: ""
-    readonly property var colors: uiTheme.colors
+    readonly property var colors: uiColors
     implicitWidth: 620
     implicitHeight: 460
     color: colors.background.panel

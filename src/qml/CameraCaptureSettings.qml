@@ -10,7 +10,7 @@ ColumnLayout {
     property var modeList: []
     property bool loadingModes: false
     property string errorText: ""
-    readonly property var colors: uiTheme.colors
+    readonly property var colors: uiColors
     readonly property var targets: {
         const entries = cameraCaptureController ? cameraCaptureController.devices.slice() : []
         if (deviceId.length && !entries.some(e => e.id === deviceId))

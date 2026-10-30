@@ -9,7 +9,7 @@ Rectangle {
     required property var displayCaptureController
     required property string sourceId
     property var status: ({})
-    readonly property var colors: uiTheme.colors
+    readonly property var colors: uiColors
     implicitWidth: 560
     implicitHeight: 330
     color: colors.background.panel

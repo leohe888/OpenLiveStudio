@@ -19,8 +19,7 @@ qt_add_executable(OpenLiveStudio
     src/preview/previewwidget.cpp
     src/preview/previewwidget.h
     src/preview/previewsource.h
-    src/core/thememanager.cpp
-    src/core/thememanager.h
+    src/core/uicolors.h
     src/core/source.cpp
     src/core/source.h
     src/core/sourcefilter.h
@@ -120,16 +119,6 @@ qt_add_resources(OpenLiveStudio "icons"
     PREFIX "/"
     BASE "${PROJECT_SOURCE_DIR}"
     FILES ${OPENLIVE_STUDIO_ICON_FILES}
-)
-
-set(OPENLIVE_STUDIO_THEME_FILES
-    "${PROJECT_SOURCE_DIR}/assets/themes/dark.json"
-    "${PROJECT_SOURCE_DIR}/assets/themes/light.json"
-)
-qt_add_resources(OpenLiveStudio "themes"
-    PREFIX "/"
-    BASE "${PROJECT_SOURCE_DIR}"
-    FILES ${OPENLIVE_STUDIO_THEME_FILES}
 )
 
 set(OPENLIVE_STUDIO_SHADER_FILES

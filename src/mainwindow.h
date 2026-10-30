@@ -19,15 +19,13 @@ class RecordingController;
 class StreamingController;
 class OutputSettings;
 class QCloseEvent;
-class ThemeManager;
 
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
 
 public:
-    // The caller owns theme and must keep it alive until this window is destroyed.
-    explicit MainWindow(ThemeManager &theme, QWidget *parent = nullptr);
+    explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
 
     void showDialog(const QUrl &source, const QString &title,
@@ -51,7 +49,7 @@ private slots:
     void toggleStreaming();
 
 private:
-    void applyTheme();
+    void applyColors();
     void configureQuickWidget(QQuickWidget *view);
     void setupMenuBar();
     void setupPreview();
@@ -60,7 +58,6 @@ private:
     void setupMixerDock();
     void setupControlsDock();
     void setupViewActions();
-    void setupThemeActions();
     void setupHelpActions();
     void resetDockLayout();
     void updateStatusLayout();
@@ -69,7 +66,6 @@ private:
     QLabel *m_outputStatus = nullptr;
     QLabel *m_outputMetrics = nullptr;
     QMenu *m_viewMenu = nullptr;
-    QMenu *m_themeMenu = nullptr;
     QMenu *m_helpMenu = nullptr;
     QDockWidget *m_sourcesDock = nullptr;
     QDockWidget *m_mixerDock = nullptr;
@@ -84,6 +80,5 @@ private:
     OutputSettings *m_outputSettings = nullptr;
     bool m_closePending = false;
     QString m_previousRecordingError,m_previousStreamingError;
-    ThemeManager &m_theme;
 };
 #endif // MAINWINDOW_H

@@ -4,7 +4,7 @@ import QtQuick.Layouts
 
 Rectangle {
     id: root
-    readonly property var themeColors: uiTheme.colors
+    readonly property var themeColors: uiColors
     objectName: "controlsPanel"
     implicitWidth: 286
     implicitHeight: 174

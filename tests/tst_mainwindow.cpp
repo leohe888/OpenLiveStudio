@@ -3,7 +3,7 @@
 #include "output/outputsettings.h"
 #include "output/recordingcontroller.h"
 #include "output/streamingcontroller.h"
-#include "thememanager.h"
+#include "core/uicolors.h"
 #include "sourcelistmodel.h"
 #include "imagesourcecontroller.h"
 #include "capture/cameracapturecontroller.h"
@@ -15,7 +15,6 @@
 #include <QApplication>
 
 #include <QAction>
-#include <QActionGroup>
 #include <QAbstractButton>
 #include <QDockWidget>
 #include <QDialog>
@@ -66,8 +65,6 @@ QImage grabPreview(PreviewWidget &preview)
 class MainWindowTest : public QObject
 {
     Q_OBJECT
-    std::unique_ptr<QTemporaryDir> m_settings;
-    std::unique_ptr<ThemeManager> m_theme;
 
 private slots:
     void init();
@@ -77,16 +74,14 @@ private slots:
     void previewEditsModelAndSynchronizesSelection();
     void previewShowsRenderingError();
     void dockTitlesStayVerticallyCentered();
-    void themeRestoresAndUpdatesOuterWidgets();
-    void themeMenuSwitchesAndRestoresPreference();
-    void themeMenuRecoversFromSaveFailure();
-    void dialogsShareThemeAndReleaseBeforeIt();
-    void basicDialogThemes_data();
-    void basicDialogThemes();
-    void sourceThemes_data();
-    void sourceThemes();
-    void mixerAndControlThemes_data();
-    void mixerAndControlThemes();
+    void lightColorsApplyToOuterWidgets();
+    void dialogsUseLightColorsAndReleaseTheirViews();
+    void basicDialogColors_data();
+    void basicDialogColors();
+    void sourceColors_data();
+    void sourceColors();
+    void mixerAndControlColors_data();
+    void mixerAndControlColors();
     void sourcePanelSharesStateAcrossReloadsAndReleasesItWithWindow();
     void sourcePanelFollowsSelectionAcrossReloads();
     void sourcePanelCanMoveAndToggle_data();
@@ -104,16 +99,12 @@ private slots:
     void cancelsPendingImageThroughDialog();
     void sourceAddDialogHandlesInput_data();
     void sourceAddDialogHandlesInput();
-    void sourceAddDialogHandlesTypeSelection_data();
     void sourceAddDialogHandlesTypeSelection();
     void sourcePanelRequestsRemoval_data();
-    void displayCaptureDialogs_data();
     void displayCaptureDialogs();
-    void cameraPropertiesDialogs_data();
     void cameraPropertiesDialogs();
     void cameraHardwarePreview();
     void addsCameraThroughDialog();
-    void sourceFiltersDialogEditsAndRetainsState_data();
     void sourceFiltersDialogEditsAndRetainsState();
     void sourcePanelRequestsRemoval();
     void sourceRemovalDialogHandlesConfirmation_data();
@@ -123,7 +114,7 @@ private slots:
     void loadsMixerPanelWithUnavailableChannels();
     void soundSourcesAndDialogs();
     void soundHardwarePreview();
-    void outputSettingsDialogDraftsAndTheme();
+    void outputSettingsDialogDraftsAndColors();
     void recordingControlsAndGracefulClose();
     void streamingControlsAndGracefulClose();
     void recordingAcceptance();
@@ -147,18 +138,13 @@ private slots:
 
 void MainWindowTest::init()
 {
-    m_theme.reset();
-    m_settings = std::make_unique<QTemporaryDir>();
-    QVERIFY(m_settings->isValid());
-    m_theme = std::make_unique<ThemeManager>(m_settings->filePath("settings.ini"));
-    QVERIFY(m_theme->isReady());
     // A ready QML root can still have unstable layout bindings.
-    QTest::failOnWarning(QRegularExpression(QStringLiteral("Binding loop detected|ReferenceError: uiTheme")));
+    QTest::failOnWarning(QRegularExpression(QStringLiteral("Binding loop detected|ReferenceError: uiColors")));
 }
 
 void MainWindowTest::canShowAndClose()
 {
-    MainWindow window(*m_theme);
+    MainWindow window;
     QVERIFY(!window.isVisible());
 
     window.show();
@@ -170,7 +156,7 @@ void MainWindowTest::canShowAndClose()
 
 void MainWindowTest::sourcePanelSharesStateAcrossReloadsAndReleasesItWithWindow()
 {
-    auto window = std::make_unique<MainWindow>(*m_theme);
+    auto window = std::make_unique<MainWindow>();
     window->show();
     QPointer<SourceListModel> state = window->findChild<SourceListModel *>();
     QVERIFY(state);
@@ -221,7 +207,7 @@ void MainWindowTest::sourcePanelFollowsSelectionAcrossReloads()
 {
     SourceListModel state(QList<SourceData>{{"a", "First"}, {"b", "Second"}});
     QQuickWidget panel;
-    panel.rootContext()->setContextProperty("uiTheme", m_theme.get());
+    panel.rootContext()->setContextProperty("uiColors", UiColors::values());
     panel.rootContext()->setContextProperty("sourceListModel", &state);
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(238, 260);
@@ -268,7 +254,7 @@ void MainWindowTest::sourcePanelCanMoveAndToggle()
     SourceListModel state(QList<SourceData>{
         {"a", "Foreground"}, {"b", "Background"}, {"c", "Logo"}});
     QQuickWidget panel;
-    panel.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
+    panel.rootContext()->setContextProperty(QStringLiteral("uiColors"), UiColors::values());
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(280, 220);
     panel.rootContext()->setContextProperty(QStringLiteral("sourceListModel"), &state);
@@ -408,7 +394,7 @@ void MainWindowTest::listScrollBarsHandleOverflow()
     SourceListModel shortState(QList<SourceData>{{"one", "One"}});
     QVERIFY(state.selectSource("0"));
     QQuickWidget panel;
-    panel.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
+    panel.rootContext()->setContextProperty(QStringLiteral("uiColors"), UiColors::values());
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(238, 150);
     panel.rootContext()->setContextProperty(QStringLiteral("sourceListModel"), &state);
@@ -463,7 +449,7 @@ void MainWindowTest::listScrollBarsHandleOverflow()
 
 void MainWindowTest::hasWindowShell()
 {
-    MainWindow window(*m_theme);
+    MainWindow window;
     window.show();
 
     QVERIFY(!window.findChild<QDockWidget *>("scenesDock"));
@@ -475,7 +461,8 @@ void MainWindowTest::hasWindowShell()
     QVERIFY(window.centralWidget());
     QVERIFY(window.centralWidget()->isVisible());
     QVERIFY(window.menuBar()->isVisible());
-    QCOMPARE(window.menuBar()->actions().size(), 3);
+    QCOMPARE(window.menuBar()->actions().size(), 2);
+    QVERIFY(!window.findChild<QMenu *>("themeMenu"));
     QVERIFY(window.findChildren<QToolBar *>().isEmpty());
     QVERIFY(window.statusBar()->isVisible());
     auto *pages = window.findChild<QStackedWidget *>(QStringLiteral("previewPages"));
@@ -497,7 +484,7 @@ void MainWindowTest::hasWindowShell()
 
 void MainWindowTest::previewDisplaysImageSources()
 {
-    MainWindow window(*m_theme);
+    MainWindow window;
     auto *preview = window.findChild<PreviewWidget *>("previewWidget");
     if (!preview)
         QSKIP("Native desktop OpenGL is required for preview integration testing.");
@@ -558,16 +545,16 @@ void MainWindowTest::previewDisplaysImageSources()
         QVERIFY(x > 2 || y > 2);
         const QColor surrounding = y > 2 ? frame.pixelColor(frame.width() / 2, int(y / 2))
                                          : frame.pixelColor(int(x / 2), frame.height() / 2);
-        QCOMPARE(surrounding, m_theme->color("preview.surrounding"));
+        QCOMPARE(surrounding, UiColors::color("preview.surrounding"));
     };
     verifyFrame();
-    QVERIFY(m_theme->setTheme("light"));
+
     verifyFrame();
     QVERIFY(window.grab().save(QCoreApplication::applicationDirPath() + "/mainwindow-preview.png"));
     window.resize(qMax(window.minimumWidth(), window.width() - 40), window.height());
     QCoreApplication::processEvents();
     verifyFrame();
-    QVERIFY(m_theme->setTheme("dark"));
+
     verifyFrame();
     QImage overlay(600, 400, QImage::Format_RGBA8888);
     overlay.fill(Qt::yellow);
@@ -625,7 +612,7 @@ void MainWindowTest::previewDisplaysImageSources()
 
 void MainWindowTest::previewEditsModelAndSynchronizesSelection()
 {
-    MainWindow window(*m_theme);
+    MainWindow window;
     auto *preview = window.findChild<PreviewWidget *>("previewWidget");
     if (!preview) QSKIP("Native desktop OpenGL is required for mouse editing integration.");
     window.show();
@@ -698,15 +685,15 @@ void MainWindowTest::previewEditsModelAndSynchronizesSelection()
     QCOMPARE(model->currentSourceId(), backId);
     QVERIFY(model->setSourceVisible(frontId, true));
     QVERIFY(model->selectSource(frontId));
-    QVERIFY(m_theme->setTheme("light"));
+
     QCoreApplication::processEvents();
     const auto overlayFrame = grabPreview(*preview);
     const auto corner = canvasPoint(SourceGeometry::sourceToCanvas(rotated).map(QPointF()));
     QCOMPARE(overlayFrame.pixelColor(qRound(corner.x() * preview->devicePixelRatioF()),
                                     qRound(corner.y() * preview->devicePixelRatioF())),
-             m_theme->color("border.focus"));
+             UiColors::color("border.focus"));
     QVERIFY(overlayFrame.save(QCoreApplication::applicationDirPath() + "/preview-transforms.png"));
-    QVERIFY(m_theme->setTheme("dark"));
+
     QCOMPARE(window.findChild<QStackedWidget *>("previewPages")->currentWidget(), preview);
     QVERIFY(preview->lastError().isEmpty());
     QVERIFY(window.close());
@@ -714,7 +701,7 @@ void MainWindowTest::previewEditsModelAndSynchronizesSelection()
 
 void MainWindowTest::previewShowsRenderingError()
 {
-    MainWindow window(*m_theme);
+    MainWindow window;
     auto *preview = window.findChild<PreviewWidget *>("previewWidget");
     if (!preview)
         QSKIP("Native desktop OpenGL is required to inject a preview rendering error.");
@@ -738,9 +725,9 @@ void MainWindowTest::previewShowsRenderingError()
     QVERIFY(!preview->isVisible());
     QCOMPARE(error->textFormat(), Qt::PlainText);
     QCOMPARE(error->text(), QStringLiteral("预览不可用\n") + details);
-    QVERIFY(m_theme->setTheme("light"));
-    QTRY_COMPARE(error->palette().color(QPalette::WindowText), m_theme->color("status.error"));
-    QTRY_COMPARE(error->palette().color(QPalette::Window), m_theme->color("background.panel"));
+
+    QTRY_COMPARE(error->palette().color(QPalette::WindowText), UiColors::color("status.error"));
+    QTRY_COMPARE(error->palette().color(QPalette::Window), UiColors::color("background.panel"));
     QCOMPARE(error->text(), QStringLiteral("预览不可用\n") + details);
     QCOMPARE(pages->currentWidget(), error);
     QVERIFY(window.close());
@@ -766,7 +753,7 @@ void MainWindowTest::dockTitlesStayVerticallyCentered()
     auto *base = QStyleFactory::create(QApplication::style()->objectName());
     QVERIFY(base);
     TitleStyle style(base);
-    MainWindow window(*m_theme);
+    MainWindow window;
     window.show();
     const auto docks = window.findChildren<QDockWidget *>();
     QCOMPARE(docks.size(), 3);
@@ -775,8 +762,8 @@ void MainWindowTest::dockTitlesStayVerticallyCentered()
         style.titles.append(dock->windowTitle());
         dock->setStyle(&style);
     }
-    for (const auto *theme : {"dark", "light"}) {
-        QVERIFY(m_theme->setTheme(theme));
+    {
+
         style.alignments.clear();
         for (auto *dock : docks) {
             QVERIFY(!dock->grab().isNull());
@@ -789,137 +776,51 @@ void MainWindowTest::dockTitlesStayVerticallyCentered()
     }
 }
 
-void MainWindowTest::themeMenuSwitchesAndRestoresPreference()
-{
-    QVERIFY(m_theme->setTheme("light"));
-    ThemeManager restored(m_theme->settingsFile());
-    MainWindow window(restored);
-    window.show();
-    auto *menu = window.findChild<QMenu *>("themeMenu");
-    auto *dark = window.findChild<QAction *>("darkThemeAction");
-    auto *light = window.findChild<QAction *>("lightThemeAction");
-    QVERIFY(menu && dark && light);
-    QCOMPARE(window.menuBar()->actions()[1]->menu(), menu);
-    QCOMPARE(window.menuBar()->actions()[0]->menu(), window.findChild<QMenu *>("viewMenu"));
-    QCOMPARE(menu->actions(), QList<QAction *>({dark, light}));
-    QVERIFY(dark->isCheckable() && light->isCheckable());
-    QVERIFY(dark->actionGroup() && dark->actionGroup() == light->actionGroup());
-    QVERIFY(dark->actionGroup()->isExclusive());
-    QVERIFY(light->isChecked() && !dark->isChecked());
-    auto *viewMenu = window.findChild<QMenu *>("viewMenu");
-    QVERIFY(!viewMenu->actions().contains(dark) && !viewMenu->actions().contains(light));
-    const auto panels = window.findChildren<QQuickWidget *>();
-    QList<QPointer<QQuickItem>> roots;
-    for (auto *panel : panels) {
-        QTRY_COMPARE(panel->status(), QQuickWidget::Ready);
-        roots.append(panel->rootObject());
-    }
-    QSignalSpy changed(&restored, &ThemeManager::themeChanged);
-    for (auto *action : {dark, dark, light}) {
-        action->trigger();
-        QCOMPARE(restored.themeId(), action->data().toString());
-        QVERIFY(action->isChecked());
-        QVERIFY(dark->isChecked() != light->isChecked());
-        ThemeManager saved(restored.settingsFile());
-        QCOMPARE(saved.themeId(), restored.themeId());
-        for (int i = 0; i < panels.size(); ++i) {
-            QCOMPARE(panels[i]->rootObject(), roots[i].data());
-            QTRY_COMPARE(roots[i]->property("color").value<QColor>(), restored.color("background.panel"));
-        }
-    }
-    QCOMPARE(changed.size(), 2); // Re-selecting the active theme keeps it selected.
-    QVERIFY(restored.setTheme("dark"));
-    QVERIFY(dark->isChecked() && !light->isChecked());
-    ThemeManager restarted(restored.settingsFile());
-    MainWindow reopened(restarted);
-    QVERIFY(reopened.findChild<QAction *>("darkThemeAction")->isChecked());
-    QVERIFY(!reopened.findChild<QAction *>("lightThemeAction")->isChecked());
-}
-
-void MainWindowTest::themeMenuRecoversFromSaveFailure()
-{
-    const auto blocker = m_settings->filePath("blocker");
-    {
-        QFile file(blocker);
-        QVERIFY(file.open(QIODevice::WriteOnly));
-        QCOMPARE(file.write("keep"), qint64(4));
-    }
-    ThemeManager theme(blocker + "/settings.ini");
-    MainWindow window(theme);
-    window.show();
-    auto *dark = window.findChild<QAction *>("darkThemeAction");
-    auto *light = window.findChild<QAction *>("lightThemeAction");
-    QVERIFY(dark && light);
-    const auto colors = theme.colors();
-    const auto palette = window.palette();
-    QSignalSpy changed(&theme, &ThemeManager::themeChanged);
-    light->trigger();
-    QVERIFY(!theme.lastError().isEmpty());
-    QVERIFY(window.statusBar()->currentMessage().contains(theme.lastError()));
-    QCOMPARE(theme.themeId(), "dark");
-    QCOMPARE(theme.colors(), colors);
-    QCOMPARE(window.palette(), palette);
-    QVERIFY(dark->isChecked() && !light->isChecked());
-    QCOMPARE(changed.size(), 0);
-    QVERIFY(QFile::remove(blocker));
-    light->trigger();
-    QCOMPARE(theme.themeId(), "light");
-    QVERIFY(light->isChecked() && !dark->isChecked());
-    QVERIFY(theme.lastError().isEmpty());
-    QVERIFY(window.statusBar()->currentMessage().isEmpty());
-    QCOMPARE(changed.size(), 1);
-    ThemeManager restored(theme.settingsFile());
-    QCOMPARE(restored.themeId(), "light");
-}
-
-void MainWindowTest::themeRestoresAndUpdatesOuterWidgets()
+void MainWindowTest::lightColorsApplyToOuterWidgets()
 {
     const QPalette applicationPalette = QApplication::palette();
-    QVERIFY(m_theme->setTheme("light"));
-    m_theme = std::make_unique<ThemeManager>(m_settings->filePath("settings.ini"));
-    QCOMPARE(m_theme->themeId(), "light");
-    MainWindow window(*m_theme);
+
+    MainWindow window;
     window.show();
-    QCOMPARE(window.palette().color(QPalette::Window), m_theme->color("background.window"));
-    QCOMPARE(window.palette().color(QPalette::Text), m_theme->color("text.primary"));
+    QCOMPARE(window.palette().color(QPalette::Window), UiColors::color("background.window"));
+    QCOMPARE(window.palette().color(QPalette::Text), UiColors::color("text.primary"));
     const auto views = window.findChildren<QQuickWidget *>();
     QCOMPARE(views.size(), 3);
     QList<QPointer<QQuickItem>> roots;
     for (auto *view : views) {
         QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-        QCOMPARE(view->rootContext()->contextProperty("uiTheme").value<QObject *>(), m_theme.get());
-        QCOMPARE(view->quickWindow()->color(), m_theme->color("background.panel"));
+        QCOMPARE(view->rootContext()->contextProperty("uiColors").toMap(), UiColors::values());
+        QCOMPARE(view->quickWindow()->color(), UiColors::color("background.panel"));
         roots.append(view->rootObject());
     }
-    // Exercise an actual QML binding to the nested QColor values, not just the
-    // context pointer. The existing panel internals migrate in later steps.
+    // Exercise the nested QColor values through an actual QML binding.
     QQmlComponent probe(views.first()->engine());
-    probe.setData("import QtQuick\nQtObject { property color themedColor: uiTheme.colors.text.primary }", QUrl());
+    probe.setData("import QtQuick\nQtObject { property color uiColor: uiColors.text.primary }", QUrl());
     QTRY_COMPARE(probe.status(), QQmlComponent::Ready);
     std::unique_ptr<QObject> binding(probe.create(views.first()->rootContext()));
     QVERIFY(binding);
-    QCOMPARE(binding->property("themedColor").value<QColor>(), m_theme->color("text.primary"));
+    QCOMPARE(binding->property("uiColor").value<QColor>(), UiColors::color("text.primary"));
     auto *dock = window.findChild<QDockWidget *>("sourcesDock");
     QVERIFY(dock);
     dock->setFloating(true);
     QTRY_VERIFY(dock->isFloating());
-    QVERIFY(m_theme->setTheme("dark"));
-    QTRY_COMPARE(binding->property("themedColor").value<QColor>(), m_theme->color("text.primary"));
-    QCOMPARE(window.palette().color(QPalette::Window), m_theme->color("background.window"));
-    QCOMPARE(dock->palette().color(QPalette::Window), m_theme->color("background.window"));
-    QCOMPARE(window.palette().color(QPalette::Disabled, QPalette::Text), m_theme->color("text.disabled"));
+
+    QTRY_COMPARE(binding->property("uiColor").value<QColor>(), UiColors::color("text.primary"));
+    QCOMPARE(window.palette().color(QPalette::Window), UiColors::color("background.window"));
+    QCOMPARE(dock->palette().color(QPalette::Window), UiColors::color("background.window"));
+    QCOMPARE(window.palette().color(QPalette::Disabled, QPalette::Text), UiColors::color("text.disabled"));
     auto *metrics = window.findChild<QLabel *>("outputMetrics");
     QVERIFY(metrics);
-    QTRY_COMPARE(metrics->palette().color(QPalette::WindowText), m_theme->color("text.primary"));
+    QTRY_COMPARE(metrics->palette().color(QPalette::WindowText), UiColors::color("text.primary"));
     for (int i = 0; i < views.size(); ++i) {
         QCOMPARE(views[i]->rootObject(), roots[i].data());
-        QCOMPARE(views[i]->quickWindow()->color(), m_theme->color("background.panel"));
+        QCOMPARE(views[i]->quickWindow()->color(), UiColors::color("background.panel"));
     }
     auto *error = window.findChild<QLabel *>("previewErrorLabel");
     QVERIFY(error);
-    QTRY_COMPARE(error->palette().color(QPalette::WindowText), m_theme->color("status.error"));
-    QTRY_COMPARE(error->palette().color(QPalette::Window), m_theme->color("background.panel"));
-    QTRY_COMPARE(window.centralWidget()->palette().color(QPalette::Window), m_theme->color("preview.surrounding"));
+    QTRY_COMPARE(error->palette().color(QPalette::WindowText), UiColors::color("status.error"));
+    QTRY_COMPARE(error->palette().color(QPalette::Window), UiColors::color("background.panel"));
+    QTRY_COMPARE(window.centralWidget()->palette().color(QPalette::Window), UiColors::color("preview.surrounding"));
     dock->setFloating(false);
     const auto titleButtons = dock->findChildren<QAbstractButton *>(QString(), Qt::FindDirectChildrenOnly);
     QVERIFY(!titleButtons.isEmpty());
@@ -934,28 +835,26 @@ void MainWindowTest::themeRestoresAndUpdatesOuterWidgets()
                         strongest = icon.pixelColor(x, y);
             QVERIFY(strongest.alpha() > 0);
             strongest.setAlpha(255);
-            QCOMPARE(strongest.rgba(), m_theme->color(mode == QIcon::Disabled ? "icon.disabled" : "icon.primary").rgba());
+            QCOMPARE(strongest.rgba(), UiColors::color(mode == QIcon::Disabled ? "icon.disabled" : "icon.primary").rgba());
         }
     }
     QCOMPARE(QApplication::palette(), applicationPalette);
 }
 
-void MainWindowTest::sourceThemes_data()
+void MainWindowTest::sourceColors_data()
 {
     QTest::addColumn<QString>("panelName");
     QTest::addColumn<QString>("prefix");
-    QTest::addColumn<QString>("themeId");
-    for (const auto &theme : {QString("dark"), QString("light")}) {
-        QTest::newRow(qPrintable("sources-" + theme)) << QString("SourcesPanel") << QString("source") << theme;
+    {
+        QTest::newRow("sources") << QString("SourcesPanel") << QString("source");
     }
 }
 
-void MainWindowTest::sourceThemes()
+void MainWindowTest::sourceColors()
 {
     QFETCH(QString, panelName);
     QFETCH(QString, prefix);
-    QFETCH(QString, themeId);
-    QVERIFY(m_theme->setTheme(themeId));
+
     QList<SourceData> sources;
     for (int i = 0; i < 24; ++i)
         sources.append({QString::number(i), QString("Source %1").arg(i),
@@ -963,7 +862,7 @@ void MainWindowTest::sourceThemes()
     SourceListModel state(sources);
     QVERIFY(state.selectSource("0"));
     QQuickWidget panel;
-    panel.rootContext()->setContextProperty("uiTheme", m_theme.get());
+    panel.rootContext()->setContextProperty("uiColors", UiColors::values());
     panel.rootContext()->setContextProperty("sourceListModel", &state);
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(280, 220);
@@ -989,18 +888,18 @@ void MainWindowTest::sourceThemes()
     };
     QTRY_VERIFY(find(prefix + "Row_0"));
     QPointer<QQuickItem> originalRoot = panel.rootObject();
-    for (const auto &id : {themeId, themeId == "dark" ? QString("light") : QString("dark")}) {
-        QVERIFY(m_theme->setTheme(id));
+    {
+
         QCOMPARE(panel.rootObject(), originalRoot.data());
-        QTRY_COMPARE(panel.rootObject()->property("color").value<QColor>(), m_theme->color("background.panel"));
+        QTRY_COMPARE(panel.rootObject()->property("color").value<QColor>(), UiColors::color("background.panel"));
         auto *row = find(prefix + "Row_0");
         QVERIFY(row);
-        QCOMPARE(row->property("color").value<QColor>(), m_theme->color("background.selected"));
+        QCOMPARE(row->property("color").value<QColor>(), UiColors::color("background.selected"));
         const auto labelText = QString("Source 0");
         bool foundLabel = false;
         for (auto *label : row->findChildren<QQuickItem *>()) {
             if (label->property("text").toString() == labelText) {
-                QCOMPARE(label->property("color").value<QColor>(), m_theme->color("text.primary"));
+                QCOMPARE(label->property("color").value<QColor>(), UiColors::color("text.primary"));
                 foundLabel = true;
             }
         }
@@ -1011,42 +910,42 @@ void MainWindowTest::sourceThemes()
             return item->mapToScene(item->boundingRect().center()).toPoint();
         };
         moveMouse(rowCenter(row1));
-        QTRY_COMPARE(row1->property("color").value<QColor>(), m_theme->color("background.hovered"));
+        QTRY_COMPARE(row1->property("color").value<QColor>(), UiColors::color("background.hovered"));
         moveMouse(rowCenter(row));
-        QTRY_COMPARE(row->property("color").value<QColor>(), m_theme->color("background.selected"));
+        QTRY_COMPARE(row->property("color").value<QColor>(), UiColors::color("background.selected"));
         moveMouse(QPoint(panel.width() - 2, panel.height() - 2));
         QTRY_COMPARE(row1->property("color").value<QColor>(), QColor(Qt::transparent));
         auto *add = find("addSourceButton");
         QVERIFY(add && add->isEnabled());
-        QCOMPARE(QQmlProperty::read(add, "icon.color").value<QColor>(), m_theme->color("icon.primary"));
+        QCOMPARE(QQmlProperty::read(add, "icon.color").value<QColor>(), UiColors::color("icon.primary"));
         auto *background = add->property("background").value<QQuickItem *>();
         QVERIFY(background);
         add->forceActiveFocus(Qt::TabFocusReason);
         QTRY_VERIFY(add->hasActiveFocus());
-        QCOMPARE(QQmlProperty::read(background, "border.color").value<QColor>(), m_theme->color("border.focus"));
+        QCOMPARE(QQmlProperty::read(background, "border.color").value<QColor>(), UiColors::color("border.focus"));
         const QPoint position = add->mapToScene(add->boundingRect().center()).toPoint();
         moveMouse(position);
         QTRY_VERIFY(add->property("hovered").toBool());
-        QTRY_COMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.hovered"));
+        QTRY_COMPARE(background->property("color").value<QColor>(), UiColors::color("button.background.hovered"));
         QTest::mousePress(&panel, Qt::LeftButton, Qt::NoModifier, position);
-        QTRY_COMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.pressed"));
+        QTRY_COMPARE(background->property("color").value<QColor>(), UiColors::color("button.background.pressed"));
         QTest::mouseRelease(&panel, Qt::LeftButton, Qt::NoModifier, position);
         auto *bar = find(prefix + "ScrollBar");
         QVERIFY(bar && bar->isVisible());
         auto *thumb = bar->property("contentItem").value<QQuickItem *>();
         QVERIFY(thumb);
         moveMouse(QPoint(2, 2));
-        QTRY_COMPARE(thumb->property("color").value<QColor>(), m_theme->color("scrollbar.thumb.normal"));
+        QTRY_COMPARE(thumb->property("color").value<QColor>(), UiColors::color("scrollbar.thumb.normal"));
         const QPoint thumbPosition = thumb->mapToScene(thumb->boundingRect().center()).toPoint();
         moveMouse(thumbPosition);
-        QTRY_COMPARE(thumb->property("color").value<QColor>(), m_theme->color("scrollbar.thumb.hovered"));
+        QTRY_COMPARE(thumb->property("color").value<QColor>(), UiColors::color("scrollbar.thumb.hovered"));
         QTest::mousePress(&panel, Qt::LeftButton, Qt::NoModifier, thumbPosition);
-        QTRY_COMPARE(thumb->property("color").value<QColor>(), m_theme->color("scrollbar.thumb.pressed"));
+        QTRY_COMPARE(thumb->property("color").value<QColor>(), UiColors::color("scrollbar.thumb.pressed"));
         QTest::mouseRelease(&panel, Qt::LeftButton, Qt::NoModifier, thumbPosition);
         if (prefix == "source") {
             auto *filters = find("sourceFiltersButton");
             QVERIFY(filters && filters->isEnabled());
-            QCOMPARE(QQmlProperty::read(filters, "icon.color").value<QColor>(), m_theme->color("icon.primary"));
+            QCOMPARE(QQmlProperty::read(filters, "icon.color").value<QColor>(), UiColors::color("icon.primary"));
             QVERIFY(find("sourceVisibilityButton")->property("checked").toBool() == false);
             QVERIFY(find("sourceLockButton")->property("checked").toBool());
         }
@@ -1056,7 +955,7 @@ void MainWindowTest::sourceThemes()
     panel.setSource(url);
     QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
     QTRY_VERIFY(find(prefix + "Row_0"));
-    QCOMPARE(find(prefix + "Row_0")->property("color").value<QColor>(), m_theme->color("background.selected"));
+    QCOMPARE(find(prefix + "Row_0")->property("color").value<QColor>(), UiColors::color("background.selected"));
     QCOMPARE(state.currentSourceId(), "0");
     if (prefix == "source") {
         while (state.rowCount() > 0)
@@ -1065,31 +964,29 @@ void MainWindowTest::sourceThemes()
         auto *label = find("emptySourcesLabel");
         QVERIFY(label);
         QTRY_VERIFY(label->isVisible());
-        QCOMPARE(label->property("color").value<QColor>(), m_theme->color("text.secondary"));
+        QCOMPARE(label->property("color").value<QColor>(), UiColors::color("text.secondary"));
     }
 }
 
-void MainWindowTest::mixerAndControlThemes_data()
+void MainWindowTest::mixerAndControlColors_data()
 {
     QTest::addColumn<QString>("panelName");
     QTest::addColumn<QString>("prefix");
-    QTest::addColumn<QString>("themeId");
-    for (const auto &theme : {QString("dark"), QString("light")}) {
-        QTest::newRow(qPrintable("mixer-" + theme)) << QString("MixerPanel") << QString("mixer") << theme;
-        QTest::newRow(qPrintable("controls-" + theme)) << QString("ControlsPanel") << QString("controls") << theme;
+    {
+        QTest::newRow("mixer") << QString("MixerPanel") << QString("mixer");
+        QTest::newRow("controls") << QString("ControlsPanel") << QString("controls");
     }
 }
 
-void MainWindowTest::mixerAndControlThemes()
+void MainWindowTest::mixerAndControlColors()
 {
     QFETCH(QString, panelName);
     QFETCH(QString, prefix);
-    QFETCH(QString, themeId);
-    QVERIFY(m_theme->setTheme(themeId));
+
     if (prefix == "mixer") {
         AudioSourceModel audio;
         QQuickWidget panel;
-        panel.rootContext()->setContextProperty("uiTheme",m_theme.get());
+        panel.rootContext()->setContextProperty("uiColors",UiColors::values());
         panel.rootContext()->setContextProperty("audioSourceModel",&audio);
         panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
         panel.resize(286,240);
@@ -1097,24 +994,24 @@ void MainWindowTest::mixerAndControlThemes()
         QTRY_COMPARE(panel.status(),QQuickWidget::Ready); panel.show();
         auto *root = panel.rootObject(); QVERIFY(root);
         auto *add = findQuickItem(root,"addSoundSourceButton"); QVERIFY(add && add->isEnabled());
-        const auto id = audio.addSource("Mic", "microphone", "missing-theme-audio"); QVERIFY(!id.isEmpty());
+        const auto id = audio.addSource("Mic", "microphone", "missing-color-audio"); QVERIFY(!id.isEmpty());
         QTRY_VERIFY(findQuickItem(root,id + "MuteButton"));
-        for (const auto &theme : {themeId,themeId == "dark" ? QString("light") : QString("dark")}) {
-            QVERIFY(m_theme->setTheme(theme));
+        {
+
             QCOMPARE(panel.rootObject(),root);
-            QTRY_COMPARE(root->property("color").value<QColor>(),m_theme->color("background.panel"));
+            QTRY_COMPARE(root->property("color").value<QColor>(),UiColors::color("background.panel"));
             auto *mute = findQuickItem(root,id + "MuteButton"); QVERIFY(mute);
-            QCOMPARE(QQmlProperty::read(mute,"icon.color").value<QColor>(),m_theme->color("icon.primary"));
+            QCOMPARE(QQmlProperty::read(mute,"icon.color").value<QColor>(),UiColors::color("icon.primary"));
             auto *slider = findQuickItem(root,id + "VolumeSlider"); QVERIFY(slider && slider->isEnabled());
             auto *handle = slider->property("handle").value<QQuickItem *>(); QVERIFY(handle);
-            QCOMPARE(handle->property("color").value<QColor>(),m_theme->color("slider.handle"));
+            QCOMPARE(handle->property("color").value<QColor>(),UiColors::color("slider.handle"));
             if (QGuiApplication::platformName() != "offscreen")
-                QVERIFY(panel.grabFramebuffer().save(QCoreApplication::applicationDirPath() + "/sound-sources-" + theme + ".png"));
+                QVERIFY(panel.grabFramebuffer().save(QCoreApplication::applicationDirPath() + "/sound-sources-" + QStringLiteral("light") + ".png"));
         }
         return;
     }
     QQuickWidget panel;
-    panel.rootContext()->setContextProperty("uiTheme", m_theme.get());
+    panel.rootContext()->setContextProperty("uiColors", UiColors::values());
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(286, 220);
     const QUrl url(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(panelName));
@@ -1138,23 +1035,23 @@ void MainWindowTest::mixerAndControlThemes()
                           Qt::NoButton, Qt::NoButton, Qt::NoModifier);
         QCoreApplication::sendEvent(&panel, &event);
     };
-    for (const auto &id : {themeId, themeId == "dark" ? QString("light") : QString("dark")}) {
-        QVERIFY(m_theme->setTheme(id));
+    {
+
         QCOMPARE(panel.rootObject(), root.data());
-        QTRY_COMPARE(root->property("color").value<QColor>(), m_theme->color("background.panel"));
+        QTRY_COMPARE(root->property("color").value<QColor>(), UiColors::color("background.panel"));
         for (auto *button : buttons) {
             QVERIFY(!button->isEnabled());
-            QCOMPARE(QQmlProperty::read(button, "icon.color").value<QColor>(), m_theme->color("icon.disabled"));
+            QCOMPARE(QQmlProperty::read(button, "icon.color").value<QColor>(), UiColors::color("icon.disabled"));
             if (prefix == "controls") {
                 auto *background = button->property("background").value<QQuickItem *>();
                 QVERIFY(background);
-                QCOMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.disabled"));
-                QCOMPARE(QQmlProperty::read(button, "palette.buttonText").value<QColor>(), m_theme->color("text.disabled"));
+                QCOMPARE(background->property("color").value<QColor>(), UiColors::color("button.background.disabled"));
+                QCOMPARE(QQmlProperty::read(button, "palette.buttonText").value<QColor>(), UiColors::color("text.disabled"));
             }
         }
         for (auto *track : tracks) {
-            QCOMPARE(track->property("color").value<QColor>(), m_theme->color("background.input"));
-            QCOMPARE(QQmlProperty::read(track, "border.color").value<QColor>(), m_theme->color("border.subtle"));
+            QCOMPARE(track->property("color").value<QColor>(), UiColors::color("background.input"));
+            QCOMPARE(QQmlProperty::read(track, "border.color").value<QColor>(), UiColors::color("border.subtle"));
             QVERIFY(track->childItems().isEmpty()); // No simulated level fill.
         }
         for (auto *slider : sliders) {
@@ -1163,18 +1060,18 @@ void MainWindowTest::mixerAndControlThemes()
             auto *handle = slider->property("handle").value<QQuickItem *>();
             auto *background = slider->property("background").value<QQuickItem *>();
             QVERIFY(handle && background);
-            QCOMPARE(background->property("color").value<QColor>(), m_theme->color("slider.track"));
-            QCOMPARE(handle->property("color").value<QColor>(), m_theme->color("slider.handleDisabled"));
+            QCOMPARE(background->property("color").value<QColor>(), UiColors::color("slider.track"));
+            QCOMPARE(handle->property("color").value<QColor>(), UiColors::color("slider.handleDisabled"));
             // Enable presentation only; there is still no audio gain connection.
             slider->setEnabled(true);
             slider->forceActiveFocus(Qt::TabFocusReason);
-            QTRY_COMPARE(handle->property("color").value<QColor>(), m_theme->color("slider.handle"));
-            QCOMPARE(QQmlProperty::read(handle, "border.color").value<QColor>(), m_theme->color("border.focus"));
+            QTRY_COMPARE(handle->property("color").value<QColor>(), UiColors::color("slider.handle"));
+            QCOMPARE(QQmlProperty::read(handle, "border.color").value<QColor>(), UiColors::color("border.focus"));
             slider->setEnabled(false);
         }
         for (auto *label : root->findChildren<QQuickItem *>()) {
             if (label->objectName() == "channelStatus" || label->objectName() == "channelValue")
-                QCOMPARE(label->property("color").value<QColor>(), m_theme->color("text.secondary"));
+                QCOMPARE(label->property("color").value<QColor>(), UiColors::color("text.secondary"));
         }
         // Check enabled presentation without enabling any production feature.
         auto *button = buttons.first();
@@ -1182,14 +1079,14 @@ void MainWindowTest::mixerAndControlThemes()
         QVERIFY(background);
         button->setEnabled(true);
         moveMouse(QPoint(1, 1));
-        QCOMPARE(QQmlProperty::read(button, "icon.color").value<QColor>(), m_theme->color("icon.primary"));
+        QCOMPARE(QQmlProperty::read(button, "icon.color").value<QColor>(), UiColors::color("icon.primary"));
         button->forceActiveFocus(Qt::TabFocusReason);
-        QTRY_COMPARE(QQmlProperty::read(background, "border.color").value<QColor>(), m_theme->color("border.focus"));
+        QTRY_COMPARE(QQmlProperty::read(background, "border.color").value<QColor>(), UiColors::color("border.focus"));
         const QPoint position = button->mapToScene(button->boundingRect().center()).toPoint();
         moveMouse(position);
-        QTRY_COMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.hovered"));
+        QTRY_COMPARE(background->property("color").value<QColor>(), UiColors::color("button.background.hovered"));
         QTest::mousePress(&panel, Qt::LeftButton, Qt::NoModifier, position);
-        QTRY_COMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.pressed"));
+        QTRY_COMPARE(background->property("color").value<QColor>(), UiColors::color("button.background.pressed"));
         QTest::mouseRelease(&panel, Qt::LeftButton, Qt::NoModifier, position);
         button->setEnabled(false);
         panel.resize(140, 100);
@@ -1201,12 +1098,12 @@ void MainWindowTest::mixerAndControlThemes()
             auto *thumb = bar->property("contentItem").value<QQuickItem *>();
             QVERIFY(thumb);
             moveMouse(QPoint(1, 1));
-            QTRY_COMPARE(thumb->property("color").value<QColor>(), m_theme->color("scrollbar.thumb.normal"));
+            QTRY_COMPARE(thumb->property("color").value<QColor>(), UiColors::color("scrollbar.thumb.normal"));
             const auto point = thumb->mapToScene(thumb->boundingRect().center()).toPoint();
             moveMouse(point);
-            QTRY_COMPARE(thumb->property("color").value<QColor>(), m_theme->color("scrollbar.thumb.hovered"));
+            QTRY_COMPARE(thumb->property("color").value<QColor>(), UiColors::color("scrollbar.thumb.hovered"));
             QTest::mousePress(&panel, Qt::LeftButton, Qt::NoModifier, point);
-            QTRY_COMPARE(thumb->property("color").value<QColor>(), m_theme->color("scrollbar.thumb.pressed"));
+            QTRY_COMPARE(thumb->property("color").value<QColor>(), UiColors::color("scrollbar.thumb.pressed"));
             QTest::mouseRelease(&panel, Qt::LeftButton, Qt::NoModifier, point);
         }
         panel.resize(286, 220);
@@ -1216,24 +1113,21 @@ void MainWindowTest::mixerAndControlThemes()
     QVERIFY(root.isNull());
     panel.setSource(url);
     QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
-    QCOMPARE(panel.rootObject()->property("color").value<QColor>(), m_theme->color("background.panel"));
+    QCOMPARE(panel.rootObject()->property("color").value<QColor>(), UiColors::color("background.panel"));
 }
 
-void MainWindowTest::basicDialogThemes_data()
+void MainWindowTest::basicDialogColors_data()
 {
     QTest::addColumn<QString>("dialogName");
-    QTest::addColumn<QString>("themeId");
-    for (const auto &theme : {QString("dark"), QString("light")})
         for (const auto &name : {QString("AboutDialog"), QString("SourceAddDialog"), QString("SourceRemovalDialog")})
-            QTest::newRow(qPrintable(name + "-" + theme)) << name << theme;
+            QTest::newRow(qPrintable(name)) << name;
 }
 
-void MainWindowTest::basicDialogThemes()
+void MainWindowTest::basicDialogColors()
 {
     QFETCH(QString, dialogName);
-    QFETCH(QString, themeId);
-    QVERIFY(m_theme->setTheme(themeId));
-    MainWindow window(*m_theme);
+
+    MainWindow window;
     window.show();
     auto *state = window.findChild<SourceListModel *>();
     QVERIFY(state);
@@ -1242,10 +1136,10 @@ void MainWindowTest::basicDialogThemes()
         properties = {{"productName", "OpenLive Studio"}, {"versionText", "Development"}, {"qtVersion", qVersion()}};
     } else {
         properties = {{"sourceListModel", QVariant::fromValue(state)}};
-        if (dialogName == "SourceAddDialog") properties.insert("initialName", "Theme sample");
+        if (dialogName == "SourceAddDialog") properties.insert("initialName", "Color sample");
         else {
             properties.insert("sourceId", "fixed-source-id");
-            properties.insert("sourceName", "Theme sample");
+            properties.insert("sourceName", "Color sample");
         }
     }
     const QUrl url(QString("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(dialogName));
@@ -1271,21 +1165,21 @@ void MainWindowTest::basicDialogThemes()
             input->forceActiveFocus();
         }
         if (dialogName != "AboutDialog") root->setProperty("errorText", "Validation sample");
-        for (const auto &id : {themeId, themeId == "dark" ? QString("light") : QString("dark")}) {
-            QVERIFY(m_theme->setTheme(id));
+        {
+
             QCOMPARE(view->rootObject(), root.data());
             QCOMPARE(root->property("sourceId"), sourceId);
-            QTRY_COMPARE(root->property("color").value<QColor>(), m_theme->color("background.panel"));
+            QTRY_COMPARE(root->property("color").value<QColor>(), UiColors::color("background.panel"));
             if (input) {
                 QCOMPARE(input->property("text").toString(), "Unsaved name");
                 QCOMPARE(input->property("selectedText").toString(), "Unsaved name");
                 QVERIFY(input->hasActiveFocus());
-                QCOMPARE(input->property("selectionColor").value<QColor>(), m_theme->color("background.selected"));
-                QCOMPARE(input->property("selectedTextColor").value<QColor>(), m_theme->color("text.primary"));
+                QCOMPARE(input->property("selectionColor").value<QColor>(), UiColors::color("background.selected"));
+                QCOMPARE(input->property("selectedTextColor").value<QColor>(), UiColors::color("text.primary"));
                 auto *background = input->property("background").value<QQuickItem *>();
                 QVERIFY(background);
-                QCOMPARE(background->property("color").value<QColor>(), m_theme->color("background.input"));
-                QCOMPARE(QQmlProperty::read(background, "border.color").value<QColor>(), m_theme->color("border.focus"));
+                QCOMPARE(background->property("color").value<QColor>(), UiColors::color("background.input"));
+                QCOMPARE(QQmlProperty::read(background, "border.color").value<QColor>(), UiColors::color("border.focus"));
             }
             for (auto *item : root->findChildren<QQuickItem *>()) {
                 if (!item->isVisible() || !item->property("text").isValid() || !item->property("color").isValid()) continue;
@@ -1298,7 +1192,7 @@ void MainWindowTest::basicDialogThemes()
                 const auto token = name.endsWith("Error") ? "status.error"
                     : (disabledActionText ? "text.disabled"
                     : (name == "aboutVersion" || name == "aboutQtVersion" || name == "sourceRemovalHint" || name == "sourceTypeUnavailableHint" || name == "displayCaptureHint" ? "text.secondary" : "text.primary"));
-                QCOMPARE(item->property("color").value<QColor>(), m_theme->color(token));
+                QCOMPARE(item->property("color").value<QColor>(), UiColors::color(token));
                 if (name.endsWith("Error")) QCOMPARE(item->property("text").toString(), "Validation sample");
             }
         }
@@ -1313,40 +1207,40 @@ void MainWindowTest::basicDialogThemes()
             QTest::keyClick(view, Qt::Key_Space);
             QTRY_VERIFY(popup->property("opened").toBool());
             QTest::keyClick(view, Qt::Key_Down);
-            for (const auto &id : {themeId, themeId == "dark" ? QString("light") : QString("dark")}) {
-                QVERIFY(m_theme->setTheme(id));
+            {
+
                 QVERIFY(popup->property("opened").toBool());
                 QCOMPARE(type->property("currentIndex").toInt(), 0);
-                QCOMPARE(indicator->property("arrowColor").value<QColor>(), m_theme->color("icon.primary"));
-                QTRY_COMPARE(popupBackground->property("color").value<QColor>(), m_theme->color("background.input"));
+                QCOMPARE(indicator->property("arrowColor").value<QColor>(), UiColors::color("icon.primary"));
+                QTRY_COMPARE(popupBackground->property("color").value<QColor>(), UiColors::color("background.input"));
                 QQuickItem *item = nullptr;
                 QTRY_VERIFY((item = list->property("currentItem").value<QQuickItem *>()));
                 auto *label = item->property("contentItem").value<QQuickItem *>();
                 auto *itemBackground = item->property("background").value<QQuickItem *>();
                 QVERIFY(label && itemBackground);
-                QTRY_COMPARE(label->property("color").value<QColor>(), m_theme->color("text.primary"));
-                QTRY_COMPARE(itemBackground->property("color").value<QColor>(), m_theme->color("background.selected"));
+                QTRY_COMPARE(label->property("color").value<QColor>(), UiColors::color("text.primary"));
+                QTRY_COMPARE(itemBackground->property("color").value<QColor>(), UiColors::color("background.selected"));
                 // Verify the Canvas actually repainted, rather than only its bound property.
                 const QRect arrowRect = indicator->mapRectToScene(indicator->boundingRect()).toAlignedRect();
-                const auto arrowHasThemeColor = [&] {
+                const auto arrowHasPaletteColor = [&] {
                     const auto frame = view->grabFramebuffer();
                     const qreal scale = qreal(frame.width()) / view->width();
                     const auto arrow = frame.copy(QRect(arrowRect.topLeft() * scale,
                         arrowRect.size() * scale)).convertToFormat(QImage::Format_RGB32);
                     for (int y = 0; y < arrow.height(); ++y)
                         for (int x = 0; x < arrow.width(); ++x)
-                            if (arrow.pixelColor(x, y) == m_theme->color("icon.primary")) return true;
+                            if (arrow.pixelColor(x, y) == UiColors::color("icon.primary")) return true;
                     return false;
                 };
-                QTRY_VERIFY(arrowHasThemeColor());
-                QVERIFY(view->grabFramebuffer().save(QString("theme-dialog-popup-%1.png").arg(id)));
+                QTRY_VERIFY(arrowHasPaletteColor());
+                QVERIFY(view->grabFramebuffer().save(QString("theme-dialog-popup-%1.png").arg(QStringLiteral("light"))));
             }
             QTest::keyClick(view, Qt::Key_Escape);
             QTRY_VERIFY(!popup->property("visible").toBool());
             QVERIFY(dialog);
             QCOMPARE(root->property("errorText").toString(), "Validation sample");
             type->setEnabled(false);
-            QCOMPARE(indicator->property("arrowColor").value<QColor>(), m_theme->color("icon.disabled"));
+            QCOMPARE(indicator->property("arrowColor").value<QColor>(), UiColors::color("icon.disabled"));
             type->setEnabled(true);
         }
         auto *button = root->findChild<QQuickItem *>(dialogName == "AboutDialog" ? "closeAboutButton"
@@ -1356,10 +1250,10 @@ void MainWindowTest::basicDialogThemes()
         QVERIFY(background);
         button->forceActiveFocus();
         QTRY_VERIFY(button->hasActiveFocus());
-        QCOMPARE(QQmlProperty::read(background, "border.color").value<QColor>(), m_theme->color("border.focus"));
+        QCOMPARE(QQmlProperty::read(background, "border.color").value<QColor>(), UiColors::color("border.focus"));
         if (input) {
             auto *inputBackground = input->property("background").value<QQuickItem *>();
-            QCOMPARE(QQmlProperty::read(inputBackground, "border.color").value<QColor>(), m_theme->color("border.default"));
+            QCOMPARE(QQmlProperty::read(inputBackground, "border.color").value<QColor>(), UiColors::color("border.default"));
         }
         const QPoint position = button->mapToScene(button->boundingRect().center()).toPoint();
         const auto moveMouse = [view](const QPoint &point) {
@@ -1367,31 +1261,30 @@ void MainWindowTest::basicDialogThemes()
             QCoreApplication::sendEvent(view, &event);
         };
         moveMouse(QPoint(2, 2));
-        QTRY_COMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.normal"));
+        QTRY_COMPARE(background->property("color").value<QColor>(), UiColors::color("button.background.normal"));
         moveMouse(position);
-        QTRY_COMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.hovered"));
+        QTRY_COMPARE(background->property("color").value<QColor>(), UiColors::color("button.background.hovered"));
         QTest::mousePress(view, Qt::LeftButton, Qt::NoModifier, position);
-        QTRY_COMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.pressed"));
+        QTRY_COMPARE(background->property("color").value<QColor>(), UiColors::color("button.background.pressed"));
         QTest::mouseRelease(view, Qt::LeftButton, Qt::NoModifier, QPoint(2, 2));
         button->setEnabled(false);
-        QTRY_COMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.disabled"));
-        QCOMPARE(QQmlProperty::read(button, "palette.buttonText").value<QColor>(), m_theme->color("text.disabled"));
+        QTRY_COMPARE(background->property("color").value<QColor>(), UiColors::color("button.background.disabled"));
+        QCOMPARE(QQmlProperty::read(button, "palette.buttonText").value<QColor>(), UiColors::color("text.disabled"));
         button->setEnabled(true);
         QVERIFY(!view->grabFramebuffer().isNull());
-        QVERIFY(view->grabFramebuffer().save(QString("theme-dialog-%1-%2.png").arg(dialogName, m_theme->themeId())));
+        QVERIFY(view->grabFramebuffer().save(QString("theme-dialog-%1-%2.png").arg(dialogName, QStringLiteral("light"))));
         QTest::keyClick(dialog, Qt::Key_Escape);
         QTRY_VERIFY(dialog.isNull());
         QVERIFY(root.isNull());
     }
 }
 
-void MainWindowTest::dialogsShareThemeAndReleaseBeforeIt()
+void MainWindowTest::dialogsUseLightColorsAndReleaseTheirViews()
 {
-    auto window = std::make_unique<MainWindow>(*m_theme);
+    auto window = std::make_unique<MainWindow>();
     window->show();
     auto *action = window->findChild<QAction *>("aboutAction");
     QVERIFY(action);
-    QPointer<ThemeManager> theme = m_theme.get();
     for (int i = 0; i < 2; ++i) {
         action->trigger();
         QPointer<QDialog> dialog = window->findChild<QDialog *>("qmlDialog");
@@ -1399,10 +1292,10 @@ void MainWindowTest::dialogsShareThemeAndReleaseBeforeIt()
         QPointer<QQuickWidget> view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
         QVERIFY(view);
         QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-        QCOMPARE(view->rootContext()->contextProperty("uiTheme").value<QObject *>(), theme.data());
-        QVERIFY(m_theme->setTheme(i == 0 ? "light" : "dark"));
-        QCOMPARE(view->quickWindow()->color(), m_theme->color("background.panel"));
-        QCOMPARE(dialog->palette().color(QPalette::Window), m_theme->color("background.window"));
+        QCOMPARE(view->rootContext()->contextProperty("uiColors").toMap(), UiColors::values());
+
+        QCOMPARE(view->quickWindow()->color(), UiColors::color("background.panel"));
+        QCOMPARE(dialog->palette().color(QPalette::Window), UiColors::color("background.window"));
         if (i == 0) {
             dialog->close();
             QTRY_VERIFY(dialog.isNull());
@@ -1411,11 +1304,8 @@ void MainWindowTest::dialogsShareThemeAndReleaseBeforeIt()
             QVERIFY(dialog.isNull());
         }
         QVERIFY(view.isNull());
-        QVERIFY(theme);
-        QVERIFY(!theme->parent());
     }
-    // All view-owned connections have disconnected; the service remains usable.
-    QVERIFY(m_theme->setTheme("light"));
+
 }
 
 void MainWindowTest::qmlDialogReceivesInitialPropertiesAndCloses()
@@ -1436,7 +1326,7 @@ Rectangle {
 })";
     QCOMPARE(file.write(qml), qint64(qml.size()));
     file.close();
-    MainWindow window(*m_theme);
+    MainWindow window;
     window.show();
     window.showDialog(QUrl::fromLocalFile(file.fileName()), QStringLiteral("Test dialog"),
                       {{QStringLiteral("message"), QStringLiteral("Initial value")}});
@@ -1468,7 +1358,7 @@ Rectangle {
     QTest::keyClick(dialog, Qt::Key_Escape);
     QTRY_VERIFY(dialog.isNull());
 
-    auto owner = std::make_unique<MainWindow>(*m_theme);
+    auto owner = std::make_unique<MainWindow>();
     owner->showDialog(QUrl::fromLocalFile(file.fileName()), QStringLiteral("Owned dialog"),
                       {{QStringLiteral("message"), QStringLiteral("Owned value")}});
     dialog = owner->findChild<QDialog *>(QStringLiteral("qmlDialog"));
@@ -1498,7 +1388,7 @@ void MainWindowTest::qmlDialogShowsLoadErrors()
         QCOMPARE(file.write(qml), qint64(qml.size()));
         file.close();
     }
-    MainWindow window(*m_theme);
+    MainWindow window;
     window.show();
     window.showDialog(QUrl::fromLocalFile(file.fileName()), QStringLiteral("Load error"));
     QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
@@ -1514,7 +1404,7 @@ void MainWindowTest::qmlDialogShowsLoadErrors()
 
 void MainWindowTest::aboutActionShowsProjectInfoAndReusesDialog()
 {
-    MainWindow window(*m_theme);
+    MainWindow window;
     window.show();
     auto *action = window.findChild<QAction *>(QStringLiteral("aboutAction"));
     QVERIFY(action);
@@ -1577,7 +1467,7 @@ void MainWindowTest::sourcePanelOpensAddDialog_data()
 void MainWindowTest::sourcePanelOpensAddDialog()
 {
     QFETCH(bool, reload);
-    MainWindow window(*m_theme);
+    MainWindow window;
     window.show();
     auto *state = window.findChild<SourceListModel *>();
     auto *panel = window.findChild<QQuickWidget *>("sourcesQuickWidget");
@@ -1632,7 +1522,7 @@ void MainWindowTest::addsImageThroughDialog()
     QImage image(80, 40, QImage::Format_RGBA8888);
     image.fill(Qt::red);
     QVERIFY(image.save(path));
-    MainWindow window(*m_theme);
+    MainWindow window;
     window.show();
     auto *model = window.findChild<SourceListModel *>();
     QVERIFY(model);
@@ -1700,7 +1590,7 @@ void MainWindowTest::cancelsPendingImageThroughDialog()
     QImage image(80, 40, QImage::Format_RGBA8888);
     image.fill(Qt::red);
     QVERIFY(image.save(path));
-    MainWindow window(*m_theme);
+    MainWindow window;
     window.show();
     auto *model = window.findChild<SourceListModel *>();
     auto *controller = window.findChild<ImageSourceController *>();
@@ -1744,7 +1634,7 @@ void MainWindowTest::sourceAddDialogHandlesInput_data()
 void MainWindowTest::sourceAddDialogHandlesInput()
 {
     QFETCH(QString, method);
-    MainWindow window(*m_theme);
+    MainWindow window;
     window.show();
     auto *state = window.findChild<SourceListModel *>();
     QVERIFY(state);
@@ -1785,18 +1675,10 @@ void MainWindowTest::sourceAddDialogHandlesInput()
     QCOMPARE(state->rowCount(), 0);
 }
 
-void MainWindowTest::sourceAddDialogHandlesTypeSelection_data()
-{
-    QTest::addColumn<QString>("themeId");
-    QTest::newRow("dark") << QString("dark");
-    QTest::newRow("light") << QString("light");
-}
-
 void MainWindowTest::sourceAddDialogHandlesTypeSelection()
 {
-    QFETCH(QString, themeId);
-    QVERIFY(m_theme->setTheme(themeId));
-    MainWindow window(*m_theme);
+
+    MainWindow window;
     window.show();
     auto *manager = window.findChild<SourceListModel *>();
     QVERIFY(manager);
@@ -1839,7 +1721,7 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
         QCOMPARE(type->property("currentValue").toString(), keys.at(index));
         QVERIFY(root->property("errorText").toString().isEmpty());
         QCOMPARE(hint->isVisible(), index != 3 && index != 0 && index != 2);
-        QCOMPARE(hint->property("color").value<QColor>(), m_theme->color("text.secondary"));
+        QCOMPARE(hint->property("color").value<QColor>(), UiColors::color("text.secondary"));
         QPointer<QQuickItem> imageInput = root->findChild<QQuickItem *>("sourceFileInput");
         QVERIFY(imageInput);
         QCOMPARE(imageInput->isVisible(), index == 3);
@@ -1850,7 +1732,7 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
         auto *background = confirm->property("background").value<QQuickItem *>();
         QVERIFY(background);
         if (!confirm->isEnabled())
-            QCOMPARE(background->property("color").value<QColor>(), m_theme->color("button.background.disabled"));
+            QCOMPARE(background->property("color").value<QColor>(), UiColors::color("button.background.disabled"));
         QCOMPARE(type->property("currentText").toString(), labels.at(index));
         QCOMPARE(name->property("text").toString(), labels.at(index));
         if (index == 0 || index == 2) continue; // Capture submission has its own UI tests.
@@ -1892,7 +1774,7 @@ void MainWindowTest::sourcePanelRequestsRemoval()
     const QString first = "alpha", second = "beta";
     SourceListModel state(QList<SourceData>{{second, "Beta"}, {first, "Alpha"}});
     QQuickWidget panel;
-    panel.rootContext()->setContextProperty("uiTheme", m_theme.get());
+    panel.rootContext()->setContextProperty("uiColors", UiColors::values());
     panel.rootContext()->setContextProperty("sourceListModel", &state);
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(280, 260);
@@ -1973,7 +1855,7 @@ void MainWindowTest::sourceRemovalDialogHandlesConfirmation()
     if (action != "last") sources.append(SourceData{"remaining", "Remaining"});
     SourceListModel state(sources);
     QVERIFY(state.selectSource("shared"));
-    MainWindow window(*m_theme);
+    MainWindow window;
     window.show();
     window.showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceRemovalDialog.qml")),
         QStringLiteral("Remove source"), {{"sourceListModel", QVariant::fromValue(&state)},
@@ -2030,7 +1912,7 @@ void MainWindowTest::sourceRemovalDialogHandlesConfirmation()
 
 void MainWindowTest::keepsOutputStatusVisibleWhenResized()
 {
-    MainWindow window(*m_theme);
+    MainWindow window;
     auto *output = window.findChild<QLabel *>(QStringLiteral("outputStatus"));
     auto *metrics = window.findChild<QLabel *>(QStringLiteral("outputMetrics"));
     QVERIFY(output);
@@ -2052,7 +1934,7 @@ void MainWindowTest::keepsOutputStatusVisibleWhenResized()
 void MainWindowTest::loadsSourcePanelWithEmptyState()
 {
     QQuickWidget panel;
-    panel.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
+    panel.rootContext()->setContextProperty(QStringLiteral("uiColors"), UiColors::values());
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(238, 320);
     panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml")));
@@ -2095,7 +1977,7 @@ void MainWindowTest::loadsMixerPanelWithUnavailableChannels()
 {
     AudioSourceModel audio;
     QQuickWidget panel;
-    panel.rootContext()->setContextProperty("uiTheme", m_theme.get());
+    panel.rootContext()->setContextProperty("uiColors", UiColors::values());
     panel.rootContext()->setContextProperty("audioSourceModel", &audio);
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(238, 260);
@@ -2137,7 +2019,7 @@ void MainWindowTest::loadsMixerPanelWithUnavailableChannels()
 
 void MainWindowTest::soundSourcesAndDialogs()
 {
-    MainWindow window(*m_theme); window.show();
+    MainWindow window; window.show();
     auto *audio = window.findChild<AudioSourceModel *>(); QVERIFY(audio);
     QCOMPARE(audio->count(), 0);
     QCOMPARE(window.findChild<QDockWidget *>("sourcesDock")->windowTitle(), QString::fromUtf8("画面来源"));
@@ -2191,7 +2073,7 @@ void MainWindowTest::soundSourcesAndDialogs()
 void MainWindowTest::soundHardwarePreview()
 {
     if (!qEnvironmentVariableIsSet("OPENLIVE_AUDIO_HARDWARE")) QSKIP("Requires explicit WASAPI hardware validation");
-    MainWindow window(*m_theme); window.show();
+    MainWindow window; window.show();
     auto *audio = window.findChild<AudioSourceModel *>(); QVERIFY(audio);
     audio->refreshDevices(); QTRY_VERIFY(!audio->refreshing());
     QString microphone, system;
@@ -2224,9 +2106,9 @@ void MainWindowTest::soundHardwarePreview()
     QTRY_COMPARE_WITH_TIMEOUT(audio->activeWorkerCount(),0,2000);
 }
 
-void MainWindowTest::outputSettingsDialogDraftsAndTheme()
+void MainWindowTest::outputSettingsDialogDraftsAndColors()
 {
-    MainWindow window(*m_theme); window.show();
+    MainWindow window; window.show();
     auto *settings=window.findChild<OutputSettings *>(); QVERIFY(settings);
     auto *controls=window.findChild<QQuickWidget *>("controlsQuickWidget"); QVERIFY(controls && controls->rootObject());
     auto *button=controls->rootObject()->findChild<QQuickItem *>("settingsButton"); QVERIFY(button && button->isEnabled());
@@ -2242,11 +2124,11 @@ void MainWindowTest::outputSettingsDialogDraftsAndTheme()
     root->setProperty("server","rtmps://example.test/live"); root->setProperty("key","unit-test-secret");
     auto *key=root->findChild<QQuickItem *>("streamKeyInput"); QVERIFY(key);
     QCOMPARE(key->property("echoMode").toInt(),2);
-    for (const auto &theme : {QString("dark"),QString("light")}) {
-        QVERIFY(m_theme->setTheme(theme));
-        QTRY_COMPARE(root->property("color").value<QColor>(),m_theme->color("background.panel"));
+    {
+
+        QTRY_COMPARE(root->property("color").value<QColor>(),UiColors::color("background.panel"));
         if (QGuiApplication::platformName()!="offscreen")
-            QVERIFY(view->grabFramebuffer().save(QCoreApplication::applicationDirPath()+"/output-settings-"+theme+".png"));
+            QVERIFY(view->grabFramebuffer().save(QCoreApplication::applicationDirPath()+"/output-settings-light.png"));
     }
     auto *cancel=root->findChild<QQuickItem *>("cancelOutputSettingsButton"); QVERIFY(cancel);
     QVERIFY(QMetaObject::invokeMethod(cancel,"clicked")); QTRY_VERIFY(dialog.isNull());
@@ -2267,7 +2149,7 @@ void MainWindowTest::outputSettingsDialogDraftsAndTheme()
 
 void MainWindowTest::recordingControlsAndGracefulClose()
 {
-    MainWindow window(*m_theme); window.show();
+    MainWindow window; window.show();
     auto *recorder=window.findChild<RecordingController *>();
     if (!recorder) QSKIP("Native desktop OpenGL required");
     QTRY_VERIFY_WITH_TIMEOUT(recorder->ready(),5000);
@@ -2300,7 +2182,7 @@ void MainWindowTest::recordingControlsAndGracefulClose()
 void MainWindowTest::streamingControlsAndGracefulClose()
 {
     if (QGuiApplication::platformName()=="offscreen") QSKIP("Native desktop OpenGL required");
-    MainWindow window(*m_theme); window.show();
+    MainWindow window; window.show();
     auto *stream=window.findChild<StreamingController *>(); QVERIFY(stream);
     auto *recording=window.findChild<RecordingController *>(); QVERIFY(recording);
     auto *settings=window.findChild<OutputSettings *>(); QVERIFY(settings);
@@ -2331,14 +2213,14 @@ void MainWindowTest::recordingAcceptance()
 {
     if (qEnvironmentVariableIntValue("OPENLIVE_RECORDING_SOAK_SECONDS")<=0)
         QSKIP("Explicit real-time recording acceptance only");
-    MainWindow window(*m_theme);
+    MainWindow window;
     RecordingAcceptance::run(window);
 }
 
 void MainWindowTest::loadsControlsPanelWithVerticalButtons()
 {
     QQuickWidget panel;
-    panel.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
+    panel.rootContext()->setContextProperty(QStringLiteral("uiColors"), UiColors::values());
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(286, 174);
     panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ControlsPanel.qml")));
@@ -2408,7 +2290,7 @@ void MainWindowTest::loadsControlsPanelWithVerticalButtons()
 
 void MainWindowTest::embedsSourcePanelInFullHeightLeftDock()
 {
-    MainWindow window(*m_theme);
+    MainWindow window;
     window.show();
     auto *dock = window.findChild<QDockWidget *>(QStringLiteral("sourcesDock"));
     auto *view = window.findChild<QQuickWidget *>(QStringLiteral("sourcesQuickWidget"));
@@ -2446,7 +2328,7 @@ void MainWindowTest::embedsSourcePanelInFullHeightLeftDock()
 
 void MainWindowTest::embedsMixerPanelBelowPreview()
 {
-    MainWindow window(*m_theme);
+    MainWindow window;
     window.show();
     auto *dock = window.findChild<QDockWidget *>(QStringLiteral("mixerDock"));
     auto *view = window.findChild<QQuickWidget *>(QStringLiteral("mixerQuickWidget"));
@@ -2474,7 +2356,7 @@ void MainWindowTest::embedsMixerPanelBelowPreview()
 
 void MainWindowTest::hasNoTransitionsDock()
 {
-    MainWindow window(*m_theme);
+    MainWindow window;
     window.show();
     QCOMPARE(window.findChildren<QDockWidget *>().size(), 3);
     QVERIFY(!window.findChild<QDockWidget *>(QStringLiteral("transitionsDock")));
@@ -2487,7 +2369,7 @@ void MainWindowTest::hasNoTransitionsDock()
 
 void MainWindowTest::embedsControlsPanelAtBottomRight()
 {
-    MainWindow window(*m_theme);
+    MainWindow window;
     window.show();
     auto *dock = window.findChild<QDockWidget *>(QStringLiteral("controlsDock"));
     auto *view = window.findChild<QQuickWidget *>(QStringLiteral("controlsQuickWidget"));
@@ -2547,7 +2429,7 @@ void MainWindowTest::panelDockCanFloatRedockAndClose()
 {
     QFETCH(QString, panelId);
     QFETCH(Qt::DockWidgetArea, dockArea);
-    MainWindow window(*m_theme);
+    MainWindow window;
     window.show();
     auto *dock = window.findChild<QDockWidget *>(panelId + QStringLiteral("Dock"));
     auto *view = window.findChild<QQuickWidget *>(panelId + QStringLiteral("QuickWidget"));
@@ -2603,7 +2485,7 @@ void MainWindowTest::panelDockCanFloatRedockAndClose()
 
 void MainWindowTest::viewMenuCanRestoreAllHiddenDocks()
 {
-    MainWindow window(*m_theme);
+    MainWindow window;
     window.show();
     auto *viewMenu = window.findChild<QMenu *>(QStringLiteral("viewMenu"));
     QVERIFY(viewMenu);
@@ -2635,7 +2517,7 @@ void MainWindowTest::resetLayoutRestoresDocksWithoutReload_data()
 void MainWindowTest::resetLayoutRestoresDocksWithoutReload()
 {
     QFETCH(QSize, windowSize);
-    MainWindow window(*m_theme);
+    MainWindow window;
     window.resize(windowSize);
     window.show();
     auto *resetAction = window.findChild<QAction *>(QStringLiteral("resetLayoutAction"));
@@ -2709,7 +2591,7 @@ void MainWindowTest::panelDockShowsLoadErrorAndRecovers()
 {
     QFETCH(QString, panelId);
     QFETCH(QString, qmlName);
-    MainWindow window(*m_theme);
+    MainWindow window;
     window.show();
     auto *view = window.findChild<QQuickWidget *>(panelId + QStringLiteral("QuickWidget"));
     auto *errorLabel = window.findChild<QLabel *>(panelId + QStringLiteral("LoadError"));
@@ -2758,15 +2640,10 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates_data()
     QTest::addColumn<QString>("panelName");
     QTest::addColumn<int>("expectedButtons");
     QTest::addColumn<bool>("alternateSourceState");
-    QTest::addColumn<QString>("themeId");
-    QTest::newRow("sources-dark") << QStringLiteral("SourcesPanel") << 8 << false << QString("dark");
-    QTest::newRow("sources-light") << QStringLiteral("SourcesPanel") << 8 << false << QString("light");
-    QTest::newRow("sources-hidden-locked-dark") << QStringLiteral("SourcesPanel") << 8 << true << QString("dark");
-    QTest::newRow("sources-hidden-locked-light") << QStringLiteral("SourcesPanel") << 8 << true << QString("light");
-    QTest::newRow("mixer-dark") << QStringLiteral("MixerPanel") << 3 << false << QString("dark");
-    QTest::newRow("mixer-light") << QStringLiteral("MixerPanel") << 3 << false << QString("light");
-    QTest::newRow("controls-dark") << QStringLiteral("ControlsPanel") << 2 << false << QString("dark");
-    QTest::newRow("controls-light") << QStringLiteral("ControlsPanel") << 2 << false << QString("light");
+    QTest::newRow("sources-light") << QStringLiteral("SourcesPanel") << 8 << false;
+    QTest::newRow("sources-hidden-locked-light") << QStringLiteral("SourcesPanel") << 8 << true;
+    QTest::newRow("mixer-light") << QStringLiteral("MixerPanel") << 3 << false;
+    QTest::newRow("controls-light") << QStringLiteral("ControlsPanel") << 2 << false;
 }
 
 void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
@@ -2774,10 +2651,9 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
     QFETCH(QString, panelName);
     QFETCH(int, expectedButtons);
     QFETCH(bool, alternateSourceState);
-    QFETCH(QString, themeId);
-    QVERIFY(m_theme->setTheme(themeId));
+
     QQuickWidget panel;
-    panel.rootContext()->setContextProperty(QStringLiteral("uiTheme"), m_theme.get());
+    panel.rootContext()->setContextProperty(QStringLiteral("uiColors"), UiColors::values());
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(238, 260);
     if (panelName == QStringLiteral("ControlsPanel"))
@@ -2886,18 +2762,10 @@ int main(int argc, char **argv)
 }
 #include "tst_mainwindow.moc"
 
-void MainWindowTest::sourceFiltersDialogEditsAndRetainsState_data()
-{
-    QTest::addColumn<QString>("themeId");
-    QTest::newRow("dark") << QString("dark");
-    QTest::newRow("light") << QString("light");
-}
-
 void MainWindowTest::sourceFiltersDialogEditsAndRetainsState()
 {
-    QFETCH(QString, themeId);
-    QVERIFY(m_theme->setTheme(themeId));
-    MainWindow window(*m_theme);
+
+    MainWindow window;
     window.show();
     auto *model = window.findChild<SourceListModel *>();
     auto *panel = window.findChild<QQuickWidget *>("sourcesQuickWidget");
@@ -2923,7 +2791,7 @@ void MainWindowTest::sourceFiltersDialogEditsAndRetainsState()
     auto *root = view->rootObject();
     QCOMPARE(root->objectName(), QString("sourceFiltersDialog"));
     QCOMPARE(root->property("sourceId").toString(), QString("image"));
-    QCOMPARE(root->property("color").value<QColor>(), m_theme->color("background.panel"));
+    QCOMPARE(root->property("color").value<QColor>(), UiColors::color("background.panel"));
     const auto click = [&](const QString &name) {
         auto *item = findItem(root, name);
         QVERIFY2(item, qPrintable(name));
@@ -2976,7 +2844,7 @@ void MainWindowTest::sourceFiltersDialogEditsAndRetainsState()
     QCOMPARE(model->sourceFilters("image")[0].toMap()["contrast"].toFloat(), 1.f);
     QVERIFY(model->setFilterParameters("image", first, .4, .8, 1.2));
     QVERIFY(view->grabFramebuffer().save(QCoreApplication::applicationDirPath()
-        + QString("/filter-dialog-%1.png").arg(themeId)));
+        + QString("/filter-dialog-%1.png").arg(QStringLiteral("light"))));
     QPointer<QDialog> previous(dialog);
     click("closeFiltersButton");
     QTRY_VERIFY(previous.isNull());
@@ -2994,18 +2862,10 @@ void MainWindowTest::sourceFiltersDialogEditsAndRetainsState()
     QTRY_VERIFY(previous.isNull());
 }
 
-void MainWindowTest::displayCaptureDialogs_data()
-{
-    QTest::addColumn<QString>("themeId");
-    QTest::newRow("dark") << QString("dark");
-    QTest::newRow("light") << QString("light");
-}
-
 void MainWindowTest::displayCaptureDialogs()
 {
-    QFETCH(QString, themeId);
-    QVERIFY(m_theme->setTheme(themeId));
-    MainWindow window(*m_theme);
+
+    MainWindow window;
     window.show();
     auto *model = window.findChild<SourceListModel *>();
     auto *panel = window.findChild<QQuickWidget *>("sourcesQuickWidget");
@@ -3021,7 +2881,7 @@ void MainWindowTest::displayCaptureDialogs()
     settings->setProperty("displayId", "missing-test-display");
     settings->setProperty("captureCursor", false);
     root->findChild<QQuickItem *>("sourceNameInput")->setProperty("text", "Screen");
-    QVERIFY(view->grabFramebuffer().save(QCoreApplication::applicationDirPath() + QString("/display-add-%1.png").arg(themeId)));
+    QVERIFY(view->grabFramebuffer().save(QCoreApplication::applicationDirPath() + QString("/display-add-%1.png").arg(QStringLiteral("light"))));
     auto *confirm = root->findChild<QQuickItem *>("confirmSourceAddButton");
     QVERIFY(confirm && confirm->isEnabled());
     QVERIFY(QMetaObject::invokeMethod(confirm, "clicked"));
@@ -3060,13 +2920,13 @@ void MainWindowTest::displayCaptureDialogs()
     QCOMPARE(model->sourceFilters(id)[0].toMap()["id"].toString(), filter);
     QVERIFY(QMetaObject::invokeMethod(root->findChild<QQuickItem *>("retryDisplayButton"), "clicked"));
     QTRY_COMPARE(model->displayProperties(id).value("state").toString(), QString("error"));
-    for (const auto &theme : {themeId == "dark" ? QString("light") : QString("dark"), themeId}) {
-        QVERIFY(m_theme->setTheme(theme));
-        QCOMPARE(root->property("color").value<QColor>(), m_theme->color("background.panel"));
-        QCOMPARE(error->property("color").value<QColor>(), m_theme->color("status.error"));
+    {
+
+        QCOMPARE(root->property("color").value<QColor>(), UiColors::color("background.panel"));
+        QCOMPARE(error->property("color").value<QColor>(), UiColors::color("status.error"));
         QCOMPARE(settings->property("displayId").toString(), QString("another-missing-test-display"));
     }
-    QVERIFY(view->grabFramebuffer().save(QCoreApplication::applicationDirPath() + QString("/display-properties-%1.png").arg(themeId)));
+    QVERIFY(view->grabFramebuffer().save(QCoreApplication::applicationDirPath() + QString("/display-properties-%1.png").arg(QStringLiteral("light"))));
     QVERIFY(QMetaObject::invokeMethod(panel->rootObject(), "sourceFiltersDialogRequested", Q_ARG(QString, id)));
     QTRY_COMPARE(window.findChildren<QDialog *>(QString(), Qt::FindDirectChildrenOnly).size(), 2);
     QVERIFY(QMetaObject::invokeMethod(panel->rootObject(), "sourcePropertiesDialogRequested", Q_ARG(QString, id)));
@@ -3076,12 +2936,10 @@ void MainWindowTest::displayCaptureDialogs()
     QTRY_VERIFY(window.findChildren<QDialog *>(QString(), Qt::FindDirectChildrenOnly).isEmpty());
 }
 
-void MainWindowTest::cameraPropertiesDialogs_data() { displayCaptureDialogs_data(); }
 void MainWindowTest::cameraPropertiesDialogs()
 {
-    QFETCH(QString, themeId);
-    QVERIFY(m_theme->setTheme(themeId));
-    MainWindow window(*m_theme); window.show();
+
+    MainWindow window; window.show();
     auto *model = window.findChild<SourceListModel *>();
     auto *controller = window.findChild<CameraCaptureController *>();
     auto *panel = window.findChild<QQuickWidget *>("sourcesQuickWidget");
@@ -3103,7 +2961,7 @@ void MainWindowTest::cameraPropertiesDialogs()
     QTRY_VERIFY(!settings->property("loadingModes").toBool());
     QCOMPARE(settings->property("selectedMode").toMap().value("denominator").toInt(), 1001);
     const QVariantMap changed{{"width", 640}, {"height", 480}, {"numerator", 30}, {"denominator", 1}};
-    QVERIFY(view->grabFramebuffer().save(QCoreApplication::applicationDirPath() + "/camera-properties-" + themeId + ".png"));
+    QVERIFY(view->grabFramebuffer().save(QCoreApplication::applicationDirPath() + "/camera-properties-" + QStringLiteral("light") + ".png"));
     settings->setProperty("selectedMode", changed);
     QCOMPARE(model->cameraProperties(id), original);
     QPointer<QDialog> first(dialog);
@@ -3127,7 +2985,7 @@ void MainWindowTest::cameraPropertiesDialogs()
 void MainWindowTest::cameraHardwarePreview()
 {
     if (!qEnvironmentVariableIsSet("OPENLIVE_CAMERA_HARDWARE")) QSKIP("Requires explicit camera hardware validation");
-    MainWindow window(*m_theme); window.show();
+    MainWindow window; window.show();
     auto *preview = window.findChild<PreviewWidget *>("previewWidget");
     QVERIFY2(preview, "Requires an interactive desktop OpenGL preview");
     QTRY_VERIFY_WITH_TIMEOUT(preview->isValid(), 10000);
@@ -3203,7 +3061,7 @@ void MainWindowTest::cameraHardwarePreview()
 
 void MainWindowTest::addsCameraThroughDialog()
 {
-    MainWindow window(*m_theme); window.show();
+    MainWindow window; window.show();
     auto *model = window.findChild<SourceListModel *>();
     auto *panel = window.findChild<QQuickWidget *>("sourcesQuickWidget");
     QVERIFY(model && panel && panel->rootObject());

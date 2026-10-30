@@ -34,4 +34,4 @@ Qt 文件 I/O 负责 Unicode 文件名和写盘，采用 NewOnly 创建文件，
 
 普通 `ctest --test-dir build/recording-compositor-Debug --output-on-failure` 包含该测试；需要桌面 OpenGL 和 FFmpeg 开发包中的 ffprobe。基础短录制不替代十分钟同步和稳定性验收。
 
-`outputSettingsDialogDraftsAndTheme` 验证草稿取消、输入校验、密钥遮蔽、深浅主题和临时设置；原生桌面的 `recordingControlsAndGracefulClose` 验证真实录制按钮、配置锁定、最小化持续录制和关闭等待。
+`outputSettingsDialogDraftsAndColors` 验证草稿取消、输入校验、密钥遮蔽、固定浅色配色和临时设置；原生桌面的 `recordingControlsAndGracefulClose` 验证真实录制按钮、配置锁定、最小化持续录制和关闭等待。
