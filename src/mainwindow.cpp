@@ -497,6 +497,7 @@ void MainWindow::setupStatusBar()
 void MainWindow::setupSourcesDock()
 {
     m_sourcesDock = new QDockWidget(tr("画面来源"), this);
+    m_sourcesDock->setFeatures(QDockWidget::NoDockWidgetFeatures);
     m_sourcesDock->setObjectName(QStringLiteral("sourcesDock"));
     m_sourcesDock->setMinimumWidth(220);
 
@@ -554,6 +555,7 @@ void MainWindow::setupSourcesDock()
 void MainWindow::setupMixerDock()
 {
     m_mixerDock = new QDockWidget(tr("声音来源"), this);
+    m_mixerDock->setFeatures(QDockWidget::NoDockWidgetFeatures);
     m_mixerDock->setObjectName(QStringLiteral("mixerDock"));
     m_mixerDock->setMinimumWidth(220);
 
@@ -606,6 +608,7 @@ void MainWindow::setupMixerDock()
 void MainWindow::setupControlsDock()
 {
     m_controlsDock = new QDockWidget(tr("控制"), this);
+    m_controlsDock->setFeatures(QDockWidget::NoDockWidgetFeatures);
     m_controlsDock->setObjectName(QStringLiteral("controlsDock"));
     m_controlsDock->setMinimumWidth(200);
 

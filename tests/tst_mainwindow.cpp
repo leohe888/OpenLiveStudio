@@ -119,8 +119,8 @@ private slots:
     void embedsMixerPanelAtBottomLeft();
     void hasNoTransitionsDock();
     void embedsControlsPanelBelowPreview();
-    void panelDockCanFloatRedockAndClose_data();
-    void panelDockCanFloatRedockAndClose();
+    void panelDocksStayFixed_data();
+    void panelDocksStayFixed();
     void panelDockShowsLoadErrorAndRecovers_data();
     void panelDockShowsLoadErrorAndRecovers();
     void panelIconsCanBeDecoded_data();
@@ -792,12 +792,9 @@ void MainWindowTest::lightColorsApplyToOuterWidgets()
     QCOMPARE(binding->property("uiColor").value<QColor>(), UiColors::color("text.primary"));
     auto *dock = window.findChild<QDockWidget *>("sourcesDock");
     QVERIFY(dock);
-    dock->setFloating(true);
-    QTRY_VERIFY(dock->isFloating());
 
     QTRY_COMPARE(binding->property("uiColor").value<QColor>(), UiColors::color("text.primary"));
     QCOMPARE(window.palette().color(QPalette::Window), UiColors::color("background.window"));
-    // Floating docks may use the native window palette; their QML content keeps its colors.
     auto *dockView = dock->findChild<QQuickWidget *>();
     QVERIFY(dockView && dockView->rootObject());
     QTRY_COMPARE(dockView->rootObject()->property("color").value<QColor>(), UiColors::color("background.panel"));
@@ -814,21 +811,6 @@ void MainWindowTest::lightColorsApplyToOuterWidgets()
     QTRY_COMPARE(error->palette().color(QPalette::WindowText), UiColors::color("status.error"));
     QTRY_COMPARE(error->palette().color(QPalette::Window), UiColors::color("background.panel"));
     QTRY_COMPARE(window.centralWidget()->palette().color(QPalette::Window), UiColors::color("preview.surrounding"));
-    dock->setFloating(false);
-    const auto titleButtons = dock->findChildren<QAbstractButton *>(QString(), Qt::FindDirectChildrenOnly);
-    QVERIFY(!titleButtons.isEmpty());
-    for (auto *button : titleButtons) {
-        for (auto mode : {QIcon::Normal, QIcon::Disabled}) {
-            const auto icon = button->icon().pixmap(16, 16, mode).toImage();
-            QVERIFY(!icon.isNull());
-            QColor strongest;
-            for (int y = 0; y < icon.height(); ++y)
-                for (int x = 0; x < icon.width(); ++x)
-                    if (!strongest.isValid() || icon.pixelColor(x, y).alpha() > strongest.alpha())
-                        strongest = icon.pixelColor(x, y);
-            QVERIFY(strongest.alpha() > 0);
-        }
-    }
     QCOMPARE(QApplication::palette(), applicationPalette);
 }
 
@@ -2345,7 +2327,7 @@ void MainWindowTest::embedsControlsPanelBelowPreview()
     }
 }
 
-void MainWindowTest::panelDockCanFloatRedockAndClose_data()
+void MainWindowTest::panelDocksStayFixed_data()
 {
     QTest::addColumn<QString>("panelId");
     QTest::addColumn<Qt::DockWidgetArea>("dockArea");
@@ -2358,7 +2340,7 @@ void MainWindowTest::panelDockCanFloatRedockAndClose_data()
         << Qt::BottomDockWidgetArea << QStringLiteral("ControlsPanel");
 }
 
-void MainWindowTest::panelDockCanFloatRedockAndClose()
+void MainWindowTest::panelDocksStayFixed()
 {
     QFETCH(QString, panelId);
     QFETCH(Qt::DockWidgetArea, dockArea);
@@ -2366,45 +2348,29 @@ void MainWindowTest::panelDockCanFloatRedockAndClose()
     window.show();
     auto *dock = window.findChild<QDockWidget *>(panelId + QStringLiteral("Dock"));
     auto *view = window.findChild<QQuickWidget *>(panelId + QStringLiteral("QuickWidget"));
-    QVERIFY(dock);
-    QVERIFY(view);
-
-    const QPointer<QQuickItem> originalRoot = view->rootObject();
-    QVERIFY(originalRoot);
-    dock->hide();
-    QTRY_VERIFY(!dock->isVisible());
-    dock->show();
-    QTRY_VERIFY(dock->isVisible());
-
-    dock->setFloating(true);
-    QTRY_VERIFY(dock->isFloating());
-    QVERIFY(view->isVisible());
-    QVERIFY(dock->close());
-    dock->show();
-    QTRY_VERIFY(dock->isVisible());
-    QVERIFY(dock->isFloating());
-    dock->setFloating(false);
-    QTRY_VERIFY(!dock->isFloating());
-    QCOMPARE(window.dockWidgetArea(dock), dockArea);
+    QVERIFY(dock && view);
     QTRY_COMPARE(view->status(), QQuickWidget::Ready);
+    QCOMPARE(dock->features(), QDockWidget::DockWidgetFeatures(QDockWidget::NoDockWidgetFeatures));
+    for (auto *button : dock->findChildren<QAbstractButton *>(QString(), Qt::FindDirectChildrenOnly))
+        QVERIFY(!button->isVisible());
 
-    QVERIFY(dock->close());
-    QTRY_VERIFY(!dock->isVisible());
-    for (auto *otherView : window.findChildren<QQuickWidget *>()) {
-        if (otherView == view)
-            continue;
-        QVERIFY(otherView->isVisible());
-        QCOMPARE(otherView->status(), QQuickWidget::Ready);
-    }
-    dock->show();
-    QTRY_VERIFY(dock->isVisible());
-    QVERIFY(view->isVisible());
-    QCOMPARE(view->rootObject(), originalRoot.data());
+    const QRect originalGeometry = dock->geometry();
+    const auto *originalRoot = view->rootObject();
+    const QPoint titleCenter(dock->width() / 2, 8);
+    QTest::mouseDClick(dock, Qt::LeftButton, Qt::NoModifier, titleCenter);
+    QTest::mousePress(dock, Qt::LeftButton, Qt::NoModifier, titleCenter);
+    QTest::mouseMove(dock, titleCenter + QPoint(100, 100), 20);
+    QTest::mouseRelease(dock, Qt::LeftButton, Qt::NoModifier, titleCenter + QPoint(100, 100));
+    QVERIFY(!dock->isFloating());
+    QVERIFY(dock->isVisible());
+    QCOMPARE(window.dockWidgetArea(dock), dockArea);
+    QCOMPARE(dock->geometry(), originalGeometry);
+    QCOMPARE(view->rootObject(), originalRoot);
 }
 
 void MainWindowTest::panelDockShowsLoadErrorAndRecovers_data()
 {
-    panelDockCanFloatRedockAndClose_data();
+    panelDocksStayFixed_data();
 }
 
 void MainWindowTest::panelDockShowsLoadErrorAndRecovers()
