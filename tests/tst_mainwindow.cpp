@@ -799,9 +799,9 @@ void MainWindowTest::lightColorsApplyToOuterWidgets()
     QVERIFY(dockView && dockView->rootObject());
     QTRY_COMPARE(dockView->rootObject()->property("color").value<QColor>(), UiColors::color("background.panel"));
     QCOMPARE(window.palette().color(QPalette::Disabled, QPalette::Text), UiColors::color("text.disabled"));
-    auto *metrics = window.findChild<QLabel *>("outputMetrics");
-    QVERIFY(metrics);
-    QTRY_COMPARE(metrics->palette().color(QPalette::WindowText), UiColors::color("text.primary"));
+    auto *output = window.findChild<QLabel *>("outputStatus");
+    QVERIFY(output);
+    QTRY_COMPARE(output->palette().color(QPalette::WindowText), UiColors::color("text.primary"));
     for (int i = 0; i < views.size(); ++i) {
         QCOMPARE(views[i]->rootObject(), roots[i].data());
         QCOMPARE(views[i]->quickWindow()->color(), UiColors::color("background.panel"));
@@ -1831,9 +1831,9 @@ void MainWindowTest::keepsOutputStatusVisibleWhenResized()
 {
     MainWindow window;
     auto *output = window.findChild<QLabel *>(QStringLiteral("outputStatus"));
-    auto *metrics = window.findChild<QLabel *>(QStringLiteral("outputMetrics"));
     QVERIFY(output);
-    QVERIFY(metrics);
+    QCOMPARE(output->text(), QStringLiteral("录制 00:00:00   |   直播 00:00:00"));
+    QVERIFY(!window.findChild<QLabel *>(QStringLiteral("outputMetrics")));
     window.show();
 
     for (const auto &size : {QSize(1280, 800), window.minimumSize(), QSize(1280, 800)}) {
@@ -1843,8 +1843,6 @@ void MainWindowTest::keepsOutputStatusVisibleWhenResized()
         QTRY_VERIFY(output->width() >= output->sizeHint().width());
         const QPoint position = output->mapTo(window.statusBar(), QPoint(0, 0));
         QVERIFY(window.statusBar()->rect().contains(QRect(position, output->size())));
-        if (metrics->isVisible())
-            QVERIFY(!output->geometry().intersects(metrics->geometry()));
     }
 }
 
@@ -2076,6 +2074,10 @@ void MainWindowTest::recordingControlsAndGracefulClose()
     auto *record=controls->rootObject()->findChild<QQuickItem *>("recordButton"); QVERIFY(record);
     QTRY_VERIFY(record->isEnabled()); QVERIFY(QMetaObject::invokeMethod(record,"clicked"));
     QTRY_COMPARE_WITH_TIMEOUT(recorder->state(),QString("recording"),5000);
+    auto *output=window.findChild<QLabel *>("outputStatus"); QVERIFY(output);
+    QTRY_VERIFY_WITH_TIMEOUT(recorder->durationMs()>=1000,5000);
+    QVERIFY(output->text()!=QStringLiteral("录制 00:00:00   |   直播 00:00:00"));
+    QVERIFY(output->text().endsWith(QStringLiteral("直播 00:00:00")));
     QVERIFY(settings->recordingLocked()); QCOMPARE(record->property("text").toString(),QString::fromUtf8("停止录制"));
     QVERIFY(QMetaObject::invokeMethod(controls->rootObject(),"settingsDialogRequested"));
     QPointer<QDialog> dialog=window.findChild<QDialog *>(); QVERIFY(dialog);
@@ -2093,6 +2095,7 @@ void MainWindowTest::recordingControlsAndGracefulClose()
     QTRY_VERIFY(!window.isVisible());
     QVERIFY2(recorder->lastError().isEmpty(),qPrintable(recorder->lastError()));
     QVERIFY(recorder->fileComplete()); QVERIFY(QFileInfo(recorder->filePath()).size()>1000);
+    QCOMPARE(output->text(),QStringLiteral("录制 00:00:00   |   直播 00:00:00"));
     QVERIFY(!settings->recordingLocked());
 }
 
@@ -2123,6 +2126,8 @@ void MainWindowTest::streamingControlsAndGracefulClose()
     QVERIFY(!window.close());
     QTRY_VERIFY_WITH_TIMEOUT(!stream->busy() && !recording->busy(),5000);
     QTRY_VERIFY(!window.isVisible()); QVERIFY(recording->fileComplete());
+    auto *output=window.findChild<QLabel *>("outputStatus"); QVERIFY(output);
+    QCOMPARE(output->text(),QStringLiteral("录制 00:00:00   |   直播 00:00:00"));
     QVERIFY(!settings->streamingLocked()); QVERIFY(!settings->recordingLocked());
 }
 

@@ -24,7 +24,6 @@
 #include <QQmlError>
 #include <QQuickItem>
 #include <QQuickWidget>
-#include <QResizeEvent>
 #include <QStatusBar>
 #include <QShortcut>
 #include <QStackedWidget>
@@ -46,7 +45,7 @@ MainWindow::MainWindow(QWidget *parent)
             m_displaySources, &DisplayCaptureController::setImageSources);
     setWindowTitle(QStringLiteral("OpenLive Studio"));
     setMinimumSize(960, 640);
-    resize(1280, 800);
+    resize(1280, 720);
 
     setupPreview();
     if (auto *preview=findChild<PreviewWidget *>(QStringLiteral("previewWidget"))) {
@@ -84,7 +83,6 @@ MainWindow::MainWindow(QWidget *parent)
     setupMixerDock();
     setupControlsDock();
     setupDockLayout();
-    updateStatusLayout();
     // Destroy the dock QML contexts before their shared state.
     m_sourceListModel->setParent(this);
     m_audioSources->setParent(this);
@@ -117,33 +115,21 @@ void MainWindow::updateOutputStatus()
     if (!m_recording || !m_outputStatus) return;
     m_outputSettings->setRecordingLocked(m_recording->busy());
     if (m_streaming) m_outputSettings->setStreamingLocked(m_streaming->busy());
-    const auto state=m_recording->state();
-    const auto ms=m_recording->durationMs();
-    const auto duration=QStringLiteral("%1:%2:%3").arg(ms/3600000,2,10,QLatin1Char('0'))
-        .arg(ms/60000%60,2,10,QLatin1Char('0')).arg(ms/1000%60,2,10,QLatin1Char('0'));
-    const auto label=state=="starting" ? tr("正在启动") : state=="recording" ? tr("录制中")
-        : state=="stopping" ? tr("正在停止") : state=="error" ? tr("失败")
-        : m_recording->fileComplete() ? tr("已完成") : tr("未开始");
+    const auto formatDuration=[](qint64 ms) {
+        return QStringLiteral("%1:%2:%3").arg(ms/3600000,2,10,QLatin1Char('0'))
+            .arg(ms/60000%60,2,10,QLatin1Char('0')).arg(ms/1000%60,2,10,QLatin1Char('0'));
+    };
     const auto live=m_streaming ? m_streaming->status() : StreamingStatus{};
-    const auto liveLabel=live.state=="connecting" ? tr("连接中") : live.state=="live" ? tr("直播中")
-        : live.state=="reconnecting" ? tr("重连中（%1 秒）").arg(live.retryInSeconds)
-        : live.state=="stopping" ? tr("正在停止") : live.state=="error" ? tr("失败") : live.durationMs ? tr("已停止") : tr("未开始");
-    const auto liveDuration=QStringLiteral("%1:%2:%3").arg(live.durationMs/3600000,2,10,QLatin1Char('0'))
-        .arg(live.durationMs/60000%60,2,10,QLatin1Char('0')).arg(live.durationMs/1000%60,2,10,QLatin1Char('0'));
-    m_outputStatus->setText(tr("REC %1 · %2   |   LIVE %3 · %4").arg(label,
-        state=="idle" && !m_recording->fileComplete() ? QStringLiteral("—") : duration,liveLabel,
-        live.durationMs ? liveDuration : QStringLiteral("—")));
+    m_outputStatus->setText(tr("录制 %1   |   直播 %2").arg(
+        formatDuration(m_recording->busy() ? m_recording->durationMs() : 0),
+        formatDuration(m_streaming && m_streaming->busy() ? live.durationMs : 0)));
     m_outputStatus->setToolTip(tr("录制：%1\n直播：%2").arg(m_recording->lastError().isEmpty() ? m_recording->filePath() : m_recording->lastError(),live.error));
-    m_outputMetrics->setText(tr("LIVE %1 kbps · 丢帧 %2 · 重连 %3   |   REC 重复 %4 · 跳过 %5")
-        .arg(live.bitrateKbps).arg(live.droppedFrames).arg(live.reconnects)
-        .arg(m_recording->repeatedFrames()).arg(m_recording->droppedFrames()));
     if (!live.error.isEmpty() && live.error!=m_previousStreamingError) statusBar()->showMessage(tr("直播：%1").arg(live.error));
     m_previousStreamingError=live.error;
     if (!m_recording->lastError().isEmpty() && m_previousRecordingError!=m_recording->lastError())
         statusBar()->showMessage(tr("录制失败：%1%2").arg(m_recording->lastError(),
             m_recording->fileComplete() ? tr("（已有内容已完成封装）") : tr("（文件未完整完成）")));
     m_previousRecordingError=m_recording->lastError();
-    updateStatusLayout();
 }
 
 void MainWindow::toggleRecording()
@@ -481,16 +467,11 @@ void MainWindow::setupPreview()
 void MainWindow::setupStatusBar()
 {
     m_outputStatus = new QLabel(
-        tr("REC 未开始 · 时长 —   |   LIVE 未开始 · 时长 —"), this);
+        tr("录制 00:00:00   |   直播 00:00:00"), this);
     m_outputStatus->setObjectName(QStringLiteral("outputStatus"));
 
-    m_outputMetrics = new QLabel(
-        tr("输出帧率 —   |   推流丢帧 —   |   发送码率 —   |   CPU —   |   内存 —"), this);
-    m_outputMetrics->setObjectName(QStringLiteral("outputMetrics"));
-
-    // Output states remain visible even when a temporary status message appears.
+    // Output timers remain visible even when a temporary status message appears.
     statusBar()->addPermanentWidget(m_outputStatus);
-    statusBar()->addPermanentWidget(m_outputMetrics);
     statusBar()->showMessage(tr("就绪"));
 }
 
@@ -500,6 +481,7 @@ void MainWindow::setupSourcesDock()
     m_sourcesDock->setFeatures(QDockWidget::NoDockWidgetFeatures);
     m_sourcesDock->setObjectName(QStringLiteral("sourcesDock"));
     m_sourcesDock->setMinimumWidth(220);
+    m_sourcesDock->setMaximumWidth(320);
 
     auto *pages = new QStackedWidget(m_sourcesDock);
     auto *view = new QQuickWidget(pages);
@@ -558,6 +540,7 @@ void MainWindow::setupMixerDock()
     m_mixerDock->setFeatures(QDockWidget::NoDockWidgetFeatures);
     m_mixerDock->setObjectName(QStringLiteral("mixerDock"));
     m_mixerDock->setMinimumWidth(220);
+    m_mixerDock->setMaximumWidth(320);
 
     auto *pages = new QStackedWidget(m_mixerDock);
     auto *view = new QQuickWidget(pages);
@@ -610,13 +593,13 @@ void MainWindow::setupControlsDock()
     m_controlsDock = new QDockWidget(tr("控制"), this);
     m_controlsDock->setFeatures(QDockWidget::NoDockWidgetFeatures);
     m_controlsDock->setObjectName(QStringLiteral("controlsDock"));
-    m_controlsDock->setMinimumWidth(200);
+    m_controlsDock->setMinimumHeight(80);
+    m_controlsDock->setMaximumHeight(180);
 
     auto *pages = new QStackedWidget(m_controlsDock);
     auto *view = new QQuickWidget(pages);
     view->setObjectName(QStringLiteral("controlsQuickWidget"));
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
-    view->setMinimumHeight(48);
     configureQuickWidget(view);
     view->rootContext()->setContextProperty(QStringLiteral("outputSettings"),m_outputSettings);
     view->rootContext()->setContextProperty(QStringLiteral("recordingController"),m_recording);
@@ -670,23 +653,6 @@ void MainWindow::setupDockLayout()
     addDockWidget(Qt::BottomDockWidgetArea, m_controlsDock);
     splitDockWidget(m_sourcesDock, m_mixerDock, Qt::Vertical);
     resizeDocks({m_sourcesDock, m_mixerDock}, {220, 220}, Qt::Horizontal);
-    resizeDocks({m_controlsDock}, {48}, Qt::Vertical);
+    resizeDocks({m_controlsDock}, {80}, Qt::Vertical);
     resizeDocks({m_sourcesDock, m_mixerDock}, {height() / 2, height() / 2}, Qt::Vertical);
-}
-
-void MainWindow::resizeEvent(QResizeEvent *event)
-{
-    QMainWindow::resizeEvent(event);
-    updateStatusLayout();
-}
-
-void MainWindow::updateStatusLayout()
-{
-    if (!m_outputStatus || !m_outputMetrics)
-        return;
-
-    // Reserve space for the status message, spacing and the window size grip.
-    const int requiredWidth = m_outputStatus->sizeHint().width()
-        + m_outputMetrics->sizeHint().width() + 180;
-    m_outputMetrics->setVisible(width() >= requiredWidth);
 }

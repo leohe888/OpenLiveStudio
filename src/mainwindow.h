@@ -7,7 +7,6 @@
 
 class QDockWidget;
 class QLabel;
-class QResizeEvent;
 class QQuickWidget;
 class SourceListModel;
 class ImageSourceController;
@@ -31,7 +30,6 @@ public:
                     const QVariantMap &properties = {});
 
 protected:
-    void resizeEvent(QResizeEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
 
 private slots:
@@ -56,11 +54,9 @@ private:
     void setupMixerDock();
     void setupControlsDock();
     void setupDockLayout();
-    void updateStatusLayout();
     void updateOutputStatus();
 
     QLabel *m_outputStatus = nullptr;
-    QLabel *m_outputMetrics = nullptr;
     QDockWidget *m_sourcesDock = nullptr;
     QDockWidget *m_mixerDock = nullptr;
     QDockWidget *m_controlsDock = nullptr;
