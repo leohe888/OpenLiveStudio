@@ -6,7 +6,7 @@ Rectangle {
     id: root
     objectName: "cameraPropertiesDialog"
     required property var videoSourceModel
-    required property var cameraCaptureController
+    required property var cameraSourceController
     required property string sourceId
     property var status: ({})
     property string errorText: ""
@@ -39,7 +39,7 @@ Rectangle {
             id: settings
             objectName: "cameraSettings"
             Layout.fillWidth: true
-            cameraCaptureController: root.cameraCaptureController
+            cameraSourceController: root.cameraSourceController
         }
         Label {
             objectName: "cameraStateLabel"
@@ -68,7 +68,7 @@ Rectangle {
                 text: qsTr("确定")
                 enabled: settings.deviceId.length > 0 && !settings.loadingModes
                 onClicked: {
-                    if (root.cameraCaptureController.applyProperties(root.sourceId, settings.deviceId, settings.selectedMode))
+                    if (root.cameraSourceController.applyProperties(root.sourceId, settings.deviceId, settings.selectedMode))
                         root.closeRequested()
                     else root.errorText = qsTr("无法应用配置：所选摄像头已被其他来源使用，或采集模式无效。")
                 }
@@ -77,7 +77,7 @@ Rectangle {
                 objectName: "retryCameraButton"
                 text: qsTr("重试")
                 enabled: root.status.state === "error"
-                onClicked: root.cameraCaptureController.retry(root.sourceId)
+                onClicked: root.cameraSourceController.retry(root.sourceId)
             }
             ActionButton {
                 objectName: "cancelCameraPropertiesButton"

@@ -1,5 +1,5 @@
-#include "audiocaptureworker.h"
-#include "audioresampler.h"
+#include "audio/audiocaptureworker.h"
+#include "audio/audioresampler.h"
 #include <QScopeGuard>
 #include <chrono>
 #ifdef Q_OS_WIN

@@ -6,7 +6,7 @@ Rectangle {
     id: root
     objectName: "displayPropertiesDialog"
     required property var videoSourceModel
-    required property var displayCaptureController
+    required property var displaySourceController
     required property string sourceId
     property var status: ({})
     readonly property var colors: uiColors
@@ -41,7 +41,7 @@ Rectangle {
             id: settings
             objectName: "displaySettings"
             Layout.fillWidth: true
-            displayCaptureController: root.displayCaptureController
+            displaySourceController: root.displaySourceController
         }
         Label {
             objectName: "captureStateLabel"
@@ -65,12 +65,12 @@ Rectangle {
                 objectName: "applyDisplayPropertiesButton"
                 text: qsTr("应用")
                 enabled: settings.displayId.length > 0
-                onClicked: root.displayCaptureController.applyProperties(root.sourceId, settings.displayId, settings.captureCursor)
+                onClicked: root.displaySourceController.applyProperties(root.sourceId, settings.displayId, settings.captureCursor)
             }
             ActionButton {
                 objectName: "retryDisplayButton"
                 text: qsTr("重试")
-                onClicked: root.displayCaptureController.retry(root.sourceId)
+                onClicked: root.displaySourceController.retry(root.sourceId)
             }
             ActionButton {
                 objectName: "closeDisplayPropertiesButton"

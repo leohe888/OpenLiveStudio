@@ -1,4 +1,4 @@
-#include "previewwidget.h"
+#include "ui/previewwidget.h"
 
 #include <QDebug>
 #include <QOpenGLBuffer>

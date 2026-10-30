@@ -18,34 +18,34 @@ qt_add_executable(OpenLiveStudio
     src/ui/mainwindow.h
     src/ui/previewwidget.cpp
     src/ui/previewwidget.h
-    src/preview/previewsource.h
+    src/graphics/previewsource.h
     src/ui/uicolors.h
-    src/core/source.cpp
-    src/core/source.h
-    src/core/sourcefilter.h
-    src/core/sourcetransform.h
-    src/core/videosourcemodel.cpp
-    src/core/videosourcemodel.h
-    src/core/imagesourcecontroller.cpp
-    src/core/imagesourcecontroller.h
-    src/capture/cameracaptureworker.h
-    src/capture/cameracaptureworker.cpp
-    src/capture/cameracapturecontroller.h
-    src/capture/cameracapturecontroller.cpp
-    src/capture/captureframe.h
-    src/capture/d3dtexture.h
-    src/capture/displaytargets.h
-    src/capture/displaytargets.cpp
-    src/capture/displaycaptureworker.h
-    src/capture/displaycaptureworker.cpp
-    src/capture/gpuinterop.h
-    src/capture/gpuinterop.cpp
-    src/capture/displaycapturecontroller.h
-    src/capture/displaycapturecontroller.cpp
-    src/preview/canvasrenderer.h
-    src/preview/canvasrenderer.cpp
-    src/preview/compositor.h
-    src/preview/compositor.cpp
+    src/video/source.cpp
+    src/video/source.h
+    src/video/sourcefilter.h
+    src/video/sourcetransform.h
+    src/video/videosourcemodel.cpp
+    src/video/videosourcemodel.h
+    src/video/image/imagesourcecontroller.cpp
+    src/video/image/imagesourcecontroller.h
+    src/video/camera/cameracaptureworker.h
+    src/video/camera/cameracaptureworker.cpp
+    src/video/camera/camerasourcecontroller.h
+    src/video/camera/camerasourcecontroller.cpp
+    src/graphics/captureframe.h
+    src/graphics/d3dtexture.h
+    src/video/display/displaytargets.h
+    src/video/display/displaytargets.cpp
+    src/video/display/displaycaptureworker.h
+    src/video/display/displaycaptureworker.cpp
+    src/graphics/gpuinterop.h
+    src/graphics/gpuinterop.cpp
+    src/video/display/displaysourcecontroller.h
+    src/video/display/displaysourcecontroller.cpp
+    src/graphics/canvasrenderer.h
+    src/graphics/canvasrenderer.cpp
+    src/graphics/compositor.h
+    src/graphics/compositor.cpp
     src/audio/audiobuffer.h
     src/audio/audioresampler.h
     src/audio/audioresampler.cpp

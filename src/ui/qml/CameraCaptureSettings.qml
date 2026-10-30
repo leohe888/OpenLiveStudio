@@ -4,7 +4,7 @@ import QtQuick.Layouts
 
 ColumnLayout {
     id: root
-    property var cameraCaptureController: null
+    property var cameraSourceController: null
     property string deviceId: ""
     property var selectedMode: ({})
     property var modeList: []
@@ -12,16 +12,16 @@ ColumnLayout {
     property string errorText: ""
     readonly property var colors: uiColors
     readonly property var targets: {
-        const entries = cameraCaptureController ? cameraCaptureController.devices.slice() : []
+        const entries = cameraSourceController ? cameraSourceController.devices.slice() : []
         if (deviceId.length && !entries.some(e => e.id === deviceId))
             entries.unshift({id: deviceId, name: qsTr("所选摄像头不可用，请刷新或重新选择")})
         return entries
     }
     function loadModes() {
-        if (!visible || !cameraCaptureController || !deviceId.length) return
+        if (!visible || !cameraSourceController || !deviceId.length) return
         loadingModes = true
         errorText = ""
-        cameraCaptureController.requestModes(deviceId)
+        cameraSourceController.requestModes(deviceId)
     }
     function modeIndex() {
         if (!selectedMode.width || selectedMode.width <= 0) return 0
@@ -30,14 +30,14 @@ ColumnLayout {
     }
     onDeviceIdChanged: loadModes()
     onVisibleChanged: {
-        if (visible && cameraCaptureController) { cameraCaptureController.refreshDevices(); loadModes() }
+        if (visible && cameraSourceController) { cameraSourceController.refreshDevices(); loadModes() }
     }
     Component.onCompleted: {
-        if (visible && cameraCaptureController) cameraCaptureController.refreshDevices()
+        if (visible && cameraSourceController) cameraSourceController.refreshDevices()
         loadModes()
     }
     Connections {
-        target: root.cameraCaptureController
+        target: root.cameraSourceController
         function onDevicesChanged() {
             if (root.visible && !root.deviceId.length && root.targets.length) root.deviceId = root.targets[0].id
         }
@@ -45,7 +45,7 @@ ColumnLayout {
             if (id !== root.deviceId) return
             root.loadingModes = false
             root.errorText = error
-            const entries = [{name: qsTr("设备默认")}].concat(root.cameraCaptureController.modes(id))
+            const entries = [{name: qsTr("设备默认")}].concat(root.cameraSourceController.modes(id))
             if (root.selectedMode.width > 0 && !entries.some(e => e.width === root.selectedMode.width
                 && e.height === root.selectedMode.height && e.numerator * root.selectedMode.denominator
                     === root.selectedMode.numerator * e.denominator))
@@ -96,11 +96,11 @@ ColumnLayout {
         }
         Button {
             objectName: "refreshCamerasButton"
-            text: root.cameraCaptureController && root.cameraCaptureController.refreshing ? qsTr("刷新中…") : qsTr("刷新")
-            enabled: root.cameraCaptureController !== null && !root.cameraCaptureController.refreshing
+            text: root.cameraSourceController && root.cameraSourceController.refreshing ? qsTr("刷新中…") : qsTr("刷新")
+            enabled: root.cameraSourceController !== null && !root.cameraSourceController.refreshing
             palette.button: root.colors.button.background.normal
             palette.buttonText: root.colors.text.primary
-            onClicked: { root.cameraCaptureController.refreshDevices(); root.loadModes() }
+            onClicked: { root.cameraSourceController.refreshDevices(); root.loadModes() }
         }
     }
     Label { text: qsTr("采集模式"); color: root.colors.text.primary }
@@ -116,7 +116,7 @@ ColumnLayout {
     Label {
         Layout.fillWidth: true
         visible: text.length > 0
-        text: root.errorText || (root.cameraCaptureController ? root.cameraCaptureController.catalogError : "")
+        text: root.errorText || (root.cameraSourceController ? root.cameraSourceController.catalogError : "")
         textFormat: Text.PlainText
         wrapMode: Text.WrapAnywhere
         color: root.colors.status.error

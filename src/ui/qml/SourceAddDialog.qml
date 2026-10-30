@@ -11,14 +11,14 @@ Rectangle {
     color: root.themeColors.background.panel
     required property var videoSourceModel
     property var imageSourceController: null
-    property var displayCaptureController: null
-    property var cameraCaptureController: null
+    property var displaySourceController: null
+    property var cameraSourceController: null
     readonly property bool isCamera: sourceType.currentValue === "camera"
-    readonly property bool supportsCamera: isCamera && cameraCaptureController !== null
+    readonly property bool supportsCamera: isCamera && cameraSourceController !== null
     property bool loading: false
     readonly property bool isImage: sourceType.currentValue === "image"
     readonly property bool isDisplay: sourceType.currentValue === "displayCapture"
-    readonly property bool supportsDisplay: isDisplay && displayCaptureController !== null
+    readonly property bool supportsDisplay: isDisplay && displaySourceController !== null
     property string initialName: qsTr("显示器采集")
     property string errorText: ""
     property bool nameEdited: false
@@ -26,13 +26,13 @@ Rectangle {
 
     function submit() {
         if (supportsCamera) {
-            const id = cameraCaptureController.addCamera(nameInput.text, cameraSettings.deviceId, cameraSettings.selectedMode)
+            const id = cameraSourceController.addCamera(nameInput.text, cameraSettings.deviceId, cameraSettings.selectedMode)
             if (id.length) closeRequested()
             else errorText = qsTr("请输入名称并选择设备；同一摄像头不能重复添加。")
             return
         }
         if (supportsDisplay) {
-            const id = displayCaptureController.addDisplay(nameInput.text, displaySettings.displayId, displaySettings.captureCursor)
+            const id = displaySourceController.addDisplay(nameInput.text, displaySettings.displayId, displaySettings.captureCursor)
             if (id.length) closeRequested()
             else errorText = qsTr("请输入来源名称并选择显示器。")
             return
@@ -213,14 +213,14 @@ Rectangle {
             objectName: "cameraSettings"
             Layout.fillWidth: true
             visible: root.supportsCamera
-            cameraCaptureController: root.cameraCaptureController
+            cameraSourceController: root.cameraSourceController
         }
         DisplayCaptureSettings {
             id: displaySettings
             objectName: "displaySettings"
             Layout.fillWidth: true
             visible: root.supportsDisplay
-            displayCaptureController: root.displayCaptureController
+            displaySourceController: root.displaySourceController
         }
         Label {
             objectName: "sourceTypeUnavailableHint"

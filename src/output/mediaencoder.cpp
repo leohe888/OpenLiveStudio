@@ -1,4 +1,4 @@
-#include "mediaencoder.h"
+#include "output/mediaencoder.h"
 #include <QScopeGuard>
 #include <cerrno>
 #include "core/mediaclock.h"

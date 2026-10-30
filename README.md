@@ -2,6 +2,19 @@
 
 基于 Qt6 的 Windows 桌面录制与直播工具，采用 QML + Qt Widgets 混合界面。界面固定使用浅色配色，颜色集中定义在 `src/ui/uicolors.h`，不提供主题切换。
 
+## 目录结构
+
+- `src/core/`：跨模块基础设施，如媒体时钟和输出订阅队列。
+- `src/video/`：画面源数据、模型、变换和滤镜；`image/`、`display/`、`camera/` 分别存放对应来源的控制器与采集实现。
+- `src/audio/`：声音源模型、音频采集、重采样和混音。
+- `src/graphics/`：画面合成、渲染、共享帧和 GPU 资源交接。
+- `src/output/`：编码、录制、推流和输出设置。
+- `src/ui/`：主窗口、预览控件和 QML 界面。
+- `tests/`：按 `video/`、`audio/`、`graphics/`、`output/`、`ui/` 分组，公共测试辅助代码放在 `support/`。
+- `assets/`：图标和着色器；`docs/`：功能与验收说明；`tools/`：开发和验证脚本。
+
+C++ 项目头文件统一以 `src/` 为引用根目录，例如 `#include "video/videosourcemodel.h"`。
+
 ## MVP 功能
 
 1. **单画布**：唯一画布承载来源合成与预览。

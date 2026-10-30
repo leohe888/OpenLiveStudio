@@ -1,7 +1,7 @@
 #ifndef AUDIOSOURCEMODEL_H
 #define AUDIOSOURCEMODEL_H
-#include "audiocaptureworker.h"
-#include "audiomixer.h"
+#include "audio/audiocaptureworker.h"
+#include "audio/audiomixer.h"
 #include <QAbstractListModel>
 #include <QTimer>
 #include <vector>

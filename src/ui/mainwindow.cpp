@@ -1,8 +1,8 @@
-#include "mainwindow.h"
-#include "core/videosourcemodel.h"
-#include "core/imagesourcecontroller.h"
-#include "capture/displaycapturecontroller.h"
-#include "capture/cameracapturecontroller.h"
+#include "ui/mainwindow.h"
+#include "video/videosourcemodel.h"
+#include "video/image/imagesourcecontroller.h"
+#include "video/display/displaysourcecontroller.h"
+#include "video/camera/camerasourcecontroller.h"
 #include "audio/audiosourcemodel.h"
 #include "ui/uicolors.h"
 #include "ui/previewwidget.h"
@@ -34,23 +34,23 @@ MainWindow::MainWindow(QWidget *parent)
 {
     applyColors();
     m_videoSourceModel = new VideoSourceModel;
-    m_audioSources = new AudioSourceModel;
+    m_audioSourceModel = new AudioSourceModel;
     m_outputSettings = new OutputSettings;
-    m_imageSources = new ImageSourceController(*m_videoSourceModel, this);
-    m_displaySources = new DisplayCaptureController(*m_videoSourceModel, this);
-    m_cameraSources = new CameraCaptureController(*m_videoSourceModel, this);
-    connect(m_displaySources, &DisplayCaptureController::sourcesChanged,
-            m_cameraSources, &CameraCaptureController::setOtherSources);
-    connect(m_imageSources, &ImageSourceController::sourcesChanged,
-            m_displaySources, &DisplayCaptureController::setImageSources);
+    m_imageSourceController = new ImageSourceController(*m_videoSourceModel, this);
+    m_displaySourceController = new DisplaySourceController(*m_videoSourceModel, this);
+    m_cameraSourceController = new CameraSourceController(*m_videoSourceModel, this);
+    connect(m_displaySourceController, &DisplaySourceController::sourcesChanged,
+            m_cameraSourceController, &CameraSourceController::setOtherSources);
+    connect(m_imageSourceController, &ImageSourceController::sourcesChanged,
+            m_displaySourceController, &DisplaySourceController::setImageSources);
     setWindowTitle(QStringLiteral("OpenLive Studio"));
     setMinimumSize(960, 640);
     resize(1280, 720);
 
     setupPreview();
     if (auto *preview=findChild<PreviewWidget *>(QStringLiteral("previewWidget"))) {
-        m_recording=new RecordingController(*preview->compositor(),*m_audioSources->mixer(),this);
-        m_streaming=new StreamingController(*preview->compositor(),*m_audioSources->mixer(),this);
+        m_recording=new RecordingController(*preview->compositor(),*m_audioSourceModel->mixer(),this);
+        m_streaming=new StreamingController(*preview->compositor(),*m_audioSourceModel->mixer(),this);
         connect(m_streaming,&StreamingController::statusChanged,this,&MainWindow::updateOutputStatus);
         connect(m_streaming,&StreamingController::finished,this,[this] { if (m_closePending) QTimer::singleShot(0,this,&QWidget::close); });
         connect(m_recording,&RecordingController::overloaded,m_streaming,&StreamingController::stopForOverload);
@@ -60,8 +60,8 @@ MainWindow::MainWindow(QWidget *parent)
         });
     }
     setupStatusBar();
-    connect(m_audioSources, &AudioSourceModel::sourceError, this, [this](const QString &id, const QString &message) {
-        statusBar()->showMessage(tr("声音来源“%1”：%2").arg(m_audioSources->source(id).value("name").toString(), message));
+    connect(m_audioSourceModel, &AudioSourceModel::sourceError, this, [this](const QString &id, const QString &message) {
+        statusBar()->showMessage(tr("声音来源“%1”：%2").arg(m_audioSourceModel->source(id).value("name").toString(), message));
     });
     const auto showSourceError = [this](const QString &id, const QString &message) {
         QString name = tr("图片");
@@ -74,9 +74,9 @@ MainWindow::MainWindow(QWidget *parent)
         }
         statusBar()->showMessage(tr("来源“%1”：%2").arg(name, message));
     };
-    connect(m_imageSources, &ImageSourceController::sourceError, this, showSourceError);
-    connect(m_displaySources, &DisplayCaptureController::sourceError, this, showSourceError);
-    connect(m_cameraSources, &CameraCaptureController::sourceError, this, showSourceError);
+    connect(m_imageSourceController, &ImageSourceController::sourceError, this, showSourceError);
+    connect(m_displaySourceController, &DisplaySourceController::sourceError, this, showSourceError);
+    connect(m_cameraSourceController, &CameraSourceController::sourceError, this, showSourceError);
     if (auto *preview = findChild<PreviewWidget *>(QStringLiteral("previewWidget")))
         connect(preview, &PreviewWidget::sourceError, this, showSourceError, Qt::QueuedConnection);
     setupSourcesDock();
@@ -85,7 +85,7 @@ MainWindow::MainWindow(QWidget *parent)
     setupDockLayout();
     // Destroy the dock QML contexts before their shared state.
     m_videoSourceModel->setParent(this);
-    m_audioSources->setParent(this);
+    m_audioSourceModel->setParent(this);
     m_outputSettings->setParent(this);
     applyColors();
 }
@@ -280,13 +280,13 @@ void MainWindow::showDialog(const QUrl &source, const QString &title,
             QVariantMap initialProperties = properties;
             if (source.fileName() == QStringLiteral("SourceAddDialog.qml"))
                 initialProperties.insert(QStringLiteral("imageSourceController"),
-                    QVariant::fromValue(m_imageSources));
+                    QVariant::fromValue(m_imageSourceController));
             if (source.fileName() == QStringLiteral("SourceAddDialog.qml")
                 || source.fileName() == QStringLiteral("DisplayPropertiesDialog.qml"))
-                initialProperties.insert(QStringLiteral("displayCaptureController"), QVariant::fromValue(m_displaySources));
+                initialProperties.insert(QStringLiteral("displaySourceController"), QVariant::fromValue(m_displaySourceController));
             if (source.fileName() == QStringLiteral("SourceAddDialog.qml")
                 || source.fileName() == QStringLiteral("CameraPropertiesDialog.qml"))
-                initialProperties.insert(QStringLiteral("cameraCaptureController"), QVariant::fromValue(m_cameraSources));
+                initialProperties.insert(QStringLiteral("cameraSourceController"), QVariant::fromValue(m_cameraSourceController));
             auto *object = component->createWithInitialProperties(initialProperties, view->rootContext());
             auto *root = qobject_cast<QQuickItem *>(object);
             if (!root) {
@@ -300,8 +300,8 @@ void MainWindow::showDialog(const QUrl &source, const QString &title,
             if (source.fileName() == QStringLiteral("SourceAddDialog.qml")) {
                 auto *cancel = new QShortcut(QKeySequence(Qt::Key_Escape), dialog);
                 connect(cancel, &QShortcut::activated, dialog, &QDialog::reject);
-                connect(dialog, &QDialog::finished, m_imageSources,
-                    [this, root] { m_imageSources->cancelAdd(root); });
+                connect(dialog, &QDialog::finished, m_imageSourceController,
+                    [this, root] { m_imageSourceController->cancelAdd(root); });
             }
             if (root->metaObject()->indexOfSignal("closeRequested()") >= 0)
                 connect(root, SIGNAL(closeRequested()), dialog, SLOT(close()));
@@ -335,7 +335,7 @@ void MainWindow::showAudioSourceAddDialog()
 
 void MainWindow::showAudioSourcePropertiesDialog(const QString &sourceId)
 {
-    if (!sourceId.isEmpty() && m_audioSources->source(sourceId).isEmpty()) return;
+    if (!sourceId.isEmpty() && m_audioSourceModel->source(sourceId).isEmpty()) return;
     const QUrl url(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/AudioSourceDialog.qml"));
     for (auto *dialog : findChildren<QDialog *>()) {
         if (dialog->property("qmlSource").toUrl() == url && dialog->property("audioSourceId").toString() == sourceId) {
@@ -343,23 +343,23 @@ void MainWindow::showAudioSourcePropertiesDialog(const QString &sourceId)
         }
     }
     showDialog(url, sourceId.isEmpty() ? tr("添加声音来源") : tr("声音来源属性"),
-        {{"audioSources", QVariant::fromValue(m_audioSources)}, {"sourceId", sourceId}});
+        {{"audioSources", QVariant::fromValue(m_audioSourceModel)}, {"sourceId", sourceId}});
     for (auto *dialog : findChildren<QDialog *>()) {
         if (dialog->property("qmlSource").toUrl() != url || dialog->property("audioBound").toBool()) continue;
         dialog->setProperty("audioBound", true);
         dialog->setProperty("audioSourceId", sourceId);
-        if (!sourceId.isEmpty()) connect(m_audioSources, &QAbstractItemModel::rowsRemoved, dialog, [this, dialog, sourceId] {
-            if (m_audioSources->source(sourceId).isEmpty()) dialog->close();
+        if (!sourceId.isEmpty()) connect(m_audioSourceModel, &QAbstractItemModel::rowsRemoved, dialog, [this, dialog, sourceId] {
+            if (m_audioSourceModel->source(sourceId).isEmpty()) dialog->close();
         });
     }
 }
 
 void MainWindow::showAudioSourceRemovalDialog(const QString &sourceId)
 {
-    const auto source = m_audioSources->source(sourceId);
+    const auto source = m_audioSourceModel->source(sourceId);
     if (source.isEmpty()) return;
     showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceRemovalDialog.qml")), tr("移除声音来源"),
-        {{"videoSourceModel", QVariant::fromValue(m_audioSources)}, {"sourceId", sourceId}, {"sourceName", source.value("name")},
+        {{"videoSourceModel", QVariant::fromValue(m_audioSourceModel)}, {"sourceId", sourceId}, {"sourceName", source.value("name")},
          {"removalHint", tr("移除后将停止此设备的声音采集。")}});
 }
 
@@ -407,13 +407,13 @@ void MainWindow::showSourcePropertiesDialog(const QString &sourceId)
         }
     }
     if (camera) {
-        m_cameraSources->refreshDevices();
+        m_cameraSourceController->refreshDevices();
         showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/CameraPropertiesDialog.qml")),
             tr("摄像头来源属性"), {{QStringLiteral("videoSourceModel"), QVariant::fromValue(m_videoSourceModel)},
                                    {QStringLiteral("sourceId"), sourceId}});
         return;
     }
-    m_displaySources->refreshDisplays();
+    m_displaySourceController->refreshDisplays();
     showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/DisplayPropertiesDialog.qml")),
         tr("显示器来源属性"), {{QStringLiteral("videoSourceModel"), QVariant::fromValue(m_videoSourceModel)},
                               {QStringLiteral("sourceId"), sourceId}});
@@ -451,8 +451,8 @@ void MainWindow::setupPreview()
     auto *preview = new PreviewWidget(pages);
     preview->setObjectName(QStringLiteral("previewWidget"));
     connect(preview, &PreviewWidget::renderingError, pages, showError, Qt::QueuedConnection);
-    connect(m_cameraSources, &CameraCaptureController::sourcesChanged, preview, &PreviewWidget::setSources);
-    connect(preview, &PreviewWidget::gpuTransferFailed, m_displaySources, &DisplayCaptureController::failTransfer, Qt::QueuedConnection);
+    connect(m_cameraSourceController, &CameraSourceController::sourcesChanged, preview, &PreviewWidget::setSources);
+    connect(preview, &PreviewWidget::gpuTransferFailed, m_displaySourceController, &DisplaySourceController::failTransfer, Qt::QueuedConnection);
     connect(preview, &PreviewWidget::selectionRequested, m_videoSourceModel, &VideoSourceModel::selectSource);
     connect(preview, &PreviewWidget::transformRequested, m_videoSourceModel, &VideoSourceModel::setSourceTransform);
     connect(m_videoSourceModel, &VideoSourceModel::currentSourceIdChanged, preview, [this, preview] {
@@ -546,7 +546,7 @@ void MainWindow::setupMixerDock()
     view->setObjectName(QStringLiteral("mixerQuickWidget"));
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
     configureQuickWidget(view);
-    view->rootContext()->setContextProperty(QStringLiteral("audioSourceModel"), m_audioSources);
+    view->rootContext()->setContextProperty(QStringLiteral("audioSourceModel"), m_audioSourceModel);
     pages->addWidget(view);
 
     auto *errorLabel = new QLabel(tr("声音来源面板加载失败，请查看日志。"), pages);

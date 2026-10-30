@@ -1,6 +1,6 @@
 #ifndef AUDIOCAPTUREWORKER_H
 #define AUDIOCAPTUREWORKER_H
-#include "audiobuffer.h"
+#include "audio/audiobuffer.h"
 #include <QThread>
 #include <QVariantList>
 #include <atomic>

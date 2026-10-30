@@ -1,5 +1,5 @@
-#include "audioresampler.h"
-#include "audiobuffer.h"
+#include "audio/audioresampler.h"
+#include "audio/audiobuffer.h"
 extern "C" {
 #include <libswresample/swresample.h>
 #include <libavutil/channel_layout.h>

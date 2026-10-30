@@ -1,7 +1,7 @@
 #ifndef AUDIOMIXER_H
 #define AUDIOMIXER_H
 
-#include "audiobuffer.h"
+#include "audio/audiobuffer.h"
 #include <QThread>
 #include "core/outputtap.h"
 #include <condition_variable>

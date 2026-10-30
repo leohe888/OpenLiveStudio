@@ -1,16 +1,16 @@
 find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
 
 find_program(OPENLIVE_FFPROBE NAMES ffprobe HINTS "${FFmpeg_RUNTIME_DIR}" REQUIRED)
-qt_add_executable(tst_streaming tst_streaming.cpp
-    ../src/capture/captureframe.h
-    ../src/capture/d3dtexture.h
-    ../src/capture/gpuinterop.h
-    ../src/capture/gpuinterop.cpp
-    ../src/preview/canvasrenderer.h
-    ../src/preview/canvasrenderer.cpp
-    ../src/preview/compositor.h
-    ../src/preview/compositor.cpp
-    ../src/preview/previewsource.h
+qt_add_executable(tst_streaming output/tst_streaming.cpp
+    ../src/graphics/captureframe.h
+    ../src/graphics/d3dtexture.h
+    ../src/graphics/gpuinterop.h
+    ../src/graphics/gpuinterop.cpp
+    ../src/graphics/canvasrenderer.h
+    ../src/graphics/canvasrenderer.cpp
+    ../src/graphics/compositor.h
+    ../src/graphics/compositor.cpp
+    ../src/graphics/previewsource.h
     ../src/audio/audiobuffer.h
     ../src/audio/audioresampler.h
     ../src/audio/audioresampler.cpp
@@ -50,16 +50,16 @@ add_test(NAME output.streaming COMMAND "${CMAKE_COMMAND}" -E env
     "$<TARGET_FILE:tst_streaming>" -o "${CMAKE_CURRENT_BINARY_DIR}/streaming-results.txt,txt")
 set_tests_properties(output.streaming PROPERTIES LABELS "output;gpu;network" TIMEOUT 60)
 
-qt_add_executable(tst_recording tst_recording.cpp
-    ../src/capture/captureframe.h
-    ../src/capture/d3dtexture.h
-    ../src/capture/gpuinterop.h
-    ../src/capture/gpuinterop.cpp
-    ../src/preview/canvasrenderer.h
-    ../src/preview/canvasrenderer.cpp
-    ../src/preview/compositor.h
-    ../src/preview/compositor.cpp
-    ../src/preview/previewsource.h
+qt_add_executable(tst_recording output/tst_recording.cpp
+    ../src/graphics/captureframe.h
+    ../src/graphics/d3dtexture.h
+    ../src/graphics/gpuinterop.h
+    ../src/graphics/gpuinterop.cpp
+    ../src/graphics/canvasrenderer.h
+    ../src/graphics/canvasrenderer.cpp
+    ../src/graphics/compositor.h
+    ../src/graphics/compositor.cpp
+    ../src/graphics/previewsource.h
     ../src/audio/audiobuffer.h
     ../src/audio/audioresampler.h
     ../src/audio/audioresampler.cpp
@@ -99,7 +99,7 @@ add_test(NAME output.recording COMMAND "${CMAKE_COMMAND}" -E env
     "$<TARGET_FILE:tst_recording>" -o "${CMAKE_CURRENT_BINARY_DIR}/recording-results.txt,txt")
 set_tests_properties(output.recording PROPERTIES LABELS "output;gpu" TIMEOUT 60)
 
-qt_add_executable(tst_audio tst_audio.cpp
+qt_add_executable(tst_audio audio/tst_audio.cpp
     ../src/audio/audiobuffer.h
     ../src/audio/audioresampler.h
     ../src/audio/audioresampler.cpp
@@ -124,16 +124,16 @@ add_test(NAME audio.sources COMMAND "${CMAKE_COMMAND}" -E env
     "$<TARGET_FILE:tst_audio>" -o "${CMAKE_CURRENT_BINARY_DIR}/audio-results.txt,txt")
 set_tests_properties(audio.sources PROPERTIES LABELS "audio" TIMEOUT 30)
 
-qt_add_executable(tst_canvasrenderer tst_canvasrenderer.cpp
-    ../src/capture/captureframe.h
-    ../src/capture/d3dtexture.h
-    ../src/capture/gpuinterop.h
-    ../src/capture/gpuinterop.cpp
-    ../src/preview/canvasrenderer.h
-    ../src/preview/canvasrenderer.cpp
-    ../src/preview/compositor.h
-    ../src/preview/compositor.cpp
-    ../src/preview/previewsource.h
+qt_add_executable(tst_canvasrenderer graphics/tst_canvasrenderer.cpp
+    ../src/graphics/captureframe.h
+    ../src/graphics/d3dtexture.h
+    ../src/graphics/gpuinterop.h
+    ../src/graphics/gpuinterop.cpp
+    ../src/graphics/canvasrenderer.h
+    ../src/graphics/canvasrenderer.cpp
+    ../src/graphics/compositor.h
+    ../src/graphics/compositor.cpp
+    ../src/graphics/previewsource.h
 )
 target_include_directories(tst_canvasrenderer PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_canvasrenderer PRIVATE
@@ -151,27 +151,27 @@ add_test(NAME gpu.compositor COMMAND "${CMAKE_COMMAND}" -E env
     "$<TARGET_FILE:tst_canvasrenderer>" -o "${CMAKE_CURRENT_BINARY_DIR}/compositor-results.txt,txt")
 set_tests_properties(gpu.compositor PROPERTIES LABELS "gpu" TIMEOUT 30)
 
-qt_add_executable(tst_captureinterop tst_captureinterop.cpp
+qt_add_executable(tst_captureinterop graphics/tst_captureinterop.cpp
     ../src/ui/previewwidget.cpp
     ../src/ui/previewwidget.h
-    ../src/core/source.cpp
-    ../src/core/videosourcemodel.cpp
-    ../src/core/videosourcemodel.h
-    ../src/capture/captureframe.h
-    ../src/capture/d3dtexture.h
-    ../src/capture/displaytargets.h
-    ../src/capture/displaytargets.cpp
-    ../src/capture/displaycaptureworker.h
-    ../src/capture/displaycaptureworker.cpp
-    ../src/capture/gpuinterop.h
-    ../src/capture/gpuinterop.cpp
-    ../src/capture/displaycapturecontroller.h
-    ../src/capture/displaycapturecontroller.cpp
-    ../src/preview/canvasrenderer.h
-    ../src/preview/canvasrenderer.cpp
-    ../src/preview/compositor.h
-    ../src/preview/compositor.cpp
-    ../src/preview/previewsource.h
+    ../src/video/source.cpp
+    ../src/video/videosourcemodel.cpp
+    ../src/video/videosourcemodel.h
+    ../src/graphics/captureframe.h
+    ../src/graphics/d3dtexture.h
+    ../src/video/display/displaytargets.h
+    ../src/video/display/displaytargets.cpp
+    ../src/video/display/displaycaptureworker.h
+    ../src/video/display/displaycaptureworker.cpp
+    ../src/graphics/gpuinterop.h
+    ../src/graphics/gpuinterop.cpp
+    ../src/video/display/displaysourcecontroller.h
+    ../src/video/display/displaysourcecontroller.cpp
+    ../src/graphics/canvasrenderer.h
+    ../src/graphics/canvasrenderer.cpp
+    ../src/graphics/compositor.h
+    ../src/graphics/compositor.cpp
+    ../src/graphics/previewsource.h
 )
 target_include_directories(tst_captureinterop PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_captureinterop PRIVATE
@@ -190,15 +190,15 @@ add_test(NAME capture.interop COMMAND "${CMAKE_COMMAND}" -E env
 set_tests_properties(capture.interop PROPERTIES LABELS "capture;gpu" TIMEOUT 30)
 
 qt_add_executable(tst_videosourcemodel
-    tst_videosourcemodel.cpp
-    ../src/core/source.cpp
-    ../src/core/source.h
-    ../src/core/sourcetransform.h
-    ../src/core/videosourcemodel.cpp
-    ../src/core/videosourcemodel.h
+    video/tst_videosourcemodel.cpp
+    ../src/video/source.cpp
+    ../src/video/source.h
+    ../src/video/sourcetransform.h
+    ../src/video/videosourcemodel.cpp
+    ../src/video/videosourcemodel.h
 )
 target_include_directories(tst_videosourcemodel PRIVATE
-    "${PROJECT_SOURCE_DIR}/src/core"
+    "${PROJECT_SOURCE_DIR}/src"
 )
 target_link_libraries(tst_videosourcemodel PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
 add_test(NAME core.videosourcemodel
@@ -210,38 +210,38 @@ add_test(NAME core.videosourcemodel
 set_tests_properties(core.videosourcemodel PROPERTIES LABELS "core;smoke" TIMEOUT 10)
 
 qt_add_executable(tst_mainwindow
-    tst_mainwindow.cpp
+    ui/tst_mainwindow.cpp
     ../src/ui/uicolors.h
     ../src/ui/mainwindow.cpp
     ../src/ui/mainwindow.h
     ../src/ui/previewwidget.cpp
     ../src/ui/previewwidget.h
-    ../src/preview/previewsource.h
-    ../src/core/source.cpp
-    ../src/core/source.h
-    ../src/core/sourcetransform.h
-    ../src/core/videosourcemodel.cpp
-    ../src/core/videosourcemodel.h
-    ../src/core/imagesourcecontroller.cpp
-    ../src/core/imagesourcecontroller.h
-    ../src/capture/cameracaptureworker.h
-    ../src/capture/cameracaptureworker.cpp
-    ../src/capture/cameracapturecontroller.h
-    ../src/capture/cameracapturecontroller.cpp
-    ../src/capture/captureframe.h
-    ../src/capture/d3dtexture.h
-    ../src/capture/displaytargets.h
-    ../src/capture/displaytargets.cpp
-    ../src/capture/displaycaptureworker.h
-    ../src/capture/displaycaptureworker.cpp
-    ../src/capture/gpuinterop.h
-    ../src/capture/gpuinterop.cpp
-    ../src/capture/displaycapturecontroller.h
-    ../src/capture/displaycapturecontroller.cpp
-    ../src/preview/canvasrenderer.h
-    ../src/preview/canvasrenderer.cpp
-    ../src/preview/compositor.h
-    ../src/preview/compositor.cpp
+    ../src/graphics/previewsource.h
+    ../src/video/source.cpp
+    ../src/video/source.h
+    ../src/video/sourcetransform.h
+    ../src/video/videosourcemodel.cpp
+    ../src/video/videosourcemodel.h
+    ../src/video/image/imagesourcecontroller.cpp
+    ../src/video/image/imagesourcecontroller.h
+    ../src/video/camera/cameracaptureworker.h
+    ../src/video/camera/cameracaptureworker.cpp
+    ../src/video/camera/camerasourcecontroller.h
+    ../src/video/camera/camerasourcecontroller.cpp
+    ../src/graphics/captureframe.h
+    ../src/graphics/d3dtexture.h
+    ../src/video/display/displaytargets.h
+    ../src/video/display/displaytargets.cpp
+    ../src/video/display/displaycaptureworker.h
+    ../src/video/display/displaycaptureworker.cpp
+    ../src/graphics/gpuinterop.h
+    ../src/graphics/gpuinterop.cpp
+    ../src/video/display/displaysourcecontroller.h
+    ../src/video/display/displaysourcecontroller.cpp
+    ../src/graphics/canvasrenderer.h
+    ../src/graphics/canvasrenderer.cpp
+    ../src/graphics/compositor.h
+    ../src/graphics/compositor.cpp
     ../src/audio/audiobuffer.h
     ../src/audio/audioresampler.h
     ../src/audio/audioresampler.cpp
@@ -263,7 +263,7 @@ qt_add_executable(tst_mainwindow
     ../src/output/outputsettings.cpp
     ../src/core/mediaclock.h
 )
-target_include_directories(tst_mainwindow PRIVATE "${PROJECT_SOURCE_DIR}/src" "${PROJECT_SOURCE_DIR}/src/core")
+target_include_directories(tst_mainwindow PRIVATE "${PROJECT_SOURCE_DIR}/src" "${PROJECT_SOURCE_DIR}/tests")
 target_link_libraries(tst_mainwindow PRIVATE
     Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::Network Qt6::Widgets Qt6::Test Qt6::QuickWidgets Qt6::QuickControls2 Qt6::Svg Qt6::OpenGLWidgets
     FFmpeg::swresample FFmpeg::avutil FFmpeg::avcodec FFmpeg::avformat FFmpeg::swscale)
@@ -311,19 +311,19 @@ set_tests_properties(ui.mainwindow PROPERTIES
 )
 
 qt_add_executable(tst_previewwidget
-    tst_previewwidget.cpp
+    ui/tst_previewwidget.cpp
     ../src/ui/previewwidget.cpp
     ../src/ui/previewwidget.h
-    ../src/preview/previewsource.h
-    ../src/core/sourcetransform.h
-    ../src/capture/captureframe.h
-    ../src/capture/d3dtexture.h
-    ../src/capture/gpuinterop.h
-    ../src/capture/gpuinterop.cpp
-    ../src/preview/canvasrenderer.h
-    ../src/preview/canvasrenderer.cpp
-    ../src/preview/compositor.h
-    ../src/preview/compositor.cpp
+    ../src/graphics/previewsource.h
+    ../src/video/sourcetransform.h
+    ../src/graphics/captureframe.h
+    ../src/graphics/d3dtexture.h
+    ../src/graphics/gpuinterop.h
+    ../src/graphics/gpuinterop.cpp
+    ../src/graphics/canvasrenderer.h
+    ../src/graphics/canvasrenderer.cpp
+    ../src/graphics/compositor.h
+    ../src/graphics/compositor.cpp
 )
 target_include_directories(tst_previewwidget PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_previewwidget PRIVATE
@@ -353,16 +353,16 @@ set_tests_properties(ui.previewwidget PROPERTIES
 )
 
 qt_add_executable(tst_imagesourcecontroller
-    tst_imagesourcecontroller.cpp
-    ../src/core/source.cpp
-    ../src/core/videosourcemodel.cpp
-    ../src/core/imagesourcecontroller.cpp
-    ../src/core/imagesourcecontroller.h
-    ../src/preview/previewsource.h
-    ../src/core/sourcetransform.h
+    video/tst_imagesourcecontroller.cpp
+    ../src/video/source.cpp
+    ../src/video/videosourcemodel.cpp
+    ../src/video/image/imagesourcecontroller.cpp
+    ../src/video/image/imagesourcecontroller.h
+    ../src/graphics/previewsource.h
+    ../src/video/sourcetransform.h
 )
 target_include_directories(tst_imagesourcecontroller PRIVATE
-    "${PROJECT_SOURCE_DIR}/src" "${PROJECT_SOURCE_DIR}/src/core")
+    "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_imagesourcecontroller PRIVATE Qt6::Widgets Qt6::Test)
 add_test(NAME core.imagesourcecontroller
     COMMAND "${CMAKE_COMMAND}" -E env
@@ -372,16 +372,16 @@ add_test(NAME core.imagesourcecontroller
         "$<TARGET_FILE:tst_imagesourcecontroller>" -o "-,txt")
 set_tests_properties(core.imagesourcecontroller PROPERTIES LABELS "core;smoke" TIMEOUT 30)
 
-qt_add_executable(tst_cameracapture tst_cameracapture.cpp
-    ../src/core/source.cpp
-    ../src/core/videosourcemodel.cpp
-    ../src/core/videosourcemodel.h
-    ../src/capture/cameracaptureworker.h
-    ../src/capture/cameracaptureworker.cpp
-    ../src/capture/cameracapturecontroller.h
-    ../src/capture/cameracapturecontroller.cpp
-    ../src/capture/captureframe.h
-    ../src/capture/d3dtexture.h
+qt_add_executable(tst_cameracapture video/tst_cameracapture.cpp
+    ../src/video/source.cpp
+    ../src/video/videosourcemodel.cpp
+    ../src/video/videosourcemodel.h
+    ../src/video/camera/cameracaptureworker.h
+    ../src/video/camera/cameracaptureworker.cpp
+    ../src/video/camera/camerasourcecontroller.h
+    ../src/video/camera/camerasourcecontroller.cpp
+    ../src/graphics/captureframe.h
+    ../src/graphics/d3dtexture.h
 )
 target_include_directories(tst_cameracapture PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_cameracapture PRIVATE

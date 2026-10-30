@@ -1,7 +1,7 @@
-#include "recordingcontroller.h"
-#include "mediaencoder.h"
-#include "outputtimeline.h"
-#include "preview/compositor.h"
+#include "output/recordingcontroller.h"
+#include "output/mediaencoder.h"
+#include "output/outputtimeline.h"
+#include "graphics/compositor.h"
 #include "audio/audiomixer.h"
 #include "core/mediaclock.h"
 #include <QFileInfo>

@@ -1,7 +1,7 @@
-#include "streamingcontroller.h"
-#include "outputsettings.h"
-#include "outputtimeline.h"
-#include "mediaencoder.h"
+#include "output/streamingcontroller.h"
+#include "output/outputsettings.h"
+#include "output/outputtimeline.h"
+#include "output/mediaencoder.h"
 #include <QHostInfo>
 #include <QHostAddress>
 #include <QEventLoop>

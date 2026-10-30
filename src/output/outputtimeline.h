@@ -1,6 +1,6 @@
 #ifndef OUTPUTTIMELINE_H
 #define OUTPUTTIMELINE_H
-#include "preview/compositor.h"
+#include "graphics/compositor.h"
 #include "audio/audiomixer.h"
 #include "core/mediaclock.h"
 #include <functional>

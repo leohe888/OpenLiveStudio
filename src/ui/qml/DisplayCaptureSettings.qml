@@ -4,12 +4,12 @@ import QtQuick.Layouts
 
 ColumnLayout {
     id: root
-    property var displayCaptureController: null
+    property var displaySourceController: null
     property string displayId: ""
     property bool captureCursor: true
     readonly property var colors: uiColors
     readonly property var targets: {
-        const entries = displayCaptureController ? displayCaptureController.displays.slice() : []
+        const entries = displaySourceController ? displaySourceController.displays.slice() : []
         if (displayId.length && !entries.some(e => e.id === displayId))
             entries.unshift({ id: displayId, name: qsTr("所选显示器已断开，请重新选择") })
         return entries
@@ -60,11 +60,11 @@ ColumnLayout {
         Button {
             objectName: "refreshDisplaysButton"
             text: qsTr("刷新")
-            enabled: root.displayCaptureController !== null
+            enabled: root.displaySourceController !== null
             palette.button: root.colors.button.background.normal
             palette.buttonText: root.colors.text.primary
             onClicked: {
-                root.displayCaptureController.refreshDisplays()
+                root.displaySourceController.refreshDisplays()
                 if (!root.displayId.length && root.targets.length) root.displayId = root.targets[0].id
             }
         }

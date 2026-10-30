@@ -1,4 +1,4 @@
-#include "outputsettings.h"
+#include "output/outputsettings.h"
 #include <QDateTime>
 #include <QDir>
 #include <QFileInfo>

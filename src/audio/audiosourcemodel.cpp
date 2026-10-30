@@ -1,4 +1,4 @@
-#include "audiosourcemodel.h"
+#include "audio/audiosourcemodel.h"
 #include <QUuid>
 
 AudioSourceModel::AudioSourceModel(QObject *parent) : QAbstractListModel(parent)
