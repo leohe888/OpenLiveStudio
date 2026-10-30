@@ -9,7 +9,7 @@ Rectangle {
     implicitWidth: 520
     implicitHeight: supportsDisplay || supportsCamera ? 430 : 300
     color: root.themeColors.background.panel
-    required property var sourceListModel
+    required property var videoSourceModel
     property var imageSourceController: null
     property var displayCaptureController: null
     property var cameraCaptureController: null
@@ -123,8 +123,8 @@ Rectangle {
                 ]
                 onActivated: {
                     root.errorText = ""
-                    if (!root.nameEdited && root.sourceListModel)
-                        nameInput.text = root.sourceListModel.suggestedSourceName(currentText)
+                    if (!root.nameEdited && root.videoSourceModel)
+                        nameInput.text = root.videoSourceModel.suggestedSourceName(currentText)
                 }
                 Accessible.name: qsTr("来源类型")
                 hoverEnabled: true

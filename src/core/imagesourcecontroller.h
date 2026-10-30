@@ -7,13 +7,13 @@
 #include <QThreadPool>
 #include <functional>
 
-class SourceListModel;
+class VideoSourceModel;
 
 class ImageSourceController : public QObject
 {
     Q_OBJECT
 public:
-    explicit ImageSourceController(SourceListModel &model, QObject *parent = nullptr);
+    explicit ImageSourceController(VideoSourceModel &model, QObject *parent = nullptr);
     ~ImageSourceController() override;
     Q_INVOKABLE void addImage(const QString &name, const QString &path, QObject *requester);
     Q_INVOKABLE void cancelAdd(QObject *requester);
@@ -28,7 +28,7 @@ signals:
 private:
     void synchronize();
     void loadImage(const QString &path, std::function<void(QImage, QString)> completion);
-    SourceListModel &m_model;
+    VideoSourceModel &m_model;
     QThreadPool m_workers;
     QHash<QObject *, quint64> m_requests;
     struct ImageEntry {

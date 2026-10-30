@@ -4,7 +4,7 @@
 #include "capture/displaycaptureworker.h"
 #include "capture/displaytargets.h"
 #include "capture/displaycapturecontroller.h"
-#include "core/sourcelistmodel.h"
+#include "core/videosourcemodel.h"
 #include "ui/previewwidget.h"
 #include <QApplication>
 #include <QElapsedTimer>
@@ -55,7 +55,7 @@ private:
 private slots:
     void removalDuringErrorNotificationIsSafe()
     {
-        SourceListModel model;
+        VideoSourceModel model;
         DisplayCaptureController controller(model);
         connect(&controller, &DisplayCaptureController::sourceError, &model,
             [&model](const QString &id, const QString &) { model.removeSource(id); });
@@ -66,7 +66,7 @@ private slots:
 
     void transferFailureStopsAndRequiresExplicitRetry()
     {
-        SourceListModel model;
+        VideoSourceModel model;
         DisplayCaptureController controller(model);
         QSignalSpy errors(&controller, &DisplayCaptureController::sourceError);
         const QString id = controller.addDisplay("Screen", "missing-display", true);
@@ -94,7 +94,7 @@ private slots:
 
     void failedSourcesStayEditableAndDoNotRetry()
     {
-        SourceListModel model;
+        VideoSourceModel model;
         DisplayCaptureController controller(model);
         QList<PreviewSource> snapshot;
         connect(&controller, &DisplayCaptureController::sourcesChanged, this,
@@ -115,7 +115,7 @@ private slots:
         const QString filter = model.addColorCorrection(id);
         QVERIFY(!filter.isEmpty());
         QVERIFY(controller.applyProperties(id, "another-missing-display", false));
-        QCOMPARE(model.index(0, 0).data(SourceListModel::TransformRole).value<SourceTransform>(), transform);
+        QCOMPARE(model.index(0, 0).data(VideoSourceModel::TransformRole).value<SourceTransform>(), transform);
         QCOMPARE(model.sourceFilters(id)[0].toMap()["id"].toString(), filter);
         QVERIFY(!model.displayProperties(id).value("captureCursor").toBool());
         QTRY_COMPARE(errors.count(), 2);
@@ -136,7 +136,7 @@ private slots:
         qInfo() << "Capture target resolution:" << targets[0].size;
         AnimatedCaptureTarget animation;
         animation.show();
-        SourceListModel model;
+        VideoSourceModel model;
         DisplayCaptureController controller(model);
         PreviewWidget preview;
         preview.resize(480, 270);

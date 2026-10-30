@@ -8,14 +8,14 @@
 #include <QSet>
 #include <map>
 #include <vector>
-class SourceListModel;
+class VideoSourceModel;
 class CameraCaptureController : public QObject {
     Q_OBJECT
     Q_PROPERTY(QVariantList devices READ devices NOTIFY devicesChanged)
     Q_PROPERTY(bool refreshing READ refreshing NOTIFY devicesChanged)
     Q_PROPERTY(QString catalogError READ catalogError NOTIFY devicesChanged)
 public:
-    explicit CameraCaptureController(SourceListModel &model, QObject *parent = nullptr);
+    explicit CameraCaptureController(VideoSourceModel &model, QObject *parent = nullptr);
     ~CameraCaptureController() override;
     QVariantList devices() const { return m_devices; }
     bool refreshing() const { return m_refreshing; }
@@ -45,7 +45,7 @@ private:
     void poll();
     void publish();
     void stop(Entry &entry);
-    SourceListModel &m_model;
+    VideoSourceModel &m_model;
     QVariantList m_devices;
     QHash<QString, QVariantList> m_modes;
     QSet<QString> m_querying;

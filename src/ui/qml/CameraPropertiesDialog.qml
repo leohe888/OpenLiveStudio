@@ -5,7 +5,7 @@ import QtQuick.Layouts
 Rectangle {
     id: root
     objectName: "cameraPropertiesDialog"
-    required property var sourceListModel
+    required property var videoSourceModel
     required property var cameraCaptureController
     required property string sourceId
     property var status: ({})
@@ -16,15 +16,15 @@ Rectangle {
     color: colors.background.panel
     signal closeRequested()
     Component.onCompleted: {
-        status = sourceListModel.cameraProperties(sourceId)
+        status = videoSourceModel.cameraProperties(sourceId)
         settings.selectedMode = {width: status.width, height: status.height,
             numerator: status.numerator, denominator: status.denominator}
         settings.deviceId = status.deviceId || ""
     }
     Connections {
-        target: root.sourceListModel
+        target: root.videoSourceModel
         function onCaptureStatusChanged(id) {
-            if (id === root.sourceId) root.status = root.sourceListModel.cameraProperties(id)
+            if (id === root.sourceId) root.status = root.videoSourceModel.cameraProperties(id)
         }
     }
     component ActionButton: Button {

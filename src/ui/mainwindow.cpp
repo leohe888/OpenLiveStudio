@@ -1,5 +1,5 @@
 #include "mainwindow.h"
-#include "core/sourcelistmodel.h"
+#include "core/videosourcemodel.h"
 #include "core/imagesourcecontroller.h"
 #include "capture/displaycapturecontroller.h"
 #include "capture/cameracapturecontroller.h"
@@ -33,12 +33,12 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
     applyColors();
-    m_sourceListModel = new SourceListModel;
+    m_videoSourceModel = new VideoSourceModel;
     m_audioSources = new AudioSourceModel;
     m_outputSettings = new OutputSettings;
-    m_imageSources = new ImageSourceController(*m_sourceListModel, this);
-    m_displaySources = new DisplayCaptureController(*m_sourceListModel, this);
-    m_cameraSources = new CameraCaptureController(*m_sourceListModel, this);
+    m_imageSources = new ImageSourceController(*m_videoSourceModel, this);
+    m_displaySources = new DisplayCaptureController(*m_videoSourceModel, this);
+    m_cameraSources = new CameraCaptureController(*m_videoSourceModel, this);
     connect(m_displaySources, &DisplayCaptureController::sourcesChanged,
             m_cameraSources, &CameraCaptureController::setOtherSources);
     connect(m_imageSources, &ImageSourceController::sourcesChanged,
@@ -65,10 +65,10 @@ MainWindow::MainWindow(QWidget *parent)
     });
     const auto showSourceError = [this](const QString &id, const QString &message) {
         QString name = tr("图片");
-        for (int row = 0; row < m_sourceListModel->rowCount(); ++row) {
-            const auto index = m_sourceListModel->index(row, 0);
-            if (index.data(SourceListModel::IdRole).toString() == id) {
-                name = index.data(SourceListModel::NameRole).toString();
+        for (int row = 0; row < m_videoSourceModel->rowCount(); ++row) {
+            const auto index = m_videoSourceModel->index(row, 0);
+            if (index.data(VideoSourceModel::IdRole).toString() == id) {
+                name = index.data(VideoSourceModel::NameRole).toString();
                 break;
             }
         }
@@ -84,7 +84,7 @@ MainWindow::MainWindow(QWidget *parent)
     setupControlsDock();
     setupDockLayout();
     // Destroy the dock QML contexts before their shared state.
-    m_sourceListModel->setParent(this);
+    m_videoSourceModel->setParent(this);
     m_audioSources->setParent(this);
     m_outputSettings->setParent(this);
     applyColors();
@@ -235,10 +235,10 @@ void MainWindow::showDialog(const QUrl &source, const QString &title,
         dialog->setProperty(source.fileName() == QStringLiteral("SourceFiltersDialog.qml")
             ? "filterSourceId" : "displaySourceId", id);
         const auto closeIfRemoved = [this, dialog, id] {
-            if (!m_sourceListModel->canFilterSource(id)) dialog->close();
+            if (!m_videoSourceModel->canFilterSource(id)) dialog->close();
         };
-        connect(m_sourceListModel, &QAbstractItemModel::rowsRemoved, dialog, closeIfRemoved);
-        connect(m_sourceListModel, &QAbstractItemModel::modelReset, dialog, closeIfRemoved);
+        connect(m_videoSourceModel, &QAbstractItemModel::rowsRemoved, dialog, closeIfRemoved);
+        connect(m_videoSourceModel, &QAbstractItemModel::modelReset, dialog, closeIfRemoved);
     }
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->setWindowTitle(title);
@@ -320,11 +320,11 @@ void MainWindow::showDialog(const QUrl &source, const QString &title,
 
 void MainWindow::showSourceAddDialog()
 {
-    const QString initialName = m_sourceListModel->suggestedSourceName(tr("显示器采集"));
+    const QString initialName = m_videoSourceModel->suggestedSourceName(tr("显示器采集"));
     if (initialName.isEmpty())
         return;
     showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml")),
-        tr("添加来源"), {{QStringLiteral("sourceListModel"), QVariant::fromValue(m_sourceListModel)},
+        tr("添加来源"), {{QStringLiteral("videoSourceModel"), QVariant::fromValue(m_videoSourceModel)},
                        {QStringLiteral("initialName"), initialName}});
 }
 
@@ -359,7 +359,7 @@ void MainWindow::showAudioSourceRemovalDialog(const QString &sourceId)
     const auto source = m_audioSources->source(sourceId);
     if (source.isEmpty()) return;
     showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceRemovalDialog.qml")), tr("移除声音来源"),
-        {{"sourceListModel", QVariant::fromValue(m_audioSources)}, {"sourceId", sourceId}, {"sourceName", source.value("name")},
+        {{"videoSourceModel", QVariant::fromValue(m_audioSources)}, {"sourceId", sourceId}, {"sourceName", source.value("name")},
          {"removalHint", tr("移除后将停止此设备的声音采集。")}});
 }
 
@@ -367,22 +367,22 @@ void MainWindow::showSourceRemovalDialog(const QString &sourceId)
 {
     if (sourceId.isEmpty())
         return;
-    auto *model = m_sourceListModel;
+    auto *model = m_videoSourceModel;
     for (int row = 0; row < model->rowCount(); ++row) {
         const auto index = model->index(row, 0);
-        if (index.data(SourceListModel::IdRole).toString() != sourceId)
+        if (index.data(VideoSourceModel::IdRole).toString() != sourceId)
             continue;
         showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceRemovalDialog.qml")),
-            tr("移除来源"), {{QStringLiteral("sourceListModel"), QVariant::fromValue(m_sourceListModel)},
+            tr("移除来源"), {{QStringLiteral("videoSourceModel"), QVariant::fromValue(m_videoSourceModel)},
                            {QStringLiteral("sourceId"), sourceId},
-                           {QStringLiteral("sourceName"), index.data(SourceListModel::NameRole)}});
+                           {QStringLiteral("sourceName"), index.data(VideoSourceModel::NameRole)}});
         return;
     }
 }
 
 void MainWindow::showSourceFiltersDialog(const QString &sourceId)
 {
-    if (!m_sourceListModel->canFilterSource(sourceId)) return;
+    if (!m_videoSourceModel->canFilterSource(sourceId)) return;
     for (auto *dialog : findChildren<QDialog *>(QString(), Qt::FindDirectChildrenOnly)) {
         if (dialog->property("filterSourceId").toString() == sourceId && dialog->isVisible()) {
             dialog->raise();
@@ -391,14 +391,14 @@ void MainWindow::showSourceFiltersDialog(const QString &sourceId)
         }
     }
     showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceFiltersDialog.qml")),
-        tr("来源滤镜"), {{QStringLiteral("sourceListModel"), QVariant::fromValue(m_sourceListModel)},
+        tr("来源滤镜"), {{QStringLiteral("videoSourceModel"), QVariant::fromValue(m_videoSourceModel)},
                          {QStringLiteral("sourceId"), sourceId}});
 }
 
 void MainWindow::showSourcePropertiesDialog(const QString &sourceId)
 {
-    const bool camera = !m_sourceListModel->cameraProperties(sourceId).isEmpty();
-    if (!camera && m_sourceListModel->displayProperties(sourceId).isEmpty()) return;
+    const bool camera = !m_videoSourceModel->cameraProperties(sourceId).isEmpty();
+    if (!camera && m_videoSourceModel->displayProperties(sourceId).isEmpty()) return;
     for (auto *dialog : findChildren<QDialog *>(QString(), Qt::FindDirectChildrenOnly)) {
         if (dialog->property("displaySourceId").toString() == sourceId && dialog->isVisible()) {
             dialog->raise();
@@ -409,13 +409,13 @@ void MainWindow::showSourcePropertiesDialog(const QString &sourceId)
     if (camera) {
         m_cameraSources->refreshDevices();
         showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/CameraPropertiesDialog.qml")),
-            tr("摄像头来源属性"), {{QStringLiteral("sourceListModel"), QVariant::fromValue(m_sourceListModel)},
+            tr("摄像头来源属性"), {{QStringLiteral("videoSourceModel"), QVariant::fromValue(m_videoSourceModel)},
                                    {QStringLiteral("sourceId"), sourceId}});
         return;
     }
     m_displaySources->refreshDisplays();
     showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/DisplayPropertiesDialog.qml")),
-        tr("显示器来源属性"), {{QStringLiteral("sourceListModel"), QVariant::fromValue(m_sourceListModel)},
+        tr("显示器来源属性"), {{QStringLiteral("videoSourceModel"), QVariant::fromValue(m_videoSourceModel)},
                               {QStringLiteral("sourceId"), sourceId}});
 }
 
@@ -453,12 +453,12 @@ void MainWindow::setupPreview()
     connect(preview, &PreviewWidget::renderingError, pages, showError, Qt::QueuedConnection);
     connect(m_cameraSources, &CameraCaptureController::sourcesChanged, preview, &PreviewWidget::setSources);
     connect(preview, &PreviewWidget::gpuTransferFailed, m_displaySources, &DisplayCaptureController::failTransfer, Qt::QueuedConnection);
-    connect(preview, &PreviewWidget::selectionRequested, m_sourceListModel, &SourceListModel::selectSource);
-    connect(preview, &PreviewWidget::transformRequested, m_sourceListModel, &SourceListModel::setSourceTransform);
-    connect(m_sourceListModel, &SourceListModel::currentSourceIdChanged, preview, [this, preview] {
-        preview->setSelectedSourceId(m_sourceListModel->currentSourceId());
+    connect(preview, &PreviewWidget::selectionRequested, m_videoSourceModel, &VideoSourceModel::selectSource);
+    connect(preview, &PreviewWidget::transformRequested, m_videoSourceModel, &VideoSourceModel::setSourceTransform);
+    connect(m_videoSourceModel, &VideoSourceModel::currentSourceIdChanged, preview, [this, preview] {
+        preview->setSelectedSourceId(m_videoSourceModel->currentSourceId());
     });
-    preview->setSelectedSourceId(m_sourceListModel->currentSourceId());
+    preview->setSelectedSourceId(m_videoSourceModel->currentSourceId());
     pages->addWidget(preview);
     pages->setCurrentWidget(preview);
 }
@@ -485,7 +485,7 @@ void MainWindow::setupSourcesDock()
     auto *pages = new QStackedWidget(m_sourcesDock);
     auto *view = new QQuickWidget(pages);
     view->setObjectName(QStringLiteral("sourcesQuickWidget"));
-    view->rootContext()->setContextProperty(QStringLiteral("sourceListModel"), m_sourceListModel);
+    view->rootContext()->setContextProperty(QStringLiteral("videoSourceModel"), m_videoSourceModel);
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
     configureQuickWidget(view);
     pages->addWidget(view);

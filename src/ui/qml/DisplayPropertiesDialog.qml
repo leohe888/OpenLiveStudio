@@ -5,7 +5,7 @@ import QtQuick.Layouts
 Rectangle {
     id: root
     objectName: "displayPropertiesDialog"
-    required property var sourceListModel
+    required property var videoSourceModel
     required property var displayCaptureController
     required property string sourceId
     property var status: ({})
@@ -15,14 +15,14 @@ Rectangle {
     color: colors.background.panel
     signal closeRequested()
     Component.onCompleted: {
-        status = sourceListModel.displayProperties(sourceId)
+        status = videoSourceModel.displayProperties(sourceId)
         settings.displayId = status.displayId || ""
         settings.captureCursor = status.captureCursor === true
     }
     Connections {
-        target: root.sourceListModel
+        target: root.videoSourceModel
         function onCaptureStatusChanged(id) {
-            if (id === root.sourceId) root.status = root.sourceListModel.displayProperties(id)
+            if (id === root.sourceId) root.status = root.videoSourceModel.displayProperties(id)
         }
     }
     component ActionButton: Button {

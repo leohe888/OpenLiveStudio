@@ -8,7 +8,7 @@
 class QDockWidget;
 class QLabel;
 class QQuickWidget;
-class SourceListModel;
+class VideoSourceModel;
 class ImageSourceController;
 class DisplayCaptureController;
 class CameraCaptureController;
@@ -60,7 +60,7 @@ private:
     QDockWidget *m_sourcesDock = nullptr;
     QDockWidget *m_mixerDock = nullptr;
     QDockWidget *m_controlsDock = nullptr;
-    SourceListModel *m_sourceListModel = nullptr;
+    VideoSourceModel *m_videoSourceModel = nullptr;
     ImageSourceController *m_imageSources = nullptr;
     DisplayCaptureController *m_displaySources = nullptr;
     CameraCaptureController *m_cameraSources = nullptr;

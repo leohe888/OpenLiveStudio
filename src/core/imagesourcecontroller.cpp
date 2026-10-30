@@ -1,5 +1,5 @@
 #include "imagesourcecontroller.h"
-#include "sourcelistmodel.h"
+#include "videosourcemodel.h"
 
 #include <QFileDialog>
 #include <QFileInfo>
@@ -10,7 +10,7 @@
 #include <QUuid>
 #include <QWidget>
 
-ImageSourceController::ImageSourceController(SourceListModel &model, QObject *parent)
+ImageSourceController::ImageSourceController(VideoSourceModel &model, QObject *parent)
     : QObject(parent), m_model(model)
 {
     m_workers.setMaxThreadCount(2);
@@ -21,10 +21,10 @@ ImageSourceController::ImageSourceController(SourceListModel &model, QObject *pa
     connect(&model, &QAbstractItemModel::modelReset, this, sync);
     connect(&model, &QAbstractItemModel::dataChanged, this,
         [this](const QModelIndex &, const QModelIndex &, const QList<int> &roles) {
-            if (roles.isEmpty() || roles.contains(SourceListModel::FilePathRole)
-                || roles.contains(SourceListModel::TypeRole) || roles.contains(SourceListModel::VisibleRole)
-                || roles.contains(SourceListModel::TransformRole) || roles.contains(SourceListModel::LockedRole)
-                || roles.contains(SourceListModel::FiltersRole))
+            if (roles.isEmpty() || roles.contains(VideoSourceModel::FilePathRole)
+                || roles.contains(VideoSourceModel::TypeRole) || roles.contains(VideoSourceModel::VisibleRole)
+                || roles.contains(VideoSourceModel::TransformRole) || roles.contains(VideoSourceModel::LockedRole)
+                || roles.contains(VideoSourceModel::FiltersRole))
                 synchronize();
         });
     // Allow the caller to connect the preview before publishing initial entries.
@@ -109,9 +109,9 @@ void ImageSourceController::synchronize()
     QList<PreviewSource> sources;
     for (int row = 0; row < m_model.rowCount(); ++row) {
         const auto index = m_model.index(row, 0);
-        if (index.data(SourceListModel::TypeRole).toString() != QStringLiteral("image")) continue;
-        const QString id = index.data(SourceListModel::IdRole).toString();
-        const QString path = index.data(SourceListModel::FilePathRole).toString();
+        if (index.data(VideoSourceModel::TypeRole).toString() != QStringLiteral("image")) continue;
+        const QString id = index.data(VideoSourceModel::IdRole).toString();
+        const QString path = index.data(VideoSourceModel::FilePathRole).toString();
         retained.insert(id);
         auto it = m_images.find(id);
         if (it == m_images.end() || it->path != path) {
@@ -126,10 +126,10 @@ void ImageSourceController::synchronize()
                 synchronize();
             });
         }
-        sources.append({id, it->image, index.data(SourceListModel::VisibleRole).toBool(),
-            index.data(SourceListModel::TransformRole).value<SourceTransform>(),
-            index.data(SourceListModel::LockedRole).toBool(),
-            index.data(SourceListModel::FiltersRole).value<QList<SourceFilter>>()});
+        sources.append({id, it->image, index.data(VideoSourceModel::VisibleRole).toBool(),
+            index.data(VideoSourceModel::TransformRole).value<SourceTransform>(),
+            index.data(VideoSourceModel::LockedRole).toBool(),
+            index.data(VideoSourceModel::FiltersRole).value<QList<SourceFilter>>()});
     }
     for (auto it = m_images.begin(); it != m_images.end();) {
         if (!retained.contains(it.key())) it = m_images.erase(it);

@@ -1,5 +1,5 @@
 #include "cameracapturecontroller.h"
-#include "core/sourcelistmodel.h"
+#include "core/videosourcemodel.h"
 #include <QScopeGuard>
 #include <QUuid>
 #include <algorithm>
@@ -15,7 +15,7 @@ CameraConfig configFrom(const QString &deviceId, const QVariantMap &mode) {
     return result;
 }
 }
-CameraCaptureController::CameraCaptureController(SourceListModel &model, QObject *parent)
+CameraCaptureController::CameraCaptureController(VideoSourceModel &model, QObject *parent)
     : QObject(parent), m_model(model)
 {
     const auto sync = [this] { synchronize(); };
@@ -25,9 +25,9 @@ CameraCaptureController::CameraCaptureController(SourceListModel &model, QObject
     connect(&model, &QAbstractItemModel::modelReset, this, sync);
     connect(&model, &QAbstractItemModel::dataChanged, this,
         [this](const QModelIndex &, const QModelIndex &, const QList<int> &roles) {
-            if (roles.isEmpty() || roles.contains(SourceListModel::CameraConfigRole)
-                || roles.contains(SourceListModel::VisibleRole) || roles.contains(SourceListModel::TransformRole)
-                || roles.contains(SourceListModel::LockedRole) || roles.contains(SourceListModel::FiltersRole)) synchronize();
+            if (roles.isEmpty() || roles.contains(VideoSourceModel::CameraConfigRole)
+                || roles.contains(VideoSourceModel::VisibleRole) || roles.contains(VideoSourceModel::TransformRole)
+                || roles.contains(VideoSourceModel::LockedRole) || roles.contains(VideoSourceModel::FiltersRole)) synchronize();
         });
     m_timer.setInterval(16); m_timer.setTimerType(Qt::PreciseTimer);
     connect(&m_timer, &QTimer::timeout, this, &CameraCaptureController::poll); m_timer.start();
@@ -104,13 +104,13 @@ void CameraCaptureController::synchronize() {
     QSet<QString> retained;
     for (int row = 0; row < m_model.rowCount(); ++row) {
         const auto index = m_model.index(row, 0);
-        if (index.data(SourceListModel::TypeRole).toString() != "camera") continue;
-        const QString id = index.data(SourceListModel::IdRole).toString(); retained.insert(id);
+        if (index.data(VideoSourceModel::TypeRole).toString() != "camera") continue;
+        const QString id = index.data(VideoSourceModel::IdRole).toString(); retained.insert(id);
         auto &entry = m_entries[id];
-        const auto values = index.data(SourceListModel::CameraConfigRole).toMap();
+        const auto values = index.data(VideoSourceModel::CameraConfigRole).toMap();
         const CameraConfig config = configFrom(values.value("deviceId").toString(), values);
         if (!(entry.config == config)) { stop(entry); entry.config = config; entry.failed = false; }
-        if (!index.data(SourceListModel::VisibleRole).toBool()) {
+        if (!index.data(VideoSourceModel::VisibleRole).toBool()) {
             stop(entry);
             m_model.setSourceCaptureStatus(id, "paused", entry.failed
                 ? m_model.cameraProperties(id).value("error").toString() : QString());
@@ -159,7 +159,7 @@ void CameraCaptureController::setOtherSources(const QList<PreviewSource> &source
 void CameraCaptureController::publish() {
     QList<PreviewSource> result;
     for (int row = 0; row < m_model.rowCount(); ++row) {
-        const auto index = m_model.index(row, 0); const QString id = index.data(SourceListModel::IdRole).toString();
+        const auto index = m_model.index(row, 0); const QString id = index.data(VideoSourceModel::IdRole).toString();
         PreviewSource source; source.id = id;
         const auto camera = m_entries.find(id);
         if (camera != m_entries.end()) { if (camera->second.frame) source.image = camera->second.frame->image; }
@@ -168,9 +168,9 @@ void CameraCaptureController::publish() {
             if (other == m_others.cend()) continue;
             source = *other;
         }
-        source.visible = index.data(SourceListModel::VisibleRole).toBool(); source.locked = index.data(SourceListModel::LockedRole).toBool();
-        source.transform = index.data(SourceListModel::TransformRole).value<SourceTransform>();
-        source.filters = index.data(SourceListModel::FiltersRole).value<QList<SourceFilter>>(); result.append(std::move(source));
+        source.visible = index.data(VideoSourceModel::VisibleRole).toBool(); source.locked = index.data(VideoSourceModel::LockedRole).toBool();
+        source.transform = index.data(VideoSourceModel::TransformRole).value<SourceTransform>();
+        source.filters = index.data(VideoSourceModel::FiltersRole).value<QList<SourceFilter>>(); result.append(std::move(source));
     }
     emit sourcesChanged(result);
 }

@@ -1,4 +1,4 @@
-#include "sourcelistmodel.h"
+#include "videosourcemodel.h"
 
 #include <QAbstractItemModelTester>
 #include <limits>
@@ -9,7 +9,7 @@
 #include <QTemporaryDir>
 #include <QtTest/QTest>
 
-class SourceListModelTest : public QObject
+class VideoSourceModelTest : public QObject
 {
     Q_OBJECT
 private slots:
@@ -37,12 +37,12 @@ static QList<SourceData> sources()
     return {{"a", "Image"}, {"b", "Camera"}, {"c", "Text"}};
 }
 
-void SourceListModelTest::startsWithEmptySourceList()
+void VideoSourceModelTest::startsWithEmptySourceList()
 {
-    SourceListModel state;
+    VideoSourceModel state;
     QAbstractItemModelTester tester(&state, QAbstractItemModelTester::FailureReportingMode::QtTest);
     QCOMPARE(state.rowCount(), 0);
-    QVERIFY(state.metaObject()->indexOfProperty("sourceModel") < 0);
+    QVERIFY(state.metaObject()->indexOfProperty("videoSourceModel") < 0);
     QVERIFY(state.currentSourceId().isEmpty());
     QVERIFY(!state.canMoveCurrentSourceUp());
     QVERIFY(!state.canMoveCurrentSourceDown());
@@ -55,41 +55,41 @@ void SourceListModelTest::startsWithEmptySourceList()
         QVERIFY(state.metaObject()->indexOfMethod(method) < 0);
 }
 
-void SourceListModelTest::exposesSourceRolesAndRejectsInvalidIndexes()
+void VideoSourceModelTest::exposesSourceRolesAndRejectsInvalidIndexes()
 {
-    SourceListModel state(QList<SourceData>{
+    VideoSourceModel state(QList<SourceData>{
         {"image", "Logo", ImageConfig{"fixture.png"}, {QSize(64, 32)}, false, true}});
     auto *model = &state;
     QAbstractItemModelTester tester(model, QAbstractItemModelTester::FailureReportingMode::QtTest);
     const QHash<int, QByteArray> roles{
-        {SourceListModel::IdRole, "sourceId"}, {SourceListModel::NameRole, "sourceName"},
-        {SourceListModel::TypeRole, "sourceType"}, {SourceListModel::FilePathRole, "sourceFilePath"},
-        {SourceListModel::OriginalSizeRole, "sourceOriginalSize"},
-        {SourceListModel::VisibleRole, "sourceVisible"}, {SourceListModel::LockedRole, "sourceLocked"},
-        {SourceListModel::TransformRole, "sourceTransform"}, {SourceListModel::FiltersRole, "sourceFilters"},
-        {SourceListModel::DisplayConfigRole, "sourceDisplayConfig"},
-        {SourceListModel::CameraConfigRole, "sourceCameraConfig"},
-        {SourceListModel::CaptureStateRole, "sourceCaptureState"}, {SourceListModel::CaptureErrorRole, "sourceCaptureError"}};
+        {VideoSourceModel::IdRole, "sourceId"}, {VideoSourceModel::NameRole, "sourceName"},
+        {VideoSourceModel::TypeRole, "sourceType"}, {VideoSourceModel::FilePathRole, "sourceFilePath"},
+        {VideoSourceModel::OriginalSizeRole, "sourceOriginalSize"},
+        {VideoSourceModel::VisibleRole, "sourceVisible"}, {VideoSourceModel::LockedRole, "sourceLocked"},
+        {VideoSourceModel::TransformRole, "sourceTransform"}, {VideoSourceModel::FiltersRole, "sourceFilters"},
+        {VideoSourceModel::DisplayConfigRole, "sourceDisplayConfig"},
+        {VideoSourceModel::CameraConfigRole, "sourceCameraConfig"},
+        {VideoSourceModel::CaptureStateRole, "sourceCaptureState"}, {VideoSourceModel::CaptureErrorRole, "sourceCaptureError"}};
     QCOMPARE(model->roleNames(), roles);
     const auto index = model->index(0, 0);
-    QCOMPARE(index.data(SourceListModel::IdRole).toString(), QString("image"));
+    QCOMPARE(index.data(VideoSourceModel::IdRole).toString(), QString("image"));
     QCOMPARE(index.data(Qt::DisplayRole).toString(), QString("Logo"));
-    QCOMPARE(index.data(SourceListModel::FilePathRole).toString(), QString("fixture.png"));
-    QCOMPARE(index.data(SourceListModel::OriginalSizeRole).toSize(), QSize(64, 32));
-    QVERIFY(!index.data(SourceListModel::VisibleRole).toBool());
-    QVERIFY(index.data(SourceListModel::LockedRole).toBool());
+    QCOMPARE(index.data(VideoSourceModel::FilePathRole).toString(), QString("fixture.png"));
+    QCOMPARE(index.data(VideoSourceModel::OriginalSizeRole).toSize(), QSize(64, 32));
+    QVERIFY(!index.data(VideoSourceModel::VisibleRole).toBool());
+    QVERIFY(index.data(VideoSourceModel::LockedRole).toBool());
     QCOMPARE(model->rowCount(index), 0);
-    QVERIFY(!model->data({}, SourceListModel::IdRole).isValid());
+    QVERIFY(!model->data({}, VideoSourceModel::IdRole).isValid());
     QVERIFY(!model->index(1, 0).isValid());
     QVERIFY(!model->index(0, 1).isValid());
     QVERIFY(!index.data(Qt::UserRole + 100).isValid());
-    SourceListModel other(sources());
-    QVERIFY(!model->data(other.index(0, 0), SourceListModel::IdRole).isValid());
+    VideoSourceModel other(sources());
+    QVERIFY(!model->data(other.index(0, 0), VideoSourceModel::IdRole).isValid());
 }
 
-void SourceListModelTest::supportsAllSourceConfigurations()
+void VideoSourceModelTest::supportsAllSourceConfigurations()
 {
-    using Manager = SourceListModel;
+    using Manager = VideoSourceModel;
     const SourceData defaultSource;
     QCOMPARE(defaultSource.type(), SourceType::DisplayCapture);
     const auto *defaultConfig = std::get_if<DisplayCaptureConfig>(&defaultSource.config);
@@ -138,10 +138,10 @@ void SourceListModelTest::supportsAllSourceConfigurations()
     QCOMPARE(model->index(3, 0).data(Manager::TypeRole).toString(), QString("image"));
 }
 
-void SourceListModelTest::selectionNotifiesOnlyOnChange()
+void VideoSourceModelTest::selectionNotifiesOnlyOnChange()
 {
-    SourceListModel state(sources());
-    QSignalSpy selected(&state, &SourceListModel::currentSourceIdChanged);
+    VideoSourceModel state(sources());
+    QSignalSpy selected(&state, &VideoSourceModel::currentSourceIdChanged);
     QVERIFY(state.selectSource("a"));
     QCOMPARE(selected.count(), 1);
     QVERIFY(state.selectSource("a"));
@@ -154,7 +154,7 @@ void SourceListModelTest::selectionNotifiesOnlyOnChange()
     QCOMPARE(selected.count(), 2);
 }
 
-void SourceListModelTest::removesSelectedSource_data()
+void VideoSourceModelTest::removesSelectedSource_data()
 {
     QTest::addColumn<int>("row");
     QTest::newRow("first") << 0;
@@ -162,17 +162,17 @@ void SourceListModelTest::removesSelectedSource_data()
     QTest::newRow("last") << 2;
 }
 
-void SourceListModelTest::removesSelectedSource()
+void VideoSourceModelTest::removesSelectedSource()
 {
     QFETCH(int, row);
-    SourceListModel state(sources());
+    VideoSourceModel state(sources());
     auto *model = &state;
     QAbstractItemModelTester tester(model, QAbstractItemModelTester::FailureReportingMode::QtTest);
-    const QString id = model->index(row, 0).data(SourceListModel::IdRole).toString();
+    const QString id = model->index(row, 0).data(VideoSourceModel::IdRole).toString();
     QVERIFY(state.selectSource(id));
     QPersistentModelIndex survivor(model->index((row + 1) % 3, 0));
-    const QString survivorId = survivor.data(SourceListModel::IdRole).toString();
-    QSignalSpy selected(&state, &SourceListModel::currentSourceIdChanged);
+    const QString survivorId = survivor.data(VideoSourceModel::IdRole).toString();
+    QSignalSpy selected(&state, &VideoSourceModel::currentSourceIdChanged);
     QSignalSpy removed(model, &QAbstractItemModel::rowsRemoved);
     QSignalSpy reset(model, &QAbstractItemModel::modelReset);
     QVERIFY(state.removeSource(id));
@@ -184,24 +184,24 @@ void SourceListModelTest::removesSelectedSource()
     QCOMPARE(reset.count(), 0);
     QVERIFY(state.currentSourceId().isEmpty());
     QVERIFY(!state.selectSource(id));
-    QCOMPARE(survivor.data(SourceListModel::IdRole).toString(), survivorId);
+    QCOMPARE(survivor.data(VideoSourceModel::IdRole).toString(), survivorId);
 }
 
-void SourceListModelTest::removalNotifiesBeforeAndAfterMutation()
+void VideoSourceModelTest::removalNotifiesBeforeAndAfterMutation()
 {
-    SourceListModel state(sources());
+    VideoSourceModel state(sources());
     auto *model = &state;
     QVERIFY(state.selectSource("a"));
-    QSignalSpy selected(&state, &SourceListModel::currentSourceIdChanged);
+    QSignalSpy selected(&state, &VideoSourceModel::currentSourceIdChanged);
     QStringList notifications;
     connect(model, &QAbstractItemModel::rowsAboutToBeRemoved, this, [&] {
         QCOMPARE(model->rowCount(), 3);
-        QCOMPARE(model->index(1, 0).data(SourceListModel::IdRole).toString(), QString("b"));
+        QCOMPARE(model->index(1, 0).data(VideoSourceModel::IdRole).toString(), QString("b"));
         notifications.append("before");
     });
     connect(model, &QAbstractItemModel::rowsRemoved, this, [&] {
         QCOMPARE(model->rowCount(), 2);
-        QCOMPARE(model->index(1, 0).data(SourceListModel::IdRole).toString(), QString("c"));
+        QCOMPARE(model->index(1, 0).data(VideoSourceModel::IdRole).toString(), QString("c"));
         notifications.append("after");
     });
     QVERIFY(state.removeSource("b"));
@@ -210,9 +210,9 @@ void SourceListModelTest::removalNotifiesBeforeAndAfterMutation()
     QCOMPARE(selected.count(), 0);
 }
 
-void SourceListModelTest::movesSourcesAndPreservesIdentity()
+void VideoSourceModelTest::movesSourcesAndPreservesIdentity()
 {
-    SourceListModel state(sources());
+    VideoSourceModel state(sources());
     auto *model = &state;
     QAbstractItemModelTester tester(model, QAbstractItemModelTester::FailureReportingMode::QtTest);
     QVERIFY(state.selectSource("a"));
@@ -223,8 +223,8 @@ void SourceListModelTest::movesSourcesAndPreservesIdentity()
     QPersistentModelIndex original(model->index(0, 0));
     QSignalSpy moved(model, &QAbstractItemModel::rowsMoved);
     QSignalSpy reset(model, &QAbstractItemModel::modelReset);
-    QSignalSpy selected(&state, &SourceListModel::currentSourceIdChanged);
-    QSignalSpy available(&state, &SourceListModel::sourceMoveAvailabilityChanged);
+    QSignalSpy selected(&state, &VideoSourceModel::currentSourceIdChanged);
+    QSignalSpy available(&state, &VideoSourceModel::sourceMoveAvailabilityChanged);
     QStringList notifications;
     connect(model, &QAbstractItemModel::rowsAboutToBeMoved, this, [&] {
         QCOMPARE(original.row(), 0);
@@ -240,10 +240,10 @@ void SourceListModelTest::movesSourcesAndPreservesIdentity()
     QCOMPARE(available.count(), 1);
     QCOMPARE(reset.count(), 0);
     QCOMPARE(selected.count(), 0);
-    QCOMPARE(original.data(SourceListModel::IdRole).toString(), QString("a"));
-    QCOMPARE(original.data(SourceListModel::NameRole).toString(), QString("Image"));
-    QVERIFY(!original.data(SourceListModel::VisibleRole).toBool());
-    QVERIFY(original.data(SourceListModel::LockedRole).toBool());
+    QCOMPARE(original.data(VideoSourceModel::IdRole).toString(), QString("a"));
+    QCOMPARE(original.data(VideoSourceModel::NameRole).toString(), QString("Image"));
+    QVERIFY(!original.data(VideoSourceModel::VisibleRole).toBool());
+    QVERIFY(original.data(VideoSourceModel::LockedRole).toBool());
     QVERIFY(state.canMoveCurrentSourceUp());
     QVERIFY(state.canMoveCurrentSourceDown());
     // Removing neighbours updates availability without disturbing selection.
@@ -255,41 +255,41 @@ void SourceListModelTest::movesSourcesAndPreservesIdentity()
     QCOMPARE(state.currentSourceId(), QString("a"));
 }
 
-void SourceListModelTest::flagsNotifyOnlyChangedRole()
+void VideoSourceModelTest::flagsNotifyOnlyChangedRole()
 {
-    SourceListModel state(sources());
+    VideoSourceModel state(sources());
     auto *model = &state;
     QVERIFY(state.selectSource("a"));
     QSignalSpy changed(model, &QAbstractItemModel::dataChanged);
-    QSignalSpy selected(&state, &SourceListModel::currentSourceIdChanged);
+    QSignalSpy selected(&state, &VideoSourceModel::currentSourceIdChanged);
     QVERIFY(state.setSourceVisible("b", false));
     QCOMPARE(changed.count(), 1);
     QCOMPARE(changed.first().at(0).value<QModelIndex>().row(), 1);
     QCOMPARE(changed.first().at(1).value<QModelIndex>().row(), 1);
-    QCOMPARE(changed.first().at(2).value<QList<int>>(), QList<int>{SourceListModel::VisibleRole});
+    QCOMPARE(changed.first().at(2).value<QList<int>>(), QList<int>{VideoSourceModel::VisibleRole});
     QVERIFY(state.setSourceVisible("b", false));
     QCOMPARE(changed.count(), 1);
     QVERIFY(state.setSourceLocked("b", true));
     QCOMPARE(changed.count(), 2);
-    QCOMPARE(changed.last().at(2).value<QList<int>>(), QList<int>{SourceListModel::LockedRole});
+    QCOMPARE(changed.last().at(2).value<QList<int>>(), QList<int>{VideoSourceModel::LockedRole});
     QVERIFY(state.setSourceLocked("b", true));
     QCOMPARE(changed.count(), 2);
     QCOMPARE(selected.count(), 0);
     QCOMPARE(state.currentSourceId(), QString("a"));
-    QVERIFY(!model->index(1, 0).data(SourceListModel::VisibleRole).toBool());
-    QVERIFY(model->index(1, 0).data(SourceListModel::LockedRole).toBool());
+    QVERIFY(!model->index(1, 0).data(VideoSourceModel::VisibleRole).toBool());
+    QVERIFY(model->index(1, 0).data(VideoSourceModel::LockedRole).toBool());
     QVERIFY(state.removeSource("b")); // Locking does not prevent list removal.
 }
 
-void SourceListModelTest::rejectsInvalidOperations()
+void VideoSourceModelTest::rejectsInvalidOperations()
 {
-    SourceListModel state(sources());
+    VideoSourceModel state(sources());
     QVERIFY(state.selectSource("a"));
     auto *model = &state;
     QSignalSpy removed(model, &QAbstractItemModel::rowsRemoved);
     QSignalSpy moved(model, &QAbstractItemModel::rowsMoved);
     QSignalSpy changed(model, &QAbstractItemModel::dataChanged);
-    QSignalSpy selected(&state, &SourceListModel::currentSourceIdChanged);
+    QSignalSpy selected(&state, &VideoSourceModel::currentSourceIdChanged);
     for (const auto &id : {QString(), QString("missing")}) {
         QVERIFY(!state.removeSource(id));
         QVERIFY(!state.moveSource(id, 1));
@@ -305,18 +305,18 @@ void SourceListModelTest::rejectsInvalidOperations()
     QCOMPARE(selected.count(), 0);
     QCOMPARE(state.currentSourceId(), QString("a"));
     QCOMPARE(model->rowCount(), 3);
-    SourceListModel empty;
+    VideoSourceModel empty;
     QVERIFY(!empty.removeSource("a"));
     QVERIFY(!empty.moveSource("a", 1));
 }
 
-void SourceListModelTest::suggestsUnusedSourceNames()
+void VideoSourceModelTest::suggestsUnusedSourceNames()
 {
     const QString base = QString::fromUtf8("图像");
-    SourceListModel state(QList<SourceData>{
+    VideoSourceModel state(QList<SourceData>{
         {"a", base}, {"b", base + " 3"}, {"c", "Camera"}, {"d", " cAmErA 2 "}});
     QVERIFY(state.selectSource("a"));
-    QSignalSpy selected(&state, &SourceListModel::currentSourceIdChanged);
+    QSignalSpy selected(&state, &VideoSourceModel::currentSourceIdChanged);
     QSignalSpy inserted(&state, &QAbstractItemModel::rowsInserted);
     QCOMPARE(state.suggestedSourceName(base), base + " 2");
     QCOMPARE(state.suggestedSourceName(" camera "), QString("camera 3"));
@@ -330,7 +330,7 @@ void SourceListModelTest::suggestsUnusedSourceNames()
     QCOMPARE(state.suggestedSourceName(base), base);
 }
 
-void SourceListModelTest::sameImageEntriesRemainIndependent()
+void VideoSourceModelTest::sameImageEntriesRemainIndependent()
 {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
@@ -341,16 +341,16 @@ void SourceListModelTest::sameImageEntriesRemainIndependent()
     QList<SourceData> entries{
         {"a", "First", ImageConfig{path}, {image.size()}},
         {"b", "Second", ImageConfig{path}, {image.size()}}};
-    SourceListModel state(entries);
+    VideoSourceModel state(entries);
     entries.clear(); // State owns its source list.
     QVERIFY(state.setSourceVisible("a", false));
     QVERIFY(state.setSourceLocked("a", true));
     QVERIFY(state.moveSource("a", 1));
     const auto other = state.index(0, 0);
-    QCOMPARE(other.data(SourceListModel::IdRole).toString(), QString("b"));
-    QCOMPARE(other.data(SourceListModel::OriginalSizeRole).toSize(), image.size());
-    QVERIFY(other.data(SourceListModel::VisibleRole).toBool());
-    QVERIFY(!other.data(SourceListModel::LockedRole).toBool());
+    QCOMPARE(other.data(VideoSourceModel::IdRole).toString(), QString("b"));
+    QCOMPARE(other.data(VideoSourceModel::OriginalSizeRole).toSize(), image.size());
+    QVERIFY(other.data(VideoSourceModel::VisibleRole).toBool());
+    QVERIFY(!other.data(VideoSourceModel::LockedRole).toBool());
     QVERIFY(state.selectSource("a"));
     QVERIFY(state.removeSource("a"));
     QVERIFY(state.currentSourceId().isEmpty());
@@ -364,16 +364,16 @@ void SourceListModelTest::sameImageEntriesRemainIndependent()
     QCOMPARE(QImage(path), image);
 }
 
-QTEST_GUILESS_MAIN(SourceListModelTest)
-#include "tst_sourcelistmodel.moc"
+QTEST_GUILESS_MAIN(VideoSourceModelTest)
+#include "tst_videosourcemodel.moc"
 
-void SourceListModelTest::insertsSourcesAtTop()
+void VideoSourceModelTest::insertsSourcesAtTop()
 {
-    SourceListModel model;
+    VideoSourceModel model;
     QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::QtTest);
     QSignalSpy inserted(&model, &QAbstractItemModel::rowsInserted);
     QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
-    QSignalSpy availability(&model, &SourceListModel::sourceMoveAvailabilityChanged);
+    QSignalSpy availability(&model, &VideoSourceModel::sourceMoveAvailabilityChanged);
     QVERIFY(!model.addSource({" ", "Invalid"}));
     QVERIFY(model.addSource({"one", "First", ImageConfig{"one.png"}}));
     QVERIFY(!model.addSource({"one", "Duplicate"}));
@@ -381,7 +381,7 @@ void SourceListModelTest::insertsSourcesAtTop()
     QCOMPARE(model.rowCount(), 2);
     QCOMPARE(inserted.count(), 2);
     QCOMPARE(model.currentSourceId(), QString("two"));
-    QCOMPARE(model.index(0, 0).data(SourceListModel::IdRole).toString(), QString("two"));
+    QCOMPARE(model.index(0, 0).data(VideoSourceModel::IdRole).toString(), QString("two"));
     QVERIFY(model.canMoveCurrentSourceDown());
     QVERIFY(!model.canMoveCurrentSourceUp());
     QVERIFY(!availability.isEmpty());
@@ -391,11 +391,11 @@ void SourceListModelTest::insertsSourcesAtTop()
     QVERIFY(!model.setSourceOriginalSize("missing", QSize(40, 20)));
 }
 
-void SourceListModelTest::initializesAndValidatesTransforms()
+void VideoSourceModelTest::initializesAndValidatesTransforms()
 {
-    SourceListModel model;
+    VideoSourceModel model;
     QVERIFY(model.addSource({"image", "Image", ImageConfig{"image.png"}}));
-    const auto current = [&] { return model.index(0, 0).data(SourceListModel::TransformRole).value<SourceTransform>(); };
+    const auto current = [&] { return model.index(0, 0).data(VideoSourceModel::TransformRole).value<SourceTransform>(); };
     QVERIFY(current().size.isEmpty());
     QVERIFY(model.setSourceOriginalSize("image", QSize(4000, 2000)));
     QCOMPARE(current().center, QPointF(960, 540));
@@ -405,7 +405,7 @@ void SourceListModelTest::initializesAndValidatesTransforms()
     QVERIFY(model.setSourceTransform("image", edited));
     QCOMPARE(current().rotation, 330.0);
     QCOMPARE(changes.size(), 1);
-    QCOMPARE(changes.last()[2].value<QList<int>>(), QList<int>{SourceListModel::TransformRole});
+    QCOMPARE(changes.last()[2].value<QList<int>>(), QList<int>{VideoSourceModel::TransformRole});
     edited.rotation = 690;
     QVERIFY(model.setSourceTransform("image", edited));
     QCOMPARE(changes.size(), 1);
@@ -428,11 +428,11 @@ void SourceListModelTest::initializesAndValidatesTransforms()
         QVERIFY(!model.setSourceTransform("image", invalid));
         QVERIFY(current() == before);
     }
-    SourceListModel ready({{"ready", "Ready", ImageConfig{"ready.png"}, {QSize(40, 20)}}});
-    QCOMPARE(ready.index(0, 0).data(SourceListModel::TransformRole).value<SourceTransform>().size, QSizeF(40, 20));
+    VideoSourceModel ready({{"ready", "Ready", ImageConfig{"ready.png"}, {QSize(40, 20)}}});
+    QCOMPARE(ready.index(0, 0).data(VideoSourceModel::TransformRole).value<SourceTransform>().size, QSizeF(40, 20));
 }
 
-void SourceListModelTest::sharesGeometryForMappingAndResizing()
+void VideoSourceModelTest::sharesGeometryForMappingAndResizing()
 {
     const auto thin = SourceGeometry::initial(QSizeF(1, 4000));
     QVERIFY(SourceGeometry::valid(thin));
@@ -476,12 +476,12 @@ void SourceListModelTest::sharesGeometryForMappingAndResizing()
     }
 }
 
-void SourceListModelTest::filtersAreOrderedValidatedAndIndependent()
+void VideoSourceModelTest::filtersAreOrderedValidatedAndIndependent()
 {
-    SourceListModel model(QList<SourceData>{{"a", "A", ImageConfig{"a.png"}},
+    VideoSourceModel model(QList<SourceData>{{"a", "A", ImageConfig{"a.png"}},
         {"b", "B", ImageConfig{"a.png"}}, {"camera", "Camera", CameraConfig{}}});
-    QSignalSpy changed(&model, &SourceListModel::sourceFiltersChanged);
-    QSignalSpy data(&model, &SourceListModel::dataChanged);
+    QSignalSpy changed(&model, &VideoSourceModel::sourceFiltersChanged);
+    QSignalSpy data(&model, &VideoSourceModel::dataChanged);
     QVERIFY(!model.canFilterCurrentSource());
     QVERIFY(model.selectSource("a"));
     QVERIFY(model.canFilterCurrentSource());
@@ -491,7 +491,7 @@ void SourceListModelTest::filtersAreOrderedValidatedAndIndependent()
     const QString second = model.addColorCorrection("a");
     QVERIFY(!first.isEmpty() && first != second);
     QCOMPARE(changed.count(), 2);
-    QCOMPARE(data.last()[2].value<QList<int>>(), QList<int>{SourceListModel::FiltersRole});
+    QCOMPARE(data.last()[2].value<QList<int>>(), QList<int>{VideoSourceModel::FiltersRole});
     QCOMPARE(model.sourceFilters("a")[0].toMap()["brightness"].toFloat(), 0.f);
     QCOMPARE(model.sourceFilters("a")[0].toMap()["contrast"].toFloat(), 1.f);
     QCOMPARE(model.sourceFilters("a")[0].toMap()["saturation"].toFloat(), 1.f);
@@ -518,7 +518,7 @@ void SourceListModelTest::filtersAreOrderedValidatedAndIndependent()
     QCOMPARE(model.sourceFilters("a")[1].toMap()["id"].toString(), first);
     QVERIFY(model.setFilterEnabled("a", first, true));
     QCOMPARE(model.sourceFilters("a")[1].toMap()["brightness"].toFloat(), .2f);
-    const auto typed = model.index(0, 0).data(SourceListModel::FiltersRole).value<QList<SourceFilter>>();
+    const auto typed = model.index(0, 0).data(VideoSourceModel::FiltersRole).value<QList<SourceFilter>>();
     QCOMPARE(typed[1].id, first);
     QCOMPARE(typed[1].saturation, 0.f);
     QVERIFY(!model.setFilterEnabled("b", first, false));
@@ -532,12 +532,12 @@ void SourceListModelTest::filtersAreOrderedValidatedAndIndependent()
     QVERIFY(!model.removeFilter("a", second));
 }
 
-void SourceListModelTest::displayPropertiesPreserveSourceState()
+void VideoSourceModelTest::displayPropertiesPreserveSourceState()
 {
-    SourceListModel model(QList<SourceData>{{"screen", "Screen", DisplayCaptureConfig{"physical-path", true}},
+    VideoSourceModel model(QList<SourceData>{{"screen", "Screen", DisplayCaptureConfig{"physical-path", true}},
         {"image", "Image", ImageConfig{"a.png"}}, {"camera", "Camera", CameraConfig{}}});
-    QSignalSpy changed(&model, &SourceListModel::dataChanged);
-    QSignalSpy status(&model, &SourceListModel::captureStatusChanged);
+    QSignalSpy changed(&model, &VideoSourceModel::dataChanged);
+    QSignalSpy status(&model, &VideoSourceModel::captureStatusChanged);
     QVERIFY(model.selectSource("screen"));
     QVERIFY(model.canEditCurrentDisplay() && model.canFilterCurrentSource());
     QVERIFY(model.setSourceOriginalSize("screen", QSize(1920, 1080)));
@@ -552,8 +552,8 @@ void SourceListModelTest::displayPropertiesPreserveSourceState()
     QVERIFY(model.setDisplayConfig("screen", "physical-path", true));
     QCOMPARE(changed.count(), before);
     QVERIFY(model.setDisplayConfig("screen", "another-physical-path", false));
-    QCOMPARE(changed.last()[2].value<QList<int>>(), QList<int>{SourceListModel::DisplayConfigRole});
-    QCOMPARE(model.index(0, 0).data(SourceListModel::TransformRole).value<SourceTransform>(), transform);
+    QCOMPARE(changed.last()[2].value<QList<int>>(), QList<int>{VideoSourceModel::DisplayConfigRole});
+    QCOMPARE(model.index(0, 0).data(VideoSourceModel::TransformRole).value<SourceTransform>(), transform);
     QCOMPARE(model.sourceFilters("screen")[0].toMap()["id"].toString(), filter);
     QCOMPARE(model.displayProperties("screen").value("displayId").toString(), QString("another-physical-path"));
     QVERIFY(!model.displayProperties("screen").value("captureCursor").toBool());
@@ -561,7 +561,7 @@ void SourceListModelTest::displayPropertiesPreserveSourceState()
     QCOMPARE(status.count(), 1);
     QVERIFY(model.setSourceCaptureStatus("screen", "error", "Disconnected"));
     QCOMPARE(status.count(), 1);
-    QCOMPARE(model.index(0, 0).data(SourceListModel::CaptureStateRole).toString(), QString("error"));
+    QCOMPARE(model.index(0, 0).data(VideoSourceModel::CaptureStateRole).toString(), QString("error"));
     QCOMPARE(model.displayProperties("screen").value("error").toString(), QString("Disconnected"));
     QVERIFY(model.setSourceCaptureStatus("screen", "starting", {}));
     QVERIFY(model.displayProperties("screen").value("error").toString().isEmpty());

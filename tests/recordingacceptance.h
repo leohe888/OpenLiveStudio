@@ -72,7 +72,7 @@ inline void run(MainWindow &window)
     auto *recorder=window.findChild<RecordingController *>(); QVERIFY(recorder);
     auto *settings=window.findChild<OutputSettings *>(); QVERIFY(settings);
     auto *audio=window.findChild<AudioSourceModel *>(); QVERIFY(audio);
-    auto *model=window.findChild<SourceListModel *>(); QVERIFY(model);
+    auto *model=window.findChild<VideoSourceModel *>(); QVERIFY(model);
     auto *pictures=window.findChild<ImageSourceController *>(); QVERIFY(pictures);
     auto *display=window.findChild<DisplayCaptureController *>(); QVERIFY(display);
     auto *camera=window.findChild<CameraCaptureController *>(); QVERIFY(camera);

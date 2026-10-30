@@ -5,7 +5,7 @@ import QtQuick.Layouts
 Rectangle {
     id: root
     objectName: "sourceFiltersDialog"
-    required property var sourceListModel
+    required property var videoSourceModel
     required property string sourceId
     readonly property var themeColors: uiColors
     property var filters: []
@@ -18,20 +18,20 @@ Rectangle {
     signal closeRequested()
 
     function refresh() {
-        filters = sourceListModel.sourceFilters(sourceId)
+        filters = videoSourceModel.sourceFilters(sourceId)
         if (!filters.some(f => f.id === selectedId))
             selectedId = filters.length ? filters[0].id : ""
     }
     function updateParameter(key, value) {
         if (!selectedFilter) return
-        sourceListModel.setFilterParameters(sourceId, selectedId,
+        videoSourceModel.setFilterParameters(sourceId, selectedId,
             key === "brightness" ? value : selectedFilter.brightness,
             key === "contrast" ? value : selectedFilter.contrast,
             key === "saturation" ? value : selectedFilter.saturation)
     }
     Component.onCompleted: refresh()
     Connections {
-        target: root.sourceListModel
+        target: root.videoSourceModel
         function onSourceFiltersChanged(id) { if (id === root.sourceId) root.refresh() }
     }
 
@@ -104,7 +104,7 @@ Rectangle {
                             text: row.modelData.enabled ? qsTr("停用滤镜") : qsTr("启用滤镜")
                             display: AbstractButton.IconOnly
                             icon.source: "qrc:/assets/icons/" + (row.modelData.enabled ? "eye" : "eye-off") + ".svg"
-                            onClicked: root.sourceListModel.setFilterEnabled(root.sourceId, row.modelData.id, !row.modelData.enabled)
+                            onClicked: root.videoSourceModel.setFilterEnabled(root.sourceId, row.modelData.id, !row.modelData.enabled)
                         }
                     }
                     Label {
@@ -120,7 +120,7 @@ Rectangle {
                     objectName: "addFilterButton"
                     text: qsTr("添加色彩校正")
                     icon.source: "qrc:/assets/icons/plus.svg"
-                    onClicked: root.selectedId = root.sourceListModel.addColorCorrection(root.sourceId)
+                    onClicked: root.selectedId = root.videoSourceModel.addColorCorrection(root.sourceId)
                 }
                 Repeater {
                     model: [ { action: "remove", icon: "minus", label: qsTr("删除滤镜") },
@@ -136,8 +136,8 @@ Rectangle {
                             || (modelData.action === "up" ? root.selectedIndex > 0 : root.selectedIndex < root.filters.length - 1))
                         onClicked: {
                             if (modelData.action === "remove")
-                                root.sourceListModel.removeFilter(root.sourceId, root.selectedId)
-                            else root.sourceListModel.moveFilter(root.sourceId, root.selectedId, modelData.action === "up" ? -1 : 1)
+                                root.videoSourceModel.removeFilter(root.sourceId, root.selectedId)
+                            else root.videoSourceModel.moveFilter(root.sourceId, root.selectedId, modelData.action === "up" ? -1 : 1)
                         }
                     }
                 }
@@ -223,7 +223,7 @@ Rectangle {
                 objectName: "resetFilterButton"
                 text: qsTr("恢复默认")
                 enabled: root.selectedFilter !== null
-                onClicked: root.sourceListModel.setFilterParameters(root.sourceId, root.selectedId, 0, 1, 1)
+                onClicked: root.videoSourceModel.setFilterParameters(root.sourceId, root.selectedId, 0, 1, 1)
             }
             Item { Layout.fillHeight: true }
             FilterButton {

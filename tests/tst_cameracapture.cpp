@@ -1,5 +1,5 @@
 #include "capture/cameracapturecontroller.h"
-#include "core/sourcelistmodel.h"
+#include "core/videosourcemodel.h"
 #include <QSignalSpy>
 #include <QElapsedTimer>
 #include <QtTest/QTest>
@@ -17,7 +17,7 @@ private slots:
 };
 
 void CameraCaptureTest::configurationAndLayout() {
-    SourceListModel model;
+    VideoSourceModel model;
     CameraCaptureController controller(model);
     const QVariantMap mode{{"width", 1280}, {"height", 720}, {"numerator", 30000}, {"denominator", 1001}};
     const QString id = controller.addCamera("Camera", "missing-device", mode);
@@ -31,7 +31,7 @@ void CameraCaptureTest::configurationAndLayout() {
     QVERIFY(model.setSourceLocked(id, true));
     const QString filter = model.addColorCorrection(id); QVERIFY(!filter.isEmpty());
     model.setCameraActualMode(id, {640, 480}, 30, 1);
-    const auto adjusted = model.index(0, 0).data(SourceListModel::TransformRole).value<SourceTransform>();
+    const auto adjusted = model.index(0, 0).data(VideoSourceModel::TransformRole).value<SourceTransform>();
     QCOMPARE(adjusted.center, transform.center); QCOMPARE(adjusted.rotation, transform.rotation);
     QCOMPARE(adjusted.size, QSizeF(600, 450));
     QCOMPARE(model.sourceFilters(id)[0].toMap().value("id").toString(), filter);
@@ -41,7 +41,7 @@ void CameraCaptureTest::configurationAndLayout() {
 }
 
 void CameraCaptureTest::unavailableDeviceAndLifecycle() {
-    SourceListModel model; CameraCaptureController controller(model);
+    VideoSourceModel model; CameraCaptureController controller(model);
     QSignalSpy errors(&controller, &CameraCaptureController::sourceError);
     QList<PreviewSource> output;
     connect(&controller, &CameraCaptureController::sourcesChanged, this, [&](const auto &sources) { output = sources; });
@@ -71,7 +71,7 @@ void CameraCaptureTest::hardware() {
     if (!qEnvironmentVariableIsSet("OPENLIVE_CAMERA_HARDWARE")) QSKIP("Set OPENLIVE_CAMERA_HARDWARE=1 to open cameras.");
     QString error; const auto devices = cameraDevices(&error);
     QVERIFY2(error.isEmpty(), qPrintable(error)); QVERIFY2(!devices.isEmpty(), "No Media Foundation cameras available");
-    SourceListModel model; CameraCaptureController controller(model);
+    VideoSourceModel model; CameraCaptureController controller(model);
     QStringList ids;
     QHash<QString, QVariantList> catalogs;
     for (const auto &item : devices) {

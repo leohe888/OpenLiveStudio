@@ -1,5 +1,5 @@
-#ifndef SOURCELISTMODEL_H
-#define SOURCELISTMODEL_H
+#ifndef VIDEOSOURCEMODEL_H
+#define VIDEOSOURCEMODEL_H
 
 #include "source.h"
 
@@ -8,7 +8,7 @@
 #include <QObject>
 #include <QString>
 
-class SourceListModel : public QAbstractListModel
+class VideoSourceModel : public QAbstractListModel
 {
     Q_OBJECT
     Q_PROPERTY(QString currentSourceId READ currentSourceId NOTIFY currentSourceIdChanged)
@@ -35,9 +35,9 @@ public:
         CameraConfigRole
     };
 
-    explicit SourceListModel(QObject *parent = nullptr);
+    explicit VideoSourceModel(QObject *parent = nullptr);
     // Initial source IDs must be nonempty and unique.
-    explicit SourceListModel(const QList<SourceData> &sources, QObject *parent = nullptr);
+    explicit VideoSourceModel(const QList<SourceData> &sources, QObject *parent = nullptr);
 
     int rowCount(const QModelIndex &parent = {}) const override;
     QVariant data(const QModelIndex &index, int role) const override;
@@ -95,4 +95,4 @@ private:
     QString m_currentSourceId;
 };
 
-#endif // SOURCELISTMODEL_H
+#endif // VIDEOSOURCEMODEL_H

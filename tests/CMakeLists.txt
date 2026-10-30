@@ -155,8 +155,8 @@ qt_add_executable(tst_captureinterop tst_captureinterop.cpp
     ../src/ui/previewwidget.cpp
     ../src/ui/previewwidget.h
     ../src/core/source.cpp
-    ../src/core/sourcelistmodel.cpp
-    ../src/core/sourcelistmodel.h
+    ../src/core/videosourcemodel.cpp
+    ../src/core/videosourcemodel.h
     ../src/capture/captureframe.h
     ../src/capture/d3dtexture.h
     ../src/capture/displaytargets.h
@@ -189,25 +189,25 @@ add_test(NAME capture.interop COMMAND "${CMAKE_COMMAND}" -E env
     "$<TARGET_FILE:tst_captureinterop>" -o "${CMAKE_CURRENT_BINARY_DIR}/captureinterop-results.txt,txt")
 set_tests_properties(capture.interop PROPERTIES LABELS "capture;gpu" TIMEOUT 30)
 
-qt_add_executable(tst_sourcelistmodel
-    tst_sourcelistmodel.cpp
+qt_add_executable(tst_videosourcemodel
+    tst_videosourcemodel.cpp
     ../src/core/source.cpp
     ../src/core/source.h
     ../src/core/sourcetransform.h
-    ../src/core/sourcelistmodel.cpp
-    ../src/core/sourcelistmodel.h
+    ../src/core/videosourcemodel.cpp
+    ../src/core/videosourcemodel.h
 )
-target_include_directories(tst_sourcelistmodel PRIVATE
+target_include_directories(tst_videosourcemodel PRIVATE
     "${PROJECT_SOURCE_DIR}/src/core"
 )
-target_link_libraries(tst_sourcelistmodel PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
-add_test(NAME core.sourcelistmodel
+target_link_libraries(tst_videosourcemodel PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+add_test(NAME core.videosourcemodel
     COMMAND "${CMAKE_COMMAND}" -E env
         "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
-        "$<TARGET_FILE:tst_sourcelistmodel>"
+        "$<TARGET_FILE:tst_videosourcemodel>"
         -o "-,txt"
 )
-set_tests_properties(core.sourcelistmodel PROPERTIES LABELS "core;smoke" TIMEOUT 10)
+set_tests_properties(core.videosourcemodel PROPERTIES LABELS "core;smoke" TIMEOUT 10)
 
 qt_add_executable(tst_mainwindow
     tst_mainwindow.cpp
@@ -220,8 +220,8 @@ qt_add_executable(tst_mainwindow
     ../src/core/source.cpp
     ../src/core/source.h
     ../src/core/sourcetransform.h
-    ../src/core/sourcelistmodel.cpp
-    ../src/core/sourcelistmodel.h
+    ../src/core/videosourcemodel.cpp
+    ../src/core/videosourcemodel.h
     ../src/core/imagesourcecontroller.cpp
     ../src/core/imagesourcecontroller.h
     ../src/capture/cameracaptureworker.h
@@ -355,7 +355,7 @@ set_tests_properties(ui.previewwidget PROPERTIES
 qt_add_executable(tst_imagesourcecontroller
     tst_imagesourcecontroller.cpp
     ../src/core/source.cpp
-    ../src/core/sourcelistmodel.cpp
+    ../src/core/videosourcemodel.cpp
     ../src/core/imagesourcecontroller.cpp
     ../src/core/imagesourcecontroller.h
     ../src/preview/previewsource.h
@@ -374,8 +374,8 @@ set_tests_properties(core.imagesourcecontroller PROPERTIES LABELS "core;smoke" T
 
 qt_add_executable(tst_cameracapture tst_cameracapture.cpp
     ../src/core/source.cpp
-    ../src/core/sourcelistmodel.cpp
-    ../src/core/sourcelistmodel.h
+    ../src/core/videosourcemodel.cpp
+    ../src/core/videosourcemodel.h
     ../src/capture/cameracaptureworker.h
     ../src/capture/cameracaptureworker.cpp
     ../src/capture/cameracapturecontroller.h

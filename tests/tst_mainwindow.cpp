@@ -4,7 +4,7 @@
 #include "output/recordingcontroller.h"
 #include "output/streamingcontroller.h"
 #include "ui/uicolors.h"
-#include "sourcelistmodel.h"
+#include "videosourcemodel.h"
 #include "imagesourcecontroller.h"
 #include "capture/cameracapturecontroller.h"
 #include <QPainter>
@@ -151,9 +151,9 @@ void MainWindowTest::sourcePanelSharesStateAcrossReloadsAndReleasesItWithWindow(
 {
     auto window = std::make_unique<MainWindow>();
     window->show();
-    QPointer<SourceListModel> state = window->findChild<SourceListModel *>();
+    QPointer<VideoSourceModel> state = window->findChild<VideoSourceModel *>();
     QVERIFY(state);
-    QCOMPARE(window->findChildren<SourceListModel *>().size(), 1);
+    QCOMPARE(window->findChildren<VideoSourceModel *>().size(), 1);
     QCOMPARE(state->parent(), window.get());
     QList<QPointer<QQuickItem>> roots;
     QStringList destructionOrder;
@@ -163,10 +163,10 @@ void MainWindowTest::sourcePanelSharesStateAcrossReloadsAndReleasesItWithWindow(
         auto *view = window->findChild<QQuickWidget *>(QLatin1String(panelId) + QStringLiteral("QuickWidget"));
         QVERIFY(view);
         QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-        QCOMPARE(view->rootContext()->contextProperty(QStringLiteral("sourceListModel")).value<QObject *>(), state.data());
+        QCOMPARE(view->rootContext()->contextProperty(QStringLiteral("videoSourceModel")).value<QObject *>(), state.data());
         // Exercise the QML context and invokable API, rather than just a C++ pointer.
         QQmlExpression expression(view->rootContext(), view->rootObject(),
-            QStringLiteral("sourceListModel.selectSource(sourceListModel.currentSourceId)"));
+            QStringLiteral("videoSourceModel.selectSource(videoSourceModel.currentSourceId)"));
         QCOMPARE(expression.evaluate().toBool(), true);
         QVERIFY2(!expression.hasError(), qPrintable(expression.error().toString()));
         QPointer<QQuickItem> oldRoot = view->rootObject();
@@ -176,9 +176,9 @@ void MainWindowTest::sourcePanelSharesStateAcrossReloadsAndReleasesItWithWindow(
         QTRY_VERIFY(oldRoot.isNull());
         view->setSource(source);
         QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-        QCOMPARE(view->rootContext()->contextProperty(QStringLiteral("sourceListModel")).value<QObject *>(), state.data());
+        QCOMPARE(view->rootContext()->contextProperty(QStringLiteral("videoSourceModel")).value<QObject *>(), state.data());
         QQmlExpression reloaded(view->rootContext(), view->rootObject(),
-            QStringLiteral("sourceListModel"));
+            QStringLiteral("videoSourceModel"));
         QCOMPARE(reloaded.evaluate().value<QObject *>(), state.data());
         QVERIFY2(!reloaded.hasError(), qPrintable(reloaded.error().toString()));
         auto *list = view->rootObject()->findChild<QQuickItem *>(QStringLiteral("sourceList"));
@@ -198,10 +198,10 @@ void MainWindowTest::sourcePanelSharesStateAcrossReloadsAndReleasesItWithWindow(
 
 void MainWindowTest::sourcePanelFollowsSelectionAcrossReloads()
 {
-    SourceListModel state(QList<SourceData>{{"a", "First"}, {"b", "Second"}});
+    VideoSourceModel state(QList<SourceData>{{"a", "First"}, {"b", "Second"}});
     QQuickWidget panel;
     panel.rootContext()->setContextProperty("uiColors", UiColors::values());
-    panel.rootContext()->setContextProperty("sourceListModel", &state);
+    panel.rootContext()->setContextProperty("videoSourceModel", &state);
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(238, 260);
     const QUrl source("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml");
@@ -244,13 +244,13 @@ void MainWindowTest::sourcePanelCanMoveAndToggle_data()
 void MainWindowTest::sourcePanelCanMoveAndToggle()
 {
     QFETCH(bool, reload);
-    SourceListModel state(QList<SourceData>{
+    VideoSourceModel state(QList<SourceData>{
         {"a", "Foreground"}, {"b", "Background"}, {"c", "Logo"}});
     QQuickWidget panel;
     panel.rootContext()->setContextProperty(QStringLiteral("uiColors"), UiColors::values());
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(280, 220);
-    panel.rootContext()->setContextProperty(QStringLiteral("sourceListModel"), &state);
+    panel.rootContext()->setContextProperty(QStringLiteral("videoSourceModel"), &state);
     const QUrl url(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml"));
     panel.setSource(url);
     QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
@@ -304,12 +304,12 @@ void MainWindowTest::sourcePanelCanMoveAndToggle()
     QTRY_VERIFY(!visibility->property("checked").toBool());
     QTRY_COMPARE(iconSource(visibility), QUrl("qrc:/assets/icons/eye-off.svg"));
     QCOMPARE(state.currentSourceId(), QString("a"));
-    QVERIFY(!state.index(1, 0).data(SourceListModel::VisibleRole).toBool());
+    QVERIFY(!state.index(1, 0).data(VideoSourceModel::VisibleRole).toBool());
     click(lock);
     QTRY_VERIFY(lock->property("checked").toBool());
     QTRY_COMPARE(iconSource(lock), QUrl("qrc:/assets/icons/lock.svg"));
     QCOMPARE(state.currentSourceId(), QString("a"));
-    QVERIFY(state.index(1, 0).data(SourceListModel::LockedRole).toBool());
+    QVERIFY(state.index(1, 0).data(VideoSourceModel::LockedRole).toBool());
     // Model updates must continue to drive presentation after user clicks.
     QVERIFY(state.setSourceVisible("b", true));
     QTRY_VERIFY(visibility->property("checked").toBool());
@@ -328,13 +328,13 @@ void MainWindowTest::sourcePanelCanMoveAndToggle()
     QTRY_VERIFY(up->isEnabled());
     QTRY_VERIFY(down->isEnabled());
     click(up);
-    QTRY_COMPARE(state.index(0, 0).data(SourceListModel::IdRole).toString(), QString("b"));
+    QTRY_COMPARE(state.index(0, 0).data(VideoSourceModel::IdRole).toString(), QString("b"));
     QTRY_VERIFY(!up->isEnabled());
     QCOMPARE(state.currentSourceId(), QString("b"));
     QTRY_VERIFY(find("sourceRow_b")->y() < find("sourceRow_a")->y());
     click(down);
     click(down);
-    QTRY_COMPARE(state.index(2, 0).data(SourceListModel::IdRole).toString(), QString("b"));
+    QTRY_COMPARE(state.index(2, 0).data(VideoSourceModel::IdRole).toString(), QString("b"));
     QTRY_VERIFY(!down->isEnabled());
     click(down);
     QCOMPARE(state.currentSourceId(), QString("b"));
@@ -363,7 +363,7 @@ void MainWindowTest::sourcePanelCanMoveAndToggle()
         QVERIFY(panel.grabFramebuffer().save(screenshot));
     while (state.rowCount() > 0)
         QVERIFY(state.removeSource(
-            state.index(0, 0).data(SourceListModel::IdRole).toString()));
+            state.index(0, 0).data(VideoSourceModel::IdRole).toString()));
     QTRY_VERIFY(find("emptySourcesLabel")->isVisible());
     QVERIFY(!find("moveSourceUpButton")->isEnabled());
     QVERIFY(!find("moveSourceDownButton")->isEnabled());
@@ -383,14 +383,14 @@ void MainWindowTest::listScrollBarsHandleOverflow()
     QList<SourceData> sources;
     for (int i = 0; i < 24; ++i)
         sources.append({QString::number(i), QStringLiteral("Source %1").arg(i)});
-    SourceListModel state(sources);
-    SourceListModel shortState(QList<SourceData>{{"one", "One"}});
+    VideoSourceModel state(sources);
+    VideoSourceModel shortState(QList<SourceData>{{"one", "One"}});
     QVERIFY(state.selectSource("0"));
     QQuickWidget panel;
     panel.rootContext()->setContextProperty(QStringLiteral("uiColors"), UiColors::values());
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(238, 150);
-    panel.rootContext()->setContextProperty(QStringLiteral("sourceListModel"), &state);
+    panel.rootContext()->setContextProperty(QStringLiteral("videoSourceModel"), &state);
     panel.setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(panelName)));
     QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
     panel.show();
@@ -435,7 +435,7 @@ void MainWindowTest::listScrollBarsHandleOverflow()
     panel.resize(238, 150);
     QTRY_VERIFY(bar->isVisible());
     // A short list needs no scrollbar even in the smaller panel.
-    panel.rootContext()->setContextProperty(QStringLiteral("sourceListModel"), &shortState);
+    panel.rootContext()->setContextProperty(QStringLiteral("videoSourceModel"), &shortState);
     QTRY_COMPARE(list->property("count").toInt(), 1);
     QTRY_VERIFY(!bar->isVisible());
 }
@@ -484,7 +484,7 @@ void MainWindowTest::previewDisplaysImageSources()
     QVERIFY2(preview->lastError().isEmpty(), qPrintable(preview->lastError()));
     auto *pages = window.findChild<QStackedWidget *>("previewPages");
     QCOMPARE(pages->currentWidget(), preview);
-    auto *sources = window.findChild<SourceListModel *>();
+    auto *sources = window.findChild<VideoSourceModel *>();
     QVERIFY(sources);
     QCOMPARE(sources->rowCount(), 0);
     const auto empty = grabPreview(*preview);
@@ -583,19 +583,19 @@ void MainWindowTest::previewDisplaysImageSources()
     };
     click(lock);
     click(visibility);
-    QTRY_VERIFY(!sources->index(0, 0).data(SourceListModel::VisibleRole).toBool());
+    QTRY_VERIFY(!sources->index(0, 0).data(VideoSourceModel::VisibleRole).toBool());
     QCOMPARE(sampleCanvas(.6, .6), QColor(Qt::white));
     click(visibility);
-    QTRY_VERIFY(sources->index(0, 0).data(SourceListModel::VisibleRole).toBool());
+    QTRY_VERIFY(sources->index(0, 0).data(VideoSourceModel::VisibleRole).toBool());
     QCOMPARE(sampleCanvas(.6, .6), QColor(Qt::yellow));
     click(down);
-    QTRY_COMPARE(sources->index(1, 0).data(SourceListModel::IdRole).toString(), overlayId);
+    QTRY_COMPARE(sources->index(1, 0).data(VideoSourceModel::IdRole).toString(), overlayId);
     QCOMPARE(sampleCanvas(.6, .6), QColor(Qt::white));
     QVERIFY(sources->moveSource(overlayId, -1));
     QCOMPARE(sampleCanvas(.6, .6), QColor(Qt::yellow));
     QVERIFY(sources->removeSource(overlayId));
     verifyFrame();
-    QVERIFY(sources->removeSource(sources->index(0, 0).data(SourceListModel::IdRole).toString()));
+    QVERIFY(sources->removeSource(sources->index(0, 0).data(VideoSourceModel::IdRole).toString()));
     QCOMPARE(sampleCanvas(.6, .6), QColor(Qt::black));
     QVERIFY(window.close());
 }
@@ -607,7 +607,7 @@ void MainWindowTest::previewEditsModelAndSynchronizesSelection()
     if (!preview) QSKIP("Native desktop OpenGL is required for mouse editing integration.");
     window.show();
     QVERIFY(QTest::qWaitForWindowActive(&window));
-    auto *model = window.findChild<SourceListModel *>();
+    auto *model = window.findChild<VideoSourceModel *>();
     auto *controller = window.findChild<ImageSourceController *>();
     QTemporaryDir dir;
     QImage background(1200, 800, QImage::Format_RGBA8888);
@@ -625,7 +625,7 @@ void MainWindowTest::previewEditsModelAndSynchronizesSelection()
     QTRY_COMPARE(model->rowCount(), 2);
     const QString frontId = model->currentSourceId();
     const auto currentTransform = [&] {
-        return model->index(0, 0).data(SourceListModel::TransformRole).value<SourceTransform>();
+        return model->index(0, 0).data(VideoSourceModel::TransformRole).value<SourceTransform>();
     };
     const auto canvasPoint = [&](const QPointF &point) {
         return SourceGeometry::canvasToWidget(preview->size()).map(point).toPoint();
@@ -700,7 +700,7 @@ void MainWindowTest::previewShowsRenderingError()
     auto *pages = window.findChild<QStackedWidget *>("previewPages");
     auto *error = window.findChild<QLabel *>("previewErrorLabel");
     QVERIFY(pages && error);
-    auto *model = window.findChild<SourceListModel *>();
+    auto *model = window.findChild<VideoSourceModel *>();
     QVERIFY(model->addSource({"example", "Logo"}));
     preview->sourceError("example", "Texture upload failed");
     QTRY_VERIFY(window.statusBar()->currentMessage().contains("Logo"));
@@ -832,11 +832,11 @@ void MainWindowTest::sourceColors()
     for (int i = 0; i < 24; ++i)
         sources.append({QString::number(i), QString("Source %1").arg(i),
                         ImageConfig{}, {}, i != 0, i == 0});
-    SourceListModel state(sources);
+    VideoSourceModel state(sources);
     QVERIFY(state.selectSource("0"));
     QQuickWidget panel;
     panel.rootContext()->setContextProperty("uiColors", UiColors::values());
-    panel.rootContext()->setContextProperty("sourceListModel", &state);
+    panel.rootContext()->setContextProperty("videoSourceModel", &state);
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(280, 220);
     const QUrl url(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(panelName));
@@ -933,7 +933,7 @@ void MainWindowTest::sourceColors()
     if (prefix == "source") {
         while (state.rowCount() > 0)
             QVERIFY(state.removeSource(
-                state.index(0, 0).data(SourceListModel::IdRole).toString()));
+                state.index(0, 0).data(VideoSourceModel::IdRole).toString()));
         auto *label = find("emptySourcesLabel");
         QVERIFY(label);
         QTRY_VERIFY(label->isVisible());
@@ -1106,9 +1106,9 @@ void MainWindowTest::basicDialogColors()
 
     MainWindow window;
     window.show();
-    auto *state = window.findChild<SourceListModel *>();
+    auto *state = window.findChild<VideoSourceModel *>();
     QVERIFY(state);
-    QVariantMap properties{{"sourceListModel", QVariant::fromValue(state)}};
+    QVariantMap properties{{"videoSourceModel", QVariant::fromValue(state)}};
     if (dialogName == "SourceAddDialog") properties.insert("initialName", "Color sample");
     else {
         properties.insert("sourceId", "fixed-source-id");
@@ -1254,11 +1254,11 @@ void MainWindowTest::dialogsUseLightColorsAndReleaseTheirViews()
 {
     auto window = std::make_unique<MainWindow>();
     window->show();
-    auto *state = window->findChild<SourceListModel *>();
+    auto *state = window->findChild<VideoSourceModel *>();
     QVERIFY(state);
     for (int i = 0; i < 2; ++i) {
         window->showDialog(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml"), "Add source",
-            {{"sourceListModel", QVariant::fromValue(state)}});
+            {{"videoSourceModel", QVariant::fromValue(state)}});
         QPointer<QDialog> dialog = window->findChild<QDialog *>("qmlDialog");
         QVERIFY(dialog);
         QPointer<QQuickWidget> view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
@@ -1386,7 +1386,7 @@ void MainWindowTest::sourcePanelOpensAddDialog()
     QFETCH(bool, reload);
     MainWindow window;
     window.show();
-    auto *state = window.findChild<SourceListModel *>();
+    auto *state = window.findChild<VideoSourceModel *>();
     auto *panel = window.findChild<QQuickWidget *>("sourcesQuickWidget");
     QVERIFY(state && panel);
     if (reload) {
@@ -1441,11 +1441,11 @@ void MainWindowTest::addsImageThroughDialog()
     QVERIFY(image.save(path));
     MainWindow window;
     window.show();
-    auto *model = window.findChild<SourceListModel *>();
+    auto *model = window.findChild<VideoSourceModel *>();
     QVERIFY(model);
     const auto open = [&] {
         window.showDialog(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml"), "Add image",
-            {{"sourceListModel", QVariant::fromValue(model)}});
+            {{"videoSourceModel", QVariant::fromValue(model)}});
     };
     open();
     QPointer<QDialog> dialog = window.findChild<QDialog *>("qmlDialog");
@@ -1488,8 +1488,8 @@ void MainWindowTest::addsImageThroughDialog()
     QVERIFY(QMetaObject::invokeMethod(root, "submit"));
     QTRY_VERIFY(dialog.isNull());
     QCOMPARE(model->rowCount(), 1);
-    QCOMPARE(model->index(0, 0).data(SourceListModel::NameRole).toString(), QString("Logo"));
-    QCOMPARE(model->index(0, 0).data(SourceListModel::OriginalSizeRole).toSize(), image.size());
+    QCOMPARE(model->index(0, 0).data(VideoSourceModel::NameRole).toString(), QString("Logo"));
+    QCOMPARE(model->index(0, 0).data(VideoSourceModel::OriginalSizeRole).toSize(), image.size());
 }
 
 void MainWindowTest::cancelsPendingImageThroughDialog_data()
@@ -1509,10 +1509,10 @@ void MainWindowTest::cancelsPendingImageThroughDialog()
     QVERIFY(image.save(path));
     MainWindow window;
     window.show();
-    auto *model = window.findChild<SourceListModel *>();
+    auto *model = window.findChild<VideoSourceModel *>();
     auto *controller = window.findChild<ImageSourceController *>();
     window.showDialog(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml"), "Add image",
-        {{"sourceListModel", QVariant::fromValue(model)}});
+        {{"videoSourceModel", QVariant::fromValue(model)}});
     QPointer<QDialog> dialog = window.findChild<QDialog *>("qmlDialog");
     auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
     QTRY_COMPARE(view->status(), QQuickWidget::Ready);
@@ -1538,7 +1538,7 @@ void MainWindowTest::cancelsPendingImageThroughDialog()
     controller->addImage("Kept", path, &owner);
     QTRY_COMPARE(added.count(), 1);
     QCOMPARE(model->rowCount(), 1);
-    QCOMPARE(model->index(0, 0).data(SourceListModel::NameRole).toString(), QString("Kept"));
+    QCOMPARE(model->index(0, 0).data(VideoSourceModel::NameRole).toString(), QString("Kept"));
 }
 
 void MainWindowTest::sourceAddDialogHandlesInput_data()
@@ -1553,10 +1553,10 @@ void MainWindowTest::sourceAddDialogHandlesInput()
     QFETCH(QString, method);
     MainWindow window;
     window.show();
-    auto *state = window.findChild<SourceListModel *>();
+    auto *state = window.findChild<VideoSourceModel *>();
     QVERIFY(state);
     window.showDialog(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml"), "Add source",
-        {{"sourceListModel", QVariant::fromValue(state)}});
+        {{"videoSourceModel", QVariant::fromValue(state)}});
     QPointer<QDialog> dialog = window.findChild<QDialog *>("qmlDialog");
     QVERIFY(dialog);
     auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
@@ -1597,10 +1597,10 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
 
     MainWindow window;
     window.show();
-    auto *manager = window.findChild<SourceListModel *>();
+    auto *manager = window.findChild<VideoSourceModel *>();
     QVERIFY(manager);
     window.showDialog(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml"), "Add source",
-        {{"sourceListModel", QVariant::fromValue(manager)}});
+        {{"videoSourceModel", QVariant::fromValue(manager)}});
     QPointer<QDialog> dialog = window.findChild<QDialog *>("qmlDialog");
     QVERIFY(dialog);
     auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
@@ -1689,10 +1689,10 @@ void MainWindowTest::sourcePanelRequestsRemoval()
 {
     QFETCH(bool, reload);
     const QString first = "alpha", second = "beta";
-    SourceListModel state(QList<SourceData>{{second, "Beta"}, {first, "Alpha"}});
+    VideoSourceModel state(QList<SourceData>{{second, "Beta"}, {first, "Alpha"}});
     QQuickWidget panel;
     panel.rootContext()->setContextProperty("uiColors", UiColors::values());
-    panel.rootContext()->setContextProperty("sourceListModel", &state);
+    panel.rootContext()->setContextProperty("videoSourceModel", &state);
     panel.setResizeMode(QQuickWidget::SizeRootObjectToView);
     panel.resize(280, 260);
     const QUrl url("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml");
@@ -1770,12 +1770,12 @@ void MainWindowTest::sourceRemovalDialogHandlesConfirmation()
     QList<SourceData> sources{
         {"shared", name, ImageConfig{path}, {image.size()}}};
     if (action != "last") sources.append(SourceData{"remaining", "Remaining"});
-    SourceListModel state(sources);
+    VideoSourceModel state(sources);
     QVERIFY(state.selectSource("shared"));
     MainWindow window;
     window.show();
     window.showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceRemovalDialog.qml")),
-        QStringLiteral("Remove source"), {{"sourceListModel", QVariant::fromValue(&state)},
+        QStringLiteral("Remove source"), {{"videoSourceModel", QVariant::fromValue(&state)},
         {"sourceId", action == "invalid-source" ? QString("missing") : QString("shared")}, {"sourceName", name}});
     QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
     QVERIFY(dialog);
@@ -1973,7 +1973,7 @@ void MainWindowTest::soundSourcesAndDialogs()
     confirm = view->rootObject()->findChild<QQuickItem *>("confirmSoundSourceButton"); QVERIFY(confirm);
     QVERIFY(QMetaObject::invokeMethod(confirm,"clicked")); QTRY_VERIFY(dialog.isNull());
     QCOMPARE(audio->source(id)["name"].toString(),QString("Renamed microphone"));
-    auto *pictures = window.findChild<SourceListModel *>(); QVERIFY(pictures);
+    auto *pictures = window.findChild<VideoSourceModel *>(); QVERIFY(pictures);
     QVERIFY(pictures->addSource({"camera-audio-independent", "Camera", CameraConfig{"missing-independent-camera"}}));
     QVERIFY(pictures->setSourceVisible("camera-audio-independent",false));
     QVERIFY(pictures->removeSource("camera-audio-independent")); QCOMPARE(audio->count(),1);
@@ -2453,7 +2453,7 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
     QTRY_COMPARE(panel.status(), QQuickWidget::Ready);
     panel.show();
     // Test-only data instantiates a row; production starts with an empty source model.
-    std::unique_ptr<QObject> sourceModel;
+    std::unique_ptr<QObject> videoSourceModel;
     if (panelName == QStringLiteral("SourcesPanel")) {
         QQmlComponent component(panel.engine());
         component.setData(QStringLiteral("import QtQml.Models\nListModel { ListElement { "
@@ -2461,11 +2461,11 @@ void MainWindowTest::panelIconsRenderInDisabledAndEnabledStates()
                           "sourceVisible: %1; sourceLocked: %2; sourceCaptureState: ''; sourceCaptureError: '' } }")
                           .arg(alternateSourceState ? "false" : "true",
                                alternateSourceState ? "true" : "false").toUtf8(), QUrl());
-        sourceModel.reset(component.create());
-        QVERIFY2(sourceModel, qPrintable(component.errorString()));
+        videoSourceModel.reset(component.create());
+        QVERIFY2(videoSourceModel, qPrintable(component.errorString()));
         auto *list = panel.rootObject()->findChild<QObject *>(QStringLiteral("sourceList"));
         QVERIFY(list);
-        QVERIFY(list->setProperty("model", QVariant::fromValue(sourceModel.get())));
+        QVERIFY(list->setProperty("model", QVariant::fromValue(videoSourceModel.get())));
         QTRY_COMPARE(list->property("count").toInt(), 1);
         auto *emptyLabel = panel.rootObject()->findChild<QQuickItem *>(QStringLiteral("emptySourcesLabel"));
         QVERIFY(emptyLabel);
@@ -2558,7 +2558,7 @@ void MainWindowTest::sourceFiltersDialogEditsAndRetainsState()
 
     MainWindow window;
     window.show();
-    auto *model = window.findChild<SourceListModel *>();
+    auto *model = window.findChild<VideoSourceModel *>();
     auto *panel = window.findChild<QQuickWidget *>("sourcesQuickWidget");
     QVERIFY(model && panel && panel->rootObject());
     std::function<QQuickItem *(QQuickItem *, const QString &)> findItem;
@@ -2658,7 +2658,7 @@ void MainWindowTest::displayCaptureDialogs()
 
     MainWindow window;
     window.show();
-    auto *model = window.findChild<SourceListModel *>();
+    auto *model = window.findChild<VideoSourceModel *>();
     auto *panel = window.findChild<QQuickWidget *>("sourcesQuickWidget");
     QVERIFY(model && panel);
     QVERIFY(QMetaObject::invokeMethod(panel->rootObject(), "sourceAddDialogRequested"));
@@ -2707,7 +2707,7 @@ void MainWindowTest::displayCaptureDialogs()
     QCOMPARE(model->displayProperties(id).value("displayId").toString(), QString("another-missing-test-display"));
     QVERIFY(model->displayProperties(id).value("captureCursor").toBool());
     QTRY_COMPARE(model->displayProperties(id).value("state").toString(), QString("error"));
-    QCOMPARE(model->index(0, 0).data(SourceListModel::TransformRole).value<SourceTransform>(), transform);
+    QCOMPARE(model->index(0, 0).data(VideoSourceModel::TransformRole).value<SourceTransform>(), transform);
     QCOMPARE(model->sourceFilters(id)[0].toMap()["id"].toString(), filter);
     QVERIFY(QMetaObject::invokeMethod(root->findChild<QQuickItem *>("retryDisplayButton"), "clicked"));
     QTRY_COMPARE(model->displayProperties(id).value("state").toString(), QString("error"));
@@ -2731,7 +2731,7 @@ void MainWindowTest::cameraPropertiesDialogs()
 {
 
     MainWindow window; window.show();
-    auto *model = window.findChild<SourceListModel *>();
+    auto *model = window.findChild<VideoSourceModel *>();
     auto *controller = window.findChild<CameraCaptureController *>();
     auto *panel = window.findChild<QQuickWidget *>("sourcesQuickWidget");
     QVERIFY(model && controller && panel && panel->rootObject());
@@ -2780,7 +2780,7 @@ void MainWindowTest::cameraHardwarePreview()
     auto *preview = window.findChild<PreviewWidget *>("previewWidget");
     QVERIFY2(preview, "Requires an interactive desktop OpenGL preview");
     QTRY_VERIFY_WITH_TIMEOUT(preview->isValid(), 10000);
-    auto *model = window.findChild<SourceListModel *>();
+    auto *model = window.findChild<VideoSourceModel *>();
     auto *controller = window.findChild<CameraCaptureController *>();
     controller->refreshDevices();
     QTRY_VERIFY_WITH_TIMEOUT(!controller->refreshing(), 10000);
@@ -2825,7 +2825,7 @@ void MainWindowTest::cameraHardwarePreview()
         mouse(QEvent::MouseMove, to, Qt::NoButton, Qt::LeftButton);
         QTest::qWait(150);
         mouse(QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
-        const auto actual = model->index(0, 0).data(SourceListModel::TransformRole).value<SourceTransform>();
+        const auto actual = model->index(0, 0).data(VideoSourceModel::TransformRole).value<SourceTransform>();
         if (operation == 0) QVERIFY(QLineF(actual.center, QPointF(1080, 600)).length() < 0.001);
         else if (operation == 1) {
             QVERIFY(qAbs(actual.size.width() - 660) < 0.001);
@@ -2853,7 +2853,7 @@ void MainWindowTest::cameraHardwarePreview()
 void MainWindowTest::addsCameraThroughDialog()
 {
     MainWindow window; window.show();
-    auto *model = window.findChild<SourceListModel *>();
+    auto *model = window.findChild<VideoSourceModel *>();
     auto *panel = window.findChild<QQuickWidget *>("sourcesQuickWidget");
     QVERIFY(model && panel && panel->rootObject());
     QVERIFY(QMetaObject::invokeMethod(panel->rootObject(), "sourceAddDialogRequested"));
@@ -2870,7 +2870,7 @@ void MainWindowTest::addsCameraThroughDialog()
     auto *confirm = root->findChild<QQuickItem *>("confirmSourceAddButton"); QVERIFY(confirm && confirm->isEnabled());
     QVERIFY(QMetaObject::invokeMethod(confirm, "clicked")); QTRY_VERIFY(dialog.isNull());
     QCOMPARE(model->rowCount(), 1);
-    QCOMPARE(model->index(0, 0).data(SourceListModel::TypeRole).toString(), QString("camera"));
+    QCOMPARE(model->index(0, 0).data(VideoSourceModel::TypeRole).toString(), QString("camera"));
     const QString id = model->currentSourceId();
     QCOMPARE(model->cameraProperties(id).value("deviceId").toString(), QString("missing-add-dialog-camera"));
     QVERIFY(model->canFilterCurrentSource()); QVERIFY(model->canEditCurrentSource());

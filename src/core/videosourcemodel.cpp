@@ -1,30 +1,30 @@
-#include "sourcelistmodel.h"
+#include "videosourcemodel.h"
 #include <QUuid>
 
-SourceListModel::SourceListModel(QObject *parent)
-    : SourceListModel(QList<SourceData>{}, parent)
+VideoSourceModel::VideoSourceModel(QObject *parent)
+    : VideoSourceModel(QList<SourceData>{}, parent)
 {
 }
 
-SourceListModel::SourceListModel(const QList<SourceData> &sources, QObject *parent)
+VideoSourceModel::VideoSourceModel(const QList<SourceData> &sources, QObject *parent)
     : QAbstractListModel(parent), m_sources(sources)
 {
     for (auto &source : m_sources) {
         if (source.transform.size.isEmpty())
             source.transform = SourceGeometry::initial(source.runtime.originalSize);
     }
-    connect(this, &SourceListModel::currentSourceIdChanged, this, &SourceListModel::sourceMoveAvailabilityChanged);
-    connect(this, &QAbstractItemModel::rowsInserted, this, &SourceListModel::sourceMoveAvailabilityChanged);
-    connect(this, &QAbstractItemModel::rowsRemoved, this, &SourceListModel::sourceMoveAvailabilityChanged);
-    connect(this, &QAbstractItemModel::rowsMoved, this, &SourceListModel::sourceMoveAvailabilityChanged);
+    connect(this, &VideoSourceModel::currentSourceIdChanged, this, &VideoSourceModel::sourceMoveAvailabilityChanged);
+    connect(this, &QAbstractItemModel::rowsInserted, this, &VideoSourceModel::sourceMoveAvailabilityChanged);
+    connect(this, &QAbstractItemModel::rowsRemoved, this, &VideoSourceModel::sourceMoveAvailabilityChanged);
+    connect(this, &QAbstractItemModel::rowsMoved, this, &VideoSourceModel::sourceMoveAvailabilityChanged);
 }
 
-int SourceListModel::rowCount(const QModelIndex &parent) const
+int VideoSourceModel::rowCount(const QModelIndex &parent) const
 {
     return parent.isValid() ? 0 : int(m_sources.size());
 }
 
-QVariant SourceListModel::data(const QModelIndex &index, int role) const
+QVariant VideoSourceModel::data(const QModelIndex &index, int role) const
 {
     const auto &items = m_sources;
     if (!index.isValid() || index.model() != this || index.column() != 0
@@ -69,7 +69,7 @@ QVariant SourceListModel::data(const QModelIndex &index, int role) const
     }
 }
 
-QHash<int, QByteArray> SourceListModel::roleNames() const
+QHash<int, QByteArray> VideoSourceModel::roleNames() const
 {
     return {{IdRole, "sourceId"}, {NameRole, "sourceName"}, {TypeRole, "sourceType"},
             {FilePathRole, "sourceFilePath"}, {OriginalSizeRole, "sourceOriginalSize"},
@@ -78,7 +78,7 @@ QHash<int, QByteArray> SourceListModel::roleNames() const
             {CameraConfigRole, "sourceCameraConfig"}, {CaptureStateRole, "sourceCaptureState"}, {CaptureErrorRole, "sourceCaptureError"}};
 }
 
-bool SourceListModel::selectSource(const QString &id)
+bool VideoSourceModel::selectSource(const QString &id)
 {
     if (!id.isEmpty()) {
         bool found = false;
@@ -98,7 +98,7 @@ bool SourceListModel::selectSource(const QString &id)
     return true;
 }
 
-QString SourceListModel::suggestedSourceName(const QString &baseName) const
+QString VideoSourceModel::suggestedSourceName(const QString &baseName) const
 {
     const QString base = baseName.trimmed();
     if (base.isEmpty())
@@ -119,7 +119,7 @@ QString SourceListModel::suggestedSourceName(const QString &baseName) const
     }
 }
 
-bool SourceListModel::removeSource(const QString &sourceId)
+bool VideoSourceModel::removeSource(const QString &sourceId)
 {
     const int row = sourceRow(sourceId);
     if (row < 0)
@@ -132,7 +132,7 @@ bool SourceListModel::removeSource(const QString &sourceId)
     return true;
 }
 
-int SourceListModel::sourceRow(const QString &sourceId) const
+int VideoSourceModel::sourceRow(const QString &sourceId) const
 {
     if (sourceId.isEmpty())
         return -1;
@@ -143,18 +143,18 @@ int SourceListModel::sourceRow(const QString &sourceId) const
     return -1;
 }
 
-bool SourceListModel::canMoveCurrentSourceUp() const
+bool VideoSourceModel::canMoveCurrentSourceUp() const
 {
     return sourceRow(m_currentSourceId) > 0;
 }
 
-bool SourceListModel::canMoveCurrentSourceDown() const
+bool VideoSourceModel::canMoveCurrentSourceDown() const
 {
     const int row = sourceRow(m_currentSourceId);
     return row >= 0 && row + 1 < rowCount();
 }
 
-bool SourceListModel::moveSource(const QString &sourceId, int offset)
+bool VideoSourceModel::moveSource(const QString &sourceId, int offset)
 {
     if (offset != -1 && offset != 1)
         return false;
@@ -171,7 +171,7 @@ bool SourceListModel::moveSource(const QString &sourceId, int offset)
     return true;
 }
 
-bool SourceListModel::setSourceFlag(const QString &sourceId, int role, bool value)
+bool VideoSourceModel::setSourceFlag(const QString &sourceId, int role, bool value)
 {
     const int row = sourceRow(sourceId);
     if (row < 0)
@@ -186,17 +186,17 @@ bool SourceListModel::setSourceFlag(const QString &sourceId, int role, bool valu
     return true;
 }
 
-bool SourceListModel::setSourceVisible(const QString &sourceId, bool visible)
+bool VideoSourceModel::setSourceVisible(const QString &sourceId, bool visible)
 {
     return setSourceFlag(sourceId, VisibleRole, visible);
 }
 
-bool SourceListModel::setSourceLocked(const QString &sourceId, bool locked)
+bool VideoSourceModel::setSourceLocked(const QString &sourceId, bool locked)
 {
     return setSourceFlag(sourceId, LockedRole, locked);
 }
 
-bool SourceListModel::addSource(const SourceData &source)
+bool VideoSourceModel::addSource(const SourceData &source)
 {
     if (source.id.trimmed().isEmpty() || sourceRow(source.id) >= 0)
         return false;
@@ -213,7 +213,7 @@ bool SourceListModel::addSource(const SourceData &source)
     return true;
 }
 
-bool SourceListModel::setSourceOriginalSize(const QString &id, const QSize &size)
+bool VideoSourceModel::setSourceOriginalSize(const QString &id, const QSize &size)
 {
     const int row = sourceRow(id);
     if (row < 0) return false;
@@ -235,7 +235,7 @@ bool SourceListModel::setSourceOriginalSize(const QString &id, const QSize &size
     return true;
 }
 
-bool SourceListModel::setSourceTransform(const QString &id, const SourceTransform &transform)
+bool VideoSourceModel::setSourceTransform(const QString &id, const SourceTransform &transform)
 {
     const int row = sourceRow(id);
     if (row < 0 || m_sources[row].locked || !SourceGeometry::valid(transform)
@@ -250,13 +250,13 @@ bool SourceListModel::setSourceTransform(const QString &id, const SourceTransfor
     return true;
 }
 
-bool SourceListModel::canFilterSource(const QString &sourceId) const
+bool VideoSourceModel::canFilterSource(const QString &sourceId) const
 {
     const int row = sourceRow(sourceId);
     return row >= 0 && (m_sources[row].type() == SourceType::Image || m_sources[row].type() == SourceType::DisplayCapture || m_sources[row].type() == SourceType::Camera);
 }
 
-QVariantList SourceListModel::sourceFilters(const QString &sourceId) const
+QVariantList VideoSourceModel::sourceFilters(const QString &sourceId) const
 {
     const int row = sourceRow(sourceId);
     if (row < 0) return {};
@@ -268,7 +268,7 @@ QVariantList SourceListModel::sourceFilters(const QString &sourceId) const
     return result;
 }
 
-int SourceListModel::filterRow(int row, const QString &filterId) const
+int VideoSourceModel::filterRow(int row, const QString &filterId) const
 {
     if (row < 0 || filterId.isEmpty()) return -1;
     const auto &filters = m_sources[row].filters;
@@ -277,14 +277,14 @@ int SourceListModel::filterRow(int row, const QString &filterId) const
     return -1;
 }
 
-void SourceListModel::notifyFiltersChanged(int row)
+void VideoSourceModel::notifyFiltersChanged(int row)
 {
     const QString id = m_sources[row].id;
     emit dataChanged(index(row, 0), index(row, 0), {FiltersRole});
     emit sourceFiltersChanged(id);
 }
 
-QString SourceListModel::addColorCorrection(const QString &sourceId)
+QString VideoSourceModel::addColorCorrection(const QString &sourceId)
 {
     if (!canFilterSource(sourceId)) return {};
     const int row = sourceRow(sourceId);
@@ -295,7 +295,7 @@ QString SourceListModel::addColorCorrection(const QString &sourceId)
     return filter.id;
 }
 
-bool SourceListModel::removeFilter(const QString &sourceId, const QString &filterId)
+bool VideoSourceModel::removeFilter(const QString &sourceId, const QString &filterId)
 {
     const int row = sourceRow(sourceId);
     const int filter = filterRow(row, filterId);
@@ -305,7 +305,7 @@ bool SourceListModel::removeFilter(const QString &sourceId, const QString &filte
     return true;
 }
 
-bool SourceListModel::moveFilter(const QString &sourceId, const QString &filterId, int offset)
+bool VideoSourceModel::moveFilter(const QString &sourceId, const QString &filterId, int offset)
 {
     const int row = sourceRow(sourceId);
     const int from = filterRow(row, filterId);
@@ -317,7 +317,7 @@ bool SourceListModel::moveFilter(const QString &sourceId, const QString &filterI
     return true;
 }
 
-bool SourceListModel::setFilterEnabled(const QString &sourceId, const QString &filterId, bool enabled)
+bool VideoSourceModel::setFilterEnabled(const QString &sourceId, const QString &filterId, bool enabled)
 {
     const int row = sourceRow(sourceId);
     const int filter = filterRow(row, filterId);
@@ -330,7 +330,7 @@ bool SourceListModel::setFilterEnabled(const QString &sourceId, const QString &f
     return true;
 }
 
-bool SourceListModel::setFilterParameters(const QString &sourceId, const QString &filterId,
+bool VideoSourceModel::setFilterParameters(const QString &sourceId, const QString &filterId,
                                          double brightness, double contrast, double saturation)
 {
     const int row = sourceRow(sourceId);
@@ -349,13 +349,13 @@ bool SourceListModel::setFilterParameters(const QString &sourceId, const QString
     return true;
 }
 
-bool SourceListModel::canEditCurrentDisplay() const
+bool VideoSourceModel::canEditCurrentDisplay() const
 {
     const int row = sourceRow(m_currentSourceId);
     return row >= 0 && m_sources[row].type() == SourceType::DisplayCapture;
 }
 
-QVariantMap SourceListModel::displayProperties(const QString &id) const
+QVariantMap VideoSourceModel::displayProperties(const QString &id) const
 {
     const int row = sourceRow(id);
     if (row < 0) return {};
@@ -365,7 +365,7 @@ QVariantMap SourceListModel::displayProperties(const QString &id) const
             {"state", m_sources[row].runtime.captureState}, {"error", m_sources[row].runtime.captureError}};
 }
 
-bool SourceListModel::setDisplayConfig(const QString &id, const QString &displayId, bool cursor)
+bool VideoSourceModel::setDisplayConfig(const QString &id, const QString &displayId, bool cursor)
 {
     const int row = sourceRow(id);
     if (row < 0 || displayId.trimmed().isEmpty()) return false;
@@ -378,7 +378,7 @@ bool SourceListModel::setDisplayConfig(const QString &id, const QString &display
     return true;
 }
 
-bool SourceListModel::setSourceCaptureStatus(const QString &id, const QString &state, const QString &error)
+bool VideoSourceModel::setSourceCaptureStatus(const QString &id, const QString &state, const QString &error)
 {
     const int row = sourceRow(id);
     if (row < 0) return false;
@@ -392,13 +392,13 @@ bool SourceListModel::setSourceCaptureStatus(const QString &id, const QString &s
     return true;
 }
 
-bool SourceListModel::canEditCurrentSource() const
+bool VideoSourceModel::canEditCurrentSource() const
 {
     const int row = sourceRow(m_currentSourceId);
     return row >= 0 && (m_sources[row].type() == SourceType::DisplayCapture || m_sources[row].type() == SourceType::Camera);
 }
 
-bool SourceListModel::cameraDeviceInUse(const QString &deviceId, const QString &exceptId) const
+bool VideoSourceModel::cameraDeviceInUse(const QString &deviceId, const QString &exceptId) const
 {
     for (const auto &source : m_sources)
         if (const auto *config = std::get_if<CameraConfig>(&source.config))
@@ -406,7 +406,7 @@ bool SourceListModel::cameraDeviceInUse(const QString &deviceId, const QString &
     return false;
 }
 
-QVariantMap SourceListModel::cameraProperties(const QString &id) const
+QVariantMap VideoSourceModel::cameraProperties(const QString &id) const
 {
     const int row = sourceRow(id);
     if (row < 0 || m_sources[row].type() != SourceType::Camera) return {};
@@ -418,7 +418,7 @@ QVariantMap SourceListModel::cameraProperties(const QString &id) const
     return result;
 }
 
-bool SourceListModel::setCameraConfig(const QString &id, const CameraConfig &value)
+bool VideoSourceModel::setCameraConfig(const QString &id, const CameraConfig &value)
 {
     const int row = sourceRow(id);
     if (row < 0 || !value.valid() || cameraDeviceInUse(value.deviceId, id)) return false;
@@ -431,7 +431,7 @@ bool SourceListModel::setCameraConfig(const QString &id, const CameraConfig &val
     return true;
 }
 
-void SourceListModel::setCameraActualMode(const QString &id, const QSize &size, int numerator, int denominator)
+void VideoSourceModel::setCameraActualMode(const QString &id, const QSize &size, int numerator, int denominator)
 {
     const int row = sourceRow(id);
     if (row < 0) return;

@@ -9,7 +9,7 @@ Rectangle {
     implicitWidth: 220
     implicitHeight: 320
     color: themeColors.background.panel
-    readonly property var state: typeof sourceListModel !== "undefined" ? sourceListModel : null
+    readonly property var state: typeof videoSourceModel !== "undefined" ? videoSourceModel : null
     signal sourceAddDialogRequested()
     signal sourceRemovalDialogRequested(string sourceId)
     signal sourceFiltersDialogRequested(string sourceId)

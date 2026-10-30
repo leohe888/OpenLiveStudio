@@ -9,12 +9,12 @@
 #include <map>
 #include <vector>
 
-class SourceListModel;
+class VideoSourceModel;
 class DisplayCaptureController : public QObject {
     Q_OBJECT
     Q_PROPERTY(QVariantList displays READ displays NOTIFY displaysChanged)
 public:
-    explicit DisplayCaptureController(SourceListModel &model, QObject *parent = nullptr);
+    explicit DisplayCaptureController(VideoSourceModel &model, QObject *parent = nullptr);
     ~DisplayCaptureController() override;
     QVariantList displays() const { return m_displays; }
     Q_INVOKABLE void refreshDisplays();
@@ -40,7 +40,7 @@ private:
     void poll();
     void publish();
     void stop(Entry &entry);
-    SourceListModel &m_model;
+    VideoSourceModel &m_model;
     QVariantList m_displays;
     QList<PreviewSource> m_images;
     std::map<QString, Entry> m_entries;

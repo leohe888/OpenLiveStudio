@@ -1,5 +1,5 @@
 #include "imagesourcecontroller.h"
-#include "sourcelistmodel.h"
+#include "videosourcemodel.h"
 #include <QBuffer>
 #include <QFile>
 #include <QFileDialog>
@@ -20,7 +20,7 @@ private slots:
         image.fill(QColor(255, 0, 0, 128));
         const QString path = dir.filePath("image.png");
         QVERIFY(image.save(path));
-        SourceListModel model;
+        VideoSourceModel model;
         ImageSourceController controller(model);
         QList<PreviewSource> snapshot;
         int updates = 0;
@@ -34,9 +34,9 @@ private slots:
         QCOMPARE(model.rowCount(), 1);
         QCOMPARE(snapshot.size(), 1);
         QCOMPARE(snapshot[0].image.pixelColor(0, 0), QColor(255, 0, 0, 128));
-        QCOMPARE(model.index(0, 0).data(SourceListModel::NameRole).toString(), QString("First"));
-        QCOMPARE(model.index(0, 0).data(SourceListModel::OriginalSizeRole).toSize(), image.size());
-        QVERIFY(QFileInfo(model.index(0, 0).data(SourceListModel::FilePathRole).toString()).isAbsolute());
+        QCOMPARE(model.index(0, 0).data(VideoSourceModel::NameRole).toString(), QString("First"));
+        QCOMPARE(model.index(0, 0).data(VideoSourceModel::OriginalSizeRole).toSize(), image.size());
+        QVERIFY(QFileInfo(model.index(0, 0).data(VideoSourceModel::FilePathRole).toString()).isAbsolute());
         const QString first = snapshot[0].id;
         const auto key = snapshot[0].image.cacheKey();
         const auto filter = model.addColorCorrection(first);
@@ -82,7 +82,7 @@ private slots:
         QVERIFY(file.open(QIODevice::WriteOnly));
         file.write("not an image");
         file.close();
-        SourceListModel model;
+        VideoSourceModel model;
         ImageSourceController controller(model);
         QSignalSpy errors(&controller, &ImageSourceController::addFailed);
         QSignalSpy added(&controller, &ImageSourceController::imageAdded);
@@ -107,7 +107,7 @@ private slots:
         controller.addImage("Kept", path, &owner);
         QTRY_COMPARE(added.count(), 1);
         QCOMPARE(model.rowCount(), 1);
-        QCOMPARE(model.index(0, 0).data(SourceListModel::NameRole).toString(), QString("Kept"));
+        QCOMPARE(model.index(0, 0).data(VideoSourceModel::NameRole).toString(), QString("Kept"));
         QCOMPARE(errors.count(), 4);
     }
 
@@ -129,12 +129,12 @@ private slots:
         QVERIFY(file.open(QIODevice::WriteOnly));
         QCOMPARE(file.write(jpeg), jpeg.size());
         file.close();
-        SourceListModel model;
+        VideoSourceModel model;
         ImageSourceController controller(model);
         QObject owner;
         controller.addImage("Rotated", path, &owner);
         QTRY_COMPARE(model.rowCount(), 1);
-        QCOMPARE(model.index(0, 0).data(SourceListModel::OriginalSizeRole).toSize(), QSize(20, 40));
+        QCOMPARE(model.index(0, 0).data(VideoSourceModel::OriginalSizeRole).toSize(), QSize(20, 40));
     }
 
     void readsOnlyFirstAnimationFrame()
@@ -148,7 +148,7 @@ private slots:
             "R0lGODlhAgABAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQAAQAAACwAAAAAAgABAAAIBQABAAgIACH5BAEBAAEALAAAAAACAAEAgQAA/wAAAAAAAAAAAAgFAAEACAgAOw==");
         QCOMPARE(file.write(gif), gif.size());
         file.close();
-        SourceListModel model;
+        VideoSourceModel model;
         ImageSourceController controller(model);
         QList<PreviewSource> snapshot;
         connect(&controller, &ImageSourceController::sourcesChanged, this,
@@ -161,7 +161,7 @@ private slots:
 
     void browseCancellationReturnsEmptyPath()
     {
-        SourceListModel model;
+        VideoSourceModel model;
         ImageSourceController controller(model);
         const bool previous = QApplication::testAttribute(Qt::AA_DontUseNativeDialogs);
         QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
@@ -188,7 +188,7 @@ private slots:
         image.fill(Qt::green);
         const QString path = dir.filePath("valid.png");
         QVERIFY(image.save(path));
-        SourceListModel model({{"valid", "Valid", ImageConfig{path}},
+        VideoSourceModel model({{"valid", "Valid", ImageConfig{path}},
                                {"bad", "Bad", ImageConfig{dir.filePath("missing.png")}}});
         ImageSourceController controller(model);
         QSignalSpy errors(&controller, &ImageSourceController::sourceError);
@@ -198,7 +198,7 @@ private slots:
         QTRY_COMPARE(errors.count(), 1);
         QTRY_VERIFY(snapshot.size() == 2 && !snapshot[0].image.isNull());
         QVERIFY(snapshot[1].image.isNull());
-        QCOMPARE(model.index(0, 0).data(SourceListModel::OriginalSizeRole).toSize(), image.size());
+        QCOMPARE(model.index(0, 0).data(VideoSourceModel::OriginalSizeRole).toSize(), image.size());
         model.setSourceVisible("bad", false);
         model.setSourceVisible("bad", true);
         QCOMPARE(errors.count(), 1);
