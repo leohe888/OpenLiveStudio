@@ -58,7 +58,6 @@ private:
     void setupMixerDock();
     void setupControlsDock();
     void setupViewActions();
-    void setupHelpActions();
     void resetDockLayout();
     void updateStatusLayout();
     void updateOutputStatus();
@@ -66,7 +65,6 @@ private:
     QLabel *m_outputStatus = nullptr;
     QLabel *m_outputMetrics = nullptr;
     QMenu *m_viewMenu = nullptr;
-    QMenu *m_helpMenu = nullptr;
     QDockWidget *m_sourcesDock = nullptr;
     QDockWidget *m_mixerDock = nullptr;
     QDockWidget *m_controlsDock = nullptr;

@@ -16,7 +16,6 @@
 
 #include <QAction>
 #include <QApplication>
-#include <QCoreApplication>
 #include <QDebug>
 #include <QDialog>
 #include <QDockWidget>
@@ -89,7 +88,6 @@ MainWindow::MainWindow(QWidget *parent)
     setupMixerDock();
     setupControlsDock();
     setupViewActions();
-    setupHelpActions();
     resetDockLayout();
     updateStatusLayout();
     // Destroy the dock QML contexts before their shared state.
@@ -452,8 +450,6 @@ void MainWindow::setupMenuBar()
     m_viewMenu = menuBar()->addMenu(tr("视图"));
     m_viewMenu->setObjectName(QStringLiteral("viewMenu"));
 
-    m_helpMenu = menuBar()->addMenu(tr("帮助"));
-    m_helpMenu->setObjectName(QStringLiteral("helpMenu"));
 }
 
 void MainWindow::setupViewActions()
@@ -469,28 +465,6 @@ void MainWindow::setupViewActions()
     auto *resetAction = m_viewMenu->addAction(tr("重置布局"));
     resetAction->setObjectName(QStringLiteral("resetLayoutAction"));
     connect(resetAction, &QAction::triggered, this, &MainWindow::resetDockLayout);
-}
-
-void MainWindow::setupHelpActions()
-{
-    auto *aboutAction = m_helpMenu->addAction(tr("关于 OpenLive Studio…"));
-    aboutAction->setObjectName(QStringLiteral("aboutAction"));
-    connect(aboutAction, &QAction::triggered, this, [this] {
-        const QUrl source(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/AboutDialog.qml"));
-        for (auto *dialog : findChildren<QDialog *>(QString(), Qt::FindDirectChildrenOnly)) {
-            if (dialog->property("qmlSource").toUrl() == source && dialog->isVisible()) {
-                dialog->raise();
-                dialog->activateWindow();
-                return;
-            }
-        }
-        const QString version = QCoreApplication::applicationVersion();
-        showDialog(source, tr("关于 OpenLive Studio"), {
-            {QStringLiteral("productName"), windowTitle()},
-            {QStringLiteral("versionText"), version.isEmpty() ? tr("开发版本（未设置版本号）") : version},
-            {QStringLiteral("qtVersion"), QString::fromLatin1(qVersion())}
-        });
-    });
 }
 
 void MainWindow::setupPreview()

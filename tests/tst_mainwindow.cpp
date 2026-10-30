@@ -91,7 +91,6 @@ private slots:
     void qmlDialogReceivesInitialPropertiesAndCloses();
     void qmlDialogShowsLoadErrors_data();
     void qmlDialogShowsLoadErrors();
-    void aboutActionShowsProjectInfoAndReusesDialog();
     void sourcePanelOpensAddDialog_data();
     void sourcePanelOpensAddDialog();
     void addsImageThroughDialog();
@@ -461,7 +460,8 @@ void MainWindowTest::hasWindowShell()
     QVERIFY(window.centralWidget());
     QVERIFY(window.centralWidget()->isVisible());
     QVERIFY(window.menuBar()->isVisible());
-    QCOMPARE(window.menuBar()->actions().size(), 2);
+    QCOMPARE(window.menuBar()->actions().size(), 1);
+    QCOMPARE(window.menuBar()->actions().first()->menu(), window.findChild<QMenu *>("viewMenu"));
     QVERIFY(!window.findChild<QMenu *>("themeMenu"));
     QVERIFY(window.findChildren<QToolBar *>().isEmpty());
     QVERIFY(window.statusBar()->isVisible());
@@ -1117,8 +1117,8 @@ void MainWindowTest::mixerAndControlColors()
 void MainWindowTest::basicDialogColors_data()
 {
     QTest::addColumn<QString>("dialogName");
-        for (const auto &name : {QString("AboutDialog"), QString("SourceAddDialog"), QString("SourceRemovalDialog")})
-            QTest::newRow(qPrintable(name)) << name;
+    for (const auto &name : {QString("SourceAddDialog"), QString("SourceRemovalDialog")})
+        QTest::newRow(qPrintable(name)) << name;
 }
 
 void MainWindowTest::basicDialogColors()
@@ -1129,16 +1129,11 @@ void MainWindowTest::basicDialogColors()
     window.show();
     auto *state = window.findChild<SourceListModel *>();
     QVERIFY(state);
-    QVariantMap properties;
-    if (dialogName == "AboutDialog") {
-        properties = {{"productName", "OpenLive Studio"}, {"versionText", "Development"}, {"qtVersion", qVersion()}};
-    } else {
-        properties = {{"sourceListModel", QVariant::fromValue(state)}};
-        if (dialogName == "SourceAddDialog") properties.insert("initialName", "Color sample");
-        else {
-            properties.insert("sourceId", "fixed-source-id");
-            properties.insert("sourceName", "Color sample");
-        }
+    QVariantMap properties{{"sourceListModel", QVariant::fromValue(state)}};
+    if (dialogName == "SourceAddDialog") properties.insert("initialName", "Color sample");
+    else {
+        properties.insert("sourceId", "fixed-source-id");
+        properties.insert("sourceName", "Color sample");
     }
     const QUrl url(QString("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(dialogName));
     for (int opening = 0; opening < 2; ++opening) {
@@ -1162,7 +1157,7 @@ void MainWindowTest::basicDialogColors()
             QVERIFY(QMetaObject::invokeMethod(input, "selectAll"));
             input->forceActiveFocus();
         }
-        if (dialogName != "AboutDialog") root->setProperty("errorText", "Validation sample");
+        root->setProperty("errorText", "Validation sample");
         {
 
             QCOMPARE(view->rootObject(), root.data());
@@ -1189,7 +1184,7 @@ void MainWindowTest::basicDialogColors()
                 }
                 const auto token = name.endsWith("Error") ? "status.error"
                     : (disabledActionText ? "text.disabled"
-                    : (name == "aboutVersion" || name == "aboutQtVersion" || name == "sourceRemovalHint" || name == "sourceTypeUnavailableHint" || name == "displayCaptureHint" ? "text.secondary" : "text.primary"));
+                    : (name == "sourceRemovalHint" || name == "sourceTypeUnavailableHint" || name == "displayCaptureHint" ? "text.secondary" : "text.primary"));
                 QCOMPARE(item->property("color").value<QColor>(), UiColors::color(token));
                 if (name.endsWith("Error")) QCOMPARE(item->property("text").toString(), "Validation sample");
             }
@@ -1241,8 +1236,7 @@ void MainWindowTest::basicDialogColors()
             QCOMPARE(indicator->property("arrowColor").value<QColor>(), UiColors::color("icon.disabled"));
             type->setEnabled(true);
         }
-        auto *button = root->findChild<QQuickItem *>(dialogName == "AboutDialog" ? "closeAboutButton"
-            : (dialogName == "SourceAddDialog" ? "cancelSourceAddButton" : "cancelSourceRemovalButton"));
+        auto *button = root->findChild<QQuickItem *>(dialogName == "SourceAddDialog" ? "cancelSourceAddButton" : "cancelSourceRemovalButton");
         QVERIFY(button);
         auto *background = button->property("background").value<QQuickItem *>();
         QVERIFY(background);
@@ -1281,10 +1275,11 @@ void MainWindowTest::dialogsUseLightColorsAndReleaseTheirViews()
 {
     auto window = std::make_unique<MainWindow>();
     window->show();
-    auto *action = window->findChild<QAction *>("aboutAction");
-    QVERIFY(action);
+    auto *state = window->findChild<SourceListModel *>();
+    QVERIFY(state);
     for (int i = 0; i < 2; ++i) {
-        action->trigger();
+        window->showDialog(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml"), "Add source",
+            {{"sourceListModel", QVariant::fromValue(state)}});
         QPointer<QDialog> dialog = window->findChild<QDialog *>("qmlDialog");
         QVERIFY(dialog);
         QPointer<QQuickWidget> view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
@@ -1398,61 +1393,6 @@ void MainWindowTest::qmlDialogShowsLoadErrors()
     QTest::keyClick(dialog, Qt::Key_Escape);
     QTRY_VERIFY(dialog.isNull());
     QVERIFY(window.isVisible());
-}
-
-void MainWindowTest::aboutActionShowsProjectInfoAndReusesDialog()
-{
-    MainWindow window;
-    window.show();
-    auto *action = window.findChild<QAction *>(QStringLiteral("aboutAction"));
-    QVERIFY(action);
-    QVERIFY(action->isEnabled());
-    action->trigger();
-    QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
-    QVERIFY(dialog);
-    auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
-    QVERIFY(view);
-    QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-    QPointer<QQuickItem> root = view->rootObject();
-    QVERIFY(root);
-    QCOMPARE(root->objectName(), QStringLiteral("aboutDialogContent"));
-    QCOMPARE(root->property("productName").toString(), window.windowTitle());
-    QCOMPARE(root->property("qtVersion").toString(), QString::fromLatin1(qVersion()));
-    const QString version = QCoreApplication::applicationVersion();
-    QCOMPARE(root->property("versionText").toString(), version.isEmpty()
-        ? QString::fromUtf8("开发版本（未设置版本号）") : version);
-    for (const auto *name : {"aboutProductName", "aboutVersion", "aboutQtVersion"}) {
-        auto *label = root->findChild<QQuickItem *>(QLatin1String(name));
-        QVERIFY(label);
-        QVERIFY(label->isVisible());
-        QVERIFY(!label->property("text").toString().isEmpty());
-    }
-    action->trigger();
-    QCOMPARE(window.findChildren<QDialog *>().size(), 1);
-    QCOMPARE(view->rootObject(), root.data());
-    dialog->resize(480, 280);
-    QTRY_COMPARE(root->size(), QSizeF(view->size()));
-    auto *button = root->findChild<QQuickItem *>(QStringLiteral("closeAboutButton"));
-    QVERIFY(button);
-    QVERIFY(button->isEnabled());
-    QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
-        button->mapToScene(button->boundingRect().center()).toPoint());
-    QTRY_VERIFY(dialog.isNull());
-    QVERIFY(root.isNull());
-    action->trigger();
-    dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
-    QVERIFY(dialog);
-    QTRY_VERIFY(dialog->isVisible());
-    QTest::keyClick(dialog, Qt::Key_Escape);
-    QTRY_VERIFY(dialog.isNull());
-    QVERIFY(window.isVisible());
-
-    auto *viewMenu = window.findChild<QMenu *>(QStringLiteral("viewMenu"));
-    QVERIFY(viewMenu);
-    for (auto *viewAction : viewMenu->actions()) {
-        if (!viewAction->isSeparator() && !viewAction->isCheckable())
-            QCOMPARE(viewAction->objectName(), QStringLiteral("resetLayoutAction"));
-    }
 }
 
 void MainWindowTest::sourcePanelOpensAddDialog_data()

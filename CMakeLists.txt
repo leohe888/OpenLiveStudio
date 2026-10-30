@@ -74,7 +74,6 @@ set(OPENLIVE_STUDIO_QML_FILES
     "${PROJECT_SOURCE_DIR}/src/qml/SourcesPanel.qml"
     "${PROJECT_SOURCE_DIR}/src/qml/MixerPanel.qml"
     "${PROJECT_SOURCE_DIR}/src/qml/ControlsPanel.qml"
-    "${PROJECT_SOURCE_DIR}/src/qml/AboutDialog.qml"
     "${PROJECT_SOURCE_DIR}/src/qml/SourceAddDialog.qml"
     "${PROJECT_SOURCE_DIR}/src/qml/SourceRemovalDialog.qml"
     "${PROJECT_SOURCE_DIR}/src/qml/SourceFiltersDialog.qml"
