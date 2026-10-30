@@ -733,15 +733,14 @@ void MainWindow::resetDockLayout()
     setCorner(Qt::BottomLeftCorner, Qt::LeftDockWidgetArea);
     setCorner(Qt::BottomRightCorner, Qt::BottomDockWidgetArea);
     addDockWidget(Qt::LeftDockWidgetArea, m_sourcesDock);
-    addDockWidget(Qt::BottomDockWidgetArea, m_mixerDock);
+    addDockWidget(Qt::LeftDockWidgetArea, m_mixerDock);
     addDockWidget(Qt::BottomDockWidgetArea, m_controlsDock);
-    splitDockWidget(m_mixerDock, m_controlsDock, Qt::Horizontal);
+    splitDockWidget(m_sourcesDock, m_mixerDock, Qt::Vertical);
     for (auto *dock : docks)
         dock->show();
     resizeDocks({m_sourcesDock}, {238}, Qt::Horizontal);
-    resizeDocks({m_mixerDock, m_controlsDock},
-                {qMax(200, width() - 238 - 286 - 12), 286}, Qt::Horizontal);
-    resizeDocks({m_mixerDock}, {276}, Qt::Vertical);
+    resizeDocks({m_controlsDock}, {174}, Qt::Vertical);
+    resizeDocks({m_sourcesDock, m_mixerDock}, {height() / 2, height() / 2}, Qt::Vertical);
     setUpdatesEnabled(wasUpdating);
 }
 
