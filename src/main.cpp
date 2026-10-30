@@ -1,5 +1,5 @@
 #include "mainwindow.h"
-#include "thememanager.h"
+#include "core/thememanager.h"
 
 #include <QApplication>
 #include <QMessageBox>

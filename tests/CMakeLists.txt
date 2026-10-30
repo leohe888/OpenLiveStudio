@@ -1,8 +1,46 @@
 find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
 
 find_program(OPENLIVE_FFPROBE NAMES ffprobe HINTS "${FFmpeg_RUNTIME_DIR}" REQUIRED)
-qt_add_executable(tst_streaming tst_streaming.cpp)
-target_link_libraries(tst_streaming PRIVATE openlive_output Qt6::Network Qt6::Test)
+qt_add_executable(tst_streaming tst_streaming.cpp
+    ../src/capture/captureframe.h
+    ../src/capture/d3dtexture.h
+    ../src/capture/gpuinterop.h
+    ../src/capture/gpuinterop.cpp
+    ../src/preview/canvasrenderer.h
+    ../src/preview/canvasrenderer.cpp
+    ../src/preview/compositor.h
+    ../src/preview/compositor.cpp
+    ../src/preview/previewsource.h
+    ../src/audio/audiobuffer.h
+    ../src/audio/audioresampler.h
+    ../src/audio/audioresampler.cpp
+    ../src/audio/audiocaptureworker.h
+    ../src/audio/audiocaptureworker.cpp
+    ../src/audio/audiomixer.h
+    ../src/audio/audiomixer.cpp
+    ../src/audio/audiosourcemodel.h
+    ../src/audio/audiosourcemodel.cpp
+    ../src/output/outputtimeline.h
+    ../src/output/outputtimeline.cpp
+    ../src/output/streamingcontroller.h
+    ../src/output/streamingcontroller.cpp
+    ../src/output/mediaencoder.h
+    ../src/output/mediaencoder.cpp
+    ../src/output/recordingcontroller.h
+    ../src/output/recordingcontroller.cpp
+    ../src/output/outputsettings.h
+    ../src/output/outputsettings.cpp
+    ../src/core/mediaclock.h
+)
+target_include_directories(tst_streaming PRIVATE "${PROJECT_SOURCE_DIR}/src")
+target_link_libraries(tst_streaming PRIVATE
+    Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::Network Qt6::Test
+    FFmpeg::swresample FFmpeg::avutil FFmpeg::avcodec FFmpeg::avformat FFmpeg::swscale)
+if(WIN32)
+    target_compile_definitions(tst_streaming PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_link_libraries(tst_streaming PRIVATE d3d11 dxgi opengl32 ole32 uuid)
+endif()
+
 target_compile_definitions(tst_streaming PRIVATE OPENLIVE_FFPROBE="${OPENLIVE_FFPROBE}")
 qt_add_resources(tst_streaming "streaming_shaders" PREFIX "/" BASE "${PROJECT_SOURCE_DIR}"
     FILES ${OPENLIVE_STUDIO_SHADER_FILES})
@@ -12,8 +50,46 @@ add_test(NAME output.streaming COMMAND "${CMAKE_COMMAND}" -E env
     "$<TARGET_FILE:tst_streaming>" -o "${CMAKE_CURRENT_BINARY_DIR}/streaming-results.txt,txt")
 set_tests_properties(output.streaming PROPERTIES LABELS "output;gpu;network" TIMEOUT 60)
 
-qt_add_executable(tst_recording tst_recording.cpp)
-target_link_libraries(tst_recording PRIVATE openlive_output Qt6::Test)
+qt_add_executable(tst_recording tst_recording.cpp
+    ../src/capture/captureframe.h
+    ../src/capture/d3dtexture.h
+    ../src/capture/gpuinterop.h
+    ../src/capture/gpuinterop.cpp
+    ../src/preview/canvasrenderer.h
+    ../src/preview/canvasrenderer.cpp
+    ../src/preview/compositor.h
+    ../src/preview/compositor.cpp
+    ../src/preview/previewsource.h
+    ../src/audio/audiobuffer.h
+    ../src/audio/audioresampler.h
+    ../src/audio/audioresampler.cpp
+    ../src/audio/audiocaptureworker.h
+    ../src/audio/audiocaptureworker.cpp
+    ../src/audio/audiomixer.h
+    ../src/audio/audiomixer.cpp
+    ../src/audio/audiosourcemodel.h
+    ../src/audio/audiosourcemodel.cpp
+    ../src/output/outputtimeline.h
+    ../src/output/outputtimeline.cpp
+    ../src/output/streamingcontroller.h
+    ../src/output/streamingcontroller.cpp
+    ../src/output/mediaencoder.h
+    ../src/output/mediaencoder.cpp
+    ../src/output/recordingcontroller.h
+    ../src/output/recordingcontroller.cpp
+    ../src/output/outputsettings.h
+    ../src/output/outputsettings.cpp
+    ../src/core/mediaclock.h
+)
+target_include_directories(tst_recording PRIVATE "${PROJECT_SOURCE_DIR}/src")
+target_link_libraries(tst_recording PRIVATE
+    Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::Network Qt6::Test
+    FFmpeg::swresample FFmpeg::avutil FFmpeg::avcodec FFmpeg::avformat FFmpeg::swscale)
+if(WIN32)
+    target_compile_definitions(tst_recording PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_link_libraries(tst_recording PRIVATE d3d11 dxgi opengl32 ole32 uuid)
+endif()
+
 target_compile_definitions(tst_recording PRIVATE OPENLIVE_FFPROBE="${OPENLIVE_FFPROBE}")
 qt_add_resources(tst_recording "recording_shaders" PREFIX "/" BASE "${PROJECT_SOURCE_DIR}"
     FILES ${OPENLIVE_STUDIO_SHADER_FILES})
@@ -23,15 +99,50 @@ add_test(NAME output.recording COMMAND "${CMAKE_COMMAND}" -E env
     "$<TARGET_FILE:tst_recording>" -o "${CMAKE_CURRENT_BINARY_DIR}/recording-results.txt,txt")
 set_tests_properties(output.recording PROPERTIES LABELS "output;gpu" TIMEOUT 60)
 
-qt_add_executable(tst_audio tst_audio.cpp)
-target_link_libraries(tst_audio PRIVATE openlive_audio Qt6::Test)
+qt_add_executable(tst_audio tst_audio.cpp
+    ../src/audio/audiobuffer.h
+    ../src/audio/audioresampler.h
+    ../src/audio/audioresampler.cpp
+    ../src/audio/audiocaptureworker.h
+    ../src/audio/audiocaptureworker.cpp
+    ../src/audio/audiomixer.h
+    ../src/audio/audiomixer.cpp
+    ../src/audio/audiosourcemodel.h
+    ../src/audio/audiosourcemodel.cpp
+)
+target_include_directories(tst_audio PRIVATE "${PROJECT_SOURCE_DIR}/src")
+target_link_libraries(tst_audio PRIVATE
+    Qt6::Core Qt6::Gui Qt6::Test
+    FFmpeg::swresample FFmpeg::avutil)
+if(WIN32)
+    target_compile_definitions(tst_audio PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_link_libraries(tst_audio PRIVATE ole32 uuid)
+endif()
+
 add_test(NAME audio.sources COMMAND "${CMAKE_COMMAND}" -E env
     "PATH=$<TARGET_FILE_DIR:Qt6::Core>;${FFmpeg_RUNTIME_DIR};$ENV{PATH}"
     "$<TARGET_FILE:tst_audio>" -o "${CMAKE_CURRENT_BINARY_DIR}/audio-results.txt,txt")
 set_tests_properties(audio.sources PROPERTIES LABELS "audio" TIMEOUT 30)
 
-qt_add_executable(tst_canvasrenderer tst_canvasrenderer.cpp)
-target_link_libraries(tst_canvasrenderer PRIVATE openlive_compositor Qt6::Test)
+qt_add_executable(tst_canvasrenderer tst_canvasrenderer.cpp
+    ../src/capture/captureframe.h
+    ../src/capture/d3dtexture.h
+    ../src/capture/gpuinterop.h
+    ../src/capture/gpuinterop.cpp
+    ../src/preview/canvasrenderer.h
+    ../src/preview/canvasrenderer.cpp
+    ../src/preview/compositor.h
+    ../src/preview/compositor.cpp
+    ../src/preview/previewsource.h
+)
+target_include_directories(tst_canvasrenderer PRIVATE "${PROJECT_SOURCE_DIR}/src")
+target_link_libraries(tst_canvasrenderer PRIVATE
+    Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::Test)
+if(WIN32)
+    target_compile_definitions(tst_canvasrenderer PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_link_libraries(tst_canvasrenderer PRIVATE d3d11 dxgi opengl32)
+endif()
+
 qt_add_resources(tst_canvasrenderer "compositor_shaders" PREFIX "/" BASE "${PROJECT_SOURCE_DIR}"
     FILES ${OPENLIVE_STUDIO_SHADER_FILES})
 add_test(NAME gpu.compositor COMMAND "${CMAKE_COMMAND}" -E env
@@ -41,12 +152,35 @@ add_test(NAME gpu.compositor COMMAND "${CMAKE_COMMAND}" -E env
 set_tests_properties(gpu.compositor PROPERTIES LABELS "gpu" TIMEOUT 30)
 
 qt_add_executable(tst_captureinterop tst_captureinterop.cpp
-    ../src/preview/previewwidget.cpp ../src/preview/previewwidget.h
-    ../src/core/source.cpp ../src/core/sourcelistmodel.cpp ../src/core/sourcelistmodel.h)
-target_link_libraries(tst_captureinterop PRIVATE openlive_compositor Qt6::OpenGLWidgets Qt6::Widgets Qt6::Test)
+    ../src/preview/previewwidget.cpp
+    ../src/preview/previewwidget.h
+    ../src/core/source.cpp
+    ../src/core/sourcelistmodel.cpp
+    ../src/core/sourcelistmodel.h
+    ../src/capture/captureframe.h
+    ../src/capture/d3dtexture.h
+    ../src/capture/displaytargets.h
+    ../src/capture/displaytargets.cpp
+    ../src/capture/displaycaptureworker.h
+    ../src/capture/displaycaptureworker.cpp
+    ../src/capture/gpuinterop.h
+    ../src/capture/gpuinterop.cpp
+    ../src/capture/displaycapturecontroller.h
+    ../src/capture/displaycapturecontroller.cpp
+    ../src/preview/canvasrenderer.h
+    ../src/preview/canvasrenderer.cpp
+    ../src/preview/compositor.h
+    ../src/preview/compositor.cpp
+    ../src/preview/previewsource.h
+)
+target_include_directories(tst_captureinterop PRIVATE "${PROJECT_SOURCE_DIR}/src")
+target_link_libraries(tst_captureinterop PRIVATE
+    Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Widgets Qt6::Test)
 if(WIN32)
-    target_link_libraries(tst_captureinterop PRIVATE psapi)
+    target_compile_definitions(tst_captureinterop PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_link_libraries(tst_captureinterop PRIVATE d3d11 dxgi windowsapp opengl32 mfplat mfreadwrite mfuuid mf ole32 psapi)
 endif()
+
 qt_add_resources(tst_captureinterop "capture_shaders" PREFIX "/" BASE "${PROJECT_SOURCE_DIR}"
     FILES ${OPENLIVE_STUDIO_SHADER_FILES})
 add_test(NAME capture.interop COMMAND "${CMAKE_COMMAND}" -E env
@@ -111,23 +245,55 @@ qt_add_executable(tst_mainwindow
     ../src/core/sourcelistmodel.h
     ../src/core/imagesourcecontroller.cpp
     ../src/core/imagesourcecontroller.h
+    ../src/capture/cameracaptureworker.h
+    ../src/capture/cameracaptureworker.cpp
+    ../src/capture/cameracapturecontroller.h
+    ../src/capture/cameracapturecontroller.cpp
+    ../src/capture/captureframe.h
+    ../src/capture/d3dtexture.h
+    ../src/capture/displaytargets.h
+    ../src/capture/displaytargets.cpp
+    ../src/capture/displaycaptureworker.h
+    ../src/capture/displaycaptureworker.cpp
+    ../src/capture/gpuinterop.h
+    ../src/capture/gpuinterop.cpp
+    ../src/capture/displaycapturecontroller.h
+    ../src/capture/displaycapturecontroller.cpp
+    ../src/preview/canvasrenderer.h
+    ../src/preview/canvasrenderer.cpp
+    ../src/preview/compositor.h
+    ../src/preview/compositor.cpp
+    ../src/audio/audiobuffer.h
+    ../src/audio/audioresampler.h
+    ../src/audio/audioresampler.cpp
+    ../src/audio/audiocaptureworker.h
+    ../src/audio/audiocaptureworker.cpp
+    ../src/audio/audiomixer.h
+    ../src/audio/audiomixer.cpp
+    ../src/audio/audiosourcemodel.h
+    ../src/audio/audiosourcemodel.cpp
+    ../src/output/outputtimeline.h
+    ../src/output/outputtimeline.cpp
+    ../src/output/streamingcontroller.h
+    ../src/output/streamingcontroller.cpp
+    ../src/output/mediaencoder.h
+    ../src/output/mediaencoder.cpp
+    ../src/output/recordingcontroller.h
+    ../src/output/recordingcontroller.cpp
+    ../src/output/outputsettings.h
+    ../src/output/outputsettings.cpp
+    ../src/core/mediaclock.h
 )
-
-target_include_directories(tst_mainwindow PRIVATE
-    "${PROJECT_SOURCE_DIR}/src/core"
-    "${PROJECT_SOURCE_DIR}/src"
-)
+target_include_directories(tst_mainwindow PRIVATE "${PROJECT_SOURCE_DIR}/src" "${PROJECT_SOURCE_DIR}/src/core")
 target_link_libraries(tst_mainwindow PRIVATE
-    Qt6::Widgets Qt6::Test Qt6::QuickWidgets Qt6::QuickControls2 Qt6::Svg
-    Qt6::OpenGL Qt6::OpenGLWidgets
-    openlive_compositor
-    openlive_audio
-    openlive_output
-)
-target_compile_definitions(tst_mainwindow PRIVATE OPENLIVE_FFPROBE="${OPENLIVE_FFPROBE}")
+    Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::Network Qt6::Widgets Qt6::Test Qt6::QuickWidgets Qt6::QuickControls2 Qt6::Svg Qt6::OpenGLWidgets
+    FFmpeg::swresample FFmpeg::avutil FFmpeg::avcodec FFmpeg::avformat FFmpeg::swscale)
 if(WIN32)
-    target_link_libraries(tst_mainwindow PRIVATE psapi)
+    target_compile_definitions(tst_mainwindow PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_link_libraries(tst_mainwindow PRIVATE d3d11 dxgi windowsapp opengl32 mfplat mfreadwrite mfuuid mf ole32 uuid psapi)
 endif()
+
+target_compile_definitions(tst_mainwindow PRIVATE OPENLIVE_FFPROBE="${OPENLIVE_FFPROBE}")
 set_target_properties(tst_mainwindow PROPERTIES WIN32_EXECUTABLE FALSE)
 qt_add_resources(tst_mainwindow "mainwindow_shaders"
     PREFIX "/"
@@ -177,10 +343,23 @@ qt_add_executable(tst_previewwidget
     ../src/preview/previewwidget.h
     ../src/preview/previewsource.h
     ../src/core/sourcetransform.h
+    ../src/capture/captureframe.h
+    ../src/capture/d3dtexture.h
+    ../src/capture/gpuinterop.h
+    ../src/capture/gpuinterop.cpp
+    ../src/preview/canvasrenderer.h
+    ../src/preview/canvasrenderer.cpp
+    ../src/preview/compositor.h
+    ../src/preview/compositor.cpp
 )
 target_include_directories(tst_previewwidget PRIVATE "${PROJECT_SOURCE_DIR}/src")
-target_link_libraries(tst_previewwidget PRIVATE Qt6::OpenGLWidgets Qt6::OpenGL Qt6::Test)
-target_link_libraries(tst_previewwidget PRIVATE openlive_compositor)
+target_link_libraries(tst_previewwidget PRIVATE
+    Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Test)
+if(WIN32)
+    target_compile_definitions(tst_previewwidget PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_link_libraries(tst_previewwidget PRIVATE d3d11 dxgi opengl32)
+endif()
+
 set_target_properties(tst_previewwidget PROPERTIES WIN32_EXECUTABLE FALSE)
 qt_add_resources(tst_previewwidget "preview_shaders"
     PREFIX "/"
@@ -221,11 +400,24 @@ add_test(NAME core.imagesourcecontroller
 set_tests_properties(core.imagesourcecontroller PROPERTIES LABELS "core;smoke" TIMEOUT 30)
 
 qt_add_executable(tst_cameracapture tst_cameracapture.cpp
-    ../src/core/source.cpp ../src/core/sourcelistmodel.cpp ../src/core/sourcelistmodel.h)
-target_link_libraries(tst_cameracapture PRIVATE openlive_capture Qt6::Test)
+    ../src/core/source.cpp
+    ../src/core/sourcelistmodel.cpp
+    ../src/core/sourcelistmodel.h
+    ../src/capture/cameracaptureworker.h
+    ../src/capture/cameracaptureworker.cpp
+    ../src/capture/cameracapturecontroller.h
+    ../src/capture/cameracapturecontroller.cpp
+    ../src/capture/captureframe.h
+    ../src/capture/d3dtexture.h
+)
+target_include_directories(tst_cameracapture PRIVATE "${PROJECT_SOURCE_DIR}/src")
+target_link_libraries(tst_cameracapture PRIVATE
+    Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::Test)
 if(WIN32)
-    target_link_libraries(tst_cameracapture PRIVATE psapi)
+    target_compile_definitions(tst_cameracapture PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_link_libraries(tst_cameracapture PRIVATE d3d11 dxgi windowsapp opengl32 mfplat mfreadwrite mfuuid mf ole32 psapi)
 endif()
+
 add_test(NAME capture.camera COMMAND "${CMAKE_COMMAND}" -E env
     "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
     "$<TARGET_FILE:tst_cameracapture>" -o "-,txt")

@@ -7,60 +7,9 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Core Network Widgets QuickWidgets Quick
 
 qt_standard_project_setup()
 
-add_library(openlive_capture STATIC
-    src/capture/cameracaptureworker.h src/capture/cameracaptureworker.cpp
-    src/capture/cameracapturecontroller.h src/capture/cameracapturecontroller.cpp
-    src/capture/captureframe.h
-    src/capture/d3dtexture.h
-    src/capture/displaytargets.h src/capture/displaytargets.cpp
-    src/capture/displaycaptureworker.h src/capture/displaycaptureworker.cpp
-    src/capture/gpuinterop.h src/capture/gpuinterop.cpp
-    src/capture/displaycapturecontroller.h src/capture/displaycapturecontroller.cpp
-)
-target_include_directories(openlive_capture PUBLIC "${PROJECT_SOURCE_DIR}/src")
-target_link_libraries(openlive_capture PUBLIC Qt::Core Qt::Gui Qt::OpenGL)
-if(WIN32)
-    target_compile_definitions(openlive_capture PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
-    target_link_libraries(openlive_capture PRIVATE d3d11 dxgi windowsapp opengl32 mfplat mfreadwrite mfuuid mf ole32)
-endif()
-
 if(Qt6_VERSION VERSION_GREATER_EQUAL 6.8)
     qt_policy(SET QTP0004 NEW)
 endif()
-
-add_library(openlive_compositor STATIC
-    src/preview/canvasrenderer.h src/preview/canvasrenderer.cpp
-    src/preview/compositor.h src/preview/compositor.cpp
-    src/preview/previewsource.h
-)
-target_include_directories(openlive_compositor PUBLIC "${PROJECT_SOURCE_DIR}/src")
-target_link_libraries(openlive_compositor PUBLIC openlive_capture Qt::OpenGL)
-
-add_library(openlive_audio STATIC
-    src/audio/audiobuffer.h
-    src/audio/audioresampler.h src/audio/audioresampler.cpp
-    src/audio/audiocaptureworker.h src/audio/audiocaptureworker.cpp
-    src/audio/audiomixer.h src/audio/audiomixer.cpp
-    src/audio/audiosourcemodel.h src/audio/audiosourcemodel.cpp
-)
-target_include_directories(openlive_audio PUBLIC "${PROJECT_SOURCE_DIR}/src")
-target_link_libraries(openlive_audio PUBLIC Qt::Core PRIVATE FFmpeg::swresample FFmpeg::avutil)
-if(WIN32)
-    target_compile_definitions(openlive_audio PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
-    target_link_libraries(openlive_audio PRIVATE ole32 uuid)
-endif()
-
-add_library(openlive_output STATIC
-    src/output/outputtimeline.h src/output/outputtimeline.cpp
-    src/output/streamingcontroller.h src/output/streamingcontroller.cpp
-    src/output/mediaencoder.h src/output/mediaencoder.cpp
-    src/output/recordingcontroller.h src/output/recordingcontroller.cpp
-    src/output/outputsettings.h src/output/outputsettings.cpp
-    src/core/mediaclock.h
-)
-target_include_directories(openlive_output PUBLIC "${PROJECT_SOURCE_DIR}/src")
-target_link_libraries(openlive_output PUBLIC openlive_compositor openlive_audio
-    PRIVATE Qt::Network FFmpeg::avcodec FFmpeg::avformat FFmpeg::avutil FFmpeg::swscale)
 
 qt_add_executable(OpenLiveStudio
     WIN32 MACOSX_BUNDLE
@@ -80,6 +29,44 @@ qt_add_executable(OpenLiveStudio
     src/core/sourcelistmodel.h
     src/core/imagesourcecontroller.cpp
     src/core/imagesourcecontroller.h
+    src/capture/cameracaptureworker.h
+    src/capture/cameracaptureworker.cpp
+    src/capture/cameracapturecontroller.h
+    src/capture/cameracapturecontroller.cpp
+    src/capture/captureframe.h
+    src/capture/d3dtexture.h
+    src/capture/displaytargets.h
+    src/capture/displaytargets.cpp
+    src/capture/displaycaptureworker.h
+    src/capture/displaycaptureworker.cpp
+    src/capture/gpuinterop.h
+    src/capture/gpuinterop.cpp
+    src/capture/displaycapturecontroller.h
+    src/capture/displaycapturecontroller.cpp
+    src/preview/canvasrenderer.h
+    src/preview/canvasrenderer.cpp
+    src/preview/compositor.h
+    src/preview/compositor.cpp
+    src/audio/audiobuffer.h
+    src/audio/audioresampler.h
+    src/audio/audioresampler.cpp
+    src/audio/audiocaptureworker.h
+    src/audio/audiocaptureworker.cpp
+    src/audio/audiomixer.h
+    src/audio/audiomixer.cpp
+    src/audio/audiosourcemodel.h
+    src/audio/audiosourcemodel.cpp
+    src/output/outputtimeline.h
+    src/output/outputtimeline.cpp
+    src/output/streamingcontroller.h
+    src/output/streamingcontroller.cpp
+    src/output/mediaencoder.h
+    src/output/mediaencoder.cpp
+    src/output/recordingcontroller.h
+    src/output/recordingcontroller.cpp
+    src/output/outputsettings.h
+    src/output/outputsettings.cpp
+    src/core/mediaclock.h
 )
 
 set(OPENLIVE_STUDIO_QML_FILES
@@ -98,7 +85,6 @@ set(OPENLIVE_STUDIO_QML_FILES
     "${PROJECT_SOURCE_DIR}/src/qml/CameraPropertiesDialog.qml"
 )
 
-# Preserve the existing qrc:/OpenLiveStudio/Ui/qml/<name>.qml URLs.
 foreach(qml_file IN LISTS OPENLIVE_STUDIO_QML_FILES)
     get_filename_component(qml_name "${qml_file}" NAME)
     set_source_files_properties("${qml_file}" PROPERTIES
@@ -158,7 +144,6 @@ qt_add_resources(OpenLiveStudio "shaders"
 
 target_include_directories(OpenLiveStudio PRIVATE
     "${PROJECT_SOURCE_DIR}/src"
-    "${PROJECT_SOURCE_DIR}/src/core"
 )
 
 target_link_libraries(OpenLiveStudio
@@ -170,14 +155,20 @@ target_link_libraries(OpenLiveStudio
         Qt::Svg
         Qt::OpenGL
         Qt::OpenGLWidgets
-        openlive_compositor
-        openlive_audio
-        openlive_output
+        Qt::Network
         FFmpeg::avdevice
         FFmpeg::avformat
         FFmpeg::avcodec
         FFmpeg::avutil
+        FFmpeg::swresample
+        FFmpeg::swscale
 )
+
+if(WIN32)
+    target_compile_definitions(OpenLiveStudio PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_link_libraries(OpenLiveStudio PRIVATE
+        d3d11 dxgi windowsapp opengl32 mfplat mfreadwrite mfuuid mf ole32 uuid)
+endif()
 
 # Include the shared build's transitive DLL dependencies as well.
 if(WIN32 AND FFmpeg_RUNTIME_DLLS)
