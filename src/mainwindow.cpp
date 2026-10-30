@@ -616,7 +616,7 @@ void MainWindow::setupControlsDock()
     auto *view = new QQuickWidget(pages);
     view->setObjectName(QStringLiteral("controlsQuickWidget"));
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
-    view->setMinimumHeight(124);
+    view->setMinimumHeight(48);
     configureQuickWidget(view);
     view->rootContext()->setContextProperty(QStringLiteral("outputSettings"),m_outputSettings);
     view->rootContext()->setContextProperty(QStringLiteral("recordingController"),m_recording);
@@ -670,7 +670,7 @@ void MainWindow::setupDockLayout()
     addDockWidget(Qt::BottomDockWidgetArea, m_controlsDock);
     splitDockWidget(m_sourcesDock, m_mixerDock, Qt::Vertical);
     resizeDocks({m_sourcesDock, m_mixerDock}, {220, 220}, Qt::Horizontal);
-    resizeDocks({m_controlsDock}, {174}, Qt::Vertical);
+    resizeDocks({m_controlsDock}, {120}, Qt::Vertical);
     resizeDocks({m_sourcesDock, m_mixerDock}, {height() / 2, height() / 2}, Qt::Vertical);
 }
 
