@@ -7,7 +7,6 @@
 
 class QDockWidget;
 class QLabel;
-class QMenu;
 class QResizeEvent;
 class QQuickWidget;
 class SourceListModel;
@@ -51,20 +50,17 @@ private slots:
 private:
     void applyColors();
     void configureQuickWidget(QQuickWidget *view);
-    void setupMenuBar();
     void setupPreview();
     void setupStatusBar();
     void setupSourcesDock();
     void setupMixerDock();
     void setupControlsDock();
-    void setupViewActions();
-    void resetDockLayout();
+    void setupDockLayout();
     void updateStatusLayout();
     void updateOutputStatus();
 
     QLabel *m_outputStatus = nullptr;
     QLabel *m_outputMetrics = nullptr;
-    QMenu *m_viewMenu = nullptr;
     QDockWidget *m_sourcesDock = nullptr;
     QDockWidget *m_mixerDock = nullptr;
     QDockWidget *m_controlsDock = nullptr;

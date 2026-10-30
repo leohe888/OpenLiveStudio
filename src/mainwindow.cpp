@@ -14,14 +14,11 @@
 #include <QPointer>
 #include <QtAlgorithms>
 
-#include <QAction>
 #include <QApplication>
 #include <QDebug>
 #include <QDialog>
 #include <QDockWidget>
 #include <QLabel>
-#include <QMenu>
-#include <QMenuBar>
 #include <QQmlComponent>
 #include <QQmlContext>
 #include <QQmlError>
@@ -51,7 +48,6 @@ MainWindow::MainWindow(QWidget *parent)
     setMinimumSize(960, 640);
     resize(1280, 800);
 
-    setupMenuBar();
     setupPreview();
     if (auto *preview=findChild<PreviewWidget *>(QStringLiteral("previewWidget"))) {
         m_recording=new RecordingController(*preview->compositor(),*m_audioSources->mixer(),this);
@@ -87,8 +83,7 @@ MainWindow::MainWindow(QWidget *parent)
     setupSourcesDock();
     setupMixerDock();
     setupControlsDock();
-    setupViewActions();
-    resetDockLayout();
+    setupDockLayout();
     updateStatusLayout();
     // Destroy the dock QML contexts before their shared state.
     m_sourceListModel->setParent(this);
@@ -206,23 +201,17 @@ void MainWindow::applyColors()
         colors.setColor(QPalette::Disabled, role, color("text.disabled"));
     const auto hex = [&color](const char *key) { return color(key).name(); };
     setStyleSheet(QStringLiteral(
-        "QMenuBar, QStatusBar { background-color: %1; color: %2; }"
-        "QMenu { background-color: %3; color: %2; border: 1px solid %4; }"
-        "QMenuBar::item:selected, QMenu::item:selected { background-color: %5; color: %2; }"
-        "QMenuBar::item:pressed { background-color: %6; }"
-        "QMenu::item:disabled { color: %7; }"
-        "QMenu::separator { background-color: %4; height: 1px; }"
+        "QStatusBar { background-color: %1; color: %2; }"
         "QDockWidget { color: %2; }"
         "QDockWidget::title { background-color: %1; text-align: left center; }"
         "QMainWindow::separator { background-color: %4; }"
-        "QMainWindow::separator:hover { background-color: %8; }"
+        "QMainWindow::separator:hover { background-color: %6; }"
         "QStatusBar::item { border: none; }"
         "QLabel { color: %2; }"
-        "QLabel:disabled { color: %7; }"
-        "QLabel[uiError=\"true\"] { color: %9; background-color: %3; }")
+        "QLabel:disabled { color: %5; }"
+        "QLabel[uiError=\"true\"] { color: %7; background-color: %3; }")
         .arg(hex("background.header"), hex("text.primary"), hex("background.panel"),
-             hex("border.default"), hex("background.hovered"), hex("background.selected"),
-             hex("text.disabled"), hex("border.focus"), hex("status.error")));
+             hex("border.default"), hex("text.disabled"), hex("border.focus"), hex("status.error")));
     // Style-sheet repolishing restores cached palettes. Apply the new palette
     // afterwards, including child windows (floating docks and dialogs).
     // Keep the application's global palette untouched.
@@ -443,28 +432,6 @@ void MainWindow::showSourcePropertiesDialog(const QString &sourceId)
     showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/DisplayPropertiesDialog.qml")),
         tr("显示器来源属性"), {{QStringLiteral("sourceListModel"), QVariant::fromValue(m_sourceListModel)},
                               {QStringLiteral("sourceId"), sourceId}});
-}
-
-void MainWindow::setupMenuBar()
-{
-    m_viewMenu = menuBar()->addMenu(tr("视图"));
-    m_viewMenu->setObjectName(QStringLiteral("viewMenu"));
-
-}
-
-void MainWindow::setupViewActions()
-{
-    for (auto *dock : {m_sourcesDock, m_mixerDock, m_controlsDock}) {
-        Q_ASSERT(dock);
-        // The dock owns this action and keeps its checked state in sync.
-        auto *action = dock->toggleViewAction();
-        action->setObjectName(dock->objectName() + QStringLiteral("ViewAction"));
-        m_viewMenu->addAction(action);
-    }
-    m_viewMenu->addSeparator();
-    auto *resetAction = m_viewMenu->addAction(tr("重置布局"));
-    resetAction->setObjectName(QStringLiteral("resetLayoutAction"));
-    connect(resetAction, &QAction::triggered, this, &MainWindow::resetDockLayout);
 }
 
 void MainWindow::setupPreview()
@@ -691,31 +658,17 @@ void MainWindow::setupControlsDock()
     view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ControlsPanel.qml")));
 }
 
-void MainWindow::resetDockLayout()
+void MainWindow::setupDockLayout()
 {
-    const QList<QDockWidget *> docks{m_sourcesDock,
-                                     m_mixerDock, m_controlsDock};
-
-    const bool wasUpdating = updatesEnabled();
-    setUpdatesEnabled(false);
-    // Remove old splits and tab groups while preserving each dock and QML root.
-    for (auto *dock : docks) {
-        Q_ASSERT(dock);
-        dock->setFloating(false);
-        removeDockWidget(dock);
-    }
     setCorner(Qt::BottomLeftCorner, Qt::LeftDockWidgetArea);
     setCorner(Qt::BottomRightCorner, Qt::BottomDockWidgetArea);
     addDockWidget(Qt::LeftDockWidgetArea, m_sourcesDock);
     addDockWidget(Qt::LeftDockWidgetArea, m_mixerDock);
     addDockWidget(Qt::BottomDockWidgetArea, m_controlsDock);
     splitDockWidget(m_sourcesDock, m_mixerDock, Qt::Vertical);
-    for (auto *dock : docks)
-        dock->show();
     resizeDocks({m_sourcesDock}, {238}, Qt::Horizontal);
     resizeDocks({m_controlsDock}, {174}, Qt::Vertical);
     resizeDocks({m_sourcesDock, m_mixerDock}, {height() / 2, height() / 2}, Qt::Vertical);
-    setUpdatesEnabled(wasUpdating);
 }
 
 void MainWindow::resizeEvent(QResizeEvent *event)

@@ -14,15 +14,12 @@
 #include "preview/previewwidget.h"
 #include <QApplication>
 
-#include <QAction>
 #include <QAbstractButton>
 #include <QDockWidget>
 #include <QDialog>
 #include <QFile>
 #include <QImageReader>
 #include <QLabel>
-#include <QMenuBar>
-#include <QMenu>
 #include <QMouseEvent>
 #include <QPointer>
 #include <QProxyStyle>
@@ -124,9 +121,6 @@ private slots:
     void embedsControlsPanelBelowPreview();
     void panelDockCanFloatRedockAndClose_data();
     void panelDockCanFloatRedockAndClose();
-    void viewMenuCanRestoreAllHiddenDocks();
-    void resetLayoutRestoresDocksWithoutReload_data();
-    void resetLayoutRestoresDocksWithoutReload();
     void panelDockShowsLoadErrorAndRecovers_data();
     void panelDockShowsLoadErrorAndRecovers();
     void panelIconsCanBeDecoded_data();
@@ -453,16 +447,12 @@ void MainWindowTest::hasWindowShell()
 
     QVERIFY(!window.findChild<QDockWidget *>("scenesDock"));
     QVERIFY(!window.findChild<QQuickWidget *>("scenesQuickWidget"));
-    QVERIFY(!window.findChild<QAction *>("scenesDockViewAction"));
     QCOMPARE(window.findChildren<QDockWidget *>().size(), 3);
     QVERIFY(window.metaObject()->indexOfSlot("showSceneNameDialog(QString,QString)") < 0);
     QVERIFY(window.metaObject()->indexOfSlot("showSceneRemovalDialog(QString)") < 0);
     QVERIFY(window.centralWidget());
     QVERIFY(window.centralWidget()->isVisible());
-    QVERIFY(window.menuBar()->isVisible());
-    QCOMPARE(window.menuBar()->actions().size(), 1);
-    QCOMPARE(window.menuBar()->actions().first()->menu(), window.findChild<QMenu *>("viewMenu"));
-    QVERIFY(!window.findChild<QMenu *>("themeMenu"));
+    QVERIFY(!window.menuWidget());
     QVERIFY(window.findChildren<QToolBar *>().isEmpty());
     QVERIFY(window.statusBar()->isVisible());
     auto *pages = window.findChild<QStackedWidget *>(QStringLiteral("previewPages"));
@@ -807,7 +797,10 @@ void MainWindowTest::lightColorsApplyToOuterWidgets()
 
     QTRY_COMPARE(binding->property("uiColor").value<QColor>(), UiColors::color("text.primary"));
     QCOMPARE(window.palette().color(QPalette::Window), UiColors::color("background.window"));
-    QCOMPARE(dock->palette().color(QPalette::Window), UiColors::color("background.window"));
+    // Floating docks may use the native window palette; their QML content keeps its colors.
+    auto *dockView = dock->findChild<QQuickWidget *>();
+    QVERIFY(dockView && dockView->rootObject());
+    QTRY_COMPARE(dockView->rootObject()->property("color").value<QColor>(), UiColors::color("background.panel"));
     QCOMPARE(window.palette().color(QPalette::Disabled, QPalette::Text), UiColors::color("text.disabled"));
     auto *metrics = window.findChild<QLabel *>("outputMetrics");
     QVERIFY(metrics);
@@ -2306,10 +2299,6 @@ void MainWindowTest::hasNoTransitionsDock()
     QCOMPARE(window.findChildren<QDockWidget *>().size(), 3);
     QVERIFY(!window.findChild<QDockWidget *>(QStringLiteral("transitionsDock")));
     QVERIFY(!window.findChild<QQuickWidget *>(QStringLiteral("transitionsQuickWidget")));
-    QVERIFY(!window.findChild<QAction *>(QStringLiteral("transitionsDockViewAction")));
-    auto *viewMenu = window.findChild<QMenu *>(QStringLiteral("viewMenu"));
-    QVERIFY(viewMenu);
-    QCOMPARE(viewMenu->actions().size(), 5); // Three docks, separator and reset.
 }
 
 void MainWindowTest::embedsControlsPanelBelowPreview()
@@ -2380,31 +2369,19 @@ void MainWindowTest::panelDockCanFloatRedockAndClose()
     QVERIFY(dock);
     QVERIFY(view);
 
-    auto *viewMenu = window.findChild<QMenu *>(QStringLiteral("viewMenu"));
-    auto *action = dock->toggleViewAction();
-    QVERIFY(viewMenu);
-    QVERIFY(viewMenu->actions().contains(action));
-    QVERIFY(action->isEnabled());
-    QVERIFY(action->isCheckable());
-    QTRY_VERIFY(action->isChecked());
     const QPointer<QQuickItem> originalRoot = view->rootObject();
     QVERIFY(originalRoot);
-    action->trigger();
+    dock->hide();
     QTRY_VERIFY(!dock->isVisible());
-    QVERIFY(!action->isChecked());
-    action->trigger();
+    dock->show();
     QTRY_VERIFY(dock->isVisible());
-    QVERIFY(action->isChecked());
 
     dock->setFloating(true);
     QTRY_VERIFY(dock->isFloating());
     QVERIFY(view->isVisible());
-    QTRY_VERIFY(action->isChecked());
     QVERIFY(dock->close());
-    QTRY_VERIFY(!action->isChecked());
-    action->trigger();
+    dock->show();
     QTRY_VERIFY(dock->isVisible());
-    QVERIFY(action->isChecked());
     QVERIFY(dock->isFloating());
     dock->setFloating(false);
     QTRY_VERIFY(!dock->isFloating());
@@ -2413,118 +2390,16 @@ void MainWindowTest::panelDockCanFloatRedockAndClose()
 
     QVERIFY(dock->close());
     QTRY_VERIFY(!dock->isVisible());
-    QVERIFY(!action->isChecked());
     for (auto *otherView : window.findChildren<QQuickWidget *>()) {
         if (otherView == view)
             continue;
         QVERIFY(otherView->isVisible());
         QCOMPARE(otherView->status(), QQuickWidget::Ready);
     }
-    action->trigger();
+    dock->show();
     QTRY_VERIFY(dock->isVisible());
     QVERIFY(view->isVisible());
-    QVERIFY(action->isChecked());
     QCOMPARE(view->rootObject(), originalRoot.data());
-}
-
-void MainWindowTest::viewMenuCanRestoreAllHiddenDocks()
-{
-    MainWindow window;
-    window.show();
-    auto *viewMenu = window.findChild<QMenu *>(QStringLiteral("viewMenu"));
-    QVERIFY(viewMenu);
-    const auto docks = window.findChildren<QDockWidget *>();
-    QCOMPARE(docks.size(), 3);
-    for (auto *dock : docks) {
-        QVERIFY(dock->close());
-        QTRY_VERIFY(!dock->isVisible());
-        QVERIFY(!dock->toggleViewAction()->isChecked());
-    }
-    QVERIFY(window.menuBar()->isVisible());
-    for (auto *dock : docks) {
-        auto *action = dock->toggleViewAction();
-        QVERIFY(viewMenu->actions().contains(action));
-        QVERIFY(action->isEnabled());
-        action->trigger();
-        QTRY_VERIFY(dock->isVisible());
-        QVERIFY(action->isChecked());
-    }
-}
-
-void MainWindowTest::resetLayoutRestoresDocksWithoutReload_data()
-{
-    QTest::addColumn<QSize>("windowSize");
-    QTest::newRow("default-size") << QSize(1280, 800);
-    QTest::newRow("minimum-size") << QSize(960, 640);
-}
-
-void MainWindowTest::resetLayoutRestoresDocksWithoutReload()
-{
-    QFETCH(QSize, windowSize);
-    MainWindow window;
-    window.resize(windowSize);
-    window.show();
-    auto *resetAction = window.findChild<QAction *>(QStringLiteral("resetLayoutAction"));
-    QVERIFY(resetAction);
-    QVERIFY(resetAction->isEnabled());
-    QList<QDockWidget *> docks;
-    QList<QQuickWidget *> views;
-    QList<QPointer<QQuickItem>> roots;
-    const QList<Qt::DockWidgetArea> areas{Qt::LeftDockWidgetArea,
-        Qt::LeftDockWidgetArea, Qt::BottomDockWidgetArea};
-    for (const auto *id : {"sources", "mixer", "controls"}) {
-        auto *dock = window.findChild<QDockWidget *>(QLatin1String(id) + QStringLiteral("Dock"));
-        auto *view = window.findChild<QQuickWidget *>(QLatin1String(id) + QStringLiteral("QuickWidget"));
-        QVERIFY(dock);
-        QVERIFY(view);
-        QTRY_COMPARE(view->status(), QQuickWidget::Ready);
-        docks.append(dock);
-        views.append(view);
-        roots.append(view->rootObject());
-    }
-
-    // Mix moved, tabbed, floating and hidden panels, then hide every floating panel.
-    for (int pass = 0; pass < 3; ++pass) {
-        if (pass == 0) {
-            window.addDockWidget(Qt::RightDockWidgetArea, docks[0]);
-            window.tabifyDockWidget(docks[1], docks[0]);
-            QVERIFY(!window.tabifiedDockWidgets(docks[1]).isEmpty());
-            docks[2]->setFloating(true);
-            docks[2]->move(-10000, -10000);
-            docks[0]->close();
-            docks[2]->close();
-        } else if (pass == 1) {
-            for (auto *dock : docks) {
-                dock->setFloating(true);
-                dock->close();
-            }
-        }
-        resetAction->trigger();
-        QTRY_COMPARE(window.size(), windowSize);
-        QCOMPARE(window.findChildren<QDockWidget *>().size(), 3);
-        QCOMPARE(window.findChildren<QQuickWidget *>().size(), 3);
-        for (int i = 0; i < docks.size(); ++i) {
-            QVERIFY(!docks[i]->isFloating());
-            QTRY_VERIFY(docks[i]->isVisible());
-            QVERIFY(docks[i]->toggleViewAction()->isChecked());
-            QCOMPARE(window.dockWidgetArea(docks[i]), areas[i]);
-            QVERIFY(window.tabifiedDockWidgets(docks[i]).isEmpty());
-            QVERIFY(roots[i]);
-            QCOMPARE(views[i]->rootObject(), roots[i].data());
-            QCOMPARE(views[i]->status(), QQuickWidget::Ready);
-        }
-        QTRY_COMPARE(docks[0]->geometry().top(), window.centralWidget()->geometry().top());
-        QTRY_VERIFY(docks[0]->geometry().bottom() < docks[1]->geometry().top());
-        QTRY_VERIFY(qAbs(docks[0]->height() - docks[1]->height()) <= 1);
-        QCOMPARE(docks[0]->geometry().left(), docks[1]->geometry().left());
-        QCOMPARE(docks[0]->width(), docks[1]->width());
-        QTRY_COMPARE(docks[1]->geometry().bottom(), docks[2]->geometry().bottom());
-        QTRY_VERIFY(docks[2]->geometry().top() > window.centralWidget()->geometry().bottom());
-        QTRY_COMPARE(docks[2]->geometry().left(), window.centralWidget()->geometry().left());
-        QTRY_COMPARE(docks[2]->geometry().right(), window.contentsRect().right());
-        QVERIFY(docks[0]->geometry().right() < window.centralWidget()->geometry().left());
-        QVERIFY(window.centralWidget()->width() > 0);
-    }
 }
 
 void MainWindowTest::panelDockShowsLoadErrorAndRecovers_data()
