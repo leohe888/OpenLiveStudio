@@ -5,7 +5,7 @@
 #include "capture/displaytargets.h"
 #include "capture/displaycapturecontroller.h"
 #include "core/sourcelistmodel.h"
-#include "preview/previewwidget.h"
+#include "ui/previewwidget.h"
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QOffscreenSurface>

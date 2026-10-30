@@ -14,12 +14,12 @@ endif()
 qt_add_executable(OpenLiveStudio
     WIN32 MACOSX_BUNDLE
     src/main.cpp
-    src/mainwindow.cpp
-    src/mainwindow.h
-    src/preview/previewwidget.cpp
-    src/preview/previewwidget.h
+    src/ui/mainwindow.cpp
+    src/ui/mainwindow.h
+    src/ui/previewwidget.cpp
+    src/ui/previewwidget.h
     src/preview/previewsource.h
-    src/core/uicolors.h
+    src/ui/uicolors.h
     src/core/source.cpp
     src/core/source.h
     src/core/sourcefilter.h
@@ -69,18 +69,18 @@ qt_add_executable(OpenLiveStudio
 )
 
 set(OPENLIVE_STUDIO_QML_FILES
-    "${PROJECT_SOURCE_DIR}/src/qml/OutputSettingsDialog.qml"
-    "${PROJECT_SOURCE_DIR}/src/qml/AudioSourceDialog.qml"
-    "${PROJECT_SOURCE_DIR}/src/qml/SourcesPanel.qml"
-    "${PROJECT_SOURCE_DIR}/src/qml/MixerPanel.qml"
-    "${PROJECT_SOURCE_DIR}/src/qml/ControlsPanel.qml"
-    "${PROJECT_SOURCE_DIR}/src/qml/SourceAddDialog.qml"
-    "${PROJECT_SOURCE_DIR}/src/qml/SourceRemovalDialog.qml"
-    "${PROJECT_SOURCE_DIR}/src/qml/SourceFiltersDialog.qml"
-    "${PROJECT_SOURCE_DIR}/src/qml/DisplayCaptureSettings.qml"
-    "${PROJECT_SOURCE_DIR}/src/qml/DisplayPropertiesDialog.qml"
-    "${PROJECT_SOURCE_DIR}/src/qml/CameraCaptureSettings.qml"
-    "${PROJECT_SOURCE_DIR}/src/qml/CameraPropertiesDialog.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/OutputSettingsDialog.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/AudioSourceDialog.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/SourcesPanel.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/MixerPanel.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/ControlsPanel.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/SourceAddDialog.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/SourceRemovalDialog.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/SourceFiltersDialog.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/DisplayCaptureSettings.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/DisplayPropertiesDialog.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/CameraCaptureSettings.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/CameraPropertiesDialog.qml"
 )
 
 foreach(qml_file IN LISTS OPENLIVE_STUDIO_QML_FILES)

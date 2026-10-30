@@ -152,8 +152,8 @@ add_test(NAME gpu.compositor COMMAND "${CMAKE_COMMAND}" -E env
 set_tests_properties(gpu.compositor PROPERTIES LABELS "gpu" TIMEOUT 30)
 
 qt_add_executable(tst_captureinterop tst_captureinterop.cpp
-    ../src/preview/previewwidget.cpp
-    ../src/preview/previewwidget.h
+    ../src/ui/previewwidget.cpp
+    ../src/ui/previewwidget.h
     ../src/core/source.cpp
     ../src/core/sourcelistmodel.cpp
     ../src/core/sourcelistmodel.h
@@ -211,11 +211,11 @@ set_tests_properties(core.sourcelistmodel PROPERTIES LABELS "core;smoke" TIMEOUT
 
 qt_add_executable(tst_mainwindow
     tst_mainwindow.cpp
-    ../src/core/uicolors.h
-    ../src/mainwindow.cpp
-    ../src/mainwindow.h
-    ../src/preview/previewwidget.cpp
-    ../src/preview/previewwidget.h
+    ../src/ui/uicolors.h
+    ../src/ui/mainwindow.cpp
+    ../src/ui/mainwindow.h
+    ../src/ui/previewwidget.cpp
+    ../src/ui/previewwidget.h
     ../src/preview/previewsource.h
     ../src/core/source.cpp
     ../src/core/source.h
@@ -283,7 +283,7 @@ qt_add_resources(tst_mainwindow "mainwindow_shaders"
 # Embed the same source at the application's resource URL.
 qt_add_resources(tst_mainwindow "test_ui"
     PREFIX "/OpenLiveStudio/Ui"
-    BASE "${PROJECT_SOURCE_DIR}/src"
+    BASE "${PROJECT_SOURCE_DIR}/src/ui"
     FILES ${OPENLIVE_STUDIO_QML_FILES}
 )
 
@@ -312,8 +312,8 @@ set_tests_properties(ui.mainwindow PROPERTIES
 
 qt_add_executable(tst_previewwidget
     tst_previewwidget.cpp
-    ../src/preview/previewwidget.cpp
-    ../src/preview/previewwidget.h
+    ../src/ui/previewwidget.cpp
+    ../src/ui/previewwidget.h
     ../src/preview/previewsource.h
     ../src/core/sourcetransform.h
     ../src/capture/captureframe.h

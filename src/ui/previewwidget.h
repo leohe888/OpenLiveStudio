@@ -1,8 +1,8 @@
 #ifndef PREVIEWWIDGET_H
 #define PREVIEWWIDGET_H
 
-#include "previewsource.h"
-#include "compositor.h"
+#include "preview/previewsource.h"
+#include "preview/compositor.h"
 #include <QTimer>
 
 #include <QColor>

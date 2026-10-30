@@ -1,6 +1,6 @@
 # OpenLive Studio
 
-基于 Qt6 的 Windows 桌面录制与直播工具，采用 QML + Qt Widgets 混合界面。界面固定使用浅色配色，颜色集中定义在 `src/core/uicolors.h`，不提供主题切换。
+基于 Qt6 的 Windows 桌面录制与直播工具，采用 QML + Qt Widgets 混合界面。界面固定使用浅色配色，颜色集中定义在 `src/ui/uicolors.h`，不提供主题切换。
 
 ## MVP 功能
 

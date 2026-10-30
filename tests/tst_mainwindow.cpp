@@ -1,9 +1,9 @@
-#include "mainwindow.h"
+#include "ui/mainwindow.h"
 #include "audio/audiosourcemodel.h"
 #include "output/outputsettings.h"
 #include "output/recordingcontroller.h"
 #include "output/streamingcontroller.h"
-#include "core/uicolors.h"
+#include "ui/uicolors.h"
 #include "sourcelistmodel.h"
 #include "imagesourcecontroller.h"
 #include "capture/cameracapturecontroller.h"
@@ -11,7 +11,7 @@
 #include <QLineF>
 #include <QFileDialog>
 #include <QTimer>
-#include "preview/previewwidget.h"
+#include "ui/previewwidget.h"
 #include <QApplication>
 
 #include <QAbstractButton>

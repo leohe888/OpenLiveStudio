@@ -1,4 +1,4 @@
-#include "preview/previewwidget.h"
+#include "ui/previewwidget.h"
 #include "capture/d3dtexture.h"
 
 #include <QApplication>
