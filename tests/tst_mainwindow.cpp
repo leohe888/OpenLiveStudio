@@ -2170,6 +2170,7 @@ void MainWindowTest::loadsControlsPanelWithHorizontalButtons()
         buttons.append(button);
     }
     QCOMPARE(buttons.size(), 3);
+    const qreal buttonWidth = buttons.first()->width();
     for (const auto &size : {QSize(358, 48), QSize(500, 174), QSize(800, 320)}) {
         panel.resize(size);
         QTRY_COMPARE(root->size(), QSizeF(size));
@@ -2179,6 +2180,7 @@ void MainWindowTest::loadsControlsPanelWithHorizontalButtons()
             const QRectF rect = button->mapRectToScene(button->boundingRect());
             QVERIFY(root->boundingRect().contains(rect));
             QCOMPARE(rect.height(), qreal(32));
+            QCOMPARE(rect.width(), buttonWidth);
             if (!previous.isNull()) {
                 QVERIFY(previous.right() < rect.left());
                 QCOMPARE(rect.top(), previous.top());

@@ -52,7 +52,7 @@ Rectangle {
         anchors.fill: parent
         clip: true
         // Keep viewport sizing independent of the layout it sizes.
-        contentWidth: Math.max(root.width, 358)
+        contentWidth: Math.max(root.width, controls.implicitWidth + 16)
         contentHeight: Math.max(root.height, 48)
         ScrollBar.horizontal: PanelScrollBar {
             objectName: "controlsHorizontalScrollBar"
@@ -76,14 +76,13 @@ Rectangle {
             objectName: "controlActions"
             x: 8
             y: 8
-            width: scroll.contentWidth - 16
+            width: implicitWidth
             height: 32
             spacing: 6
 
             ControlButton {
                 objectName: "recordButton"
                 Layout.minimumWidth: 110
-                Layout.fillWidth: true
                 Layout.minimumHeight: 32
                 enabled: root.recorder !== null && root.recorder.state !== "stopping" && (root.recorder.busy || root.recorder.ready)
                 text: !root.recorder ? qsTr("开始录制") : root.recorder.state === "recording" ? qsTr("停止录制")
@@ -95,7 +94,6 @@ Rectangle {
             ControlButton {
                 objectName: "streamButton"
                 Layout.minimumWidth: 110
-                Layout.fillWidth: true
                 Layout.minimumHeight: 32
                 enabled: root.streamer !== null && root.streamer.state !== "stopping" && (root.streamer.busy || root.streamer.ready)
                 text: !root.streamer ? qsTr("开始直播") : root.streamer.state === "live" ? qsTr("停止直播")
@@ -108,7 +106,6 @@ Rectangle {
             ControlButton {
                 objectName: "settingsButton"
                 Layout.minimumWidth: 110
-                Layout.fillWidth: true
                 Layout.minimumHeight: 32
                 text: qsTr("设置")
                 enabled: root.settings !== null

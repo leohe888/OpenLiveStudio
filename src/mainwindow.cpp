@@ -670,7 +670,7 @@ void MainWindow::setupDockLayout()
     addDockWidget(Qt::BottomDockWidgetArea, m_controlsDock);
     splitDockWidget(m_sourcesDock, m_mixerDock, Qt::Vertical);
     resizeDocks({m_sourcesDock, m_mixerDock}, {220, 220}, Qt::Horizontal);
-    resizeDocks({m_controlsDock}, {120}, Qt::Vertical);
+    resizeDocks({m_controlsDock}, {48}, Qt::Vertical);
     resizeDocks({m_sourcesDock, m_mixerDock}, {height() / 2, height() / 2}, Qt::Vertical);
 }
 
