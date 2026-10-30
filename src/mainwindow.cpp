@@ -123,7 +123,6 @@ void MainWindow::updateOutputStatus()
     m_outputStatus->setText(tr("录制 %1   |   直播 %2").arg(
         formatDuration(m_recording->busy() ? m_recording->durationMs() : 0),
         formatDuration(m_streaming && m_streaming->busy() ? live.durationMs : 0)));
-    m_outputStatus->setToolTip(tr("录制：%1\n直播：%2").arg(m_recording->lastError().isEmpty() ? m_recording->filePath() : m_recording->lastError(),live.error));
     if (!live.error.isEmpty() && live.error!=m_previousStreamingError) statusBar()->showMessage(tr("直播：%1").arg(live.error));
     m_previousStreamingError=live.error;
     if (!m_recording->lastError().isEmpty() && m_previousRecordingError!=m_recording->lastError())
