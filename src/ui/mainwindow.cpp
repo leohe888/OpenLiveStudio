@@ -1,5 +1,6 @@
 #include "ui/mainwindow.h"
 #include "video/videosourcemodel.h"
+#include "video/videosourceaggregator.h"
 #include "video/image/imagesourcecontroller.h"
 #include "video/display/displaysourcecontroller.h"
 #include "video/camera/camerasourcecontroller.h"
@@ -34,15 +35,18 @@ MainWindow::MainWindow(QWidget *parent)
 {
     applyColors();
     m_videoSourceModel = new VideoSourceModel;
+    m_videoSourceAggregator = new VideoSourceAggregator(*m_videoSourceModel, this);
     m_audioSourceModel = new AudioSourceModel;
     m_outputSettings = new OutputSettings;
     m_imageSourceController = new ImageSourceController(*m_videoSourceModel, this);
     m_displaySourceController = new DisplaySourceController(*m_videoSourceModel, this);
     m_cameraSourceController = new CameraSourceController(*m_videoSourceModel, this);
     connect(m_displaySourceController, &DisplaySourceController::sourcesChanged,
-            m_cameraSourceController, &CameraSourceController::setOtherSources);
+            m_videoSourceAggregator, &VideoSourceAggregator::setDisplaySources);
     connect(m_imageSourceController, &ImageSourceController::sourcesChanged,
-            m_displaySourceController, &DisplaySourceController::setImageSources);
+            m_videoSourceAggregator, &VideoSourceAggregator::setImageSources);
+    connect(m_cameraSourceController, &CameraSourceController::sourcesChanged,
+            m_videoSourceAggregator, &VideoSourceAggregator::setCameraSources);
     setWindowTitle(QStringLiteral("OpenLive Studio"));
     setMinimumSize(960, 640);
     resize(1280, 720);
@@ -451,7 +455,7 @@ void MainWindow::setupPreview()
     auto *preview = new PreviewWidget(pages);
     preview->setObjectName(QStringLiteral("previewWidget"));
     connect(preview, &PreviewWidget::renderingError, pages, showError, Qt::QueuedConnection);
-    connect(m_cameraSourceController, &CameraSourceController::sourcesChanged, preview, &PreviewWidget::setSources);
+    connect(m_videoSourceAggregator, &VideoSourceAggregator::sourcesChanged, preview, &PreviewWidget::setSources);
     connect(preview, &PreviewWidget::gpuTransferFailed, m_displaySourceController, &DisplaySourceController::failTransfer, Qt::QueuedConnection);
     connect(preview, &PreviewWidget::selectionRequested, m_videoSourceModel, &VideoSourceModel::selectSource);
     connect(preview, &PreviewWidget::transformRequested, m_videoSourceModel, &VideoSourceModel::setSourceTransform);

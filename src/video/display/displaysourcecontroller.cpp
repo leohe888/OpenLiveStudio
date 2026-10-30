@@ -126,12 +126,6 @@ void DisplaySourceController::synchronize()
     publish();
 }
 
-void DisplaySourceController::setImageSources(const QList<PreviewSource> &images)
-{
-    m_images = images;
-    if (!m_busy) publish();
-}
-
 void DisplaySourceController::failTransfer(const QString &id, quint64 generation, const QString &reason)
 {
     const auto it = m_entries.find(id);
@@ -179,16 +173,13 @@ void DisplaySourceController::publish()
     QList<PreviewSource> result;
     for (int row = 0; row < m_model.rowCount(); ++row) {
         const auto index = m_model.index(row, 0);
+        if (index.data(VideoSourceModel::TypeRole).toString() != "displayCapture") continue;
         const QString id = index.data(VideoSourceModel::IdRole).toString();
         PreviewSource source;
         source.id = id;
         const auto dynamic = m_entries.find(id);
-        if (dynamic != m_entries.end()) source.frame = dynamic->second.frame;
-        else {
-            const auto image = std::find_if(m_images.cbegin(), m_images.cend(), [&](const auto &entry) { return entry.id == id; });
-            if (image == m_images.cend()) continue;
-            source.image = image->image;
-        }
+        if (dynamic == m_entries.end()) continue;
+        source.frame = dynamic->second.frame;
         source.visible = index.data(VideoSourceModel::VisibleRole).toBool();
         source.locked = index.data(VideoSourceModel::LockedRole).toBool();
         source.transform = index.data(VideoSourceModel::TransformRole).value<SourceTransform>();

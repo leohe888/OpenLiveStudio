@@ -155,19 +155,15 @@ void CameraSourceController::poll() {
     m_busy = false;
     if (retired) synchronize(); else if (changed) publish();
 }
-void CameraSourceController::setOtherSources(const QList<PreviewSource> &sources) { m_others = sources; if (!m_busy) publish(); }
 void CameraSourceController::publish() {
     QList<PreviewSource> result;
     for (int row = 0; row < m_model.rowCount(); ++row) {
         const auto index = m_model.index(row, 0); const QString id = index.data(VideoSourceModel::IdRole).toString();
+        if (index.data(VideoSourceModel::TypeRole).toString() != "camera") continue;
         PreviewSource source; source.id = id;
         const auto camera = m_entries.find(id);
-        if (camera != m_entries.end()) { if (camera->second.frame) source.image = camera->second.frame->image; }
-        else {
-            const auto other = std::find_if(m_others.cbegin(), m_others.cend(), [&](const auto &value) { return value.id == id; });
-            if (other == m_others.cend()) continue;
-            source = *other;
-        }
+        if (camera == m_entries.end()) continue;
+        if (camera->second.frame) source.image = camera->second.frame->image;
         source.visible = index.data(VideoSourceModel::VisibleRole).toBool(); source.locked = index.data(VideoSourceModel::LockedRole).toBool();
         source.transform = index.data(VideoSourceModel::TransformRole).value<SourceTransform>();
         source.filters = index.data(VideoSourceModel::FiltersRole).value<QList<SourceFilter>>(); result.append(std::move(source));

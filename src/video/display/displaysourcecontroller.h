@@ -22,7 +22,6 @@ public:
     Q_INVOKABLE bool applyProperties(const QString &sourceId, const QString &displayId, bool cursor);
     Q_INVOKABLE bool retry(const QString &sourceId);
     void failTransfer(const QString &id, quint64 generation, const QString &reason);
-    void setImageSources(const QList<PreviewSource> &images);
     int activeWorkerCount() const;
 signals:
     void displaysChanged();
@@ -42,7 +41,6 @@ private:
     void stop(Entry &entry);
     VideoSourceModel &m_model;
     QVariantList m_displays;
-    QList<PreviewSource> m_images;
     std::map<QString, Entry> m_entries;
     std::vector<std::unique_ptr<DisplayCaptureWorker>> m_retired;
     QTimer m_timer;

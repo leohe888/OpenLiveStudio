@@ -3,6 +3,7 @@
 
 #include "video/display/displaysourcecontroller.h"
 #include "video/camera/camerasourcecontroller.h"
+#include "video/videosourceaggregator.h"
 #include "audio/audiosourcemodel.h"
 #include "core/mediaclock.h"
 #include "output/recordingcontroller.h"
@@ -76,6 +77,7 @@ inline void run(MainWindow &window)
     auto *pictures=window.findChild<ImageSourceController *>(); QVERIFY(pictures);
     auto *display=window.findChild<DisplaySourceController *>(); QVERIFY(display);
     auto *camera=window.findChild<CameraSourceController *>(); QVERIFY(camera);
+    auto *aggregator=window.findChild<VideoSourceAggregator *>(); QVERIFY(aggregator);
     auto *preview=window.findChild<PreviewWidget *>("previewWidget"); QVERIFY(preview);
     window.show();
     QTRY_VERIFY_WITH_TIMEOUT(recorder->ready(),10000);
@@ -135,7 +137,7 @@ inline void run(MainWindow &window)
         sources.prepend({"acceptance-sync",marker,true,{{125,125},{250,250},0}});
         preview->setSources(sources);
     };
-    const auto connection=QObject::connect(camera,&CameraSourceController::sourcesChanged,&window,[&](const auto &sources) { latest=sources; render(); });
+    const auto connection=QObject::connect(aggregator,&VideoSourceAggregator::sourcesChanged,&window,[&](const auto &sources) { latest=sources; render(); });
     QTimer heartbeat;
     heartbeat.setInterval(20); heartbeat.setTimerType(Qt::PreciseTimer);
     QObject::connect(&heartbeat,&QTimer::timeout,&window,render);

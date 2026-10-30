@@ -26,6 +26,8 @@ qt_add_executable(OpenLiveStudio
     src/video/sourcetransform.h
     src/video/videosourcemodel.cpp
     src/video/videosourcemodel.h
+    src/video/videosourceaggregator.cpp
+    src/video/videosourceaggregator.h
     src/video/image/imagesourcecontroller.cpp
     src/video/image/imagesourcecontroller.h
     src/video/camera/cameracaptureworker.h

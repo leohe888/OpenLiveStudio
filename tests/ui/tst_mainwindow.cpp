@@ -5,6 +5,7 @@
 #include "output/streamingcontroller.h"
 #include "ui/uicolors.h"
 #include "video/videosourcemodel.h"
+#include "video/videosourceaggregator.h"
 #include "video/image/imagesourcecontroller.h"
 #include "video/camera/camerasourcecontroller.h"
 #include <QPainter>
@@ -66,6 +67,7 @@ class MainWindowTest : public QObject
 private slots:
     void init();
     void canShowAndClose();
+    void aggregatesIndependentSourceControllers();
     void hasWindowShell();
     void previewDisplaysImageSources();
     void previewEditsModelAndSynchronizesSelection();
@@ -145,6 +147,58 @@ void MainWindowTest::canShowAndClose()
 
     QVERIFY(window.close());
     QTRY_VERIFY(!window.isVisible());
+}
+
+void MainWindowTest::aggregatesIndependentSourceControllers()
+{
+    MainWindow window;
+    auto *model = window.findChild<VideoSourceModel *>();
+    auto *aggregator = window.findChild<VideoSourceAggregator *>();
+    auto *images = window.findChild<ImageSourceController *>();
+    auto *display = window.findChild<DisplaySourceController *>();
+    auto *camera = window.findChild<CameraSourceController *>();
+    QVERIFY(model && aggregator && images && display && camera);
+    QList<PreviewSource> output, imageOutput, displayOutput, cameraOutput;
+    connect(aggregator, &VideoSourceAggregator::sourcesChanged, &window,
+        [&](const auto &sources) { output = sources; });
+    connect(images, &ImageSourceController::sourcesChanged, &window,
+        [&](const auto &sources) { imageOutput = sources; });
+    connect(display, &DisplaySourceController::sourcesChanged, &window,
+        [&](const auto &sources) { displayOutput = sources; });
+    connect(camera, &CameraSourceController::sourcesChanged, &window,
+        [&](const auto &sources) { cameraOutput = sources; });
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    QImage pixels(32, 16, QImage::Format_RGB32);
+    pixels.fill(Qt::red);
+    const auto path = directory.filePath("image.png");
+    QVERIFY(pixels.save(path));
+    QVERIFY(model->addSource({"image", "Image", ImageConfig{path}}));
+    SourceData screen{"display", "Display", DisplayCaptureConfig{"missing-display"}};
+    screen.visible = false; // Exercise wiring without opening physical devices.
+    QVERIFY(model->addSource(screen));
+    SourceData webcam{"camera", "Camera", CameraConfig{"missing-camera"}};
+    webcam.visible = false;
+    QVERIFY(model->addSource(webcam));
+    QTRY_COMPARE(output.size(), 3);
+    QCOMPARE(imageOutput.size(), 1);
+    QCOMPARE(displayOutput.size(), 1);
+    QCOMPARE(cameraOutput.size(), 1);
+    QCOMPARE(imageOutput[0].id, QString("image"));
+    QCOMPARE(displayOutput[0].id, QString("display"));
+    QCOMPARE(cameraOutput[0].id, QString("camera"));
+    QCOMPARE(output[0].id, QString("camera"));
+    QCOMPARE(output[1].id, QString("display"));
+    QCOMPARE(output[2].id, QString("image"));
+    QTRY_COMPARE(output[2].image, pixels);
+    QVERIFY(!output[0].visible && !output[1].visible);
+    QVERIFY(model->moveSource("image", -1));
+    QVERIFY(model->moveSource("image", -1));
+    QTRY_COMPARE(output[0].id, QString("image"));
+    QVERIFY(model->removeSource("image"));
+    QTRY_COMPARE(output.size(), 2);
+    QCOMPARE(output[0].id, QString("camera"));
+    QCOMPARE(output[1].id, QString("display"));
 }
 
 void MainWindowTest::sourcePanelSharesStateAcrossReloadsAndReleasesItWithWindow()

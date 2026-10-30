@@ -209,6 +209,21 @@ add_test(NAME core.videosourcemodel
 )
 set_tests_properties(core.videosourcemodel PROPERTIES LABELS "core;smoke" TIMEOUT 10)
 
+qt_add_executable(tst_videosourceaggregator
+    video/tst_videosourceaggregator.cpp
+    ../src/video/source.cpp
+    ../src/video/videosourcemodel.cpp
+    ../src/video/videosourcemodel.h
+    ../src/video/videosourceaggregator.cpp
+    ../src/video/videosourceaggregator.h
+)
+target_include_directories(tst_videosourceaggregator PRIVATE "${PROJECT_SOURCE_DIR}/src")
+target_link_libraries(tst_videosourceaggregator PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+add_test(NAME video.sourceaggregator COMMAND "${CMAKE_COMMAND}" -E env
+    "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
+    "$<TARGET_FILE:tst_videosourceaggregator>" -o "-,txt")
+set_tests_properties(video.sourceaggregator PROPERTIES LABELS "video;smoke" TIMEOUT 10)
+
 qt_add_executable(tst_mainwindow
     ui/tst_mainwindow.cpp
     ../src/ui/uicolors.h
@@ -224,6 +239,8 @@ qt_add_executable(tst_mainwindow
     ../src/video/videosourcemodel.h
     ../src/video/image/imagesourcecontroller.cpp
     ../src/video/image/imagesourcecontroller.h
+    ../src/video/videosourceaggregator.cpp
+    ../src/video/videosourceaggregator.h
     ../src/video/camera/cameracaptureworker.h
     ../src/video/camera/cameracaptureworker.cpp
     ../src/video/camera/camerasourcecontroller.h

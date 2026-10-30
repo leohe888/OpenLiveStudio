@@ -47,13 +47,12 @@ void CameraCaptureTest::unavailableDeviceAndLifecycle() {
     connect(&controller, &CameraSourceController::sourcesChanged, this, [&](const auto &sources) { output = sources; });
     QImage image(8, 8, QImage::Format_RGB32); image.fill(Qt::red);
     QVERIFY(model.addSource({"image", "Image", ImageConfig{"unused"}, {image.size()}}));
-    controller.setOtherSources({PreviewSource{"image", image}});
     const QString id = controller.addCamera("Camera", "missing-device", {});
     QVERIFY(!id.isEmpty());
     QTRY_COMPARE_WITH_TIMEOUT(model.cameraProperties(id).value("state").toString(), QString("error"), 10000);
     QVERIFY(!model.cameraProperties(id).value("error").toString().isEmpty());
-    QVERIFY(!errors.isEmpty()); QCOMPARE(output.size(), 2);
-    QCOMPARE(output[0].id, id); QVERIFY(output[0].image.isNull()); QCOMPARE(output[1].image, image);
+    QVERIFY(!errors.isEmpty()); QCOMPARE(output.size(), 1);
+    QCOMPARE(output[0].id, id); QVERIFY(output[0].image.isNull());
     QVERIFY(model.setSourceVisible(id, false));
     QCOMPARE(model.cameraProperties(id).value("state").toString(), QString("paused"));
     QTRY_COMPARE_WITH_TIMEOUT(controller.activeWorkerCount(), 0, 10000);
@@ -64,7 +63,8 @@ void CameraCaptureTest::unavailableDeviceAndLifecycle() {
     QVERIFY(controller.retry(id));
     QVERIFY(model.removeSource(id));
     QTRY_COMPARE_WITH_TIMEOUT(controller.activeWorkerCount(), 0, 10000);
-    QCOMPARE(output.size(), 1); QCOMPARE(output[0].id, QString("image"));
+    QVERIFY(output.isEmpty());
+    QCOMPARE(model.rowCount(), 1); // The image remains in the model, not in this controller's output.
 }
 
 void CameraCaptureTest::hardware() {

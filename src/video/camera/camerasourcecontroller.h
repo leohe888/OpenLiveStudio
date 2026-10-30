@@ -26,7 +26,6 @@ public:
     Q_INVOKABLE QString addCamera(const QString &name, const QString &deviceId, const QVariantMap &mode);
     Q_INVOKABLE bool applyProperties(const QString &sourceId, const QString &deviceId, const QVariantMap &mode);
     Q_INVOKABLE bool retry(const QString &sourceId);
-    void setOtherSources(const QList<PreviewSource> &sources);
     int activeWorkerCount() const;
 signals:
     void devicesChanged();
@@ -53,7 +52,6 @@ private:
     bool m_refreshing = false, m_busy = false, m_pending = false;
     quint64 m_generation = 0;
     QTimer m_timer;
-    QList<PreviewSource> m_others;
     std::map<QString, Entry> m_entries;
     std::vector<std::unique_ptr<CameraCaptureWorker>> m_retired;
     std::vector<std::unique_ptr<QThread>> m_queries;
