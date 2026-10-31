@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import "components"
 
 Rectangle {
     id: root
@@ -14,34 +15,6 @@ Rectangle {
     signal soundSourceRemovalDialogRequested(string sourceId)
     signal soundSourcePropertiesDialogRequested(string sourceId)
 
-    component AudioScrollBar: ScrollBar {
-        hoverEnabled: true
-        palette.mid: hovered ? root.themeColors.scrollbar.thumb.hovered : root.themeColors.scrollbar.thumb.normal
-        palette.dark: root.themeColors.scrollbar.thumb.pressed
-        palette.text: root.themeColors.text.primary
-    }
-
-    component AudioButton: ToolButton {
-        id: button
-        implicitWidth: 28
-        implicitHeight: 28
-        hoverEnabled: true
-        display: AbstractButton.IconOnly
-        icon.width: 16
-        icon.height: 16
-        icon.color: enabled ? root.themeColors.icon.primary : root.themeColors.icon.disabled
-        Accessible.name: text
-        ToolTip.text: text
-        ToolTip.visible: hovered
-        palette.toolTipBase: root.themeColors.background.header
-        palette.toolTipText: root.themeColors.text.primary
-        background: Rectangle {
-            radius: 2
-            color: !button.enabled ? "transparent" : button.down ? root.themeColors.button.background.pressed
-                : button.hovered ? root.themeColors.button.background.hovered : "transparent"
-            border.color: button.enabled && button.activeFocus ? root.themeColors.border.focus : "transparent"
-        }
-    }
     component Meter: Rectangle {
         property real peak: 0
         property bool vertical: true
@@ -67,14 +40,14 @@ Rectangle {
             Layout.fillWidth: true
             Layout.margins: 6
             spacing: 6
-            Label { text: qsTr("混音"); color: root.themeColors.text.secondary; font.pixelSize: 11 }
+            StudioLabel { text: qsTr("混音"); color: root.themeColors.text.secondary; font.pixelSize: 11 }
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 2
                 Meter { Layout.fillWidth: true; vertical: false; peak: root.audioState ? root.audioState.masterPeakLeft : 0 }
                 Meter { Layout.fillWidth: true; vertical: false; peak: root.audioState ? root.audioState.masterPeakRight : 0 }
             }
-            Label {
+            StudioLabel {
                 objectName: "mixedClipLabel"
                 text: root.audioState && root.audioState.masterClipped ? qsTr("过载") : qsTr("输出")
                 color: root.audioState && root.audioState.masterClipped ? root.themeColors.status.error : root.themeColors.text.secondary
@@ -84,14 +57,14 @@ Rectangle {
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            ScrollView {
+            StudioScrollView {
                 id: scroll
                 objectName: "mixerScrollView"
                 anchors.fill: parent
                 clip: true
                 contentWidth: Math.max(availableWidth, channels.implicitWidth + 12)
                 contentHeight: channels.implicitHeight + 12
-                ScrollBar.horizontal: AudioScrollBar {
+                ScrollBar.horizontal: StudioScrollBar {
                     objectName: "mixerHorizontalScrollBar"
                     parent: scroll
                     x: scroll.leftPadding
@@ -100,7 +73,7 @@ Rectangle {
                     active: scroll.ScrollBar.vertical.active
                     policy: scroll.contentWidth > scroll.availableWidth ? ScrollBar.AlwaysOn : ScrollBar.AsNeeded
                 }
-                ScrollBar.vertical: AudioScrollBar {
+                ScrollBar.vertical: StudioScrollBar {
                     objectName: "mixerVerticalScrollBar"
                     parent: scroll
                     x: scroll.mirrored ? 0 : scroll.width - width
@@ -139,13 +112,12 @@ Rectangle {
                                 anchors.fill: parent
                                 anchors.margins: 4
                                 spacing: 3
-                                Label {
+                                StudioLabel {
                                     Layout.fillWidth: true
                                     text: channel.soundName
                                     textFormat: Text.PlainText
                                     elide: Text.ElideRight
                                     horizontalAlignment: Text.AlignHCenter
-                                    color: root.themeColors.text.primary
                                     ToolTip.visible: nameHover.hovered
                                     ToolTip.text: channel.soundDeviceName
                                     HoverHandler { id: nameHover }
@@ -156,7 +128,7 @@ Rectangle {
                                     spacing: 4
                                     Meter { peak: channel.soundPeakLeft }
                                     Meter { peak: channel.soundPeakRight }
-                                    Slider {
+                                    StudioSlider {
                                         id: volume
                                         objectName: channel.soundId + "VolumeSlider"
                                         orientation: Qt.Vertical
@@ -170,23 +142,13 @@ Rectangle {
                                             root.audioState.selectSource(channel.soundId)
                                             root.audioState.setVolume(channel.soundId, value)
                                         }
-                                        background: Rectangle {
-                                            x: (volume.width - width) / 2; y: volume.topPadding
-                                            width: 4; height: volume.availableHeight
-                                            color: root.themeColors.slider.track
-                                        }
-                                        handle: Rectangle {
-                                            x: (volume.width - width) / 2
-                                            y: volume.topPadding + volume.visualPosition * (volume.availableHeight - height)
-                                            width: 14; height: 16; radius: 1
-                                            color: root.themeColors.slider.handle
-                                            border.color: volume.activeFocus ? root.themeColors.border.focus : root.themeColors.border.default
-                                        }
                                     }
                                 }
                                 RowLayout {
                                     Layout.alignment: Qt.AlignHCenter
-                                    AudioButton {
+                                    StudioIconButton {
+                                        implicitWidth: 28
+                                        implicitHeight: 28
                                         objectName: channel.soundId + "MuteButton"
                                         text: channel.soundMuted ? qsTr("取消静音") : qsTr("静音")
                                         icon.source: channel.soundMuted ? "qrc:/assets/icons/volume-x.svg" : "qrc:/assets/icons/volume-2.svg"
@@ -196,14 +158,14 @@ Rectangle {
                                             root.audioState.setMuted(channel.soundId, !channel.soundMuted)
                                         }
                                     }
-                                    Label {
+                                    StudioLabel {
                                         objectName: "channelValue"
                                         text: Math.round(channel.soundVolume * 100) + "%"
                                         color: root.themeColors.text.secondary
                                         font.pixelSize: 10
                                     }
                                 }
-                                Label {
+                                StudioLabel {
                                     objectName: "channelStatus"
                                     Layout.fillWidth: true
                                     text: channel.soundState === "error" ? qsTr("等待设备恢复")
@@ -221,7 +183,7 @@ Rectangle {
                     }
                 }
             }
-            Label {
+            StudioLabel {
                 objectName: "emptySoundSourcesLabel"
                 anchors.centerIn: parent
                 text: qsTr("暂无声音来源")
@@ -236,14 +198,18 @@ Rectangle {
             RowLayout {
                 anchors.fill: parent
                 spacing: 2
-                AudioButton {
+                StudioIconButton {
+                    implicitWidth: 28
+                    implicitHeight: 28
                     objectName: "addSoundSourceButton"
                     text: qsTr("添加声音来源")
                     icon.source: "qrc:/assets/icons/plus.svg"
                     enabled: root.audioState !== null
                     onClicked: root.soundSourceAddDialogRequested()
                 }
-                AudioButton {
+                StudioIconButton {
+                    implicitWidth: 28
+                    implicitHeight: 28
                     objectName: "removeSoundSourceButton"
                     text: qsTr("移除声音来源")
                     icon.source: "qrc:/assets/icons/minus.svg"
@@ -251,7 +217,9 @@ Rectangle {
                     onClicked: root.soundSourceRemovalDialogRequested(root.audioState.currentSourceId)
                 }
                 Item { Layout.fillWidth: true }
-                AudioButton {
+                StudioIconButton {
+                    implicitWidth: 28
+                    implicitHeight: 28
                     objectName: "soundSourcePropertiesButton"
                     text: qsTr("声音来源属性")
                     icon.source: "qrc:/assets/icons/settings.svg"

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import "components"
 
 Rectangle {
     id: root
@@ -62,36 +63,6 @@ Rectangle {
         nameInput.selectAll()
     }
 
-    component FormInput: TextField {
-        implicitHeight: 32
-        color: root.themeColors.text.primary
-        placeholderTextColor: root.themeColors.text.secondary
-        selectedTextColor: root.themeColors.text.primary
-        selectionColor: root.themeColors.background.selected
-        selectByMouse: true
-        onTextEdited: root.errorText = ""
-        onAccepted: root.submit()
-        background: Rectangle {
-            color: root.themeColors.background.input
-            border.color: parent.enabled && parent.activeFocus ? root.themeColors.border.focus : root.themeColors.border.default
-            radius: 2
-        }
-    }
-    component ActionButton: Button {
-        implicitWidth: 76
-        implicitHeight: 32
-        hoverEnabled: true
-        palette.buttonText: enabled ? root.themeColors.text.primary : root.themeColors.text.disabled
-        Accessible.name: text
-        background: Rectangle {
-            color: !parent.enabled ? root.themeColors.button.background.disabled
-                : (parent.down ? root.themeColors.button.background.pressed
-                    : (parent.hovered ? root.themeColors.button.background.hovered : root.themeColors.button.background.normal))
-            border.color: parent.enabled && parent.activeFocus ? root.themeColors.border.focus : root.themeColors.border.default
-            radius: 2
-        }
-    }
-
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 20
@@ -101,13 +72,12 @@ Rectangle {
             columnSpacing: 10
             rowSpacing: 12
             Layout.fillWidth: true
-            Label { text: qsTr("来源类型"); color: root.themeColors.text.primary; Layout.preferredWidth: 64 }
-            ComboBox {
+            StudioLabel { text: qsTr("来源类型"); Layout.preferredWidth: 64 }
+            StudioComboBox {
                 id: sourceType
                 objectName: "sourceTypeInput"
                 Layout.fillWidth: true
                 enabled: !root.loading
-                implicitHeight: 32
                 textRole: "name"
                 valueRole: "type"
                 model: [
@@ -121,66 +91,28 @@ Rectangle {
                         nameInput.text = root.videoSourceModel.suggestedSourceName(currentText)
                 }
                 Accessible.name: qsTr("来源类型")
-                hoverEnabled: true
-                palette.buttonText: enabled ? root.themeColors.text.primary : root.themeColors.text.disabled
-                palette.text: enabled ? root.themeColors.text.primary : root.themeColors.text.disabled
-                palette.base: root.themeColors.background.input
-                palette.window: root.themeColors.background.input
-                palette.highlight: root.themeColors.background.selected
-                palette.highlightedText: root.themeColors.text.primary
-                palette.light: root.themeColors.background.selected
-                palette.midlight: root.themeColors.background.hovered
-                palette.mid: root.themeColors.border.default
-                palette.dark: root.themeColors.border.focus
-                indicator: Canvas {
-                    readonly property color arrowColor: sourceType.enabled
-                        ? root.themeColors.icon.primary : root.themeColors.icon.disabled
-                    width: 10
-                    height: 6
-                    anchors.right: parent.right
-                    anchors.rightMargin: 10
-                    anchors.verticalCenter: parent.verticalCenter
-                    onArrowColorChanged: requestPaint()
-                    onPaint: {
-                        const ctx = getContext("2d")
-                        ctx.clearRect(0, 0, width, height)
-                        ctx.fillStyle = arrowColor
-                        ctx.beginPath()
-                        ctx.moveTo(0, 0)
-                        ctx.lineTo(width, 0)
-                        ctx.lineTo(width / 2, height)
-                        ctx.closePath()
-                        ctx.fill()
-                    }
-                }
-                background: Rectangle {
-                    color: !sourceType.enabled ? root.themeColors.button.background.disabled
-                        : (sourceType.down ? root.themeColors.button.background.pressed
-                            : (sourceType.hovered ? root.themeColors.background.hovered : root.themeColors.background.input))
-                    border.color: sourceType.enabled && sourceType.activeFocus
-                        ? root.themeColors.border.focus : root.themeColors.border.default
-                    radius: 2
-                }
             }
-            Label { text: qsTr("名称"); color: root.themeColors.text.primary }
-            FormInput {
+            StudioLabel { text: qsTr("名称") }
+            StudioTextField {
+                onAccepted: root.submit()
                 id: nameInput
                 objectName: "sourceNameInput"
                 Layout.fillWidth: true
                 enabled: !root.loading
                 text: root.initialName
                 Accessible.name: qsTr("来源名称")
-                onTextEdited: root.nameEdited = true
+                onTextEdited: { root.errorText = ""; root.nameEdited = true }
             }
-            Label {
+            StudioLabel {
                 visible: root.isImage
                 text: qsTr("图片文件")
-                color: root.themeColors.text.primary
             }
             RowLayout {
                 visible: root.isImage
                 Layout.fillWidth: true
-                FormInput {
+                StudioTextField {
+                    onAccepted: root.submit()
+                    onTextEdited: root.errorText = ""
                     id: fileInput
                     objectName: "sourceFileInput"
                     Layout.fillWidth: true
@@ -188,7 +120,7 @@ Rectangle {
                     placeholderText: qsTr("本地图片路径")
                     Accessible.name: qsTr("图片文件路径")
                 }
-                ActionButton {
+                StudioButton {
                     objectName: "browseSourceImageButton"
                     text: qsTr("浏览…")
                     enabled: !root.loading && root.imageSourceController !== null
@@ -216,7 +148,7 @@ Rectangle {
             visible: root.supportsDisplay
             displaySourceController: root.displaySourceController
         }
-        Label {
+        StudioLabel {
             objectName: "sourceAddError"
             Layout.fillWidth: true
             text: root.errorText
@@ -228,7 +160,7 @@ Rectangle {
         RowLayout {
             Layout.alignment: Qt.AlignRight
             spacing: 8
-            ActionButton {
+            StudioButton {
                 objectName: "confirmSourceAddButton"
                 text: root.loading ? qsTr("加载中…") : qsTr("确定")
                 enabled: !root.loading && ((root.isImage && root.imageSourceController !== null)
@@ -236,7 +168,7 @@ Rectangle {
                     || (root.supportsCamera && cameraSettings.deviceId.length > 0 && !cameraSettings.loadingModes))
                 onClicked: root.submit()
             }
-            ActionButton {
+            StudioButton {
                 objectName: "cancelSourceAddButton"
                 text: qsTr("取消")
                 onClicked: root.closeRequested()

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import "components"
 
 Rectangle {
     id: root
@@ -27,10 +28,6 @@ Rectangle {
             if (id === root.sourceId) root.status = root.videoSourceModel.cameraProperties(id)
         }
     }
-    component ActionButton: Button {
-        palette.button: root.colors.button.background.normal
-        palette.buttonText: enabled ? root.colors.text.primary : root.colors.text.disabled
-    }
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 20
@@ -41,7 +38,7 @@ Rectangle {
             Layout.fillWidth: true
             cameraSourceController: root.cameraSourceController
         }
-        Label {
+        StudioLabel {
             objectName: "cameraStateLabel"
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
@@ -52,7 +49,7 @@ Rectangle {
                 : root.status.state === "error" ? qsTr("采集失败") : qsTr("等待采集画面…")
             color: root.colors.text.secondary
         }
-        Label {
+        StudioLabel {
             objectName: "cameraErrorLabel"
             Layout.fillWidth: true
             text: root.errorText || root.status.error || ""
@@ -63,7 +60,7 @@ Rectangle {
         Item { Layout.fillHeight: true }
         RowLayout {
             Layout.alignment: Qt.AlignRight
-            ActionButton {
+            StudioButton {
                 objectName: "confirmCameraPropertiesButton"
                 text: qsTr("确定")
                 enabled: settings.deviceId.length > 0 && !settings.loadingModes
@@ -73,13 +70,13 @@ Rectangle {
                     else root.errorText = qsTr("无法应用配置：所选摄像头已被其他来源使用，或采集模式无效。")
                 }
             }
-            ActionButton {
+            StudioButton {
                 objectName: "retryCameraButton"
                 text: qsTr("重试")
                 enabled: root.status.state === "error"
                 onClicked: root.cameraSourceController.retry(root.sourceId)
             }
-            ActionButton {
+            StudioButton {
                 objectName: "cancelCameraPropertiesButton"
                 text: qsTr("取消")
                 onClicked: root.closeRequested()

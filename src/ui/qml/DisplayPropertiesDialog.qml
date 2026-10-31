@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import "components"
 
 Rectangle {
     id: root
@@ -25,32 +26,25 @@ Rectangle {
             if (id === root.sourceId) root.status = root.videoSourceModel.displayProperties(id)
         }
     }
-    component ActionButton: Button {
-        palette.button: root.colors.button.background.normal
-        palette.buttonText: enabled ? root.colors.text.primary : root.colors.text.disabled
-        palette.mid: root.colors.border.default
-        palette.light: root.colors.background.hovered
-        palette.dark: root.colors.border.focus
-    }
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 20
         spacing: 12
-        Label { text: qsTr("显示器"); color: root.colors.text.primary }
+        StudioLabel { text: qsTr("显示器") }
         DisplayCaptureSettings {
             id: settings
             objectName: "displaySettings"
             Layout.fillWidth: true
             displaySourceController: root.displaySourceController
         }
-        Label {
+        StudioLabel {
             objectName: "captureStateLabel"
             text: root.status.state === "capturing" ? qsTr("采集中")
                 : root.status.state === "paused" ? qsTr("已暂停：来源当前隐藏")
                 : root.status.state === "error" ? qsTr("采集失败") : qsTr("等待采集画面…")
             color: root.status.state === "error" ? root.colors.status.error : root.colors.text.secondary
         }
-        Label {
+        StudioLabel {
             objectName: "captureErrorLabel"
             Layout.fillWidth: true
             text: root.status.error || ""
@@ -61,18 +55,18 @@ Rectangle {
         Item { Layout.fillHeight: true }
         RowLayout {
             Layout.alignment: Qt.AlignRight
-            ActionButton {
+            StudioButton {
                 objectName: "applyDisplayPropertiesButton"
                 text: qsTr("应用")
                 enabled: settings.displayId.length > 0
                 onClicked: root.displaySourceController.applyProperties(root.sourceId, settings.displayId, settings.captureCursor)
             }
-            ActionButton {
+            StudioButton {
                 objectName: "retryDisplayButton"
                 text: qsTr("重试")
                 onClicked: root.displaySourceController.retry(root.sourceId)
             }
-            ActionButton {
+            StudioButton {
                 objectName: "closeDisplayPropertiesButton"
                 text: qsTr("关闭")
                 onClicked: root.closeRequested()

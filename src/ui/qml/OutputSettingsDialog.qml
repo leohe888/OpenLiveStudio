@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import "components"
 
 Rectangle {
     id: root
@@ -25,57 +26,20 @@ Rectangle {
         server=outputSettings.streamServer
         key=outputSettings.streamKey
     }
-    component SettingField: TextField {
-        Layout.fillWidth: true
-        implicitHeight: 34
-        selectByMouse: true
-        maximumLength: 4096
-        color: enabled ? root.colors.text.primary : root.colors.text.disabled
-        selectionColor: root.colors.background.selected
-        selectedTextColor: root.colors.text.primary
-        placeholderTextColor: root.colors.text.secondary
-        background: Rectangle {
-            color: root.colors.background.input
-            border.color: parent.activeFocus ? root.colors.border.focus : root.colors.border.default
-            radius: 2
-        }
-    }
-    component ActionButton: Button {
-        implicitWidth: 88
-        implicitHeight: 32
-        palette.buttonText: enabled ? root.colors.text.primary : root.colors.text.disabled
-        background: Rectangle {
-            color: !parent.enabled ? root.colors.button.background.disabled : parent.down ? root.colors.button.background.pressed
-                : parent.hovered ? root.colors.button.background.hovered : root.colors.button.background.normal
-            border.color: parent.activeFocus ? root.colors.border.focus : root.colors.border.default
-            radius: 2
-        }
-    }
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 20
         spacing: 12
-        TabBar {
+        StudioTabBar {
             id: tabs
             objectName: "outputSettingsTabs"
             Layout.fillWidth: true
             currentIndex: 1
             Repeater {
                 model: [qsTr("直播推流"),qsTr("录屏")]
-                delegate: TabButton {
+                delegate: StudioTabButton {
                     required property string modelData
                     text: modelData
-                    contentItem: Text {
-                        text: parent.text
-                        color: root.colors.text.primary
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    background: Rectangle {
-                        color: parent.checked ? root.colors.background.selected : root.colors.background.header
-                        border.color: parent.activeFocus ? root.colors.border.focus : root.colors.border.default
-                        radius: 2
-                    }
                 }
             }
         }
@@ -85,24 +49,33 @@ Rectangle {
             currentIndex: tabs.currentIndex
             ColumnLayout {
                 spacing: 8
-                Label { text: qsTr("服务器地址"); color: root.colors.text.primary }
-                SettingField {
+                StudioLabel { text: qsTr("服务器地址") }
+                StudioTextField {
+                    implicitHeight: 34
+                    maximumLength: 4096
+                    Layout.fillWidth: true
                     objectName: "streamServerInput"
                     enabled: !root.outputSettings.streamingLocked
                     text: root.server
                     placeholderText: "rtmp://server/app"
                     onTextEdited: root.server=text
                 }
-                Label { text: qsTr("串流密钥"); color: root.colors.text.primary }
-                SettingField {
+                StudioLabel { text: qsTr("串流密钥") }
+                StudioTextField {
+                    implicitHeight: 34
+                    maximumLength: 4096
+                    Layout.fillWidth: true
                     objectName: "streamKeyInput"
                     enabled: !root.outputSettings.streamingLocked
                     text: root.key
                     echoMode: TextInput.Password
                     onTextEdited: root.key=text
                 }
-                Label { text: qsTr("视频码率（kbps，500–50000）"); color: root.colors.text.primary }
-                SettingField {
+                StudioLabel { text: qsTr("视频码率（kbps，500–50000）") }
+                StudioTextField {
+                    implicitHeight: 34
+                    maximumLength: 4096
+                    Layout.fillWidth: true
                     objectName: "streamingBitrateInput"
                     enabled: !root.outputSettings.streamingLocked
                     text: String(root.streamingBitrate)
@@ -110,7 +83,7 @@ Rectangle {
                     validator: IntValidator { bottom: 500; top: 50000 }
                     onTextEdited: root.streamingBitrate=Number(text)
                 }
-                Label {
+                StudioLabel {
                     text: qsTr("RTMP · H.264 / AAC · 1080p · 30 FPS；连接和重连期间设置锁定。")
                     color: root.colors.text.secondary
                     wrapMode: Text.WordWrap
@@ -120,24 +93,31 @@ Rectangle {
             }
             ColumnLayout {
                 spacing: 8
-                Label { text: qsTr("保存目录"); color: root.colors.text.primary }
+                StudioLabel { text: qsTr("保存目录") }
                 RowLayout {
                     Layout.fillWidth: true
-                    SettingField {
+                    StudioTextField {
+                        implicitHeight: 34
+                        maximumLength: 4096
+                        Layout.fillWidth: true
                         objectName: "recordingDirectoryInput"
                         text: root.directory
                         enabled: !root.outputSettings.recordingLocked
                         onTextEdited: root.directory=text
                     }
-                    ActionButton {
+                    StudioButton {
+                        implicitWidth: 88
                         objectName: "browseRecordingDirectoryButton"
                         text: qsTr("浏览…")
                         enabled: !root.outputSettings.recordingLocked
                         onClicked: root.browseDirectoryRequested()
                     }
                 }
-                Label { text: qsTr("视频码率（kbps，500–50000）"); color: root.colors.text.primary }
-                SettingField {
+                StudioLabel { text: qsTr("视频码率（kbps，500–50000）") }
+                StudioTextField {
+                    implicitHeight: 34
+                    maximumLength: 4096
+                    Layout.fillWidth: true
                     objectName: "recordingBitrateInput"
                     enabled: !root.outputSettings.recordingLocked
                     text: String(root.recordingBitrate)
@@ -145,8 +125,8 @@ Rectangle {
                     validator: IntValidator { bottom: 500; top: 50000 }
                     onTextEdited: root.recordingBitrate=Number(text)
                 }
-                Label { text: qsTr("MP4 · 1080p · 30 FPS"); color: root.colors.text.secondary }
-                Label {
+                StudioLabel { text: qsTr("MP4 · 1080p · 30 FPS"); color: root.colors.text.secondary }
+                StudioLabel {
                     text: qsTr("录制期间，保存目录和码率保持不变。")
                     color: root.colors.text.secondary
                     Layout.fillWidth: true
@@ -155,7 +135,7 @@ Rectangle {
                 Item { Layout.fillHeight: true }
             }
         }
-        Label {
+        StudioLabel {
             objectName: "outputSettingsError"
             text: root.errorText
             textFormat: Text.PlainText
@@ -166,9 +146,10 @@ Rectangle {
         }
         RowLayout {
             Layout.fillWidth: true
-            Label { text: qsTr("设置仅在本次运行中生效"); color: root.colors.text.secondary; font.pixelSize: 11 }
+            StudioLabel { text: qsTr("设置仅在本次运行中生效"); color: root.colors.text.secondary; font.pixelSize: 11 }
             Item { Layout.fillWidth: true }
-            ActionButton {
+            StudioButton {
+                implicitWidth: 88
                 objectName: "applyOutputSettingsButton"
                 text: qsTr("确定")
                 onClicked: {
@@ -176,7 +157,8 @@ Rectangle {
                     else root.errorText=root.outputSettings.lastError
                 }
             }
-            ActionButton {
+            StudioButton {
+                implicitWidth: 88
                 objectName: "cancelOutputSettingsButton"
                 text: qsTr("取消")
                 onClicked: root.closeRequested()

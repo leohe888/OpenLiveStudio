@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import "components"
 
 Rectangle {
     id: root
@@ -14,32 +15,6 @@ Rectangle {
     signal sourceRemovalDialogRequested(string sourceId)
     signal sourceFiltersDialogRequested(string sourceId)
     signal sourcePropertiesDialogRequested(string sourceId)
-
-    // Each operation opts in once its business implementation is available.
-    component SourceButton: ToolButton {
-        id: sourceButton
-        hoverEnabled: true
-        width: 30
-        height: 30
-        display: AbstractButton.IconOnly
-        icon.width: 16
-        icon.height: 16
-        icon.color: enabled ? root.themeColors.icon.primary : root.themeColors.icon.disabled
-        palette.toolTipBase: root.themeColors.background.header
-        palette.toolTipText: root.themeColors.text.primary
-        enabled: false
-        Accessible.name: text
-        ToolTip.text: text
-        ToolTip.visible: hovered
-        background: Rectangle {
-            radius: 2
-            color: !sourceButton.enabled ? "transparent"
-                : (sourceButton.down ? root.themeColors.button.background.pressed
-                    : (sourceButton.hovered ? root.themeColors.button.background.hovered : "transparent"))
-            border.color: sourceButton.enabled && sourceButton.activeFocus
-                ? root.themeColors.border.focus : "transparent"
-        }
-    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -58,25 +33,12 @@ Rectangle {
                 currentIndex: -1
                 keyNavigationEnabled: false
 
-                ScrollBar.vertical: ScrollBar {
+                ScrollBar.vertical: StudioListScrollBar {
                     id: sourceScrollBar
                     objectName: "sourceScrollBar"
                     policy: sourceList.contentHeight > sourceList.height
                         ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
-                    implicitWidth: 12
-                    padding: 2
-                    minimumSize: Math.min(1, 24 / Math.max(1, height))
-                    hoverEnabled: true
                     z: 1
-                    contentItem: Rectangle {
-                        implicitWidth: 8
-                        implicitHeight: 24
-                        radius: 4
-                        color: sourceScrollBar.pressed ? root.themeColors.scrollbar.thumb.pressed
-                            : (sourceScrollBar.hovered ? root.themeColors.scrollbar.thumb.hovered
-                                : root.themeColors.scrollbar.thumb.normal)
-                    }
-                    background: Rectangle { color: root.themeColors.background.header }
                 }
 
                 delegate: Rectangle {
@@ -105,7 +67,7 @@ Rectangle {
                         anchors.leftMargin: 8
                         spacing: 2
 
-                        Label {
+                        StudioLabel {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             Layout.minimumWidth: 0
@@ -115,13 +77,12 @@ Rectangle {
                             HoverHandler { id: sourceErrorHover }
                             textFormat: Text.PlainText
                             elide: Text.ElideRight
-                            color: root.themeColors.text.primary
                             verticalAlignment: Text.AlignVCenter
                             TapHandler {
                                 onTapped: root.state.selectSource(sourceId)
                             }
                         }
-                        SourceButton {
+                        StudioIconButton {
                             objectName: "sourceVisibilityButton"
                             enabled: root.state !== null
                             checked: sourceVisible
@@ -130,7 +91,7 @@ Rectangle {
                                 : "qrc:/assets/icons/eye-off.svg"
                             onClicked: root.state.setSourceVisible(sourceId, !sourceVisible)
                         }
-                        SourceButton {
+                        StudioIconButton {
                             objectName: "sourceLockButton"
                             enabled: root.state !== null
                             checked: sourceLocked
@@ -143,7 +104,7 @@ Rectangle {
                 }
             }
 
-            Label {
+            StudioLabel {
                 objectName: "emptySourcesLabel"
                 anchors.centerIn: parent
                 text: qsTr("暂无来源")
@@ -175,7 +136,7 @@ Rectangle {
                         { name: "moveSourceUpButton", icon: "arrow-up", label: qsTr("来源上移") },
                         { name: "moveSourceDownButton", icon: "arrow-down", label: qsTr("来源下移") }
                     ]
-                    delegate: SourceButton {
+                    delegate: StudioIconButton {
                         required property var modelData
                         objectName: modelData.name
                         text: modelData.label
@@ -208,7 +169,7 @@ Rectangle {
                     implicitHeight: 18
                     color: root.themeColors.border.subtle
                 }
-                SourceButton {
+                StudioIconButton {
                     objectName: "sourceFiltersButton"
                     enabled: root.state !== null && root.state.canFilterCurrentSource
                     onClicked: root.sourceFiltersDialogRequested(root.state.currentSourceId)
@@ -217,7 +178,7 @@ Rectangle {
                     Layout.preferredWidth: 30
                 }
                 Item { Layout.fillWidth: true }
-                SourceButton {
+                StudioIconButton {
                     objectName: "sourcePropertiesButton"
                     enabled: root.state !== null && root.state.canEditCurrentSource
                     onClicked: root.sourcePropertiesDialogRequested(root.state.currentSourceId)

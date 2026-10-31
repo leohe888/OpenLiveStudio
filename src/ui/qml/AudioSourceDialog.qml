@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import "components"
 
 Rectangle {
     id: root
@@ -43,61 +44,21 @@ Rectangle {
             root.updateChoices()
         }
     }
-    component DialogCombo: ComboBox {
-        Layout.fillWidth: true
-        implicitHeight: 34
-        palette.text: root.colors.text.primary
-        palette.buttonText: root.colors.text.primary
-        palette.base: root.colors.background.input
-        palette.window: root.colors.background.panel
-        palette.highlight: root.colors.background.selected
-        palette.highlightedText: root.colors.text.primary
-        background: Rectangle {
-            color: root.colors.background.input
-            border.color: parent.activeFocus ? root.colors.border.focus : root.colors.border.default
-            radius: 2
-        }
-        contentItem: Text {
-            text: parent.displayText
-            leftPadding: 8; rightPadding: 28
-            color: parent.enabled ? root.colors.text.primary : root.colors.text.secondary
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-        }
-    }
-    component ActionButton: Button {
-        implicitHeight: 32
-        implicitWidth: 80
-        palette.buttonText: enabled ? root.colors.text.primary : root.colors.text.disabled
-        background: Rectangle {
-            color: !parent.enabled ? root.colors.button.background.disabled : parent.down ? root.colors.button.background.pressed
-                : parent.hovered ? root.colors.button.background.hovered : root.colors.button.background.normal
-            border.color: parent.activeFocus ? root.colors.border.focus : root.colors.border.default
-            radius: 2
-        }
-    }
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 20
         spacing: 10
-        Label { text: qsTr("来源名称"); color: root.colors.text.primary }
-        TextField {
+        StudioLabel { text: qsTr("来源名称") }
+        StudioTextField {
             id: nameInput
             objectName: "soundNameInput"
             Layout.fillWidth: true
             maximumLength: 80
-            selectByMouse: true
-            color: root.colors.text.primary
-            selectionColor: root.colors.background.selected
-            selectedTextColor: root.colors.text.primary
-            background: Rectangle {
-                color: root.colors.background.input
-                border.color: nameInput.activeFocus ? root.colors.border.focus : root.colors.border.default
-                radius: 2
-            }
         }
-        Label { text: qsTr("来源类型"); color: root.colors.text.primary }
-        DialogCombo {
+        StudioLabel { text: qsTr("来源类型") }
+        StudioComboBox {
+            implicitHeight: 34
+            Layout.fillWidth: true
             id: typeInput
             objectName: "soundTypeInput"
             enabled: !root.editing
@@ -108,10 +69,12 @@ Rectangle {
                 root.updateChoices()
             }
         }
-        Label { text: qsTr("设备"); color: root.colors.text.primary }
+        StudioLabel { text: qsTr("设备") }
         RowLayout {
             Layout.fillWidth: true
-            DialogCombo {
+            StudioComboBox {
+                implicitHeight: 34
+                Layout.fillWidth: true
                 objectName: "soundDeviceInput"
                 enabled: !root.editing && !root.audioSources.refreshing
                 textRole: "name"
@@ -121,7 +84,8 @@ Rectangle {
                     : currentIndex >= 0 ? currentText : qsTr("暂无未使用的设备")
                 onActivated: root.deviceId = root.targets[currentIndex].id
             }
-            ActionButton {
+            StudioButton {
+                implicitWidth: 80
                 objectName: "refreshSoundDevicesButton"
                 visible: !root.editing
                 text: root.audioSources.refreshing ? qsTr("刷新中…") : qsTr("刷新")
@@ -129,7 +93,7 @@ Rectangle {
                 onClicked: root.audioSources.refreshDevices()
             }
         }
-        Label {
+        StudioLabel {
             Layout.fillWidth: true
             text: root.errorText || (!root.editing ? root.audioSources.catalogError : "")
             textFormat: Text.PlainText
@@ -139,7 +103,8 @@ Rectangle {
         Item { Layout.fillHeight: true }
         RowLayout {
             Layout.alignment: Qt.AlignRight
-            ActionButton {
+            StudioButton {
+                implicitWidth: 80
                 objectName: "confirmSoundSourceButton"
                 text: root.editing ? qsTr("确定") : qsTr("添加")
                 enabled: nameInput.text.trim().length > 0 && (root.editing || root.deviceId.length > 0)
@@ -150,7 +115,8 @@ Rectangle {
                     else root.errorText = qsTr("名称为空或重复，或设备已被其他声音来源使用。")
                 }
             }
-            ActionButton {
+            StudioButton {
+                implicitWidth: 80
                 objectName: "cancelSoundSourceButton"
                 text: qsTr("取消")
                 onClicked: root.closeRequested()

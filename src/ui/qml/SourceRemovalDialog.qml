@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import "components"
 
 Rectangle {
     id: root
@@ -23,34 +24,18 @@ Rectangle {
             errorText = qsTr("无法移除来源：目标来源可能已不存在。")
     }
 
-    component ActionButton: Button {
-        implicitWidth: 88
-        implicitHeight: 32
-        hoverEnabled: true
-        palette.buttonText: enabled ? root.themeColors.text.primary : root.themeColors.text.disabled
-        Accessible.name: text
-        background: Rectangle {
-            color: !parent.enabled ? root.themeColors.button.background.disabled
-                : (parent.down ? root.themeColors.button.background.pressed
-                    : (parent.hovered ? root.themeColors.button.background.hovered : root.themeColors.button.background.normal))
-            border.color: parent.enabled && parent.activeFocus ? root.themeColors.border.focus : root.themeColors.border.default
-            radius: 2
-        }
-    }
-
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 20
         spacing: 10
-        Label {
+        StudioLabel {
             objectName: "sourceRemovalMessage"
             Layout.fillWidth: true
             text: qsTr("确定移除来源“%1”吗？").arg(root.sourceName)
             textFormat: Text.PlainText
             wrapMode: Text.WrapAnywhere
-            color: root.themeColors.text.primary
         }
-        Label {
+        StudioLabel {
             Layout.fillWidth: true
             objectName: "sourceRemovalHint"
             text: root.removalHint
@@ -58,7 +43,7 @@ Rectangle {
             wrapMode: Text.WordWrap
             color: root.themeColors.text.secondary
         }
-        Label {
+        StudioLabel {
             objectName: "sourceRemovalError"
             Layout.fillWidth: true
             text: root.errorText
@@ -70,12 +55,14 @@ Rectangle {
         RowLayout {
             Layout.alignment: Qt.AlignRight
             spacing: 8
-            ActionButton {
+            StudioButton {
+                implicitWidth: 88
                 objectName: "confirmSourceRemovalButton"
                 text: qsTr("移除")
                 onClicked: root.removeSource()
             }
-            ActionButton {
+            StudioButton {
+                implicitWidth: 88
                 objectName: "cancelSourceRemovalButton"
                 text: qsTr("取消")
                 Component.onCompleted: forceActiveFocus()

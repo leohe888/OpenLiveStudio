@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import "components"
 
 ColumnLayout {
     id: root
@@ -53,35 +54,14 @@ ColumnLayout {
             root.modeList = entries
         }
     }
-    component CameraCombo: ComboBox {
-        Layout.fillWidth: true
-        Layout.minimumWidth: 0
-        implicitHeight: 34
-        textRole: "name"
-        palette.text: root.colors.text.primary
-        palette.buttonText: root.colors.text.primary
-        palette.base: root.colors.background.input
-        palette.window: root.colors.background.panel
-        palette.highlight: root.colors.background.selected
-        palette.highlightedText: root.colors.text.primary
-        background: Rectangle {
-            color: root.colors.background.input
-            border.color: parent.activeFocus ? root.colors.border.focus : root.colors.border.default
-            radius: 2
-        }
-        contentItem: Text {
-            text: parent.displayText
-            leftPadding: 8
-            rightPadding: 28
-            color: root.colors.text.primary
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-        }
-    }
-    Label { text: qsTr("摄像头设备"); color: root.colors.text.primary }
+    StudioLabel { text: qsTr("摄像头设备") }
     RowLayout {
         Layout.fillWidth: true
-        CameraCombo {
+        StudioComboBox {
+            implicitHeight: 34
+            Layout.fillWidth: true
+            Layout.minimumWidth: 0
+            textRole: "name"
             id: device
             objectName: "cameraDeviceInput"
             model: root.targets
@@ -94,17 +74,19 @@ ColumnLayout {
                 root.deviceId = root.targets[currentIndex].id
             }
         }
-        Button {
+        StudioButton {
             objectName: "refreshCamerasButton"
             text: root.cameraSourceController && root.cameraSourceController.refreshing ? qsTr("刷新中…") : qsTr("刷新")
             enabled: root.cameraSourceController !== null && !root.cameraSourceController.refreshing
-            palette.button: root.colors.button.background.normal
-            palette.buttonText: root.colors.text.primary
             onClicked: { root.cameraSourceController.refreshDevices(); root.loadModes() }
         }
     }
-    Label { text: qsTr("采集模式"); color: root.colors.text.primary }
-    CameraCombo {
+    StudioLabel { text: qsTr("采集模式") }
+    StudioComboBox {
+        implicitHeight: 34
+        Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        textRole: "name"
         objectName: "cameraModeInput"
         model: root.modeList
         currentIndex: root.modeIndex()
@@ -113,7 +95,7 @@ ColumnLayout {
         Accessible.name: qsTr("采集模式")
         onActivated: root.selectedMode = root.modeList[currentIndex]
     }
-    Label {
+    StudioLabel {
         Layout.fillWidth: true
         visible: text.length > 0
         text: root.errorText || (root.cameraSourceController ? root.cameraSourceController.catalogError : "")

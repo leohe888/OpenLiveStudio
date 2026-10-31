@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import "components"
 
 Rectangle {
     id: root
@@ -16,37 +17,7 @@ Rectangle {
     signal recordingToggleRequested()
     signal settingsDialogRequested()
 
-    // Retain Basic's thumb geometry, visibility and fade behavior.
-    component PanelScrollBar: ScrollBar {
-        hoverEnabled: true
-        palette.mid: hovered ? root.themeColors.scrollbar.thumb.hovered : root.themeColors.scrollbar.thumb.normal
-        palette.dark: root.themeColors.scrollbar.thumb.pressed
-        palette.text: root.themeColors.text.primary
-    }
-
-    component ControlButton: Button {
-        id: controlButton
-        hoverEnabled: true
-        implicitHeight: 32
-        Layout.maximumHeight: 32
-        enabled: false
-        display: AbstractButton.TextBesideIcon
-        icon.width: 16
-        icon.height: 16
-        icon.color: enabled ? root.themeColors.icon.primary : root.themeColors.icon.disabled
-        palette.buttonText: enabled ? root.themeColors.text.primary : root.themeColors.text.disabled
-        Accessible.name: enabled ? text : text + qsTr("（不可用）")
-        background: Rectangle {
-            color: !controlButton.enabled ? root.themeColors.button.background.disabled
-                : (controlButton.down ? root.themeColors.button.background.pressed
-                    : (controlButton.hovered ? root.themeColors.button.background.hovered : root.themeColors.button.background.normal))
-            border.color: controlButton.enabled && controlButton.activeFocus
-                ? root.themeColors.border.focus : root.themeColors.border.default
-            radius: 2
-        }
-    }
-
-    ScrollView {
+    StudioScrollView {
         id: scroll
         objectName: "controlsScrollView"
         anchors.fill: parent
@@ -54,7 +25,7 @@ Rectangle {
         // Keep viewport sizing independent of the layout it sizes.
         contentWidth: Math.max(root.width, controls.implicitWidth + 16)
         contentHeight: Math.max(root.height, 48)
-        ScrollBar.horizontal: PanelScrollBar {
+        ScrollBar.horizontal: StudioScrollBar {
             objectName: "controlsHorizontalScrollBar"
             parent: scroll
             x: scroll.leftPadding
@@ -62,7 +33,7 @@ Rectangle {
             width: scroll.availableWidth
             active: scroll.ScrollBar.vertical.active
         }
-        ScrollBar.vertical: PanelScrollBar {
+        ScrollBar.vertical: StudioScrollBar {
             objectName: "controlsVerticalScrollBar"
             parent: scroll
             x: scroll.mirrored ? 0 : scroll.width - width
@@ -80,7 +51,9 @@ Rectangle {
             height: 32
             spacing: 6
 
-            ControlButton {
+            StudioButton {
+                Layout.maximumHeight: 32
+                Accessible.name: enabled ? text : text + qsTr("（不可用）")
                 objectName: "recordButton"
                 Layout.minimumWidth: 110
                 Layout.minimumHeight: 32
@@ -91,7 +64,9 @@ Rectangle {
                 icon.source: "qrc:/assets/icons/circle.svg"
                 onClicked: root.recordingToggleRequested()
             }
-            ControlButton {
+            StudioButton {
+                Layout.maximumHeight: 32
+                Accessible.name: enabled ? text : text + qsTr("（不可用）")
                 objectName: "streamButton"
                 Layout.minimumWidth: 110
                 Layout.minimumHeight: 32
@@ -103,7 +78,9 @@ Rectangle {
                 onClicked: root.streamingToggleRequested()
                 icon.source: "qrc:/assets/icons/radio.svg"
             }
-            ControlButton {
+            StudioButton {
+                Layout.maximumHeight: 32
+                Accessible.name: enabled ? text : text + qsTr("（不可用）")
                 objectName: "settingsButton"
                 Layout.minimumWidth: 110
                 Layout.minimumHeight: 32

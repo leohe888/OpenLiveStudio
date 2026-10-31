@@ -15,6 +15,8 @@
 
 C++ 项目头文件统一以 `src/` 为引用根目录，例如 `#include "video/videosourcemodel.h"`。
 
+QML 基础控件集中在 `src/ui/qml/components/`，页面通过 `import "components"` 使用 `StudioButton`、`StudioIconButton`、`StudioTextField`、`StudioComboBox`、`StudioCheckBox`、`StudioRadioButton`、`StudioSlider`、`StudioSpinBox`、`StudioTabButton` 等组件。组件继承 Qt Quick Controls Basic，保留标准属性和信号；校验、提交、设备操作等业务逻辑放在页面。颜色沿用 `uiColors`，公共尺寸放在 `ControlMetrics.js`，页面可以按布局覆盖尺寸。`StudioIconButton.outlined` 用于需要边框和底色的图标操作；`StudioListScrollBar` 保留来源列表的常驻轨道，其余滚动区域使用保留 Basic 淡出行为的 `StudioScrollBar`。
+
 ## MVP 功能
 
 1. **单画布**：唯一画布承载来源合成与预览。

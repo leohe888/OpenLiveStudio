@@ -71,6 +71,22 @@ qt_add_executable(OpenLiveStudio
 )
 
 set(OPENLIVE_STUDIO_QML_FILES
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioButton.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioCheckBox.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioComboBox.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioIconButton.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioItemDelegate.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioLabel.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioListScrollBar.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioRadioButton.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioScrollBar.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioScrollView.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioSlider.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioSpinBox.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioTabBar.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioTabButton.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioTextField.qml"
+    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/ControlMetrics.js"
     "${PROJECT_SOURCE_DIR}/src/ui/qml/OutputSettingsDialog.qml"
     "${PROJECT_SOURCE_DIR}/src/ui/qml/AudioSourceDialog.qml"
     "${PROJECT_SOURCE_DIR}/src/ui/qml/SourcesPanel.qml"
@@ -86,7 +102,7 @@ set(OPENLIVE_STUDIO_QML_FILES
 )
 
 foreach(qml_file IN LISTS OPENLIVE_STUDIO_QML_FILES)
-    get_filename_component(qml_name "${qml_file}" NAME)
+    file(RELATIVE_PATH qml_name "${PROJECT_SOURCE_DIR}/src/ui/qml" "${qml_file}")
     set_source_files_properties("${qml_file}" PROPERTIES
         QT_RESOURCE_ALIAS "qml/${qml_name}"
     )

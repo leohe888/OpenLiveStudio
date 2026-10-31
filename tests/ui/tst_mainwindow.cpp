@@ -66,6 +66,9 @@ class MainWindowTest : public QObject
 
 private slots:
     void init();
+    void sharedControlsLoad_data();
+    void sharedControlsLoad();
+    void sharedControlsKeepKeyboardBehavior();
     void canShowAndClose();
     void aggregatesIndependentSourceControllers();
     void hasWindowShell();
@@ -134,7 +137,90 @@ private slots:
 void MainWindowTest::init()
 {
     // A ready QML root can still have unstable layout bindings.
-    QTest::failOnWarning(QRegularExpression(QStringLiteral("Binding loop detected|ReferenceError: uiColors")));
+    QTest::failOnWarning(QRegularExpression(QStringLiteral("Binding loop detected|ReferenceError:|TypeError:")));
+}
+
+void MainWindowTest::sharedControlsLoad_data()
+{
+    QTest::addColumn<QString>("controlName");
+    for (const auto *name : {"StudioButton", "StudioIconButton", "StudioTextField", "StudioComboBox",
+             "StudioCheckBox", "StudioRadioButton", "StudioSlider", "StudioSpinBox", "StudioTabButton",
+             "StudioScrollBar", "StudioListScrollBar", "StudioLabel", "StudioItemDelegate", "StudioTabBar", "StudioScrollView"})
+        QTest::newRow(name) << QString::fromLatin1(name);
+}
+
+void MainWindowTest::sharedControlsLoad()
+{
+    QFETCH(QString, controlName);
+    QQuickWidget view;
+    view.rootContext()->setContextProperty("uiColors", UiColors::values());
+    view.setSource(QUrl(QString("qrc:/OpenLiveStudio/Ui/qml/components/%1.qml").arg(controlName)));
+    QTRY_COMPARE(view.status(), QQuickWidget::Ready);
+    QVERIFY(view.rootObject());
+}
+
+void MainWindowTest::sharedControlsKeepKeyboardBehavior()
+{
+    QQuickWidget view;
+    view.rootContext()->setContextProperty("uiColors", UiColors::values());
+    QQmlComponent component(view.engine());
+    component.setData(R"(
+        import QtQuick
+        import QtQuick.Controls.Basic
+        import "qrc:/OpenLiveStudio/Ui/qml/components"
+        Column {
+            width: 320; height: 240
+            StudioRadioButton { objectName: "first"; text: "First"; checked: true }
+            StudioRadioButton { objectName: "second"; text: "Second" }
+            StudioItemDelegate { objectName: "selectedRow"; text: "Selected"; highlighted: true }
+            StudioTextField { objectName: "input"; text: "sample" }
+            StudioSlider { objectName: "horizontal"; width: 200; from: 0; to: 10; value: 5; stepSize: 1 }
+            StudioSlider { objectName: "vertical"; height: 60; orientation: Qt.Vertical; from: 0; to: 10; value: 5; stepSize: 1 }
+        }
+    )", QUrl("qrc:/shared-controls-test.qml"));
+    QScopedPointer<QObject> root(component.create(view.rootContext()));
+    QVERIFY2(root, qPrintable(component.errorString()));
+    auto *item = qobject_cast<QQuickItem *>(root.data());
+    QVERIFY(item);
+    view.setContent(QUrl(), &component, item);
+    root.take(); // QQuickWidget owns the root after setContent().
+    view.show();
+
+    auto *selectedRow = item->findChild<QQuickItem *>("selectedRow");
+    QVERIFY(selectedRow);
+    auto *label = selectedRow->property("contentItem").value<QQuickItem *>();
+    QVERIFY(label);
+    QCOMPARE(label->property("color").value<QColor>(), UiColors::color("text.primary"));
+
+    auto *first = item->findChild<QQuickItem *>("first");
+    auto *second = item->findChild<QQuickItem *>("second");
+    QVERIFY(first && second);
+    second->forceActiveFocus(Qt::TabFocusReason);
+    QTest::keyClick(&view, Qt::Key_Space);
+    QTRY_VERIFY(second->property("checked").toBool());
+    QVERIFY(!first->property("checked").toBool());
+    second->setEnabled(false);
+    QTest::keyClick(&view, Qt::Key_Space);
+    QVERIFY(second->property("checked").toBool());
+
+    auto *input = item->findChild<QQuickItem *>("input");
+    QVERIFY(input);
+    input->forceActiveFocus(Qt::TabFocusReason);
+    QTest::keyClick(&view, Qt::Key_A, Qt::ControlModifier);
+    QTest::keyClicks(&view, "edited");
+    QCOMPARE(input->property("text").toString(), "edited");
+
+    for (const auto *name : {"horizontal", "vertical"}) {
+        auto *slider = item->findChild<QQuickItem *>(name);
+        QVERIFY(slider);
+        slider->forceActiveFocus(Qt::TabFocusReason);
+        QTest::keyClick(&view, QString::fromLatin1(name) == "horizontal" ? Qt::Key_Right : Qt::Key_Up);
+        QCOMPARE(slider->property("value").toInt(), 6);
+        slider->setEnabled(false);
+        auto *handle = slider->property("handle").value<QQuickItem *>();
+        QVERIFY(handle);
+        QCOMPARE(handle->property("color").value<QColor>(), UiColors::color("slider.handleDisabled"));
+    }
 }
 
 void MainWindowTest::canShowAndClose()
