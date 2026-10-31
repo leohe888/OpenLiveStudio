@@ -21,6 +21,8 @@ C++ 项目头文件统一以 `src/` 为引用根目录，例如 `#include "video
 
 `AudioSourceManager` 同样是普通的 `QObject`，提供 `AudioSource` 数据快照和按 ID 查询。混音面板仅在来源增删时重建通道，名称、音量、静音及设备状态通过 `sourceChanged` 更新，左右电平通过独立的 `sourceLevelsChanged` 更新。工作线程和音频队列由管理类私有持有。
 
+`OutputSettings` 通过普通 C++ 方法提供录制和推流配置，保留独立的录制/推流锁定信号供设置对话框更新可编辑状态。设置仅在本次运行内生效，应用失败时保留原配置，录制目录只在开始录制时创建。
+
 QSS 编入 Qt 资源，修改后重新构建并启动程序即可生效。预览的 `qproperty-selectionColor`、`qproperty-surroundingColor` 和电平条的 `qproperty-normalColor`、`qproperty-warningColor`、`qproperty-clippingColor` 也在同一文件配置；声音通道使用 `[selected="true"]` 表示选中状态。
 
 ## MVP 功能
