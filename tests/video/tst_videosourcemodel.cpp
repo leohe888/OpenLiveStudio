@@ -34,7 +34,7 @@ private slots:
 
 static QList<SourceData> sources()
 {
-    return {{"a", "Image"}, {"b", "Camera"}, {"c", "Text"}};
+    return {{"a", "Image"}, {"b", "Camera"}, {"c", "Display"}};
 }
 
 void VideoSourceModelTest::startsWithEmptySourceList()
@@ -92,20 +92,16 @@ void VideoSourceModelTest::supportsAllSourceConfigurations()
     using Manager = VideoSourceModel;
     const SourceData defaultSource;
     QCOMPARE(defaultSource.type(), SourceType::DisplayCapture);
-    const auto *defaultConfig = std::get_if<DisplayCaptureConfig>(&defaultSource.config);
+    const auto *defaultConfig = std::get_if<DisplayConfig>(&defaultSource.config);
     QVERIFY(defaultConfig);
     QVERIFY(defaultConfig->displayId.isEmpty());
     QList<SourceData> sources{
-        {"display", "Display", DisplayCaptureConfig{"monitor-1", false}},
-        {"window", "Window", WindowCaptureConfig{
-            "program.exe", "WindowClass", "Window title", true}},
+        {"display", "Display", DisplayConfig{"monitor-1", false}},
         {"camera", "Camera", CameraConfig{"camera-1", QSize(1280, 720), 30}},
-        {"image", "Image", ImageConfig{"fixture.png"}, {QSize(64, 32)}},
-        {"text", "Text", TextConfig{"Caption", QFont("Arial", 24), Qt::yellow}}};
+        {"image", "Image", ImageConfig{"fixture.png"}, {QSize(64, 32)}}};
     const QList<SourceType> types{
-        SourceType::DisplayCapture, SourceType::WindowCapture,
-        SourceType::Camera, SourceType::Image, SourceType::Text};
-    const QStringList typeNames{"displayCapture", "windowCapture", "camera", "image", "text"};
+        SourceType::DisplayCapture, SourceType::Camera, SourceType::Image};
+    const QStringList typeNames{"displayCapture", "camera", "image"};
     Manager state(sources);
     auto *model = &state;
     QAbstractItemModelTester tester(model, QAbstractItemModelTester::FailureReportingMode::QtTest);
@@ -128,14 +124,14 @@ void VideoSourceModelTest::supportsAllSourceConfigurations()
     sources[0].config = ImageConfig{"replacement.png"};
     QCOMPARE(sources.at(0).type(), SourceType::Image);
     QCOMPARE(model->index(0, 0).data(Manager::TypeRole).toString(), QString("displayCapture"));
-    QVERIFY(state.moveSource("text", -1));
-    QCOMPARE(model->index(3, 0).data(Manager::TypeRole).toString(), QString("text"));
+    QVERIFY(state.moveSource("image", -1));
+    QCOMPARE(model->index(1, 0).data(Manager::TypeRole).toString(), QString("image"));
     for (int row = 0; row < model->rowCount(); ++row) {
         QVERIFY(!model->index(row, 0).data(Manager::VisibleRole).toBool());
         QVERIFY(model->index(row, 0).data(Manager::LockedRole).toBool());
     }
-    QVERIFY(state.removeSource("text"));
-    QCOMPARE(model->index(3, 0).data(Manager::TypeRole).toString(), QString("image"));
+    QVERIFY(state.removeSource("image"));
+    QCOMPARE(model->index(1, 0).data(Manager::TypeRole).toString(), QString("camera"));
 }
 
 void VideoSourceModelTest::selectionNotifiesOnlyOnChange()
@@ -534,7 +530,7 @@ void VideoSourceModelTest::filtersAreOrderedValidatedAndIndependent()
 
 void VideoSourceModelTest::displayPropertiesPreserveSourceState()
 {
-    VideoSourceModel model(QList<SourceData>{{"screen", "Screen", DisplayCaptureConfig{"physical-path", true}},
+    VideoSourceModel model(QList<SourceData>{{"screen", "Screen", DisplayConfig{"physical-path", true}},
         {"image", "Image", ImageConfig{"a.png"}}, {"camera", "Camera", CameraConfig{}}});
     QSignalSpy changed(&model, &VideoSourceModel::dataChanged);
     QSignalSpy status(&model, &VideoSourceModel::captureStatusChanged);

@@ -38,10 +38,8 @@ QVariant VideoSourceModel::data(const QModelIndex &index, int role) const
     case TypeRole:
         switch (item.type()) {
         case SourceType::DisplayCapture: return QStringLiteral("displayCapture");
-        case SourceType::WindowCapture: return QStringLiteral("windowCapture");
         case SourceType::Camera: return QStringLiteral("camera");
         case SourceType::Image: return QStringLiteral("image");
-        case SourceType::Text: return QStringLiteral("text");
         }
         return {};
     case FilePathRole:
@@ -54,7 +52,7 @@ QVariant VideoSourceModel::data(const QModelIndex &index, int role) const
     case TransformRole: return QVariant::fromValue(item.transform);
     case FiltersRole: return QVariant::fromValue(item.filters);
     case DisplayConfigRole:
-        if (const auto *display = std::get_if<DisplayCaptureConfig>(&item.config))
+        if (const auto *display = std::get_if<DisplayConfig>(&item.config))
             return QVariantMap{{"displayId", display->displayId}, {"captureCursor", display->captureCursor}};
         return {};
     case CameraConfigRole:
@@ -359,7 +357,7 @@ QVariantMap VideoSourceModel::displayProperties(const QString &id) const
 {
     const int row = sourceRow(id);
     if (row < 0) return {};
-    const auto *config = std::get_if<DisplayCaptureConfig>(&m_sources[row].config);
+    const auto *config = std::get_if<DisplayConfig>(&m_sources[row].config);
     if (!config) return {};
     return {{"displayId", config->displayId}, {"captureCursor", config->captureCursor},
             {"state", m_sources[row].runtime.captureState}, {"error", m_sources[row].runtime.captureError}};
@@ -369,7 +367,7 @@ bool VideoSourceModel::setDisplayConfig(const QString &id, const QString &displa
 {
     const int row = sourceRow(id);
     if (row < 0 || displayId.trimmed().isEmpty()) return false;
-    auto *config = std::get_if<DisplayCaptureConfig>(&m_sources[row].config);
+    auto *config = std::get_if<DisplayConfig>(&m_sources[row].config);
     if (!config) return false;
     if (config->displayId != displayId || config->captureCursor != cursor) {
         *config = {displayId, cursor};

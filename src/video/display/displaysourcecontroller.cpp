@@ -49,7 +49,7 @@ QString DisplaySourceController::addDisplay(const QString &name, const QString &
     if (name.trimmed().isEmpty() || displayId.trimmed().isEmpty()) return {};
     const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     // Keep the source even if opening the selected display subsequently fails.
-    if (!m_model.addSource({id, name.trimmed(), DisplayCaptureConfig{displayId, cursor}})) return {};
+    if (!m_model.addSource({id, name.trimmed(), DisplayConfig{displayId, cursor}})) return {};
     return id;
 }
 

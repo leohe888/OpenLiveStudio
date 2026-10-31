@@ -4,28 +4,18 @@
 #include "video/sourcetransform.h"
 #include "video/sourcefilter.h"
 
-#include <QColor>
-#include <QFont>
 #include <QSize>
 #include <QString>
 #include <variant>
 
 enum class SourceType {
     DisplayCapture,
-    WindowCapture,
     Camera,
-    Image,
-    Text
+    Image
 };
 
-struct DisplayCaptureConfig {
+struct DisplayConfig {
     QString displayId;
-    bool captureCursor = true;
-};
-struct WindowCaptureConfig {
-    QString executablePath;
-    QString windowClass;
-    QString windowTitle;
     bool captureCursor = true;
 };
 struct CameraConfig {
@@ -48,17 +38,10 @@ struct CameraConfig {
 struct ImageConfig {
     QString filePath;
 };
-struct TextConfig {
-    QString text;
-    QFont font;
-    QColor color = Qt::white;
-};
 using SourceConfig = std::variant<
-    DisplayCaptureConfig,
-    WindowCaptureConfig,
+    DisplayConfig,
     CameraConfig,
-    ImageConfig,
-    TextConfig
+    ImageConfig
 >;
 
 struct SourceRuntimeInfo {
@@ -71,7 +54,7 @@ struct SourceRuntimeInfo {
 struct SourceData {
     QString id;
     QString name;
-    SourceConfig config = DisplayCaptureConfig{};
+    SourceConfig config = DisplayConfig{};
     SourceRuntimeInfo runtime;
     bool visible = true;
     bool locked = false;

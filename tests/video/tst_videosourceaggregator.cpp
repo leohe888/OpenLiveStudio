@@ -9,7 +9,7 @@ QList<SourceData> mixedSources()
 {
     return {{"camera", "Camera", CameraConfig{"device"}},
             {"image", "Image", ImageConfig{"image.png"}},
-            {"display", "Display", DisplayCaptureConfig{"monitor"}}};
+            {"display", "Display", DisplayConfig{"monitor"}}};
 }
 
 QImage image(Qt::GlobalColor color)
@@ -35,7 +35,7 @@ private slots:
     void mergesInModelOrderAndPreservesFrames();
     void replacesOnlyTheUpdatedType();
     void usesModelPropertiesWithoutNewFrames();
-    void rejectsForeignAndUnsupportedSources();
+    void rejectsForeignAndMismatchedSources();
     void removesSourcesAndReleasesFrames();
     void coalescesUpdatesAndCancelsOnDestruction();
 };
@@ -150,10 +150,9 @@ void VideoSourceAggregatorTest::usesModelPropertiesWithoutNewFrames()
     QCOMPARE(changes.count(), 0); // Status text alone does not change the render snapshot.
 }
 
-void VideoSourceAggregatorTest::rejectsForeignAndUnsupportedSources()
+void VideoSourceAggregatorTest::rejectsForeignAndMismatchedSources()
 {
     auto sources = mixedSources();
-    sources.append({"text", "Text", TextConfig{}});
     VideoSourceModel model(sources);
     VideoSourceAggregator aggregator(model);
     QList<PreviewSource> output;
@@ -161,7 +160,7 @@ void VideoSourceAggregatorTest::rejectsForeignAndUnsupportedSources()
     connect(&aggregator, &VideoSourceAggregator::sourcesChanged, this,
         [&](const auto &items) { output = items; });
     aggregator.setImageSources({PreviewSource{"camera", image(Qt::red)},
-        PreviewSource{"unknown", image(Qt::red)}, PreviewSource{"text", image(Qt::red)}});
+        PreviewSource{"unknown", image(Qt::red)}, PreviewSource{"display", image(Qt::red)}});
     QTRY_COMPARE(changes.count(), 1);
     QVERIFY(output.isEmpty());
     aggregator.setCameraSources({PreviewSource{"camera", image(Qt::blue)}});

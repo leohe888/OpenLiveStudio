@@ -37,14 +37,13 @@ MainWindow::MainWindow(QWidget *parent)
     setMinimumSize(960, 640);
     resize(1280, 720);
 
-    applyColors();
     m_videoSourceModel = new VideoSourceModel;
-    m_videoSourceAggregator = new VideoSourceAggregator(*m_videoSourceModel, this);
     m_audioSourceModel = new AudioSourceModel;
     m_outputSettings = new OutputSettings;
     m_imageSourceController = new ImageSourceController(*m_videoSourceModel, this);
     m_displaySourceController = new DisplaySourceController(*m_videoSourceModel, this);
     m_cameraSourceController = new CameraSourceController(*m_videoSourceModel, this);
+    m_videoSourceAggregator = new VideoSourceAggregator(*m_videoSourceModel, this);
     connect(m_displaySourceController, &DisplaySourceController::sourcesChanged,
             m_videoSourceAggregator, &VideoSourceAggregator::setDisplaySources);
     connect(m_imageSourceController, &ImageSourceController::sourcesChanged,
@@ -87,7 +86,9 @@ MainWindow::MainWindow(QWidget *parent)
     setupMixerDock();
     setupControlsDock();
     setupDockLayout();
-    // Destroy the dock QML contexts before their shared state.
+    // Do not pass `this` when constructing these objects above: Qt deletes child
+    // objects in child-list order. Set their parent after creating the docks so
+    // the dock QML views are destroyed before the models/settings they reference.
     m_videoSourceModel->setParent(this);
     m_audioSourceModel->setParent(this);
     m_outputSettings->setParent(this);

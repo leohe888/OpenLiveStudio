@@ -37,11 +37,7 @@ Rectangle {
             else errorText = qsTr("请输入来源名称并选择显示器。")
             return
         }
-        if (!isImage) {
-            errorText = qsTr("该类型尚未接入添加功能。")
-            return
-        }
-        if (loading || !imageSourceController) return
+        if (!isImage || loading || !imageSourceController) return
         errorText = ""
         loading = true
         imageSourceController.addImage(nameInput.text, fileInput.text, root)
@@ -116,10 +112,8 @@ Rectangle {
                 valueRole: "type"
                 model: [
                     { name: qsTr("显示器采集"), type: "displayCapture" },
-                    { name: qsTr("窗口采集"), type: "windowCapture" },
                     { name: qsTr("摄像头"), type: "camera" },
-                    { name: qsTr("图片"), type: "image" },
-                    { name: qsTr("文字"), type: "text" }
+                    { name: qsTr("图片"), type: "image" }
                 ]
                 onActivated: {
                     root.errorText = ""
@@ -221,15 +215,6 @@ Rectangle {
             Layout.fillWidth: true
             visible: root.supportsDisplay
             displaySourceController: root.displaySourceController
-        }
-        Label {
-            objectName: "sourceTypeUnavailableHint"
-            visible: !root.isImage && !root.supportsDisplay && !root.supportsCamera
-            Layout.fillWidth: true
-            text: qsTr("该类型尚未接入添加功能。")
-            textFormat: Text.PlainText
-            wrapMode: Text.WordWrap
-            color: root.themeColors.text.secondary
         }
         Label {
             objectName: "sourceAddError"

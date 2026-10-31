@@ -174,7 +174,7 @@ void MainWindowTest::aggregatesIndependentSourceControllers()
     const auto path = directory.filePath("image.png");
     QVERIFY(pixels.save(path));
     QVERIFY(model->addSource({"image", "Image", ImageConfig{path}}));
-    SourceData screen{"display", "Display", DisplayCaptureConfig{"missing-display"}};
+    SourceData screen{"display", "Display", DisplayConfig{"missing-display"}};
     screen.visible = false; // Exercise wiring without opening physical devices.
     QVERIFY(model->addSource(screen));
     SourceData webcam{"camera", "Camera", CameraConfig{"missing-camera"}};
@@ -1217,7 +1217,7 @@ void MainWindowTest::basicDialogColors()
                 }
                 const auto token = name.endsWith("Error") ? "status.error"
                     : (disabledActionText ? "text.disabled"
-                    : (name == "sourceRemovalHint" || name == "sourceTypeUnavailableHint" || name == "displayCaptureHint" ? "text.secondary" : "text.primary"));
+                    : (name == "sourceRemovalHint" || name == "displayCaptureHint" ? "text.secondary" : "text.primary"));
                 QCOMPARE(item->property("color").value<QColor>(), UiColors::color(token));
                 if (name.endsWith("Error")) QCOMPARE(item->property("text").toString(), "Validation sample");
             }
@@ -1511,7 +1511,7 @@ void MainWindowTest::addsImageThroughDialog()
     auto *input = root->findChild<QQuickItem *>("sourceFileInput");
     auto *confirm = root->findChild<QQuickItem *>("confirmSourceAddButton");
     QVERIFY(type && name && input && confirm);
-    type->setProperty("currentIndex", 3);
+    type->setProperty("currentIndex", 2);
     QVERIFY(input->isVisible());
     QVERIFY(confirm->isEnabled());
     name->setProperty("text", "Logo");
@@ -1573,7 +1573,7 @@ void MainWindowTest::cancelsPendingImageThroughDialog()
     auto *root = view->rootObject();
     QTRY_VERIFY(root->findChild<QQuickItem *>("sourceNameInput")->hasActiveFocus());
     QTRY_VERIFY(dialog->isActiveWindow());
-    root->findChild<QQuickItem *>("sourceTypeInput")->setProperty("currentIndex", 3);
+    root->findChild<QQuickItem *>("sourceTypeInput")->setProperty("currentIndex", 2);
     root->findChild<QQuickItem *>("sourceFileInput")->setProperty("text", path);
     root->findChild<QQuickItem *>("sourceNameInput")->setProperty("text", "Cancelled");
     QVERIFY(QMetaObject::invokeMethod(root, "submit"));
@@ -1626,14 +1626,16 @@ void MainWindowTest::sourceAddDialogHandlesInput()
     QCOMPARE(name->property("selectedText").toString(), name->property("text").toString());
     QTest::keyClicks(view, "Custom source");
     root->findChild<QQuickItem *>("sourceTypeInput")->setProperty("currentIndex", 1);
+    auto *settings = root->findChild<QQuickItem *>("cameraSettings");
+    QVERIFY(settings);
+    settings->setProperty("deviceId", "");
     QVERIFY(!confirm->isEnabled());
     QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier,
         confirm->mapToScene(confirm->boundingRect().center()).toPoint());
     QVERIFY(dialog && dialog->isVisible());
     QCOMPARE(state->rowCount(), 0);
     if (method == "cancel") {
-        name->forceActiveFocus();
-        QTest::keyClick(view, Qt::Key_Tab);
+        cancel->forceActiveFocus(Qt::TabFocusReason);
         QTRY_VERIFY(cancel->hasActiveFocus());
         QTest::keyClick(view, Qt::Key_Space);
     } else if (method == "escape") {
@@ -1665,9 +1667,8 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
     auto *type = root->findChild<QQuickItem *>("sourceTypeInput");
     auto *name = root->findChild<QQuickItem *>("sourceNameInput");
     auto *confirm = root->findChild<QQuickItem *>("confirmSourceAddButton");
-    auto *hint = root->findChild<QQuickItem *>("sourceTypeUnavailableHint");
-    QVERIFY(type && name && confirm && hint);
-    QCOMPARE(type->property("count").toInt(), 5);
+    QVERIFY(type && name && confirm);
+    QCOMPARE(type->property("count").toInt(), 3);
     QCOMPARE(type->property("currentValue").toString(), QString("displayCapture"));
     QCOMPARE(name->property("text").toString(), QString::fromUtf8("显示器采集"));
     const auto activateType = [&](int index) {
@@ -1683,31 +1684,29 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
         QTRY_COMPARE(type->property("currentIndex").toInt(), index);
         QTRY_VERIFY(!popup->property("visible").toBool());
     };
-    const QStringList keys{"displayCapture", "windowCapture", "camera", "image", "text"};
-    const QStringList labels{QString::fromUtf8("显示器采集"), QString::fromUtf8("窗口采集"),
-                             QString::fromUtf8("摄像头"), QString::fromUtf8("图片"), QString::fromUtf8("文字")};
+    const QStringList keys{"displayCapture", "camera", "image"};
+    const QStringList labels{QString::fromUtf8("显示器采集"), QString::fromUtf8("摄像头"),
+                             QString::fromUtf8("图片")};
     for (int index = 0; index < keys.size(); ++index) {
         root->setProperty("errorText", "Previous error");
         activateType(index);
         QCOMPARE(type->property("currentValue").toString(), keys.at(index));
         QVERIFY(root->property("errorText").toString().isEmpty());
-        QCOMPARE(hint->isVisible(), index != 3 && index != 0 && index != 2);
-        QCOMPARE(hint->property("color").value<QColor>(), UiColors::color("text.secondary"));
         QPointer<QQuickItem> imageInput = root->findChild<QQuickItem *>("sourceFileInput");
         QVERIFY(imageInput);
-        QCOMPARE(imageInput->isVisible(), index == 3);
+        QCOMPARE(imageInput->isVisible(), index == 2);
         const auto displaySettings = root->findChild<QQuickItem *>("displaySettings");
         QVERIFY(displaySettings);
-        if (index != 2)
-            QCOMPARE(confirm->isEnabled(), index == 3 || (index == 0 && !displaySettings->property("displayId").toString().isEmpty()));
+        if (index != 1)
+            QCOMPARE(confirm->isEnabled(), index == 2 || (index == 0 && !displaySettings->property("displayId").toString().isEmpty()));
         auto *background = confirm->property("background").value<QQuickItem *>();
         QVERIFY(background);
         if (!confirm->isEnabled())
             QCOMPARE(background->property("color").value<QColor>(), UiColors::color("button.background.disabled"));
         QCOMPARE(type->property("currentText").toString(), labels.at(index));
         QCOMPARE(name->property("text").toString(), labels.at(index));
-        if (index == 0 || index == 2) continue; // Capture submission has its own UI tests.
-        // A direct call or Return in the name field must also reject these types.
+        if (index == 0 || index == 1) continue; // Capture submission has its own UI tests.
+        // Reject an image submission without a file path, including Return in the name field.
         QVERIFY(QMetaObject::invokeMethod(root, "submit"));
         QVERIFY(!root->property("errorText").toString().isEmpty());
         name->forceActiveFocus();
@@ -1718,11 +1717,10 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
     name->forceActiveFocus();
     QTest::keyClick(view, Qt::Key_A, Qt::ControlModifier);
     QTest::keyClicks(view, "Custom source");
-    for (int index : {1, 2, 3, 4, 0}) {
+    for (int index : {1, 2, 0}) {
         activateType(index);
         QCOMPARE(name->property("text").toString(), QString("Custom source"));
     }
-    QVERIFY(!hint->isVisible());
     QCOMPARE(confirm->isEnabled(), !root->findChild<QQuickItem *>("displaySettings")->property("displayId").toString().isEmpty());
     auto *cancel = root->findChild<QQuickItem *>("cancelSourceAddButton");
     QVERIFY(cancel);
@@ -2915,7 +2913,7 @@ void MainWindowTest::addsCameraThroughDialog()
     auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget"); QTRY_VERIFY(view && view->rootObject());
     auto *root = view->rootObject();
     auto *type = root->findChild<QQuickItem *>("sourceTypeInput"); QVERIFY(type);
-    type->setProperty("currentIndex", 2);
+    type->setProperty("currentIndex", 1);
     auto *settings = root->findChild<QQuickItem *>("cameraSettings"); QVERIFY(settings && settings->isVisible());
     settings->setProperty("deviceId", "missing-add-dialog-camera");
     QTRY_VERIFY(!settings->property("loadingModes").toBool());
