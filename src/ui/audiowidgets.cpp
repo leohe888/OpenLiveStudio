@@ -1,5 +1,5 @@
 #include "ui/audiowidgets.h"
-#include "audio/audiosourcemodel.h"
+#include "audio/audiosourcemanager.h"
 
 #include <QComboBox>
 #include <QDialog>
@@ -91,7 +91,7 @@ QLabel *plainLabel(QWidget *parent, const QString &text = {})
 }
 }
 
-MixerPanel::MixerPanel(AudioSourceModel *model, QWidget *parent) : QWidget(parent)
+MixerPanel::MixerPanel(AudioSourceManager *manager, QWidget *parent) : QWidget(parent)
 {
     setObjectName("mixerPanel");
     setAttribute(Qt::WA_StyledBackground);
@@ -116,12 +116,12 @@ MixerPanel::MixerPanel(AudioSourceModel *model, QWidget *parent) : QWidget(paren
     master->addWidget(clip);
 
     const auto masterLevels = [=] {
-        left->setPeak(model->masterPeakLeft());
-        right->setPeak(model->masterPeakRight());
-        clip->setText(model->masterClipped() ? tr("过载") : tr("输出"));
+        left->setPeak(manager->masterPeakLeft());
+        right->setPeak(manager->masterPeakRight());
+        clip->setText(manager->masterClipped() ? tr("过载") : tr("输出"));
     };
 
-    connect(model, &AudioSourceModel::masterLevelsChanged, this, masterLevels);
+    connect(manager, &AudioSourceManager::masterLevelsChanged, this, masterLevels);
     masterLevels();
 
     auto *scroll = new QScrollArea(this);
@@ -164,19 +164,19 @@ MixerPanel::MixerPanel(AudioSourceModel *model, QWidget *parent) : QWidget(paren
     actions->addWidget(properties);
 
     const auto select = [=] {
-        const bool selected = !model->currentSourceId().isEmpty();
+        const bool selected = !manager->currentSourceId().isEmpty();
         remove->setEnabled(selected);
         properties->setEnabled(selected);
     };
 
-    connect(model, &AudioSourceModel::currentSourceIdChanged, this, select);
+    connect(manager, &AudioSourceManager::currentSourceIdChanged, this, select);
     select();
     connect(add, &QToolButton::clicked, this, &MixerPanel::addRequested);
     connect(remove, &QToolButton::clicked, this, [=] {
-        emit removalRequested(model->currentSourceId());
+        emit removalRequested(manager->currentSourceId());
     });
     connect(properties, &QToolButton::clicked, this, [=] {
-        emit propertiesRequested(model->currentSourceId());
+        emit propertiesRequested(manager->currentSourceId());
     });
 
     const auto rebuild = [=] {
@@ -184,9 +184,9 @@ MixerPanel::MixerPanel(AudioSourceModel *model, QWidget *parent) : QWidget(paren
             delete item->widget();
             delete item;
         }
-        empty->setVisible(model->count() == 0);
-        for (int n = 0; n < model->count(); ++n) {
-            const auto id = model->index(n, 0).data(AudioSourceModel::IdRole).toString();
+        empty->setVisible(manager->count() == 0);
+        for (const auto &source : manager->sources()) {
+            const auto id = source.id;
             auto *channel = new QFrame(channels);
             channel->setFrameShape(QFrame::StyledPanel);
             channel->setProperty("audioChannel", true);
@@ -233,17 +233,17 @@ MixerPanel::MixerPanel(AudioSourceModel *model, QWidget *parent) : QWidget(paren
             row->addWidget(channel);
 
             const auto update = [=] {
-                const auto info = model->source(id);
-                if (info.isEmpty())
+                const auto *info = manager->source(id);
+                if (!info)
                     return;
-                name->setText(info.value("name").toString());
-                name->setToolTip(info.value("deviceName").toString());
-                volume->setAccessibleName(info.value("name").toString() + tr("音量"));
+                name->setText(info->name);
+                name->setToolTip(info->deviceName);
+                volume->setAccessibleName(info->name + tr("音量"));
                 {
                     QSignalBlocker block(volume);
-                    volume->setValue(qRound(info.value("volume").toDouble() * 100));
+                    volume->setValue(qRound(info->volume * 100));
                 }
-                const bool muted = info.value("muted").toBool();
+                const bool muted = info->muted;
                 mute->setChecked(muted);
                 mute->setIcon(
                     QIcon(muted ? ":/assets/icons/volume-x.svg" : ":/assets/icons/volume-2.svg"));
@@ -251,15 +251,13 @@ MixerPanel::MixerPanel(AudioSourceModel *model, QWidget *parent) : QWidget(paren
                 mute->setAccessibleName(mute->toolTip());
                 value->setText(QString::number(volume->value()) + "%");
 
-                const auto status = info.value("state").toString();
+                const auto status = info->state;
                 state->setText(status == "error"      ? tr("等待设备恢复")
                                : status == "starting" ? tr("正在连接…")
                                : muted                ? tr("已静音")
                                                       : tr("采集中"));
-                state->setToolTip(info.value("error").toString());
-                l->setPeak(model->index(n, 0).data(AudioSourceModel::PeakLeftRole).toDouble());
-                r->setPeak(model->index(n, 0).data(AudioSourceModel::PeakRightRole).toDouble());
-                const bool selected = model->currentSourceId() == id;
+                state->setToolTip(info->error);
+                const bool selected = manager->currentSourceId() == id;
                 if (channel->property("selected").toBool() != selected) {
                     channel->setProperty("selected", selected);
                     channel->style()->unpolish(channel);
@@ -268,35 +266,50 @@ MixerPanel::MixerPanel(AudioSourceModel *model, QWidget *parent) : QWidget(paren
                 }
             };
 
-            connect(model, &QAbstractItemModel::dataChanged, channel, update);
-            connect(model, &AudioSourceModel::currentSourceIdChanged, channel, update);
+            const auto updateLevels = [=] {
+                if (const auto *info = manager->source(id)) {
+                    l->setPeak(info->peak.left);
+                    r->setPeak(info->peak.right);
+                }
+            };
+            connect(manager, &AudioSourceManager::sourceChanged, channel,
+                    [=](const QString &changedId) {
+                        if (changedId == id)
+                            update();
+                    });
+            connect(manager, &AudioSourceManager::sourceLevelsChanged, channel,
+                    [=](const QString &changedId) {
+                        if (changedId == id)
+                            updateLevels();
+                    });
+            connect(manager, &AudioSourceManager::currentSourceIdChanged, channel, update);
             connect(name, &QPushButton::clicked, channel, [=] {
-                model->selectSource(id);
+                manager->selectSource(id);
             });
             connect(volume, &QSlider::valueChanged, channel, [=](int amount) {
-                model->selectSource(id);
-                model->setVolume(id, amount / 100.);
+                manager->selectSource(id);
+                manager->setVolume(id, amount / 100.);
             });
             connect(mute, &QToolButton::clicked, channel, [=](bool muted) {
-                model->selectSource(id);
-                model->setMuted(id, muted);
+                manager->selectSource(id);
+                manager->setMuted(id, muted);
             });
             update();
+            updateLevels();
         }
         row->addStretch();
     };
 
-    connect(model, &QAbstractItemModel::rowsInserted, this, rebuild);
-    connect(model, &QAbstractItemModel::rowsRemoved, this, rebuild);
-    connect(model, &QAbstractItemModel::modelReset, this, rebuild);
+    connect(manager, &AudioSourceManager::sourcesChanged, this, rebuild);
     rebuild();
 }
 
-QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceModel *model, const QString &id)
+QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceManager *manager, const QString &id)
 {
     const bool editing = !id.isEmpty();
 
-    const auto original = model->source(id);
+    const auto *originalSource = manager->source(id);
+    const AudioSource original = originalSource ? *originalSource : AudioSource{};
     auto *dialog = new QDialog(parent);
     dialog->setObjectName("audioSourceDialog");
     dialog->setProperty("audioSourceId", id);
@@ -308,9 +321,8 @@ QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceModel *model, const
     auto *form = new QFormLayout;
     layout->addLayout(form);
 
-    auto *name = new QLineEdit(editing ? original.value("name").toString()
-                                       : model->suggestedSourceName(QObject::tr("麦克风")),
-                               dialog);
+    auto *name = new QLineEdit(
+        editing ? original.name : manager->suggestedSourceName(QObject::tr("麦克风")), dialog);
     name->setObjectName("soundNameInput");
     name->setMaxLength(80);
     form->addRow(QObject::tr("来源名称"), name);
@@ -319,7 +331,7 @@ QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceModel *model, const
     type->setObjectName("soundTypeInput");
     type->addItem(QObject::tr("麦克风"), "microphone");
     type->addItem(QObject::tr("系统声音"), "system");
-    type->setCurrentIndex(original.value("type") == "system" ? 1 : 0);
+    type->setCurrentIndex(original.type == "system" ? 1 : 0);
     type->setEnabled(!editing);
     form->addRow(QObject::tr("来源类型"), type);
 
@@ -357,43 +369,43 @@ QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceModel *model, const
         QSignalBlocker block(devices);
         devices->clear();
         if (editing)
-            devices->addItem(original.value("deviceName").toString(), original.value("deviceId"));
+            devices->addItem(original.deviceName, original.deviceId);
         else
-            for (const auto &value : model->devices()) {
+            for (const auto &value : manager->devices()) {
                 const auto device = value.toMap();
                 if (device.value("type") == type->currentData() &&
-                    !model->deviceInUse(device.value("id").toString()))
+                    !manager->deviceInUse(device.value("id").toString()))
                     devices->addItem(device.value("name").toString(), device.value("id"));
             }
         const int index = devices->findData(previous);
         if (index >= 0)
             devices->setCurrentIndex(index);
         devices->setPlaceholderText(QObject::tr("暂无未使用的设备"));
-        devices->setEnabled(!editing && !model->refreshing());
-        refresh->setEnabled(!model->refreshing());
-        error->setText(editing ? QString() : model->catalogError());
+        devices->setEnabled(!editing && !manager->refreshing());
+        refresh->setEnabled(!manager->refreshing());
+        error->setText(editing ? QString() : manager->catalogError());
         ok->setEnabled(!name->text().trimmed().isEmpty() &&
                        (editing || !devices->currentData().toString().isEmpty()));
-        if (editing && model->source(id).isEmpty())
+        if (editing && !manager->source(id))
             dialog->close();
     };
 
-    QObject::connect(model, &AudioSourceModel::devicesChanged, dialog, update);
-    QObject::connect(model, &AudioSourceModel::countChanged, dialog, update);
+    QObject::connect(manager, &AudioSourceManager::devicesChanged, dialog, update);
+    QObject::connect(manager, &AudioSourceManager::sourcesChanged, dialog, update);
     QObject::connect(type, &QComboBox::activated, dialog, [=] {
-        name->setText(model->suggestedSourceName(type->currentText()));
+        name->setText(manager->suggestedSourceName(type->currentText()));
         update();
     });
     QObject::connect(name, &QLineEdit::textChanged, dialog, [=] {
         ok->setEnabled(!name->text().trimmed().isEmpty() &&
                        (editing || !devices->currentData().toString().isEmpty()));
     });
-    QObject::connect(refresh, &QPushButton::clicked, model, &AudioSourceModel::refreshDevices);
+    QObject::connect(refresh, &QPushButton::clicked, manager, &AudioSourceManager::refreshDevices);
     QObject::connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
     QObject::connect(buttons, &QDialogButtonBox::accepted, dialog, [=] {
         const bool success = editing
-                                 ? model->renameSource(id, name->text())
-                                 : !model
+                                 ? manager->renameSource(id, name->text())
+                                 : !manager
                                         ->addSource(name->text(), type->currentData().toString(),
                                                     devices->currentData().toString())
                                         .isEmpty();
@@ -404,7 +416,7 @@ QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceModel *model, const
     });
     update();
     if (!editing)
-        model->refreshDevices();
+        manager->refreshDevices();
     name->setFocus();
     name->selectAll();
     return dialog;

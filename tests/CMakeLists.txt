@@ -18,8 +18,8 @@ qt_add_executable(tst_streaming output/tst_streaming.cpp
     ../src/audio/audiocaptureworker.cpp
     ../src/audio/audiomixer.h
     ../src/audio/audiomixer.cpp
-    ../src/audio/audiosourcemodel.h
-    ../src/audio/audiosourcemodel.cpp
+    ../src/audio/audiosourcemanager.h
+    ../src/audio/audiosourcemanager.cpp
     ../src/output/outputtimeline.h
     ../src/output/outputtimeline.cpp
     ../src/output/streamingcontroller.h
@@ -67,8 +67,8 @@ qt_add_executable(tst_recording output/tst_recording.cpp
     ../src/audio/audiocaptureworker.cpp
     ../src/audio/audiomixer.h
     ../src/audio/audiomixer.cpp
-    ../src/audio/audiosourcemodel.h
-    ../src/audio/audiosourcemodel.cpp
+    ../src/audio/audiosourcemanager.h
+    ../src/audio/audiosourcemanager.cpp
     ../src/output/outputtimeline.h
     ../src/output/outputtimeline.cpp
     ../src/output/streamingcontroller.h
@@ -107,8 +107,8 @@ qt_add_executable(tst_audio audio/tst_audio.cpp
     ../src/audio/audiocaptureworker.cpp
     ../src/audio/audiomixer.h
     ../src/audio/audiomixer.cpp
-    ../src/audio/audiosourcemodel.h
-    ../src/audio/audiosourcemodel.cpp
+    ../src/audio/audiosourcemanager.h
+    ../src/audio/audiosourcemanager.cpp
 )
 target_include_directories(tst_audio PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_audio PRIVATE
@@ -271,8 +271,8 @@ qt_add_executable(tst_mainwindow
     ../src/audio/audiocaptureworker.cpp
     ../src/audio/audiomixer.h
     ../src/audio/audiomixer.cpp
-    ../src/audio/audiosourcemodel.h
-    ../src/audio/audiosourcemodel.cpp
+    ../src/audio/audiosourcemanager.h
+    ../src/audio/audiosourcemanager.cpp
     ../src/output/outputtimeline.h
     ../src/output/outputtimeline.cpp
     ../src/output/streamingcontroller.h

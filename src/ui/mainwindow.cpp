@@ -7,7 +7,7 @@
 #include "video/image/imagesourcecontroller.h"
 #include "video/display/displaysourcecontroller.h"
 #include "video/camera/camerasourcecontroller.h"
-#include "audio/audiosourcemodel.h"
+#include "audio/audiosourcemanager.h"
 #include "ui/previewwidget.h"
 #include "output/recordingcontroller.h"
 #include "output/streamingcontroller.h"
@@ -32,7 +32,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     resize(1280, 720);
 
     m_videoSourceManager = new VideoSourceManager;
-    m_audioSourceModel = new AudioSourceModel;
+    m_audioSourceManager = new AudioSourceManager;
     m_outputSettings = new OutputSettings;
     m_imageSourceController = new ImageSourceController(*m_videoSourceManager, this);
     m_displaySourceController = new DisplaySourceController(*m_videoSourceManager, this);
@@ -47,9 +47,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     setupPreview();
     if (auto *preview = findChild<PreviewWidget *>(QStringLiteral("previewWidget"))) {
         m_recordingController =
-            new RecordingController(*preview->compositor(), *m_audioSourceModel->mixer(), this);
+            new RecordingController(*preview->compositor(), *m_audioSourceManager->mixer(), this);
         m_streamingController =
-            new StreamingController(*preview->compositor(), *m_audioSourceModel->mixer(), this);
+            new StreamingController(*preview->compositor(), *m_audioSourceManager->mixer(), this);
         connect(m_streamingController, &StreamingController::statusChanged, this,
                 &MainWindow::updateOutputStatus);
         connect(m_streamingController, &StreamingController::finished, this, [this] {
@@ -66,11 +66,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
         });
     }
     setupStatusBar();
-    connect(m_audioSourceModel, &AudioSourceModel::sourceError, this,
+    connect(m_audioSourceManager, &AudioSourceManager::sourceError, this,
             [this](const QString &id, const QString &message) {
+                const auto *source = m_audioSourceManager->source(id);
                 statusBar()->showMessage(
-                    tr("声音来源“%1”：%2")
-                        .arg(m_audioSourceModel->source(id).value("name").toString(), message));
+                    tr("声音来源“%1”：%2").arg(source ? source->name : id, message));
             });
 
     const auto showSourceError = [this](const QString &id, const QString &message) {
@@ -94,7 +94,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     // objects in child-list order. Set their parent after creating the docks so
     // the dock widgets are destroyed before the models/settings they reference.
     m_videoSourceManager->setParent(this);
-    m_audioSourceModel->setParent(this);
+    m_audioSourceManager->setParent(this);
     m_outputSettings->setParent(this);
 }
 
@@ -217,7 +217,7 @@ void MainWindow::showAudioSourceAddDialog()
 
 void MainWindow::showAudioSourcePropertiesDialog(const QString &sourceId)
 {
-    if (!sourceId.isEmpty() && m_audioSourceModel->source(sourceId).isEmpty())
+    if (!sourceId.isEmpty() && !m_audioSourceManager->source(sourceId))
         return;
     for (auto *dialog : findChildren<QDialog *>()) {
         if (dialog->objectName() == "audioSourceDialog" &&
@@ -228,19 +228,17 @@ void MainWindow::showAudioSourcePropertiesDialog(const QString &sourceId)
             return;
         }
     }
-    createAudioSourceDialog(this, m_audioSourceModel, sourceId)->open();
+    createAudioSourceDialog(this, m_audioSourceManager, sourceId)->open();
 }
 
 void MainWindow::showAudioSourceRemovalDialog(const QString &sourceId)
 {
-    const auto source = m_audioSourceModel->source(sourceId);
-    if (source.isEmpty())
+    const auto *source = m_audioSourceManager->source(sourceId);
+    if (!source)
         return;
-    createRemovalDialog(this, source.value("name").toString(), tr("移除后将停止此设备的声音采集。"),
-                        [this, sourceId] {
-                            return m_audioSourceModel->removeSource(sourceId);
-                        })
-        ->open();
+    createRemovalDialog(this, source->name, tr("移除后将停止此设备的声音采集。"), [this, sourceId] {
+        return m_audioSourceManager->removeSource(sourceId);
+    })->open();
 }
 
 void MainWindow::showSourceRemovalDialog(const QString &sourceId)
@@ -375,7 +373,7 @@ void MainWindow::setupMixerDock()
     m_audioSourceDock->setMinimumWidth(220);
     m_audioSourceDock->setMaximumWidth(320);
 
-    auto *panel = new MixerPanel(m_audioSourceModel, m_audioSourceDock);
+    auto *panel = new MixerPanel(m_audioSourceManager, m_audioSourceDock);
     m_audioSourceDock->setWidget(panel);
     connect(panel, &MixerPanel::addRequested, this, &MainWindow::showAudioSourceAddDialog);
     connect(panel, &MixerPanel::removalRequested, this, &MainWindow::showAudioSourceRemovalDialog);

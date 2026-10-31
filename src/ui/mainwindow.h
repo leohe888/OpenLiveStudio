@@ -10,7 +10,7 @@ class VideoSourceAggregator;
 class ImageSourceController;
 class DisplaySourceController;
 class CameraSourceController;
-class AudioSourceModel;
+class AudioSourceManager;
 class RecordingController;
 class StreamingController;
 class OutputSettings;
@@ -56,7 +56,7 @@ private:
     ImageSourceController *m_imageSourceController = nullptr;
     DisplaySourceController *m_displaySourceController = nullptr;
     CameraSourceController *m_cameraSourceController = nullptr;
-    AudioSourceModel *m_audioSourceModel = nullptr;
+    AudioSourceManager *m_audioSourceManager = nullptr;
     RecordingController *m_recordingController = nullptr;
     StreamingController *m_streamingController = nullptr;
     OutputSettings *m_outputSettings = nullptr;

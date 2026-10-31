@@ -4,7 +4,7 @@
 #include "video/display/displaysourcecontroller.h"
 #include "video/camera/camerasourcecontroller.h"
 #include "video/videosourceaggregator.h"
-#include "audio/audiosourcemodel.h"
+#include "audio/audiosourcemanager.h"
 #include "core/mediaclock.h"
 #include "output/recordingcontroller.h"
 #include "output/outputsettings.h"
@@ -94,7 +94,7 @@ inline void run(MainWindow &window)
     QVERIFY(recorder);
     auto *settings = window.findChild<OutputSettings *>();
     QVERIFY(settings);
-    auto *audio = window.findChild<AudioSourceModel *>();
+    auto *audio = window.findChild<AudioSourceManager *>();
     QVERIFY(audio);
     auto *model = window.findChild<VideoSourceManager *>();
     QVERIFY(model);
@@ -144,9 +144,8 @@ inline void run(MainWindow &window)
                               QString("capturing"), 15000);
     QTRY_COMPARE_WITH_TIMEOUT(model->cameraProperties(cam)["state"].toString(),
                               QString("capturing"), 15000);
-    QTRY_COMPARE_WITH_TIMEOUT(audio->source(mic)["state"].toString(), QString("capturing"), 5000);
-    QTRY_COMPARE_WITH_TIMEOUT(audio->source(system)["state"].toString(), QString("capturing"),
-                              5000);
+    QTRY_COMPARE_WITH_TIMEOUT(audio->source(mic)->state, QString("capturing"), 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(audio->source(system)->state, QString("capturing"), 5000);
     QVERIFY(audio->setVolume(mic, .05));
     QVERIFY(audio->setVolume(system, .05));
     const auto picturePath = QDir(directory).filePath("source.png");
@@ -291,17 +290,15 @@ inline void run(MainWindow &window)
         if (percent >= 45 && !done[3]) {
             done[3] = true;
             qputenv("OPENLIVE_FORCE_AUDIO_DEVICE_FAILURE", microphoneId.toUtf8());
-            QTRY_COMPARE_WITH_TIMEOUT(audio->source(mic)["state"].toString(), QString("error"),
-                                      5000);
-            QCOMPARE(audio->source(system)["state"].toString(), QString("capturing"));
+            QTRY_COMPARE_WITH_TIMEOUT(audio->source(mic)->state, QString("error"), 5000);
+            QCOMPARE(audio->source(system)->state, QString("capturing"));
             faultAt = now;
             event("microphone-fault");
         }
         if (faultAt >= 0 && now - faultAt > std::min(2000, seconds * 30)) {
             faultAt = -1;
             qunsetenv("OPENLIVE_FORCE_AUDIO_DEVICE_FAILURE");
-            QTRY_COMPARE_WITH_TIMEOUT(audio->source(mic)["state"].toString(), QString("capturing"),
-                                      5000);
+            QTRY_COMPARE_WITH_TIMEOUT(audio->source(mic)->state, QString("capturing"), 5000);
             event("microphone-restored");
         }
         if (percent >= 65 && !done[4]) {
@@ -317,8 +314,7 @@ inline void run(MainWindow &window)
             system = audio->addSource("System restored", "system", systemId);
             QVERIFY(!system.isEmpty());
             QVERIFY(audio->setVolume(system, .05));
-            QTRY_COMPARE_WITH_TIMEOUT(audio->source(system)["state"].toString(),
-                                      QString("capturing"), 5000);
+            QTRY_COMPARE_WITH_TIMEOUT(audio->source(system)->state, QString("capturing"), 5000);
             event("audio-source-replaced");
         }
         if (percent >= 85 && !done[6]) {

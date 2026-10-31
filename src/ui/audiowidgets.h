@@ -2,7 +2,7 @@
 
 #include <QWidget>
 
-class AudioSourceModel;
+class AudioSourceManager;
 class QDialog;
 
 class MixerPanel : public QWidget
@@ -10,7 +10,7 @@ class MixerPanel : public QWidget
     Q_OBJECT
 
 public:
-    explicit MixerPanel(AudioSourceModel *model, QWidget *parent = nullptr);
+    explicit MixerPanel(AudioSourceManager *manager, QWidget *parent = nullptr);
 
 signals:
     void addRequested();
@@ -18,4 +18,4 @@ signals:
     void propertiesRequested(const QString &id);
 };
 
-QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceModel *model, const QString &id);
+QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceManager *manager, const QString &id);

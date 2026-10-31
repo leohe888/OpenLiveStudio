@@ -56,8 +56,9 @@ qt_add_executable(OpenLiveStudio
     src/audio/audiocaptureworker.cpp
     src/audio/audiomixer.h
     src/audio/audiomixer.cpp
-    src/audio/audiosourcemodel.h
-    src/audio/audiosourcemodel.cpp
+    src/audio/audiosource.h
+    src/audio/audiosourcemanager.h
+    src/audio/audiosourcemanager.cpp
     src/output/outputtimeline.h
     src/output/outputtimeline.cpp
     src/output/streamingcontroller.h

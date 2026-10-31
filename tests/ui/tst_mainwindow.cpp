@@ -8,7 +8,7 @@
 #include "video/image/imagesourcecontroller.h"
 #include "video/display/displaysourcecontroller.h"
 #include "video/camera/camerasourcecontroller.h"
-#include "audio/audiosourcemodel.h"
+#include "audio/audiosourcemanager.h"
 #include "output/outputsettings.h"
 #include "output/recordingcontroller.h"
 #include "output/streamingcontroller.h"
@@ -121,7 +121,7 @@ void MainWindowTest::styleSheetControlsCustomPainting()
     QCOMPARE(meter->property("warningColor").value<QColor>(), QColor("#8B5C0A"));
     QCOMPARE(meter->property("clippingColor").value<QColor>(), QColor("#B72C3C"));
 
-    auto *model = window.findChild<AudioSourceModel *>();
+    auto *model = window.findChild<AudioSourceManager *>();
     const auto first = model->addSource("First", "microphone", "missing-first");
     const auto second = model->addSource("Second", "microphone", "missing-second");
     QVERIFY(!first.isEmpty() && !second.isEmpty());
@@ -324,20 +324,26 @@ void MainWindowTest::audioControlsAndDialogs()
     MainWindow window;
     window.show();
 
-    auto *model = window.findChild<AudioSourceModel *>();
+    auto *model = window.findChild<AudioSourceManager *>();
     const auto id = model->addSource("Mic", "microphone", "unavailable-mic");
     QVERIFY(!id.isEmpty());
 
     auto *slider = window.findChild<QSlider *>(id + "VolumeSlider");
     QVERIFY(slider);
+    QPointer<QWidget> retainedChannel(window.findChild<QWidget *>("soundChannel_" + id));
+    QVERIFY(retainedChannel);
     slider->setValue(37);
-    QCOMPARE(model->source(id).value("volume").toDouble(), double(float(.37)));
+    QCOMPARE(model->source(id)->volume, double(float(.37)));
     QCOMPARE(model->currentSourceId(), id);
 
     auto *mute = window.findChild<QToolButton *>(id + "MuteButton");
     QVERIFY(mute);
     mute->click();
-    QVERIFY(model->source(id).value("muted").toBool());
+    QVERIFY(model->source(id)->muted);
+    QTRY_COMPARE_WITH_TIMEOUT(model->source(id)->state, QString("error"), 3000);
+    model->sourceLevelsChanged(id);
+    QCOMPARE(window.findChild<QWidget *>("soundChannel_" + id), retainedChannel.data());
+    QCOMPARE(model->currentSourceId(), id);
     window.findChild<QToolButton *>("soundSourcePropertiesButton")->click();
     QPointer<QDialog> dialog = window.findChild<QDialog *>("audioSourceDialog");
     QVERIFY(dialog);
@@ -345,7 +351,7 @@ void MainWindowTest::audioControlsAndDialogs()
     dialog->findChild<QLineEdit *>("soundNameInput")->setText("Renamed");
     dialog->findChild<QPushButton *>("confirmSoundSourceButton")->click();
     QTRY_VERIFY(dialog.isNull());
-    QCOMPARE(model->source(id).value("name").toString(), QString("Renamed"));
+    QCOMPARE(model->source(id)->name, QString("Renamed"));
     window.findChild<QToolButton *>("removeSoundSourceButton")->click();
     dialog = window.findChild<QDialog *>("sourceRemovalDialog");
     QVERIFY(dialog);
@@ -412,7 +418,7 @@ void MainWindowTest::scrollingAndKeyboard()
     QTest::keyClick(list, Qt::Key_Down);
     QCOMPARE(list->currentRow(), 1);
     QCOMPARE(model.currentSourceId(), list->currentItem()->data(Qt::UserRole).toString());
-    AudioSourceModel audio;
+    AudioSourceManager audio;
     MixerPanel mixer(&audio);
     mixer.resize(220, 160);
     mixer.show();
