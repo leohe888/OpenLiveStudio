@@ -2,13 +2,12 @@ import QtQuick
 import QtQuick.Controls.Basic
 
 RadioButton {
-    readonly property var colors: uiColors
-    palette.windowText: enabled ? colors.text.primary : colors.text.disabled
-    palette.text: enabled ? colors.text.primary : colors.text.disabled
-    palette.base: colors.background.input
-    palette.button: colors.button.background.normal
-    palette.highlight: colors.border.focus
-    palette.light: colors.border.default
-    palette.mid: colors.border.default
-    palette.dark: colors.border.focus
+    palette.windowText: enabled ? uiColors.text.primary : uiColors.text.disabled
+    palette.text: enabled ? uiColors.text.primary : uiColors.text.disabled
+    palette.base: uiColors.background.input
+    palette.button: uiColors.button.background.normal
+    palette.highlight: uiColors.border.focus
+    palette.light: uiColors.border.default
+    palette.mid: uiColors.border.default
+    palette.dark: uiColors.border.focus
 }

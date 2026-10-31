@@ -4,30 +4,29 @@ import "ControlMetrics.js" as Metrics
 
 ComboBox {
     id: control
-    readonly property var colors: uiColors
     implicitHeight: Math.max(Metrics.controlHeight, implicitContentHeight + topPadding + bottomPadding)
     hoverEnabled: true
-    palette.buttonText: enabled ? colors.text.primary : colors.text.disabled
-    palette.text: enabled ? colors.text.primary : colors.text.disabled
-    palette.base: colors.background.input
-    palette.window: colors.background.input
-    palette.highlight: colors.background.selected
-    palette.highlightedText: colors.text.primary
-    palette.light: colors.background.selected
-    palette.midlight: colors.background.hovered
-    palette.mid: colors.border.default
-    palette.dark: colors.border.focus
+    palette.buttonText: enabled ? uiColors.text.primary : uiColors.text.disabled
+    palette.text: enabled ? uiColors.text.primary : uiColors.text.disabled
+    palette.base: uiColors.background.input
+    palette.window: uiColors.background.input
+    palette.highlight: uiColors.background.selected
+    palette.highlightedText: uiColors.text.primary
+    palette.light: uiColors.background.selected
+    palette.midlight: uiColors.background.hovered
+    palette.mid: uiColors.border.default
+    palette.dark: uiColors.border.focus
     contentItem: Text {
         text: control.displayText
         font: control.font
         leftPadding: control.mirrored ? control.indicator.width + Metrics.inputPadding : Metrics.inputPadding
         rightPadding: control.mirrored ? Metrics.inputPadding : control.indicator.width + Metrics.inputPadding
-        color: control.enabled ? control.colors.text.primary : control.colors.text.disabled
+        color: control.enabled ? uiColors.text.primary : uiColors.text.disabled
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
     }
     indicator: Canvas {
-        readonly property color arrowColor: control.enabled ? control.colors.icon.primary : control.colors.icon.disabled
+        readonly property color arrowColor: control.enabled ? uiColors.icon.primary : uiColors.icon.disabled
         width: 10
         height: 6
         x: control.mirrored ? 10 : control.width - width - 10
@@ -46,10 +45,10 @@ ComboBox {
         }
     }
     background: Rectangle {
-        color: !control.enabled ? control.colors.button.background.disabled
-            : control.down ? control.colors.button.background.pressed
-            : control.hovered ? control.colors.background.hovered : control.colors.background.input
-        border.color: control.enabled && control.activeFocus ? control.colors.border.focus : control.colors.border.default
+        color: !control.enabled ? uiColors.button.background.disabled
+            : control.down ? uiColors.button.background.pressed
+            : control.hovered ? uiColors.background.hovered : uiColors.background.input
+        border.color: control.enabled && control.activeFocus ? uiColors.border.focus : uiColors.border.default
         radius: Metrics.radius
     }
 }

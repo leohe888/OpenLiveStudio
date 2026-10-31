@@ -5,13 +5,11 @@ import "components"
 
 Rectangle {
     id: root
-    readonly property var displayController: displaySourceController
     objectName: "displayPropertiesDialog"
     property var status: ({})
-    readonly property var colors: uiColors
     implicitWidth: 560
     implicitHeight: 330
-    color: colors.background.panel
+    color: uiColors.background.panel
     signal closeRequested()
     Component.onCompleted: {
         status = videoSourceModel.displayProperties(sourceId)
@@ -33,14 +31,13 @@ Rectangle {
             id: settings
             objectName: "displaySettings"
             Layout.fillWidth: true
-            displaySourceController: root.displayController
         }
         StudioLabel {
             objectName: "captureStateLabel"
             text: root.status.state === "capturing" ? qsTr("采集中")
                 : root.status.state === "paused" ? qsTr("已暂停：来源当前隐藏")
                 : root.status.state === "error" ? qsTr("采集失败") : qsTr("等待采集画面…")
-            color: root.status.state === "error" ? root.colors.status.error : root.colors.text.secondary
+            color: root.status.state === "error" ? uiColors.status.error : uiColors.text.secondary
         }
         StudioLabel {
             objectName: "captureErrorLabel"
@@ -48,7 +45,7 @@ Rectangle {
             text: root.status.error || ""
             textFormat: Text.PlainText
             wrapMode: Text.WrapAnywhere
-            color: root.colors.status.error
+            color: uiColors.status.error
         }
         Item { Layout.fillHeight: true }
         RowLayout {

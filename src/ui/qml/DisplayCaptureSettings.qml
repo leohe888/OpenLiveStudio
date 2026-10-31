@@ -5,10 +5,8 @@ import "components"
 
 ColumnLayout {
     id: root
-    property var displaySourceController: null
     property string displayId: ""
     property bool captureCursor: true
-    readonly property var colors: uiColors
     readonly property var targets: {
         const entries = displaySourceController ? displaySourceController.displays.slice() : []
         if (displayId.length && !entries.some(e => e.id === displayId))
@@ -36,9 +34,9 @@ ColumnLayout {
         StudioButton {
             objectName: "refreshDisplaysButton"
             text: qsTr("刷新")
-            enabled: root.displaySourceController !== null
+            enabled: displaySourceController !== null
             onClicked: {
-                root.displaySourceController.refreshDisplays()
+                displaySourceController.refreshDisplays()
                 if (!root.displayId.length && root.targets.length) root.displayId = root.targets[0].id
             }
         }
@@ -53,7 +51,7 @@ ColumnLayout {
         objectName: "displayCaptureHint"
         Layout.fillWidth: true
         text: qsTr("原始分辨率 · 最高 30 FPS · SDR")
-        color: root.colors.text.secondary
+        color: uiColors.text.secondary
         wrapMode: Text.WordWrap
     }
 }

@@ -5,8 +5,6 @@ import "components"
 
 Rectangle {
     id: root
-    readonly property var displayController: displaySourceController
-    readonly property var cameraController: cameraSourceController
     objectName: "sourceAddDialogContent"
     implicitWidth: 520
     implicitHeight: supportsDisplay || supportsCamera ? 430 : 300
@@ -135,14 +133,12 @@ Rectangle {
             objectName: "cameraSettings"
             Layout.fillWidth: true
             visible: root.supportsCamera
-            cameraSourceController: root.cameraController
         }
         DisplayCaptureSettings {
             id: displaySettings
             objectName: "displaySettings"
             Layout.fillWidth: true
             visible: root.supportsDisplay
-            displaySourceController: root.displayController
         }
         StudioLabel {
             objectName: "sourceAddError"

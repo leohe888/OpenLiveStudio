@@ -5,13 +5,11 @@ import "components"
 
 ColumnLayout {
     id: root
-    property var cameraSourceController: null
     property string deviceId: ""
     property var selectedMode: ({})
     property var modeList: []
     property bool loadingModes: false
     property string errorText: ""
-    readonly property var colors: uiColors
     readonly property var targets: {
         const entries = cameraSourceController ? cameraSourceController.devices.slice() : []
         if (deviceId.length && !entries.some(e => e.id === deviceId))
@@ -38,7 +36,7 @@ ColumnLayout {
         loadModes()
     }
     Connections {
-        target: root.cameraSourceController
+        target: cameraSourceController
         function onDevicesChanged() {
             if (root.visible && !root.deviceId.length && root.targets.length) root.deviceId = root.targets[0].id
         }
@@ -46,7 +44,7 @@ ColumnLayout {
             if (id !== root.deviceId) return
             root.loadingModes = false
             root.errorText = error
-            const entries = [{name: qsTr("设备默认")}].concat(root.cameraSourceController.modes(id))
+            const entries = [{name: qsTr("设备默认")}].concat(cameraSourceController.modes(id))
             if (root.selectedMode.width > 0 && !entries.some(e => e.width === root.selectedMode.width
                 && e.height === root.selectedMode.height && e.numerator * root.selectedMode.denominator
                     === root.selectedMode.numerator * e.denominator))
@@ -76,9 +74,9 @@ ColumnLayout {
         }
         StudioButton {
             objectName: "refreshCamerasButton"
-            text: root.cameraSourceController && root.cameraSourceController.refreshing ? qsTr("刷新中…") : qsTr("刷新")
-            enabled: root.cameraSourceController !== null && !root.cameraSourceController.refreshing
-            onClicked: { root.cameraSourceController.refreshDevices(); root.loadModes() }
+            text: cameraSourceController && cameraSourceController.refreshing ? qsTr("刷新中…") : qsTr("刷新")
+            enabled: cameraSourceController !== null && !cameraSourceController.refreshing
+            onClicked: { cameraSourceController.refreshDevices(); root.loadModes() }
         }
     }
     StudioLabel { text: qsTr("采集模式") }
@@ -98,9 +96,9 @@ ColumnLayout {
     StudioLabel {
         Layout.fillWidth: true
         visible: text.length > 0
-        text: root.errorText || (root.cameraSourceController ? root.cameraSourceController.catalogError : "")
+        text: root.errorText || (cameraSourceController ? cameraSourceController.catalogError : "")
         textFormat: Text.PlainText
         wrapMode: Text.WrapAnywhere
-        color: root.colors.status.error
+        color: uiColors.status.error
     }
 }

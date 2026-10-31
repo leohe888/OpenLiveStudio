@@ -10,8 +10,8 @@ StudioScrollBar {
         implicitWidth: 8
         implicitHeight: 24
         radius: 4
-        color: control.pressed ? control.colors.scrollbar.thumb.pressed
-            : control.hovered ? control.colors.scrollbar.thumb.hovered : control.colors.scrollbar.thumb.normal
+        color: control.pressed ? uiColors.scrollbar.thumb.pressed
+            : control.hovered ? uiColors.scrollbar.thumb.hovered : uiColors.scrollbar.thumb.normal
     }
-    background: Rectangle { color: control.colors.background.header }
+    background: Rectangle { color: uiColors.background.header }
 }

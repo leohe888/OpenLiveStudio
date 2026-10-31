@@ -5,14 +5,12 @@ import "components"
 
 Rectangle {
     id: root
-    readonly property var cameraController: cameraSourceController
     objectName: "cameraPropertiesDialog"
     property var status: ({})
     property string errorText: ""
-    readonly property var colors: uiColors
     implicitWidth: 600
     implicitHeight: 440
-    color: colors.background.panel
+    color: uiColors.background.panel
     signal closeRequested()
     Component.onCompleted: {
         status = videoSourceModel.cameraProperties(sourceId)
@@ -34,7 +32,6 @@ Rectangle {
             id: settings
             objectName: "cameraSettings"
             Layout.fillWidth: true
-            cameraSourceController: root.cameraController
         }
         StudioLabel {
             objectName: "cameraStateLabel"
@@ -45,7 +42,7 @@ Rectangle {
                     .arg((root.status.actualFrameRateNumerator / root.status.actualFrameRateDenominator).toFixed(2))
                 : root.status.state === "paused" ? qsTr("已暂停：来源当前隐藏")
                 : root.status.state === "error" ? qsTr("采集失败") : qsTr("等待采集画面…")
-            color: root.colors.text.secondary
+            color: uiColors.text.secondary
         }
         StudioLabel {
             objectName: "cameraErrorLabel"
@@ -53,7 +50,7 @@ Rectangle {
             text: root.errorText || root.status.error || ""
             textFormat: Text.PlainText
             wrapMode: Text.WrapAnywhere
-            color: root.colors.status.error
+            color: uiColors.status.error
         }
         Item { Layout.fillHeight: true }
         RowLayout {

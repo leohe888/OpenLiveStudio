@@ -3,16 +3,15 @@ import QtQuick.Controls.Basic
 
 SpinBox {
     id: control
-    readonly property var colors: uiColors
-    palette.text: enabled ? colors.text.primary : colors.text.disabled
-    palette.buttonText: enabled ? colors.text.primary : colors.text.disabled
-    palette.base: colors.background.input
-    palette.button: colors.button.background.normal
-    palette.mid: colors.border.default
-    palette.highlight: colors.background.selected
-    palette.highlightedText: colors.text.primary
+    palette.text: enabled ? uiColors.text.primary : uiColors.text.disabled
+    palette.buttonText: enabled ? uiColors.text.primary : uiColors.text.disabled
+    palette.base: uiColors.background.input
+    palette.button: uiColors.button.background.normal
+    palette.mid: uiColors.border.default
+    palette.highlight: uiColors.background.selected
+    palette.highlightedText: uiColors.text.primary
     background: Rectangle {
-        color: control.colors.background.input
-        border.color: control.enabled && control.activeFocus ? control.colors.border.focus : control.colors.border.default
+        color: uiColors.background.input
+        border.color: control.enabled && control.activeFocus ? uiColors.border.focus : uiColors.border.default
     }
 }

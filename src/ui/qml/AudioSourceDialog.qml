@@ -9,7 +9,6 @@ Rectangle {
     readonly property bool editing: sourceId.length > 0
     property string deviceId: ""
     property string errorText: ""
-    readonly property var colors: uiColors
     readonly property var original: editing ? audioSources.source(sourceId) : ({})
     readonly property string selectedType: typeInput.currentIndex === 0 ? "microphone" : "system"
     readonly property var targets: {
@@ -18,7 +17,7 @@ Rectangle {
     }
     implicitWidth: 540
     implicitHeight: editing ? 300 : 370
-    color: colors.background.panel
+    color: uiColors.background.panel
     signal closeRequested()
 
     function updateChoices() {
@@ -96,7 +95,7 @@ Rectangle {
             text: root.errorText || (!root.editing ? audioSources.catalogError : "")
             textFormat: Text.PlainText
             wrapMode: Text.WrapAnywhere
-            color: root.colors.status.error
+            color: uiColors.status.error
         }
         Item { Layout.fillHeight: true }
         RowLayout {

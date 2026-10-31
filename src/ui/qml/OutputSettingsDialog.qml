@@ -12,10 +12,9 @@ Rectangle {
     property string server: ""
     property string key: ""
     property string errorText: ""
-    readonly property var colors: uiColors
     implicitWidth: 620
     implicitHeight: 460
-    color: colors.background.panel
+    color: uiColors.background.panel
     signal closeRequested()
     signal browseDirectoryRequested()
     Component.onCompleted: {
@@ -84,7 +83,7 @@ Rectangle {
                 }
                 StudioLabel {
                     text: qsTr("RTMP · H.264 / AAC · 1080p · 30 FPS；连接和重连期间设置锁定。")
-                    color: root.colors.text.secondary
+                    color: uiColors.text.secondary
                     wrapMode: Text.WordWrap
                     Layout.fillWidth: true
                 }
@@ -124,10 +123,10 @@ Rectangle {
                     validator: IntValidator { bottom: 500; top: 50000 }
                     onTextEdited: root.recordingBitrate=Number(text)
                 }
-                StudioLabel { text: qsTr("MP4 · 1080p · 30 FPS"); color: root.colors.text.secondary }
+                StudioLabel { text: qsTr("MP4 · 1080p · 30 FPS"); color: uiColors.text.secondary }
                 StudioLabel {
                     text: qsTr("录制期间，保存目录和码率保持不变。")
-                    color: root.colors.text.secondary
+                    color: uiColors.text.secondary
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                 }
@@ -138,14 +137,14 @@ Rectangle {
             objectName: "outputSettingsError"
             text: root.errorText
             textFormat: Text.PlainText
-            color: root.colors.status.error
+            color: uiColors.status.error
             wrapMode: Text.WrapAnywhere
             Layout.fillWidth: true
             visible: text.length>0
         }
         RowLayout {
             Layout.fillWidth: true
-            StudioLabel { text: qsTr("设置仅在本次运行中生效"); color: root.colors.text.secondary; font.pixelSize: 11 }
+            StudioLabel { text: qsTr("设置仅在本次运行中生效"); color: uiColors.text.secondary; font.pixelSize: 11 }
             Item { Layout.fillWidth: true }
             StudioButton {
                 implicitWidth: 88
