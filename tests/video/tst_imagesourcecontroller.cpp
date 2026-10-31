@@ -35,6 +35,8 @@ private slots:
         QCOMPARE(snapshot.size(), 1);
         QCOMPARE(snapshot[0].image.pixelColor(0, 0), QColor(255, 0, 0, 128));
         QCOMPARE(model.index(0, 0).data(VideoSourceModel::NameRole).toString(), QString("First"));
+        QCOMPARE(model.index(0, 0).data(VideoSourceModel::ImageLoadStateRole).toString(), QString("ready"));
+        QVERIFY(!model.index(0, 0).data(VideoSourceModel::CaptureStateRole).isValid());
         QCOMPARE(model.index(0, 0).data(VideoSourceModel::OriginalSizeRole).toSize(), image.size());
         QVERIFY(QFileInfo(model.index(0, 0).data(VideoSourceModel::FilePathRole).toString()).isAbsolute());
         const QString first = snapshot[0].id;
@@ -188,10 +190,16 @@ private slots:
         image.fill(Qt::green);
         const QString path = dir.filePath("valid.png");
         QVERIFY(image.save(path));
-        VideoSourceModel model({{"valid", "Valid", ImageConfig{path}},
-                               {"bad", "Bad", ImageConfig{dir.filePath("missing.png")}}});
+        VideoSourceModel model({{"valid", "Valid", ImageSourceData{ImageConfig{path}}},
+                               {"bad", "Bad", ImageSourceData{ImageConfig{dir.filePath("missing.png")}}}});
         ImageSourceController controller(model);
         QSignalSpy errors(&controller, &ImageSourceController::sourceError);
+        QStringList loadStates;
+        connect(&model, &VideoSourceModel::dataChanged, this,
+            [&](const QModelIndex &index, const QModelIndex &, const QList<int> &roles) {
+                if (roles.contains(VideoSourceModel::ImageLoadStateRole))
+                    loadStates.append(index.data(VideoSourceModel::ImageLoadStateRole).toString());
+            });
         QList<PreviewSource> snapshot;
         connect(&controller, &ImageSourceController::sourcesChanged, this,
             [&](const QList<PreviewSource> &sources) { snapshot = sources; });
@@ -199,6 +207,12 @@ private slots:
         QTRY_VERIFY(snapshot.size() == 2 && !snapshot[0].image.isNull());
         QVERIFY(snapshot[1].image.isNull());
         QCOMPARE(model.index(0, 0).data(VideoSourceModel::OriginalSizeRole).toSize(), image.size());
+        QCOMPARE(model.index(0, 0).data(VideoSourceModel::ImageLoadStateRole).toString(), QString("ready"));
+        QCOMPARE(model.index(1, 0).data(VideoSourceModel::ImageLoadStateRole).toString(), QString("error"));
+        QVERIFY(!model.index(1, 0).data(VideoSourceModel::ImageLoadErrorRole).toString().isEmpty());
+        QVERIFY(loadStates.contains("loading"));
+        QVERIFY(loadStates.contains("ready"));
+        QVERIFY(loadStates.contains("error"));
         model.setSourceVisible("bad", false);
         model.setSourceVisible("bad", true);
         QCOMPARE(errors.count(), 1);

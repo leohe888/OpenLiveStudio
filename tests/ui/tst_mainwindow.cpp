@@ -173,11 +173,11 @@ void MainWindowTest::aggregatesIndependentSourceControllers()
     pixels.fill(Qt::red);
     const auto path = directory.filePath("image.png");
     QVERIFY(pixels.save(path));
-    QVERIFY(model->addSource({"image", "Image", ImageConfig{path}}));
-    SourceData screen{"display", "Display", DisplayConfig{"missing-display"}};
+    QVERIFY(model->addSource({"image", "Image", ImageSourceData{ImageConfig{path}}}));
+    SourceData screen{"display", "Display", DisplaySourceData{DisplayConfig{"missing-display"}}};
     screen.visible = false; // Exercise wiring without opening physical devices.
     QVERIFY(model->addSource(screen));
-    SourceData webcam{"camera", "Camera", CameraConfig{"missing-camera"}};
+    SourceData webcam{"camera", "Camera", CameraSourceData{CameraConfig{"missing-camera"}}};
     webcam.visible = false;
     QVERIFY(model->addSource(webcam));
     QTRY_COMPARE(output.size(), 3);
@@ -885,7 +885,7 @@ void MainWindowTest::sourceColors()
     QList<SourceData> sources;
     for (int i = 0; i < 24; ++i)
         sources.append({QString::number(i), QString("Source %1").arg(i),
-                        ImageConfig{}, {}, i != 0, i == 0});
+                        ImageSourceData{ImageConfig{}}, i != 0, i == 0});
     VideoSourceModel state(sources);
     QVERIFY(state.selectSource("0"));
     QQuickWidget panel;
@@ -1820,7 +1820,7 @@ void MainWindowTest::sourceRemovalDialogHandlesConfirmation()
     QVERIFY(image.save(path));
     const QString name = "<b>Logo & image</b>";
     QList<SourceData> sources{
-        {"shared", name, ImageConfig{path}, {image.size()}}};
+        {"shared", name, ImageSourceData{ImageConfig{path}, ImageRuntimeInfo{image.size()}}}};
     if (action != "last") sources.append(SourceData{"remaining", "Remaining"});
     VideoSourceModel state(sources);
     QVERIFY(state.selectSource("shared"));
@@ -2026,7 +2026,7 @@ void MainWindowTest::soundSourcesAndDialogs()
     QVERIFY(QMetaObject::invokeMethod(confirm,"clicked")); QTRY_VERIFY(dialog.isNull());
     QCOMPARE(audio->source(id)["name"].toString(),QString("Renamed microphone"));
     auto *pictures = window.findChild<VideoSourceModel *>(); QVERIFY(pictures);
-    QVERIFY(pictures->addSource({"camera-audio-independent", "Camera", CameraConfig{"missing-independent-camera"}}));
+    QVERIFY(pictures->addSource({"camera-audio-independent", "Camera", CameraSourceData{CameraConfig{"missing-independent-camera"}}}));
     QVERIFY(pictures->setSourceVisible("camera-audio-independent",false));
     QVERIFY(pictures->removeSource("camera-audio-independent")); QCOMPARE(audio->count(),1);
     QVERIFY(QMetaObject::invokeMethod(panel->rootObject(),"soundSourceRemovalDialogRequested",Q_ARG(QString,id)));
@@ -2622,9 +2622,9 @@ void MainWindowTest::sourceFiltersDialogEditsAndRetainsState()
     };
     auto *button = findItem(panel->rootObject(), "sourceFiltersButton");
     QVERIFY(button && !button->isEnabled());
-    QVERIFY(model->addSource({"camera", "Camera", CameraConfig{"unavailable-test-camera"}}));
+    QVERIFY(model->addSource({"camera", "Camera", CameraSourceData{CameraConfig{"unavailable-test-camera"}}}));
     QVERIFY(button->isEnabled());
-    QVERIFY(model->addSource({"image", "Image", ImageConfig{}}));
+    QVERIFY(model->addSource({"image", "Image", ImageSourceData{ImageConfig{}}}));
     QVERIFY(button->isEnabled());
     QVERIFY(QMetaObject::invokeMethod(button, "clicked"));
     auto *dialog = window.findChild<QDialog *>();

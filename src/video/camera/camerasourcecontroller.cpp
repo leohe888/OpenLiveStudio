@@ -77,7 +77,7 @@ QString CameraSourceController::addCamera(const QString &name, const QString &id
     const auto config = configFrom(id, mode);
     if ((!config.requestedResolution.isEmpty() && (config.requestedFrameRate <= 0 || config.frameRateDenominator <= 0))) return {};
     const QString sourceId = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    if (!m_model.addSource({sourceId, name.trimmed(), config})) return {};
+    if (!m_model.addSource({sourceId, name.trimmed(), CameraSourceData{config}})) return {};
     return sourceId;
 }
 bool CameraSourceController::applyProperties(const QString &sourceId, const QString &id, const QVariantMap &mode) {

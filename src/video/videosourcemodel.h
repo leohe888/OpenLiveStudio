@@ -32,7 +32,9 @@ public:
         DisplayConfigRole,
         CaptureStateRole,
         CaptureErrorRole,
-        CameraConfigRole
+        CameraConfigRole,
+        ImageLoadStateRole,
+        ImageLoadErrorRole
     };
 
     explicit VideoSourceModel(QObject *parent = nullptr);
@@ -47,6 +49,7 @@ public:
     bool addSource(const SourceData &source);
     bool setSourceOriginalSize(const QString &id, const QSize &size);
     bool setSourceCaptureStatus(const QString &id, const QString &state, const QString &error);
+    bool setImageLoadStatus(const QString &id, const QString &state, const QString &error);
     bool canEditCurrentDisplay() const;
     bool canEditCurrentSource() const;
     Q_INVOKABLE QVariantMap cameraProperties(const QString &id) const;
