@@ -65,7 +65,7 @@ QVariantMap modeInfo(IMFMediaType *type) {
 }
 bool matches(const CameraConfig &config, const QVariantMap &mode) {
     if (config.requestedResolution.isEmpty()) return true;
-    const double wanted = double(config.requestedFrameRate) / config.frameRateDenominator;
+    const double wanted = double(config.requestedFrameRateNumerator) / config.requestedFrameRateDenominator;
     const double actual = mode.value("numerator").toDouble() / mode.value("denominator").toDouble();
     return config.requestedResolution == QSize(mode.value("width").toInt(), mode.value("height").toInt())
         && std::abs(wanted - actual) <= std::max(0.001, wanted * 0.0001);

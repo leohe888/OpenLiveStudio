@@ -173,11 +173,11 @@ void MainWindowTest::aggregatesIndependentSourceControllers()
     pixels.fill(Qt::red);
     const auto path = directory.filePath("image.png");
     QVERIFY(pixels.save(path));
-    QVERIFY(model->addSource({"image", "Image", ImageSourceData{ImageConfig{path}}}));
-    SourceData screen{"display", "Display", DisplaySourceData{DisplayConfig{"missing-display"}}};
+    QVERIFY(model->addSource({"image", "Image", ImageSourceDetails{ImageConfig{path}}}));
+    VideoSource screen{"display", "Display", DisplaySourceDetails{DisplayConfig{"missing-display"}}};
     screen.visible = false; // Exercise wiring without opening physical devices.
     QVERIFY(model->addSource(screen));
-    SourceData webcam{"camera", "Camera", CameraSourceData{CameraConfig{"missing-camera"}}};
+    VideoSource webcam{"camera", "Camera", CameraSourceDetails{CameraConfig{"missing-camera"}}};
     webcam.visible = false;
     QVERIFY(model->addSource(webcam));
     QTRY_COMPARE(output.size(), 3);
@@ -252,7 +252,7 @@ void MainWindowTest::sourcePanelSharesStateAcrossReloadsAndReleasesItWithWindow(
 
 void MainWindowTest::sourcePanelFollowsSelectionAcrossReloads()
 {
-    VideoSourceModel state(QList<SourceData>{{"a", "First"}, {"b", "Second"}});
+    VideoSourceModel state(QList<VideoSource>{{"a", "First"}, {"b", "Second"}});
     QQuickWidget panel;
     panel.rootContext()->setContextProperty("uiColors", UiColors::values());
     panel.rootContext()->setContextProperty("videoSourceModel", &state);
@@ -298,7 +298,7 @@ void MainWindowTest::sourcePanelCanMoveAndToggle_data()
 void MainWindowTest::sourcePanelCanMoveAndToggle()
 {
     QFETCH(bool, reload);
-    VideoSourceModel state(QList<SourceData>{
+    VideoSourceModel state(QList<VideoSource>{
         {"a", "Foreground"}, {"b", "Background"}, {"c", "Logo"}});
     QQuickWidget panel;
     panel.rootContext()->setContextProperty(QStringLiteral("uiColors"), UiColors::values());
@@ -434,11 +434,11 @@ void MainWindowTest::listScrollBarsHandleOverflow()
 {
     QFETCH(QString, panelName);
     QFETCH(QString, prefix);
-    QList<SourceData> sources;
+    QList<VideoSource> sources;
     for (int i = 0; i < 24; ++i)
         sources.append({QString::number(i), QStringLiteral("Source %1").arg(i)});
     VideoSourceModel state(sources);
-    VideoSourceModel shortState(QList<SourceData>{{"one", "One"}});
+    VideoSourceModel shortState(QList<VideoSource>{{"one", "One"}});
     QVERIFY(state.selectSource("0"));
     QQuickWidget panel;
     panel.rootContext()->setContextProperty(QStringLiteral("uiColors"), UiColors::values());
@@ -882,10 +882,10 @@ void MainWindowTest::sourceColors()
     QFETCH(QString, panelName);
     QFETCH(QString, prefix);
 
-    QList<SourceData> sources;
+    QList<VideoSource> sources;
     for (int i = 0; i < 24; ++i)
         sources.append({QString::number(i), QString("Source %1").arg(i),
-                        ImageSourceData{ImageConfig{}}, i != 0, i == 0});
+                        ImageSourceDetails{ImageConfig{}}, i != 0, i == 0});
     VideoSourceModel state(sources);
     QVERIFY(state.selectSource("0"));
     QQuickWidget panel;
@@ -1543,7 +1543,7 @@ void MainWindowTest::addsImageThroughDialog()
     QTRY_VERIFY(dialog.isNull());
     QCOMPARE(model->rowCount(), 1);
     QCOMPARE(model->index(0, 0).data(VideoSourceModel::NameRole).toString(), QString("Logo"));
-    QCOMPARE(model->index(0, 0).data(VideoSourceModel::OriginalSizeRole).toSize(), image.size());
+    QCOMPARE(model->index(0, 0).data(VideoSourceModel::PixelSizeRole).toSize(), image.size());
 }
 
 void MainWindowTest::cancelsPendingImageThroughDialog_data()
@@ -1741,7 +1741,7 @@ void MainWindowTest::sourcePanelRequestsRemoval()
 {
     QFETCH(bool, reload);
     const QString first = "alpha", second = "beta";
-    VideoSourceModel state(QList<SourceData>{{second, "Beta"}, {first, "Alpha"}});
+    VideoSourceModel state(QList<VideoSource>{{second, "Beta"}, {first, "Alpha"}});
     QQuickWidget panel;
     panel.rootContext()->setContextProperty("uiColors", UiColors::values());
     panel.rootContext()->setContextProperty("videoSourceModel", &state);
@@ -1819,9 +1819,9 @@ void MainWindowTest::sourceRemovalDialogHandlesConfirmation()
     image.fill(Qt::red);
     QVERIFY(image.save(path));
     const QString name = "<b>Logo & image</b>";
-    QList<SourceData> sources{
-        {"shared", name, ImageSourceData{ImageConfig{path}, ImageRuntimeInfo{image.size()}}}};
-    if (action != "last") sources.append(SourceData{"remaining", "Remaining"});
+    QList<VideoSource> sources{
+        {"shared", name, ImageSourceDetails{ImageConfig{path}, ImageRuntimeState{image.size()}}}};
+    if (action != "last") sources.append(VideoSource{"remaining", "Remaining"});
     VideoSourceModel state(sources);
     QVERIFY(state.selectSource("shared"));
     MainWindow window;
@@ -2026,7 +2026,7 @@ void MainWindowTest::soundSourcesAndDialogs()
     QVERIFY(QMetaObject::invokeMethod(confirm,"clicked")); QTRY_VERIFY(dialog.isNull());
     QCOMPARE(audio->source(id)["name"].toString(),QString("Renamed microphone"));
     auto *pictures = window.findChild<VideoSourceModel *>(); QVERIFY(pictures);
-    QVERIFY(pictures->addSource({"camera-audio-independent", "Camera", CameraSourceData{CameraConfig{"missing-independent-camera"}}}));
+    QVERIFY(pictures->addSource({"camera-audio-independent", "Camera", CameraSourceDetails{CameraConfig{"missing-independent-camera"}}}));
     QVERIFY(pictures->setSourceVisible("camera-audio-independent",false));
     QVERIFY(pictures->removeSource("camera-audio-independent")); QCOMPARE(audio->count(),1);
     QVERIFY(QMetaObject::invokeMethod(panel->rootObject(),"soundSourceRemovalDialogRequested",Q_ARG(QString,id)));
@@ -2622,9 +2622,9 @@ void MainWindowTest::sourceFiltersDialogEditsAndRetainsState()
     };
     auto *button = findItem(panel->rootObject(), "sourceFiltersButton");
     QVERIFY(button && !button->isEnabled());
-    QVERIFY(model->addSource({"camera", "Camera", CameraSourceData{CameraConfig{"unavailable-test-camera"}}}));
+    QVERIFY(model->addSource({"camera", "Camera", CameraSourceDetails{CameraConfig{"unavailable-test-camera"}}}));
     QVERIFY(button->isEnabled());
-    QVERIFY(model->addSource({"image", "Image", ImageSourceData{ImageConfig{}}}));
+    QVERIFY(model->addSource({"image", "Image", ImageSourceDetails{ImageConfig{}}}));
     QVERIFY(button->isEnabled());
     QVERIFY(QMetaObject::invokeMethod(button, "clicked"));
     auto *dialog = window.findChild<QDialog *>();

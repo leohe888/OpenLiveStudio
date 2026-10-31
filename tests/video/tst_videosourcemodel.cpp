@@ -33,7 +33,7 @@ private slots:
     void filtersAreOrderedValidatedAndIndependent();
 };
 
-static QList<SourceData> sources()
+static QList<VideoSource> sources()
 {
     return {{"a", "Image"}, {"b", "Camera"}, {"c", "Display"}};
 }
@@ -58,14 +58,14 @@ void VideoSourceModelTest::startsWithEmptySourceList()
 
 void VideoSourceModelTest::exposesSourceRolesAndRejectsInvalidIndexes()
 {
-    VideoSourceModel state(QList<SourceData>{
-        {"image", "Logo", ImageSourceData{ImageConfig{"fixture.png"}, ImageRuntimeInfo{QSize(64, 32)}}, false, true}});
+    VideoSourceModel state(QList<VideoSource>{
+        {"image", "Logo", ImageSourceDetails{ImageConfig{"fixture.png"}, ImageRuntimeState{QSize(64, 32)}}, false, true}});
     auto *model = &state;
     QAbstractItemModelTester tester(model, QAbstractItemModelTester::FailureReportingMode::QtTest);
     const QHash<int, QByteArray> roles{
         {VideoSourceModel::IdRole, "sourceId"}, {VideoSourceModel::NameRole, "sourceName"},
         {VideoSourceModel::TypeRole, "sourceType"}, {VideoSourceModel::FilePathRole, "sourceFilePath"},
-        {VideoSourceModel::OriginalSizeRole, "sourceOriginalSize"},
+        {VideoSourceModel::PixelSizeRole, "sourcePixelSize"},
         {VideoSourceModel::VisibleRole, "sourceVisible"}, {VideoSourceModel::LockedRole, "sourceLocked"},
         {VideoSourceModel::TransformRole, "sourceTransform"}, {VideoSourceModel::FiltersRole, "sourceFilters"},
         {VideoSourceModel::DisplayConfigRole, "sourceDisplayConfig"},
@@ -77,7 +77,7 @@ void VideoSourceModelTest::exposesSourceRolesAndRejectsInvalidIndexes()
     QCOMPARE(index.data(VideoSourceModel::IdRole).toString(), QString("image"));
     QCOMPARE(index.data(Qt::DisplayRole).toString(), QString("Logo"));
     QCOMPARE(index.data(VideoSourceModel::FilePathRole).toString(), QString("fixture.png"));
-    QCOMPARE(index.data(VideoSourceModel::OriginalSizeRole).toSize(), QSize(64, 32));
+    QCOMPARE(index.data(VideoSourceModel::PixelSizeRole).toSize(), QSize(64, 32));
     QVERIFY(!index.data(VideoSourceModel::VisibleRole).toBool());
     QVERIFY(index.data(VideoSourceModel::LockedRole).toBool());
     QCOMPARE(model->rowCount(index), 0);
@@ -92,17 +92,17 @@ void VideoSourceModelTest::exposesSourceRolesAndRejectsInvalidIndexes()
 void VideoSourceModelTest::supportsAllSourceConfigurations()
 {
     using Manager = VideoSourceModel;
-    const SourceData defaultSource;
-    QCOMPARE(defaultSource.type(), SourceType::DisplayCapture);
-    const auto *defaultDisplay = std::get_if<DisplaySourceData>(&defaultSource.details);
+    const VideoSource defaultSource;
+    QCOMPARE(defaultSource.type(), VideoSourceType::DisplayCapture);
+    const auto *defaultDisplay = std::get_if<DisplaySourceDetails>(&defaultSource.details);
     QVERIFY(defaultDisplay);
     QVERIFY(defaultDisplay->config.displayId.isEmpty());
-    QList<SourceData> sources{
-        {"display", "Display", DisplaySourceData{DisplayConfig{"monitor-1", false}}},
-        {"camera", "Camera", CameraSourceData{CameraConfig{"camera-1", QSize(1280, 720), 30}}},
-        {"image", "Image", ImageSourceData{ImageConfig{"fixture.png"}, ImageRuntimeInfo{QSize(64, 32)}}}};
-    const QList<SourceType> types{
-        SourceType::DisplayCapture, SourceType::Camera, SourceType::Image};
+    QList<VideoSource> sources{
+        {"display", "Display", DisplaySourceDetails{DisplayConfig{"monitor-1", false}}},
+        {"camera", "Camera", CameraSourceDetails{CameraConfig{"camera-1", QSize(1280, 720), 30}}},
+        {"image", "Image", ImageSourceDetails{ImageConfig{"fixture.png"}, ImageRuntimeState{QSize(64, 32)}}}};
+    const QList<VideoSourceType> types{
+        VideoSourceType::DisplayCapture, VideoSourceType::Camera, VideoSourceType::Image};
     const QStringList typeNames{"displayCapture", "camera", "image"};
     Manager state(sources);
     auto *model = &state;
@@ -111,20 +111,20 @@ void VideoSourceModelTest::supportsAllSourceConfigurations()
         QCOMPARE(sources.at(row).type(), types.at(row));
         const auto index = model->index(row, 0);
         QCOMPARE(index.data(Manager::TypeRole).toString(), typeNames.at(row));
-        if (types.at(row) == SourceType::Image) {
+        if (types.at(row) == VideoSourceType::Image) {
             QCOMPARE(index.data(Manager::FilePathRole).toString(), QString("fixture.png"));
-            QCOMPARE(index.data(Manager::OriginalSizeRole).toSize(), QSize(64, 32));
+            QCOMPARE(index.data(Manager::PixelSizeRole).toSize(), QSize(64, 32));
         } else {
             QVERIFY(!index.data(Manager::FilePathRole).isValid());
-            QVERIFY(!index.data(Manager::OriginalSizeRole).toSize().isValid());
+            QVERIFY(!index.data(Manager::PixelSizeRole).toSize().isValid());
         }
         QVERIFY(state.selectSource(sources.at(row).id));
         QVERIFY(state.setSourceVisible(sources.at(row).id, false));
         QVERIFY(state.setSourceLocked(sources.at(row).id, true));
     }
     // Type follows details replacement; the model still owns an independent copy.
-    sources[0].details = ImageSourceData{ImageConfig{"replacement.png"}};
-    QCOMPARE(sources.at(0).type(), SourceType::Image);
+    sources[0].details = ImageSourceDetails{ImageConfig{"replacement.png"}};
+    QCOMPARE(sources.at(0).type(), VideoSourceType::Image);
     QCOMPARE(model->index(0, 0).data(Manager::TypeRole).toString(), QString("displayCapture"));
     QVERIFY(state.moveSource("image", -1));
     QCOMPARE(model->index(1, 0).data(Manager::TypeRole).toString(), QString("image"));
@@ -138,21 +138,21 @@ void VideoSourceModelTest::supportsAllSourceConfigurations()
 
 void VideoSourceModelTest::runtimeDetailsFollowSourceType()
 {
-    SourceData camera{"camera", "Camera",
-        CameraSourceData{CameraConfig{"device"}, CameraRuntimeInfo{QSize(1280, 720), "capturing", {}, 30000, 1001}}};
-    SourceData image{"image", "Image",
-        ImageSourceData{ImageConfig{"image.png"}, ImageRuntimeInfo{QSize(64, 32), "ready", {}}}};
-    SourceData display{"display", "Display",
-        DisplaySourceData{DisplayConfig{"monitor"}, DisplayRuntimeInfo{QSize(1920, 1080), "error", "Display lost"}}};
+    VideoSource camera{"camera", "Camera",
+        CameraSourceDetails{CameraConfig{"device"}, CameraRuntimeState{QSize(1280, 720), "capturing", {}, 30000, 1001}}};
+    VideoSource image{"image", "Image",
+        ImageSourceDetails{ImageConfig{"image.png"}, ImageRuntimeState{QSize(64, 32), "ready", {}}}};
+    VideoSource display{"display", "Display",
+        DisplaySourceDetails{DisplayConfig{"monitor"}, DisplayRuntimeState{QSize(1920, 1080), "error", "Display lost"}}};
     VideoSourceModel model({camera, image, display});
     QCOMPARE(model.cameraProperties("camera").value("state").toString(), QString("capturing"));
-    QCOMPARE(model.cameraProperties("camera").value("actualNumerator").toInt(), 30000);
-    QCOMPARE(model.cameraProperties("camera").value("actualDenominator").toInt(), 1001);
+    QCOMPARE(model.cameraProperties("camera").value("actualFrameRateNumerator").toInt(), 30000);
+    QCOMPARE(model.cameraProperties("camera").value("actualFrameRateDenominator").toInt(), 1001);
     QCOMPARE(model.cameraProperties("camera").value("actualWidth").toInt(), 1280);
     QCOMPARE(model.cameraProperties("camera").value("actualHeight").toInt(), 720);
-    QCOMPARE(model.index(2, 0).data(VideoSourceModel::OriginalSizeRole).toSize(), QSize(1920, 1080));
+    QCOMPARE(model.index(2, 0).data(VideoSourceModel::PixelSizeRole).toSize(), QSize(1920, 1080));
     const auto imageIndex = model.index(1, 0);
-    QCOMPARE(imageIndex.data(VideoSourceModel::OriginalSizeRole).toSize(), QSize(64, 32));
+    QCOMPARE(imageIndex.data(VideoSourceModel::PixelSizeRole).toSize(), QSize(64, 32));
     QCOMPARE(imageIndex.data(VideoSourceModel::ImageLoadStateRole).toString(), QString("ready"));
     QVERIFY(!imageIndex.data(VideoSourceModel::CaptureStateRole).isValid());
     QVERIFY(!imageIndex.data(VideoSourceModel::CaptureErrorRole).isValid());
@@ -166,7 +166,7 @@ void VideoSourceModelTest::runtimeDetailsFollowSourceType()
     QVERIFY(!model.setImageLoadStatus("missing", "ready", {}));
     model.setCameraActualMode("image", {800, 600}, 30, 1);
     QCOMPARE(changed.count(), 0);
-    QCOMPARE(imageIndex.data(VideoSourceModel::OriginalSizeRole).toSize(), QSize(64, 32));
+    QCOMPARE(imageIndex.data(VideoSourceModel::PixelSizeRole).toSize(), QSize(64, 32));
     QVERIFY(model.setImageLoadStatus("image", "error", "Load failed"));
     QCOMPARE(changed.count(), 1);
     QCOMPARE(changed.last()[2].value<QList<int>>(),
@@ -182,17 +182,17 @@ void VideoSourceModelTest::runtimeDetailsFollowSourceType()
     QVERIFY(!added.setSourceCaptureStatus("image", "capturing", {}));
     QVERIFY(added.setImageLoadStatus("image", "ready", {}));
     QVERIFY(added.addSource(camera));
-    QCOMPARE(added.cameraProperties("camera").value("actualNumerator").toInt(), 30000);
+    QCOMPARE(added.cameraProperties("camera").value("actualFrameRateNumerator").toInt(), 30000);
     QVERIFY(added.setSourceCaptureStatus("camera", "error", "Device lost"));
     QCOMPARE(added.cameraProperties("camera").value("error").toString(), QString("Device lost"));
 
     // Replacing the complete details changes config and runtime together, without
     // carrying over the previous source's status or dimensions.
-    image.details = CameraSourceData{CameraConfig{"replacement-device"}};
-    QCOMPARE(image.type(), SourceType::Camera);
-    QCOMPARE(std::get<CameraSourceData>(image.details).runtime.actualRateNumerator, 0);
-    QVERIFY(std::get<CameraSourceData>(image.details).runtime.captureError.isEmpty());
-    QVERIFY(!image.originalSize().isValid());
+    image.details = CameraSourceDetails{CameraConfig{"replacement-device"}};
+    QCOMPARE(image.type(), VideoSourceType::Camera);
+    QCOMPARE(std::get<CameraSourceDetails>(image.details).runtime.actualFrameRateNumerator, 0);
+    QVERIFY(std::get<CameraSourceDetails>(image.details).runtime.captureError.isEmpty());
+    QVERIFY(!image.pixelSize().isValid());
 }
 
 void VideoSourceModelTest::selectionNotifiesOnlyOnChange()
@@ -370,7 +370,7 @@ void VideoSourceModelTest::rejectsInvalidOperations()
 void VideoSourceModelTest::suggestsUnusedSourceNames()
 {
     const QString base = QString::fromUtf8("图像");
-    VideoSourceModel state(QList<SourceData>{
+    VideoSourceModel state(QList<VideoSource>{
         {"a", base}, {"b", base + " 3"}, {"c", "Camera"}, {"d", " cAmErA 2 "}});
     QVERIFY(state.selectSource("a"));
     QSignalSpy selected(&state, &VideoSourceModel::currentSourceIdChanged);
@@ -395,9 +395,9 @@ void VideoSourceModelTest::sameImageEntriesRemainIndependent()
     QImage image(19, 11, QImage::Format_ARGB32);
     image.fill(Qt::red);
     QVERIFY(image.save(path));
-    QList<SourceData> entries{
-        {"a", "First", ImageSourceData{ImageConfig{path}, ImageRuntimeInfo{image.size()}}},
-        {"b", "Second", ImageSourceData{ImageConfig{path}, ImageRuntimeInfo{image.size()}}}};
+    QList<VideoSource> entries{
+        {"a", "First", ImageSourceDetails{ImageConfig{path}, ImageRuntimeState{image.size()}}},
+        {"b", "Second", ImageSourceDetails{ImageConfig{path}, ImageRuntimeState{image.size()}}}};
     VideoSourceModel state(entries);
     entries.clear(); // State owns its source list.
     QVERIFY(state.setSourceVisible("a", false));
@@ -405,7 +405,7 @@ void VideoSourceModelTest::sameImageEntriesRemainIndependent()
     QVERIFY(state.moveSource("a", 1));
     const auto other = state.index(0, 0);
     QCOMPARE(other.data(VideoSourceModel::IdRole).toString(), QString("b"));
-    QCOMPARE(other.data(VideoSourceModel::OriginalSizeRole).toSize(), image.size());
+    QCOMPARE(other.data(VideoSourceModel::PixelSizeRole).toSize(), image.size());
     QVERIFY(other.data(VideoSourceModel::VisibleRole).toBool());
     QVERIFY(!other.data(VideoSourceModel::LockedRole).toBool());
     QVERIFY(state.selectSource("a"));
@@ -432,9 +432,9 @@ void VideoSourceModelTest::insertsSourcesAtTop()
     QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
     QSignalSpy availability(&model, &VideoSourceModel::sourceMoveAvailabilityChanged);
     QVERIFY(!model.addSource({" ", "Invalid"}));
-    QVERIFY(model.addSource({"one", "First", ImageSourceData{ImageConfig{"one.png"}}}));
+    QVERIFY(model.addSource({"one", "First", ImageSourceDetails{ImageConfig{"one.png"}}}));
     QVERIFY(!model.addSource({"one", "Duplicate"}));
-    QVERIFY(model.addSource({"two", "Second", ImageSourceData{ImageConfig{"one.png"}}}));
+    QVERIFY(model.addSource({"two", "Second", ImageSourceDetails{ImageConfig{"one.png"}}}));
     QCOMPARE(model.rowCount(), 2);
     QCOMPARE(inserted.count(), 2);
     QCOMPARE(model.currentSourceId(), QString("two"));
@@ -442,19 +442,19 @@ void VideoSourceModelTest::insertsSourcesAtTop()
     QVERIFY(model.canMoveCurrentSourceDown());
     QVERIFY(!model.canMoveCurrentSourceUp());
     QVERIFY(!availability.isEmpty());
-    QVERIFY(model.setSourceOriginalSize("two", QSize(40, 20)));
-    QVERIFY(model.setSourceOriginalSize("two", QSize(40, 20)));
+    QVERIFY(model.setSourcePixelSize("two", QSize(40, 20)));
+    QVERIFY(model.setSourcePixelSize("two", QSize(40, 20)));
     QCOMPARE(changed.count(), 1);
-    QVERIFY(!model.setSourceOriginalSize("missing", QSize(40, 20)));
+    QVERIFY(!model.setSourcePixelSize("missing", QSize(40, 20)));
 }
 
 void VideoSourceModelTest::initializesAndValidatesTransforms()
 {
     VideoSourceModel model;
-    QVERIFY(model.addSource({"image", "Image", ImageSourceData{ImageConfig{"image.png"}}}));
+    QVERIFY(model.addSource({"image", "Image", ImageSourceDetails{ImageConfig{"image.png"}}}));
     const auto current = [&] { return model.index(0, 0).data(VideoSourceModel::TransformRole).value<SourceTransform>(); };
     QVERIFY(current().size.isEmpty());
-    QVERIFY(model.setSourceOriginalSize("image", QSize(4000, 2000)));
+    QVERIFY(model.setSourcePixelSize("image", QSize(4000, 2000)));
     QCOMPARE(current().center, QPointF(960, 540));
     QCOMPARE(current().size, QSizeF(1920, 960));
     SourceTransform edited{{-20.5, 95.25}, {300.5, 100.25}, -30};
@@ -466,7 +466,7 @@ void VideoSourceModelTest::initializesAndValidatesTransforms()
     edited.rotation = 690;
     QVERIFY(model.setSourceTransform("image", edited));
     QCOMPARE(changes.size(), 1);
-    QVERIFY(model.setSourceOriginalSize("image", QSize(600, 200)));
+    QVERIFY(model.setSourcePixelSize("image", QSize(600, 200)));
     QCOMPARE(current().center, edited.center);
     QCOMPARE(current().size, edited.size);
     const SourceTransform before = current();
@@ -485,7 +485,7 @@ void VideoSourceModelTest::initializesAndValidatesTransforms()
         QVERIFY(!model.setSourceTransform("image", invalid));
         QVERIFY(current() == before);
     }
-    VideoSourceModel ready({{"ready", "Ready", ImageSourceData{ImageConfig{"ready.png"}, ImageRuntimeInfo{QSize(40, 20)}}}});
+    VideoSourceModel ready({{"ready", "Ready", ImageSourceDetails{ImageConfig{"ready.png"}, ImageRuntimeState{QSize(40, 20)}}}});
     QCOMPARE(ready.index(0, 0).data(VideoSourceModel::TransformRole).value<SourceTransform>().size, QSizeF(40, 20));
 }
 
@@ -535,8 +535,8 @@ void VideoSourceModelTest::sharesGeometryForMappingAndResizing()
 
 void VideoSourceModelTest::filtersAreOrderedValidatedAndIndependent()
 {
-    VideoSourceModel model(QList<SourceData>{{"a", "A", ImageSourceData{ImageConfig{"a.png"}}},
-        {"b", "B", ImageSourceData{ImageConfig{"a.png"}}}, {"camera", "Camera", CameraSourceData{CameraConfig{}}}});
+    VideoSourceModel model(QList<VideoSource>{{"a", "A", ImageSourceDetails{ImageConfig{"a.png"}}},
+        {"b", "B", ImageSourceDetails{ImageConfig{"a.png"}}}, {"camera", "Camera", CameraSourceDetails{CameraConfig{}}}});
     QSignalSpy changed(&model, &VideoSourceModel::sourceFiltersChanged);
     QSignalSpy data(&model, &VideoSourceModel::dataChanged);
     QVERIFY(!model.canFilterCurrentSource());
@@ -591,13 +591,13 @@ void VideoSourceModelTest::filtersAreOrderedValidatedAndIndependent()
 
 void VideoSourceModelTest::displayPropertiesPreserveSourceState()
 {
-    VideoSourceModel model(QList<SourceData>{{"screen", "Screen", DisplaySourceData{DisplayConfig{"physical-path", true}}},
-        {"image", "Image", ImageSourceData{ImageConfig{"a.png"}}}, {"camera", "Camera", CameraSourceData{CameraConfig{}}}});
+    VideoSourceModel model(QList<VideoSource>{{"screen", "Screen", DisplaySourceDetails{DisplayConfig{"physical-path", true}}},
+        {"image", "Image", ImageSourceDetails{ImageConfig{"a.png"}}}, {"camera", "Camera", CameraSourceDetails{CameraConfig{}}}});
     QSignalSpy changed(&model, &VideoSourceModel::dataChanged);
     QSignalSpy status(&model, &VideoSourceModel::captureStatusChanged);
     QVERIFY(model.selectSource("screen"));
     QVERIFY(model.canEditCurrentDisplay() && model.canFilterCurrentSource());
-    QVERIFY(model.setSourceOriginalSize("screen", QSize(1920, 1080)));
+    QVERIFY(model.setSourcePixelSize("screen", QSize(1920, 1080)));
     const SourceTransform transform{{300, 500}, {640, 360}, 45};
     QVERIFY(model.setSourceTransform("screen", transform));
     const auto filter = model.addColorCorrection("screen");

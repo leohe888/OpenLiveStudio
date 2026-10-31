@@ -49,7 +49,7 @@ QString DisplaySourceController::addDisplay(const QString &name, const QString &
     if (name.trimmed().isEmpty() || displayId.trimmed().isEmpty()) return {};
     const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     // Keep the source even if opening the selected display subsequently fails.
-    if (!m_model.addSource({id, name.trimmed(), DisplaySourceData{DisplayConfig{displayId, cursor}}})) return {};
+    if (!m_model.addSource({id, name.trimmed(), DisplaySourceDetails{DisplayConfig{displayId, cursor}}})) return {};
     return id;
 }
 
@@ -158,7 +158,7 @@ void DisplaySourceController::poll()
         } else if (auto frame = entry.worker->takeLatest()) {
             if (frame->generation != entry.generation) continue;
             entry.frame = std::move(frame);
-            m_model.setSourceOriginalSize(id, entry.frame->size);
+            m_model.setSourcePixelSize(id, entry.frame->size);
             m_model.setSourceCaptureStatus(id, "capturing", {});
             changed = true;
         }

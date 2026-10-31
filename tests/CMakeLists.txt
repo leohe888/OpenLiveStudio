@@ -154,7 +154,7 @@ set_tests_properties(gpu.compositor PROPERTIES LABELS "gpu" TIMEOUT 30)
 qt_add_executable(tst_captureinterop graphics/tst_captureinterop.cpp
     ../src/ui/previewwidget.cpp
     ../src/ui/previewwidget.h
-    ../src/video/source.cpp
+    ../src/video/videosource.cpp
     ../src/video/videosourcemodel.cpp
     ../src/video/videosourcemodel.h
     ../src/graphics/captureframe.h
@@ -191,8 +191,8 @@ set_tests_properties(capture.interop PROPERTIES LABELS "capture;gpu" TIMEOUT 30)
 
 qt_add_executable(tst_videosourcemodel
     video/tst_videosourcemodel.cpp
-    ../src/video/source.cpp
-    ../src/video/source.h
+    ../src/video/videosource.cpp
+    ../src/video/videosource.h
     ../src/video/sourcetransform.h
     ../src/video/videosourcemodel.cpp
     ../src/video/videosourcemodel.h
@@ -211,7 +211,7 @@ set_tests_properties(core.videosourcemodel PROPERTIES LABELS "core;smoke" TIMEOU
 
 qt_add_executable(tst_videosourceaggregator
     video/tst_videosourceaggregator.cpp
-    ../src/video/source.cpp
+    ../src/video/videosource.cpp
     ../src/video/videosourcemodel.cpp
     ../src/video/videosourcemodel.h
     ../src/video/videosourceaggregator.cpp
@@ -232,8 +232,8 @@ qt_add_executable(tst_mainwindow
     ../src/ui/previewwidget.cpp
     ../src/ui/previewwidget.h
     ../src/graphics/previewsource.h
-    ../src/video/source.cpp
-    ../src/video/source.h
+    ../src/video/videosource.cpp
+    ../src/video/videosource.h
     ../src/video/sourcetransform.h
     ../src/video/videosourcemodel.cpp
     ../src/video/videosourcemodel.h
@@ -371,7 +371,7 @@ set_tests_properties(ui.previewwidget PROPERTIES
 
 qt_add_executable(tst_imagesourcecontroller
     video/tst_imagesourcecontroller.cpp
-    ../src/video/source.cpp
+    ../src/video/videosource.cpp
     ../src/video/videosourcemodel.cpp
     ../src/video/image/imagesourcecontroller.cpp
     ../src/video/image/imagesourcecontroller.h
@@ -390,7 +390,7 @@ add_test(NAME core.imagesourcecontroller
 set_tests_properties(core.imagesourcecontroller PROPERTIES LABELS "core;smoke" TIMEOUT 30)
 
 qt_add_executable(tst_cameracapture video/tst_cameracapture.cpp
-    ../src/video/source.cpp
+    ../src/video/videosource.cpp
     ../src/video/videosourcemodel.cpp
     ../src/video/videosourcemodel.h
     ../src/video/camera/cameracaptureworker.h

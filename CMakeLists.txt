@@ -20,8 +20,8 @@ qt_add_executable(OpenLiveStudio
     src/ui/previewwidget.h
     src/graphics/previewsource.h
     src/ui/uicolors.h
-    src/video/source.cpp
-    src/video/source.h
+    src/video/videosource.cpp
+    src/video/videosource.h
     src/video/sourcefilter.h
     src/video/sourcetransform.h
     src/video/videosourcemodel.cpp

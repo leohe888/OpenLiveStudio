@@ -1,5 +1,5 @@
-#ifndef SOURCE_H
-#define SOURCE_H
+#ifndef VIDEOSOURCE_H
+#define VIDEOSOURCE_H
 
 #include "video/sourcetransform.h"
 #include "video/sourcefilter.h"
@@ -8,7 +8,7 @@
 #include <QString>
 #include <variant>
 
-enum class SourceType {
+enum class VideoSourceType {
     DisplayCapture,
     Camera,
     Image
@@ -22,56 +22,57 @@ struct CameraConfig {
     QString deviceId;
     // Invalid size and zero frame rate mean no explicit preference.
     QSize requestedResolution;
-    int requestedFrameRate = 0;
-    int frameRateDenominator = 1;
-    bool valid() const;
+    int requestedFrameRateNumerator = 0;
+    int requestedFrameRateDenominator = 1;
+    bool isValid() const;
     bool operator==(const CameraConfig &other) const;
     bool operator!=(const CameraConfig &other) const;
 };
 struct ImageConfig {
     QString filePath;
 };
-struct DisplayRuntimeInfo {
-    QSize originalSize;
+struct DisplayRuntimeState {
+    QSize pixelSize;
     QString captureState;
     QString captureError;
 };
-struct ImageRuntimeInfo {
-    QSize originalSize;
+struct ImageRuntimeState {
+    QSize pixelSize;
     QString loadState;
     QString loadError;
 };
-struct CameraRuntimeInfo {
-    QSize originalSize;
+struct CameraRuntimeState {
+    QSize pixelSize;
     QString captureState;
     QString captureError;
-    int actualRateNumerator = 0, actualRateDenominator = 1;
+    int actualFrameRateNumerator = 0;
+    int actualFrameRateDenominator = 1;
 };
-struct ImageSourceData {
+struct ImageSourceDetails {
     ImageConfig config;
-    ImageRuntimeInfo runtime;
+    ImageRuntimeState runtime;
 };
-struct DisplaySourceData {
+struct DisplaySourceDetails {
     DisplayConfig config;
-    DisplayRuntimeInfo runtime;
+    DisplayRuntimeState runtime;
 };
-struct CameraSourceData {
+struct CameraSourceDetails {
     CameraConfig config;
-    CameraRuntimeInfo runtime;
+    CameraRuntimeState runtime;
 };
-using SourceDetails = std::variant<DisplaySourceData, CameraSourceData, ImageSourceData>;
+using VideoSourceDetails = std::variant<DisplaySourceDetails, CameraSourceDetails, ImageSourceDetails>;
 
-struct SourceData {
+struct VideoSource {
     QString id;
     QString name;
-    SourceDetails details = DisplaySourceData{};
+    VideoSourceDetails details = DisplaySourceDetails{};
     bool visible = true;
     bool locked = false;
     SourceTransform transform;
     QList<SourceFilter> filters;
 
-    SourceType type() const;
-    QSize originalSize() const;
+    VideoSourceType type() const;
+    QSize pixelSize() const;
 };
 
-#endif // SOURCE_H
+#endif // VIDEOSOURCE_H

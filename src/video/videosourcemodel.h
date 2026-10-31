@@ -1,7 +1,7 @@
 #ifndef VIDEOSOURCEMODEL_H
 #define VIDEOSOURCEMODEL_H
 
-#include "video/source.h"
+#include "video/videosource.h"
 
 #include <QAbstractListModel>
 #include <QList>
@@ -24,7 +24,7 @@ public:
         NameRole,
         TypeRole,
         FilePathRole,
-        OriginalSizeRole,
+        PixelSizeRole,
         VisibleRole,
         LockedRole,
         TransformRole,
@@ -39,15 +39,15 @@ public:
 
     explicit VideoSourceModel(QObject *parent = nullptr);
     // Initial source IDs must be nonempty and unique.
-    explicit VideoSourceModel(const QList<SourceData> &sources, QObject *parent = nullptr);
+    explicit VideoSourceModel(const QList<VideoSource> &sources, QObject *parent = nullptr);
 
     int rowCount(const QModelIndex &parent = {}) const override;
     QVariant data(const QModelIndex &index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
 
     bool setSourceTransform(const QString &id, const SourceTransform &transform);
-    bool addSource(const SourceData &source);
-    bool setSourceOriginalSize(const QString &id, const QSize &size);
+    bool addSource(const VideoSource &source);
+    bool setSourcePixelSize(const QString &id, const QSize &size);
     bool setSourceCaptureStatus(const QString &id, const QString &state, const QString &error);
     bool setImageLoadStatus(const QString &id, const QString &state, const QString &error);
     bool canEditCurrentDisplay() const;
@@ -94,7 +94,7 @@ private:
     bool setSourceFlag(const QString &sourceId, int role, bool value);
     int filterRow(int sourceRow, const QString &filterId) const;
     void notifyFiltersChanged(int row);
-    QList<SourceData> m_sources;
+    QList<VideoSource> m_sources;
     QString m_currentSourceId;
 };
 

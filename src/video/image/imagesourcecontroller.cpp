@@ -79,8 +79,8 @@ void ImageSourceController::addImage(const QString &name, const QString &path, Q
         }
         const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
         m_images.insert(id, {absolutePath, image, ++m_generation});
-        SourceData source{id, name.trimmed(),
-            ImageSourceData{ImageConfig{absolutePath}, ImageRuntimeInfo{image.size(), "ready", {}}}};
+        VideoSource source{id, name.trimmed(),
+            ImageSourceDetails{ImageConfig{absolutePath}, ImageRuntimeState{image.size(), "ready", {}}}};
         if (!m_model.addSource(source)) {
             m_images.remove(id);
             emit addFailed(owner, tr("无法添加图片来源。"));
@@ -123,7 +123,7 @@ void ImageSourceController::synchronize()
                 auto entry = m_images.find(id);
                 if (entry == m_images.end() || entry->generation != generation) return;
                 entry->image = image;
-                m_model.setSourceOriginalSize(id, image.size());
+                m_model.setSourcePixelSize(id, image.size());
                 m_model.setImageLoadStatus(id, error.isEmpty() ? "ready" : "error", error);
                 if (!error.isEmpty()) emit sourceError(id, error);
                 synchronize();

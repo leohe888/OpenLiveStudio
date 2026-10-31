@@ -46,7 +46,7 @@ void CameraCaptureTest::unavailableDeviceAndLifecycle() {
     QList<PreviewSource> output;
     connect(&controller, &CameraSourceController::sourcesChanged, this, [&](const auto &sources) { output = sources; });
     QImage image(8, 8, QImage::Format_RGB32); image.fill(Qt::red);
-    QVERIFY(model.addSource({"image", "Image", ImageSourceData{ImageConfig{"unused"}, ImageRuntimeInfo{image.size()}}}));
+    QVERIFY(model.addSource({"image", "Image", ImageSourceDetails{ImageConfig{"unused"}, ImageRuntimeState{image.size()}}}));
     const QString id = controller.addCamera("Camera", "missing-device", {});
     QVERIFY(!id.isEmpty());
     QTRY_COMPARE_WITH_TIMEOUT(model.cameraProperties(id).value("state").toString(), QString("error"), 10000);

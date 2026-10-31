@@ -9,8 +9,8 @@ CameraConfig configFrom(const QString &deviceId, const QVariantMap &mode) {
     CameraConfig result; result.deviceId = deviceId;
     if (mode.value("width").toInt() > 0) {
         result.requestedResolution = {mode.value("width").toInt(), mode.value("height").toInt()};
-        result.requestedFrameRate = mode.value("numerator").toInt();
-        result.frameRateDenominator = mode.value("denominator").toInt();
+        result.requestedFrameRateNumerator = mode.value("numerator").toInt();
+        result.requestedFrameRateDenominator = mode.value("denominator").toInt();
     }
     return result;
 }
@@ -75,9 +75,9 @@ void CameraSourceController::requestModes(const QString &id) {
 QString CameraSourceController::addCamera(const QString &name, const QString &id, const QVariantMap &mode) {
     if (name.trimmed().isEmpty() || id.isEmpty() || m_model.cameraDeviceInUse(id)) return {};
     const auto config = configFrom(id, mode);
-    if ((!config.requestedResolution.isEmpty() && (config.requestedFrameRate <= 0 || config.frameRateDenominator <= 0))) return {};
+    if ((!config.requestedResolution.isEmpty() && (config.requestedFrameRateNumerator <= 0 || config.requestedFrameRateDenominator <= 0))) return {};
     const QString sourceId = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    if (!m_model.addSource({sourceId, name.trimmed(), CameraSourceData{config}})) return {};
+    if (!m_model.addSource({sourceId, name.trimmed(), CameraSourceDetails{config}})) return {};
     return sourceId;
 }
 bool CameraSourceController::applyProperties(const QString &sourceId, const QString &id, const QVariantMap &mode) {

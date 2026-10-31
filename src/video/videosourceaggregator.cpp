@@ -21,7 +21,7 @@ VideoSourceAggregator::VideoSourceAggregator(VideoSourceModel &model, QObject *p
             if (roles.isEmpty() || roles.contains(VideoSourceModel::IdRole)
                 || roles.contains(VideoSourceModel::TypeRole) || roles.contains(VideoSourceModel::VisibleRole)
                 || roles.contains(VideoSourceModel::LockedRole) || roles.contains(VideoSourceModel::TransformRole)
-                || roles.contains(VideoSourceModel::FiltersRole) || roles.contains(VideoSourceModel::OriginalSizeRole))
+                || roles.contains(VideoSourceModel::FiltersRole) || roles.contains(VideoSourceModel::PixelSizeRole))
                 schedulePublish();
         });
     schedulePublish();

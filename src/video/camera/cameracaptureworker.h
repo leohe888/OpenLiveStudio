@@ -1,7 +1,7 @@
 #ifndef CAMERACAPTUREWORKER_H
 #define CAMERACAPTUREWORKER_H
 
-#include "video/source.h"
+#include "video/videosource.h"
 #include <QImage>
 #include <QMutex>
 #include <QThread>

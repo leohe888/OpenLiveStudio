@@ -47,7 +47,7 @@ Rectangle {
             wrapMode: Text.WordWrap
             text: root.status.state === "capturing"
                 ? qsTr("采集中 · %1 × %2 · 协商帧率 %3 FPS").arg(root.status.actualWidth).arg(root.status.actualHeight)
-                    .arg((root.status.actualNumerator / root.status.actualDenominator).toFixed(2))
+                    .arg((root.status.actualFrameRateNumerator / root.status.actualFrameRateDenominator).toFixed(2))
                 : root.status.state === "paused" ? qsTr("已暂停：来源当前隐藏")
                 : root.status.state === "error" ? qsTr("采集失败") : qsTr("等待采集画面…")
             color: root.colors.text.secondary

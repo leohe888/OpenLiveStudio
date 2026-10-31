@@ -2,16 +2,16 @@
 #include <QUuid>
 
 VideoSourceModel::VideoSourceModel(QObject *parent)
-    : VideoSourceModel(QList<SourceData>{}, parent)
+    : VideoSourceModel(QList<VideoSource>{}, parent)
 {
 }
 
-VideoSourceModel::VideoSourceModel(const QList<SourceData> &sources, QObject *parent)
+VideoSourceModel::VideoSourceModel(const QList<VideoSource> &sources, QObject *parent)
     : QAbstractListModel(parent), m_sources(sources)
 {
     for (auto &source : m_sources) {
         if (source.transform.size.isEmpty())
-            source.transform = SourceGeometry::initial(source.originalSize());
+            source.transform = SourceGeometry::initial(source.pixelSize());
     }
     connect(this, &VideoSourceModel::currentSourceIdChanged, this, &VideoSourceModel::sourceMoveAvailabilityChanged);
     connect(this, &QAbstractItemModel::rowsInserted, this, &VideoSourceModel::sourceMoveAvailabilityChanged);
@@ -37,43 +37,43 @@ QVariant VideoSourceModel::data(const QModelIndex &index, int role) const
     case Qt::DisplayRole: return item.name;
     case TypeRole:
         switch (item.type()) {
-        case SourceType::DisplayCapture: return QStringLiteral("displayCapture");
-        case SourceType::Camera: return QStringLiteral("camera");
-        case SourceType::Image: return QStringLiteral("image");
+        case VideoSourceType::DisplayCapture: return QStringLiteral("displayCapture");
+        case VideoSourceType::Camera: return QStringLiteral("camera");
+        case VideoSourceType::Image: return QStringLiteral("image");
         }
         return {};
     case FilePathRole:
-        if (const auto *image = std::get_if<ImageSourceData>(&item.details))
+        if (const auto *image = std::get_if<ImageSourceDetails>(&item.details))
             return image->config.filePath;
         return {};
-    case OriginalSizeRole: return item.originalSize();
+    case PixelSizeRole: return item.pixelSize();
     case VisibleRole: return item.visible;
     case LockedRole: return item.locked;
     case TransformRole: return QVariant::fromValue(item.transform);
     case FiltersRole: return QVariant::fromValue(item.filters);
     case DisplayConfigRole:
-        if (const auto *display = std::get_if<DisplaySourceData>(&item.details))
+        if (const auto *display = std::get_if<DisplaySourceDetails>(&item.details))
             return QVariantMap{{"displayId", display->config.displayId}, {"captureCursor", display->config.captureCursor}};
         return {};
     case CameraConfigRole:
-        if (const auto *camera = std::get_if<CameraSourceData>(&item.details))
+        if (const auto *camera = std::get_if<CameraSourceDetails>(&item.details))
             return QVariantMap{{"deviceId", camera->config.deviceId}, {"width", camera->config.requestedResolution.width()},
-                {"height", camera->config.requestedResolution.height()}, {"numerator", camera->config.requestedFrameRate},
-                {"denominator", camera->config.frameRateDenominator}};
+                {"height", camera->config.requestedResolution.height()}, {"numerator", camera->config.requestedFrameRateNumerator},
+                {"denominator", camera->config.requestedFrameRateDenominator}};
         return {};
     case CaptureStateRole:
-        if (const auto *display = std::get_if<DisplaySourceData>(&item.details)) return display->runtime.captureState;
-        if (const auto *camera = std::get_if<CameraSourceData>(&item.details)) return camera->runtime.captureState;
+        if (const auto *display = std::get_if<DisplaySourceDetails>(&item.details)) return display->runtime.captureState;
+        if (const auto *camera = std::get_if<CameraSourceDetails>(&item.details)) return camera->runtime.captureState;
         return {};
     case CaptureErrorRole:
-        if (const auto *display = std::get_if<DisplaySourceData>(&item.details)) return display->runtime.captureError;
-        if (const auto *camera = std::get_if<CameraSourceData>(&item.details)) return camera->runtime.captureError;
+        if (const auto *display = std::get_if<DisplaySourceDetails>(&item.details)) return display->runtime.captureError;
+        if (const auto *camera = std::get_if<CameraSourceDetails>(&item.details)) return camera->runtime.captureError;
         return {};
     case ImageLoadStateRole:
-        if (const auto *image = std::get_if<ImageSourceData>(&item.details)) return image->runtime.loadState;
+        if (const auto *image = std::get_if<ImageSourceDetails>(&item.details)) return image->runtime.loadState;
         return {};
     case ImageLoadErrorRole:
-        if (const auto *image = std::get_if<ImageSourceData>(&item.details)) return image->runtime.loadError;
+        if (const auto *image = std::get_if<ImageSourceDetails>(&item.details)) return image->runtime.loadError;
         return {};
     default: return {};
     }
@@ -82,7 +82,7 @@ QVariant VideoSourceModel::data(const QModelIndex &index, int role) const
 QHash<int, QByteArray> VideoSourceModel::roleNames() const
 {
     return {{IdRole, "sourceId"}, {NameRole, "sourceName"}, {TypeRole, "sourceType"},
-            {FilePathRole, "sourceFilePath"}, {OriginalSizeRole, "sourceOriginalSize"},
+            {FilePathRole, "sourceFilePath"}, {PixelSizeRole, "sourcePixelSize"},
             {VisibleRole, "sourceVisible"}, {LockedRole, "sourceLocked"}, {TransformRole, "sourceTransform"},
             {FiltersRole, "sourceFilters"}, {DisplayConfigRole, "sourceDisplayConfig"},
             {CameraConfigRole, "sourceCameraConfig"}, {CaptureStateRole, "sourceCaptureState"}, {CaptureErrorRole, "sourceCaptureError"},
@@ -207,38 +207,38 @@ bool VideoSourceModel::setSourceLocked(const QString &sourceId, bool locked)
     return setSourceFlag(sourceId, LockedRole, locked);
 }
 
-bool VideoSourceModel::addSource(const SourceData &source)
+bool VideoSourceModel::addSource(const VideoSource &source)
 {
     if (source.id.trimmed().isEmpty() || sourceRow(source.id) >= 0)
         return false;
-    if (const auto *camera = std::get_if<CameraSourceData>(&source.details)) {
-        if (!camera->config.valid() || cameraDeviceInUse(camera->config.deviceId)) return false;
+    if (const auto *camera = std::get_if<CameraSourceDetails>(&source.details)) {
+        if (!camera->config.isValid() || cameraDeviceInUse(camera->config.deviceId)) return false;
     }
     beginInsertRows({}, 0, 0);
-    SourceData initialized = source;
+    VideoSource initialized = source;
     if (initialized.transform.size.isEmpty())
-        initialized.transform = SourceGeometry::initial(initialized.originalSize());
+        initialized.transform = SourceGeometry::initial(initialized.pixelSize());
     m_sources.prepend(initialized);
     endInsertRows();
     selectSource(source.id);
     return true;
 }
 
-bool VideoSourceModel::setSourceOriginalSize(const QString &id, const QSize &size)
+bool VideoSourceModel::setSourcePixelSize(const QString &id, const QSize &size)
 {
     const int row = sourceRow(id);
     if (row < 0) return false;
-    auto &originalSize = std::visit([](auto &source) -> QSize & {
-        return source.runtime.originalSize;
+    auto &pixelSize = std::visit([](auto &source) -> QSize & {
+        return source.runtime.pixelSize;
     }, m_sources[row].details);
-    if (originalSize != size) {
-        const QSize previous = originalSize;
-        originalSize = size;
-        QList<int> roles{OriginalSizeRole};
+    if (pixelSize != size) {
+        const QSize previous = pixelSize;
+        pixelSize = size;
+        QList<int> roles{PixelSizeRole};
         if (m_sources[row].transform.size.isEmpty() && !size.isEmpty()) {
             m_sources[row].transform = SourceGeometry::initial(size);
             roles.append(TransformRole);
-        } else if (m_sources[row].type() == SourceType::Camera && !size.isEmpty()
+        } else if (m_sources[row].type() == VideoSourceType::Camera && !size.isEmpty()
                    && previous != size && !m_sources[row].transform.size.isEmpty()) {
             auto &transform = m_sources[row].transform;
             transform.size.setHeight(transform.size.width() * size.height() / size.width());
@@ -267,7 +267,7 @@ bool VideoSourceModel::setSourceTransform(const QString &id, const SourceTransfo
 bool VideoSourceModel::canFilterSource(const QString &sourceId) const
 {
     const int row = sourceRow(sourceId);
-    return row >= 0 && (m_sources[row].type() == SourceType::Image || m_sources[row].type() == SourceType::DisplayCapture || m_sources[row].type() == SourceType::Camera);
+    return row >= 0 && (m_sources[row].type() == VideoSourceType::Image || m_sources[row].type() == VideoSourceType::DisplayCapture || m_sources[row].type() == VideoSourceType::Camera);
 }
 
 QVariantList VideoSourceModel::sourceFilters(const QString &sourceId) const
@@ -366,14 +366,14 @@ bool VideoSourceModel::setFilterParameters(const QString &sourceId, const QStrin
 bool VideoSourceModel::canEditCurrentDisplay() const
 {
     const int row = sourceRow(m_currentSourceId);
-    return row >= 0 && m_sources[row].type() == SourceType::DisplayCapture;
+    return row >= 0 && m_sources[row].type() == VideoSourceType::DisplayCapture;
 }
 
 QVariantMap VideoSourceModel::displayProperties(const QString &id) const
 {
     const int row = sourceRow(id);
     if (row < 0) return {};
-    const auto *display = std::get_if<DisplaySourceData>(&m_sources[row].details);
+    const auto *display = std::get_if<DisplaySourceDetails>(&m_sources[row].details);
     if (!display) return {};
     return {{"displayId", display->config.displayId}, {"captureCursor", display->config.captureCursor},
             {"state", display->runtime.captureState}, {"error", display->runtime.captureError}};
@@ -383,7 +383,7 @@ bool VideoSourceModel::setDisplayConfig(const QString &id, const QString &displa
 {
     const int row = sourceRow(id);
     if (row < 0 || displayId.trimmed().isEmpty()) return false;
-    auto *display = std::get_if<DisplaySourceData>(&m_sources[row].details);
+    auto *display = std::get_if<DisplaySourceDetails>(&m_sources[row].details);
     if (!display) return false;
     if (display->config.displayId != displayId || display->config.captureCursor != cursor) {
         display->config = {displayId, cursor};
@@ -403,8 +403,8 @@ bool VideoSourceModel::setSourceCaptureStatus(const QString &id, const QString &
         emit dataChanged(index(row, 0), index(row, 0), {CaptureStateRole, CaptureErrorRole});
         emit captureStatusChanged(id);
     };
-    if (auto *display = std::get_if<DisplaySourceData>(&m_sources[row].details)) updateStatus(display->runtime);
-    else if (auto *camera = std::get_if<CameraSourceData>(&m_sources[row].details)) updateStatus(camera->runtime);
+    if (auto *display = std::get_if<DisplaySourceDetails>(&m_sources[row].details)) updateStatus(display->runtime);
+    else if (auto *camera = std::get_if<CameraSourceDetails>(&m_sources[row].details)) updateStatus(camera->runtime);
     else return false;
     return true;
 }
@@ -413,7 +413,7 @@ bool VideoSourceModel::setImageLoadStatus(const QString &id, const QString &stat
 {
     const int row = sourceRow(id);
     if (row < 0) return false;
-    auto *image = std::get_if<ImageSourceData>(&m_sources[row].details);
+    auto *image = std::get_if<ImageSourceDetails>(&m_sources[row].details);
     if (!image) return false;
     if (image->runtime.loadState != state || image->runtime.loadError != error) {
         image->runtime.loadState = state;
@@ -426,13 +426,13 @@ bool VideoSourceModel::setImageLoadStatus(const QString &id, const QString &stat
 bool VideoSourceModel::canEditCurrentSource() const
 {
     const int row = sourceRow(m_currentSourceId);
-    return row >= 0 && (m_sources[row].type() == SourceType::DisplayCapture || m_sources[row].type() == SourceType::Camera);
+    return row >= 0 && (m_sources[row].type() == VideoSourceType::DisplayCapture || m_sources[row].type() == VideoSourceType::Camera);
 }
 
 bool VideoSourceModel::cameraDeviceInUse(const QString &deviceId, const QString &exceptId) const
 {
     for (const auto &source : m_sources)
-        if (const auto *camera = std::get_if<CameraSourceData>(&source.details))
+        if (const auto *camera = std::get_if<CameraSourceDetails>(&source.details))
             if (source.id != exceptId && camera->config.deviceId == deviceId) return true;
     return false;
 }
@@ -440,20 +440,20 @@ bool VideoSourceModel::cameraDeviceInUse(const QString &deviceId, const QString 
 QVariantMap VideoSourceModel::cameraProperties(const QString &id) const
 {
     const int row = sourceRow(id);
-    if (row < 0 || m_sources[row].type() != SourceType::Camera) return {};
+    if (row < 0 || m_sources[row].type() != VideoSourceType::Camera) return {};
     auto result = data(index(row, 0), CameraConfigRole).toMap();
-    const auto &camera = std::get<CameraSourceData>(m_sources[row].details).runtime;
+    const auto &camera = std::get<CameraSourceDetails>(m_sources[row].details).runtime;
     result.insert("state", camera.captureState); result.insert("error", camera.captureError);
-    result.insert("actualWidth", camera.originalSize.width()); result.insert("actualHeight", camera.originalSize.height());
-    result.insert("actualNumerator", camera.actualRateNumerator); result.insert("actualDenominator", camera.actualRateDenominator);
+    result.insert("actualWidth", camera.pixelSize.width()); result.insert("actualHeight", camera.pixelSize.height());
+    result.insert("actualFrameRateNumerator", camera.actualFrameRateNumerator); result.insert("actualFrameRateDenominator", camera.actualFrameRateDenominator);
     return result;
 }
 
 bool VideoSourceModel::setCameraConfig(const QString &id, const CameraConfig &value)
 {
     const int row = sourceRow(id);
-    if (row < 0 || !value.valid() || cameraDeviceInUse(value.deviceId, id)) return false;
-    auto *camera = std::get_if<CameraSourceData>(&m_sources[row].details);
+    if (row < 0 || !value.isValid() || cameraDeviceInUse(value.deviceId, id)) return false;
+    auto *camera = std::get_if<CameraSourceDetails>(&m_sources[row].details);
     if (!camera) return false;
     if (camera->config != value) {
         camera->config = value;
@@ -465,10 +465,10 @@ bool VideoSourceModel::setCameraConfig(const QString &id, const CameraConfig &va
 void VideoSourceModel::setCameraActualMode(const QString &id, const QSize &size, int numerator, int denominator)
 {
     const int row = sourceRow(id);
-    if (row < 0 || m_sources[row].type() != SourceType::Camera) return;
-    setSourceOriginalSize(id, size);
-    auto &camera = std::get<CameraSourceData>(m_sources[row].details).runtime;
-    if (camera.actualRateNumerator == numerator && camera.actualRateDenominator == denominator) return;
-    camera.actualRateNumerator = numerator; camera.actualRateDenominator = denominator;
+    if (row < 0 || m_sources[row].type() != VideoSourceType::Camera) return;
+    setSourcePixelSize(id, size);
+    auto &camera = std::get<CameraSourceDetails>(m_sources[row].details).runtime;
+    if (camera.actualFrameRateNumerator == numerator && camera.actualFrameRateDenominator == denominator) return;
+    camera.actualFrameRateNumerator = numerator; camera.actualFrameRateDenominator = denominator;
     emit captureStatusChanged(id);
 }
