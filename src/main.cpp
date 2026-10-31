@@ -1,8 +1,6 @@
 #include "ui/mainwindow.h"
 
 #include <QApplication>
-#include <QQuickWindow>
-#include <QSGRendererInterface>
 #include <QSurfaceFormat>
 
 int main(int argc, char *argv[])
@@ -14,7 +12,6 @@ int main(int argc, char *argv[])
     QSurfaceFormat::setDefaultFormat(format);
 
     QApplication a(argc, argv);
-    QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
     MainWindow w;
     w.show();
     return QApplication::exec();

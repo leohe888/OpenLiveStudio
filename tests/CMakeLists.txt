@@ -228,6 +228,12 @@ qt_add_executable(tst_mainwindow
     ui/tst_mainwindow.cpp
     ../src/ui/uicolors.h
     ../src/ui/mainwindow.cpp
+    ../src/ui/outputwidgets.cpp
+    ../src/ui/sourcewidgets.cpp
+    ../src/ui/audiowidgets.cpp
+    ../src/ui/audiowidgets.h
+    ../src/ui/sourcewidgets.h
+    ../src/ui/outputwidgets.h
     ../src/ui/mainwindow.h
     ../src/ui/previewwidget.cpp
     ../src/ui/previewwidget.h
@@ -282,7 +288,7 @@ qt_add_executable(tst_mainwindow
 )
 target_include_directories(tst_mainwindow PRIVATE "${PROJECT_SOURCE_DIR}/src" "${PROJECT_SOURCE_DIR}/tests")
 target_link_libraries(tst_mainwindow PRIVATE
-    Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::Network Qt6::Widgets Qt6::Test Qt6::QuickWidgets Qt6::QuickControls2 Qt6::Svg Qt6::OpenGLWidgets
+    Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::Network Qt6::Widgets Qt6::Test Qt6::Svg Qt6::OpenGLWidgets
     FFmpeg::swresample FFmpeg::avutil FFmpeg::avcodec FFmpeg::avformat FFmpeg::swscale)
 if(WIN32)
     target_compile_definitions(tst_mainwindow PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
@@ -297,13 +303,6 @@ qt_add_resources(tst_mainwindow "mainwindow_shaders"
     FILES ${OPENLIVE_STUDIO_SHADER_FILES}
 )
 
-# Embed the same source at the application's resource URL.
-qt_add_resources(tst_mainwindow "test_ui"
-    PREFIX "/OpenLiveStudio/Ui"
-    BASE "${PROJECT_SOURCE_DIR}/src/ui"
-    FILES ${OPENLIVE_STUDIO_QML_FILES}
-)
-
 qt_add_resources(tst_mainwindow "test_icons"
     PREFIX "/"
     BASE "${PROJECT_SOURCE_DIR}"
@@ -316,12 +315,10 @@ add_test(NAME ui.mainwindow
         "PATH=$<TARGET_FILE_DIR:Qt6::Core>;${FFmpeg_RUNTIME_DIR};$ENV{PATH}"
         "QT_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../plugins"
         "QT_QPA_PLATFORM=offscreen"
-        "QT_QUICK_BACKEND=software"
-        "QML_IMPORT_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../qml"
         "$<TARGET_FILE:tst_mainwindow>"
         -o "${CMAKE_CURRENT_BINARY_DIR}/mainwindow-results.txt,txt"
 )
-# Timeout covers the complete UI suite; allow headroom for QML setup and CI variance.
+# Timeout covers the complete UI suite; allow headroom for device discovery and CI variance.
 set_tests_properties(ui.mainwindow PROPERTIES
     LABELS "ui;smoke"
     TIMEOUT 120

@@ -4,7 +4,7 @@
 #include <QColor>
 #include <QVariantMap>
 
-// Fixed light palette shared by Widgets and QML.
+// Fixed light palette for the Widgets interface.
 namespace UiColors {
 inline const QVariantMap &values()
 {

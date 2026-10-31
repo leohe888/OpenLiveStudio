@@ -1,4 +1,8 @@
 #include "ui/mainwindow.h"
+#include "ui/outputwidgets.h"
+#include "ui/sourcewidgets.h"
+#include "ui/audiowidgets.h"
+#include <QPushButton>
 #include "video/videosourcemodel.h"
 #include "video/videosourceaggregator.h"
 #include "video/image/imagesourcecontroller.h"
@@ -11,21 +15,13 @@
 #include "output/streamingcontroller.h"
 #include "output/outputsettings.h"
 #include <QCloseEvent>
-#include <QFileDialog>
-#include <QPointer>
 #include <QtAlgorithms>
 
 #include <QApplication>
-#include <QDebug>
 #include <QDialog>
 #include <QDockWidget>
 #include <QLabel>
-#include <QQmlContext>
-#include <QQmlError>
-#include <QQuickItem>
-#include <QQuickWidget>
 #include <QStatusBar>
-#include <QShortcut>
 #include <QStackedWidget>
 #include <QVBoxLayout>
 
@@ -87,7 +83,7 @@ MainWindow::MainWindow(QWidget *parent)
     setupDockLayout();
     // Do not pass `this` when constructing these objects above: Qt deletes child
     // objects in child-list order. Set their parent after creating the docks so
-    // the dock QML views are destroyed before the models/settings they reference.
+    // the dock widgets are destroyed before the models/settings they reference.
     m_videoSourceModel->setParent(this);
     m_audioSourceModel->setParent(this);
     m_outputSettings->setParent(this);
@@ -155,18 +151,10 @@ void MainWindow::toggleStreaming()
 
 void MainWindow::showOutputSettingsDialog()
 {
-    const QUrl url(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/OutputSettingsDialog.qml"));
-    for (auto *dialog:findChildren<QDialog *>()) if (dialog->property("qmlSource").toUrl()==url) {
+    if (auto *dialog = findChild<QDialog *>("outputSettingsDialog")) {
         dialog->show(); dialog->raise(); dialog->activateWindow(); return;
     }
-    showDialog(url,tr("设置"),{{"outputSettings",QVariant::fromValue(m_outputSettings)}});
-}
-
-void MainWindow::browseRecordingDirectory()
-{
-    QPointer<QObject> root=sender(); if (!root) return;
-    const auto path=QFileDialog::getExistingDirectory(this,tr("选择录制保存目录"),root->property("directory").toString());
-    if (root && !path.isEmpty()) root->setProperty("directory",path);
+    createOutputSettingsDialog(this, m_outputSettings)->open();
 }
 
 void MainWindow::applyColors()
@@ -219,100 +207,9 @@ void MainWindow::applyColors()
     }
 }
 
-void MainWindow::configureQuickWidget(QQuickWidget *view)
-{
-    view->rootContext()->setContextProperty(QStringLiteral("uiColors"), UiColors::values());
-    view->setClearColor(UiColors::color(QStringLiteral("background.panel")));
-}
-
-void MainWindow::showDialog(const QUrl &source, const QString &title,
-                            const QVariantMap &properties)
-{
-    auto *dialog = new QDialog(this);
-    dialog->setPalette(palette());
-    dialog->setObjectName(QStringLiteral("qmlDialog"));
-    dialog->setProperty("qmlSource", source);
-    if (source.fileName() == QStringLiteral("SourceFiltersDialog.qml")
-        || source.fileName() == QStringLiteral("DisplayPropertiesDialog.qml")
-        || source.fileName() == QStringLiteral("CameraPropertiesDialog.qml")) {
-        const QString id = properties.value(QStringLiteral("sourceId")).toString();
-        dialog->setProperty(source.fileName() == QStringLiteral("SourceFiltersDialog.qml")
-            ? "filterSourceId" : "displaySourceId", id);
-        const auto closeIfRemoved = [this, dialog, id] {
-            if (!m_videoSourceModel->canFilterSource(id)) dialog->close();
-        };
-        connect(m_videoSourceModel, &QAbstractItemModel::rowsRemoved, dialog, closeIfRemoved);
-        connect(m_videoSourceModel, &QAbstractItemModel::modelReset, dialog, closeIfRemoved);
-    }
-    dialog->setAttribute(Qt::WA_DeleteOnClose);
-    dialog->setWindowTitle(title);
-    dialog->resize(420, 240);
-    auto *layout = new QVBoxLayout(dialog);
-    layout->setContentsMargins(0, 0, 0, 0);
-    auto *pages = new QStackedWidget(dialog);
-    layout->addWidget(pages);
-    auto *view = new QQuickWidget(pages);
-    view->setObjectName(QStringLiteral("dialogQuickWidget"));
-    view->setResizeMode(QQuickWidget::SizeRootObjectToView);
-    configureQuickWidget(view);
-    pages->addWidget(view);
-    auto *errorLabel = new QLabel(tr("对话框加载失败，请查看日志。"), pages);
-    errorLabel->setObjectName(QStringLiteral("dialogLoadError"));
-    errorLabel->setProperty("uiError", true);
-    errorLabel->setAlignment(Qt::AlignCenter);
-    errorLabel->setWordWrap(true);
-    pages->addWidget(errorLabel);
-    const auto showError = [pages, errorLabel](const QString &details) {
-        qWarning().noquote() << tr("对话框加载失败：") << details;
-        errorLabel->setToolTip(details);
-        pages->setCurrentWidget(errorLabel);
-    };
-    connect(view, &QQuickWidget::sceneGraphError, dialog,
-            [showError](QQuickWindow::SceneGraphError, const QString &message) {
-        showError(message);
-    });
-    for (auto it = properties.cbegin(); it != properties.cend(); ++it)
-        view->rootContext()->setContextProperty(it.key(), it.value());
-    connect(view, &QQuickWidget::statusChanged, dialog,
-            [this, dialog, view, source, showError](QQuickWidget::Status status) {
-        if (status == QQuickWidget::Error) {
-            QStringList errors;
-            for (const auto &error : view->errors())
-                errors.append(error.toString());
-            showError(errors.join('\n'));
-        } else if (status == QQuickWidget::Ready) {
-            auto *root = view->rootObject();
-            if (source.fileName() == QStringLiteral("SourceAddDialog.qml")) {
-                auto *cancel = new QShortcut(QKeySequence(Qt::Key_Escape), dialog);
-                connect(cancel, &QShortcut::activated, dialog, &QDialog::reject);
-                connect(dialog, &QDialog::finished, m_imageSourceController,
-                    [this, root] { m_imageSourceController->cancelAdd(root); });
-            }
-            if (root->metaObject()->indexOfSignal("closeRequested()") >= 0)
-                connect(root, SIGNAL(closeRequested()), dialog, SLOT(close()));
-            if (root->metaObject()->indexOfSignal("browseDirectoryRequested()") >= 0)
-                connect(root,SIGNAL(browseDirectoryRequested()),this,SLOT(browseRecordingDirectory()));
-            const QSize contentSize(qMax(1, qRound(root->implicitWidth())),
-                                    qMax(1, qRound(root->implicitHeight())));
-            if (contentSize.width() > 1 && contentSize.height() > 1)
-                dialog->resize(contentSize);
-        }
-    });
-    view->setSource(source);
-    dialog->open();
-}
-
 void MainWindow::showSourceAddDialog()
 {
-    const QString initialName = m_videoSourceModel->suggestedSourceName(tr("显示器采集"));
-    if (initialName.isEmpty())
-        return;
-    showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml")),
-        tr("添加来源"), {{QStringLiteral("videoSourceModel"), QVariant::fromValue(m_videoSourceModel)},
-                       {QStringLiteral("initialName"), initialName},
-                       {QStringLiteral("imageSourceController"), QVariant::fromValue(m_imageSourceController)},
-                       {QStringLiteral("displaySourceController"), QVariant::fromValue(m_displaySourceController)},
-                       {QStringLiteral("cameraSourceController"), QVariant::fromValue(m_cameraSourceController)}});
+    createSourceAddDialog(this, m_videoSourceModel, m_imageSourceController, m_displaySourceController, m_cameraSourceController)->open();
 }
 
 void MainWindow::showAudioSourceAddDialog()
@@ -323,47 +220,29 @@ void MainWindow::showAudioSourceAddDialog()
 void MainWindow::showAudioSourcePropertiesDialog(const QString &sourceId)
 {
     if (!sourceId.isEmpty() && m_audioSourceModel->source(sourceId).isEmpty()) return;
-    const QUrl url(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/AudioSourceDialog.qml"));
     for (auto *dialog : findChildren<QDialog *>()) {
-        if (dialog->property("qmlSource").toUrl() == url && dialog->property("audioSourceId").toString() == sourceId) {
+        if (dialog->objectName() == "audioSourceDialog" && dialog->property("audioSourceId").toString() == sourceId) {
             dialog->show(); dialog->raise(); dialog->activateWindow(); return;
         }
     }
-    showDialog(url, sourceId.isEmpty() ? tr("添加声音来源") : tr("声音来源属性"),
-        {{"audioSources", QVariant::fromValue(m_audioSourceModel)}, {"sourceId", sourceId}});
-    for (auto *dialog : findChildren<QDialog *>()) {
-        if (dialog->property("qmlSource").toUrl() != url || dialog->property("audioBound").toBool()) continue;
-        dialog->setProperty("audioBound", true);
-        dialog->setProperty("audioSourceId", sourceId);
-        if (!sourceId.isEmpty()) connect(m_audioSourceModel, &QAbstractItemModel::rowsRemoved, dialog, [this, dialog, sourceId] {
-            if (m_audioSourceModel->source(sourceId).isEmpty()) dialog->close();
-        });
-    }
+    createAudioSourceDialog(this, m_audioSourceModel, sourceId)->open();
 }
 
 void MainWindow::showAudioSourceRemovalDialog(const QString &sourceId)
 {
     const auto source = m_audioSourceModel->source(sourceId);
     if (source.isEmpty()) return;
-    showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceRemovalDialog.qml")), tr("移除声音来源"),
-        {{"videoSourceModel", QVariant::fromValue(m_audioSourceModel)}, {"sourceId", sourceId}, {"sourceName", source.value("name")},
-         {"removalHint", tr("移除后将停止此设备的声音采集。")}});
+    createRemovalDialog(this, source.value("name").toString(), tr("移除后将停止此设备的声音采集。"),
+        [this, sourceId] { return m_audioSourceModel->removeSource(sourceId); })->open();
 }
 
 void MainWindow::showSourceRemovalDialog(const QString &sourceId)
 {
-    if (sourceId.isEmpty())
-        return;
-    auto *model = m_videoSourceModel;
-    for (int row = 0; row < model->rowCount(); ++row) {
-        const auto index = model->index(row, 0);
-        if (index.data(VideoSourceModel::IdRole).toString() != sourceId)
-            continue;
-        showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceRemovalDialog.qml")),
-            tr("移除来源"), {{QStringLiteral("videoSourceModel"), QVariant::fromValue(m_videoSourceModel)},
-                           {QStringLiteral("sourceId"), sourceId},
-                           {QStringLiteral("sourceName"), index.data(VideoSourceModel::NameRole)},
-                           {QStringLiteral("removalHint"), tr("仅从来源列表移除，不会删除磁盘上的文件。")}});
+    for (int row = 0; row < m_videoSourceModel->rowCount(); ++row) {
+        const auto index = m_videoSourceModel->index(row, 0);
+        if (index.data(VideoSourceModel::IdRole).toString() != sourceId) continue;
+        createRemovalDialog(this, index.data(VideoSourceModel::NameRole).toString(), tr("仅从来源列表移除，不会删除磁盘上的文件。"),
+            [this, sourceId] { return m_videoSourceModel->removeSource(sourceId); })->open();
         return;
     }
 }
@@ -371,42 +250,23 @@ void MainWindow::showSourceRemovalDialog(const QString &sourceId)
 void MainWindow::showSourceFiltersDialog(const QString &sourceId)
 {
     if (!m_videoSourceModel->canFilterSource(sourceId)) return;
-    for (auto *dialog : findChildren<QDialog *>(QString(), Qt::FindDirectChildrenOnly)) {
-        if (dialog->property("filterSourceId").toString() == sourceId && dialog->isVisible()) {
-            dialog->raise();
-            dialog->activateWindow();
-            return;
+    for (auto *dialog : findChildren<QDialog *>()) {
+        if (dialog->property("filterSourceId").toString() == sourceId) {
+            dialog->show(); dialog->raise(); dialog->activateWindow(); return;
         }
     }
-    showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceFiltersDialog.qml")),
-        tr("来源滤镜"), {{QStringLiteral("videoSourceModel"), QVariant::fromValue(m_videoSourceModel)},
-                         {QStringLiteral("sourceId"), sourceId}});
+    createSourceFiltersDialog(this, m_videoSourceModel, sourceId)->open();
 }
 
 void MainWindow::showSourcePropertiesDialog(const QString &sourceId)
 {
-    const bool camera = !m_videoSourceModel->cameraProperties(sourceId).isEmpty();
-    if (!camera && m_videoSourceModel->displayProperties(sourceId).isEmpty()) return;
-    for (auto *dialog : findChildren<QDialog *>(QString(), Qt::FindDirectChildrenOnly)) {
-        if (dialog->property("displaySourceId").toString() == sourceId && dialog->isVisible()) {
-            dialog->raise();
-            dialog->activateWindow();
-            return;
+    if (m_videoSourceModel->cameraProperties(sourceId).isEmpty() && m_videoSourceModel->displayProperties(sourceId).isEmpty()) return;
+    for (auto *dialog : findChildren<QDialog *>()) {
+        if (dialog->property("displaySourceId").toString() == sourceId) {
+            dialog->show(); dialog->raise(); dialog->activateWindow(); return;
         }
     }
-    if (camera) {
-        m_cameraSourceController->refreshDevices();
-        showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/CameraPropertiesDialog.qml")),
-            tr("摄像头来源属性"), {{QStringLiteral("videoSourceModel"), QVariant::fromValue(m_videoSourceModel)},
-                                   {QStringLiteral("sourceId"), sourceId},
-                                   {QStringLiteral("cameraSourceController"), QVariant::fromValue(m_cameraSourceController)}});
-        return;
-    }
-    m_displaySourceController->refreshDisplays();
-    showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/DisplayPropertiesDialog.qml")),
-        tr("显示器来源属性"), {{QStringLiteral("videoSourceModel"), QVariant::fromValue(m_videoSourceModel)},
-                              {QStringLiteral("sourceId"), sourceId},
-                              {QStringLiteral("displaySourceController"), QVariant::fromValue(m_displaySourceController)}});
+    createSourcePropertiesDialog(this, m_videoSourceModel, sourceId, m_displaySourceController, m_cameraSourceController)->open();
 }
 
 void MainWindow::setupPreview()
@@ -468,113 +328,27 @@ void MainWindow::setupSourcesDock()
 {
     m_videoSourceDock = new QDockWidget(tr("画面来源"), this);
     m_videoSourceDock->setFeatures(QDockWidget::NoDockWidgetFeatures);
-    m_videoSourceDock->setObjectName(QStringLiteral("sourcesDock"));
-    m_videoSourceDock->setMinimumWidth(220);
-    m_videoSourceDock->setMaximumWidth(320);
-
-    auto *pages = new QStackedWidget(m_videoSourceDock);
-    auto *view = new QQuickWidget(pages);
-    view->setObjectName(QStringLiteral("sourcesQuickWidget"));
-    view->rootContext()->setContextProperty(QStringLiteral("videoSourceModel"), m_videoSourceModel);
-    view->setResizeMode(QQuickWidget::SizeRootObjectToView);
-    configureQuickWidget(view);
-    pages->addWidget(view);
-
-    auto *errorLabel = new QLabel(tr("来源面板加载失败，请查看日志。"), pages);
-    errorLabel->setObjectName(QStringLiteral("sourcesLoadError"));
-    errorLabel->setProperty("uiError", true);
-    errorLabel->setAlignment(Qt::AlignCenter);
-    errorLabel->setWordWrap(true);
-    pages->addWidget(errorLabel);
-
-    const auto showError = [this, pages, errorLabel](const QString &details) {
-        qWarning().noquote() << tr("来源面板加载失败：") << details;
-        errorLabel->setToolTip(details);
-        pages->setCurrentWidget(errorLabel);
-        statusBar()->showMessage(tr("来源面板加载失败，请查看日志。"));
-    };
-    connect(view, &QQuickWidget::statusChanged, this,
-            [this, view, pages, errorLabel, showError](QQuickWidget::Status status) {
-        if (status == QQuickWidget::Error) {
-            QStringList errors;
-            for (const auto &error : view->errors())
-                errors.append(error.toString());
-            showError(errors.join('\n'));
-        } else if (status == QQuickWidget::Ready) {
-            if (pages->currentWidget() == errorLabel)
-                statusBar()->showMessage(tr("来源面板已加载"), 3000);
-            pages->setCurrentWidget(view);
-            connect(view->rootObject(), SIGNAL(sourceAddDialogRequested()),
-                    this, SLOT(showSourceAddDialog()), Qt::UniqueConnection);
-            connect(view->rootObject(), SIGNAL(sourceRemovalDialogRequested(QString)),
-                    this, SLOT(showSourceRemovalDialog(QString)), Qt::UniqueConnection);
-            connect(view->rootObject(), SIGNAL(sourceFiltersDialogRequested(QString)),
-                    this, SLOT(showSourceFiltersDialog(QString)), Qt::UniqueConnection);
-            connect(view->rootObject(), SIGNAL(sourcePropertiesDialogRequested(QString)),
-                    this, SLOT(showSourcePropertiesDialog(QString)), Qt::UniqueConnection);
-        }
-    });
-    connect(view, &QQuickWidget::sceneGraphError, this,
-            [showError](QQuickWindow::SceneGraphError, const QString &message) {
-        showError(message);
-    });
-
-    m_videoSourceDock->setWidget(pages);
-    view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourcesPanel.qml")));
+    m_videoSourceDock->setObjectName("sourcesDock");
+    m_videoSourceDock->setMinimumWidth(220); m_videoSourceDock->setMaximumWidth(320);
+    auto *panel = new SourcesPanel(m_videoSourceModel, m_videoSourceDock);
+    m_videoSourceDock->setWidget(panel);
+    connect(panel, &SourcesPanel::addRequested, this, &MainWindow::showSourceAddDialog);
+    connect(panel, &SourcesPanel::removalRequested, this, &MainWindow::showSourceRemovalDialog);
+    connect(panel, &SourcesPanel::filtersRequested, this, &MainWindow::showSourceFiltersDialog);
+    connect(panel, &SourcesPanel::propertiesRequested, this, &MainWindow::showSourcePropertiesDialog);
 }
 
 void MainWindow::setupMixerDock()
 {
     m_audioSourceDock = new QDockWidget(tr("声音来源"), this);
     m_audioSourceDock->setFeatures(QDockWidget::NoDockWidgetFeatures);
-    m_audioSourceDock->setObjectName(QStringLiteral("mixerDock"));
-    m_audioSourceDock->setMinimumWidth(220);
-    m_audioSourceDock->setMaximumWidth(320);
-
-    auto *pages = new QStackedWidget(m_audioSourceDock);
-    auto *view = new QQuickWidget(pages);
-    view->setObjectName(QStringLiteral("mixerQuickWidget"));
-    view->setResizeMode(QQuickWidget::SizeRootObjectToView);
-    configureQuickWidget(view);
-    view->rootContext()->setContextProperty(QStringLiteral("audioSourceModel"), m_audioSourceModel);
-    pages->addWidget(view);
-
-    auto *errorLabel = new QLabel(tr("声音来源面板加载失败，请查看日志。"), pages);
-    errorLabel->setObjectName(QStringLiteral("mixerLoadError"));
-    errorLabel->setProperty("uiError", true);
-    errorLabel->setAlignment(Qt::AlignCenter);
-    errorLabel->setWordWrap(true);
-    pages->addWidget(errorLabel);
-
-    const auto showError = [this, pages, errorLabel](const QString &details) {
-        qWarning().noquote() << tr("声音来源面板加载失败：") << details;
-        errorLabel->setToolTip(details);
-        pages->setCurrentWidget(errorLabel);
-        statusBar()->showMessage(tr("声音来源面板加载失败，请查看日志。"));
-    };
-    connect(view, &QQuickWidget::statusChanged, this,
-            [this, view, pages, errorLabel, showError](QQuickWidget::Status status) {
-        if (status == QQuickWidget::Error) {
-            QStringList errors;
-            for (const auto &error : view->errors())
-                errors.append(error.toString());
-            showError(errors.join('\n'));
-        } else if (status == QQuickWidget::Ready) {
-            if (pages->currentWidget() == errorLabel)
-                statusBar()->showMessage(tr("声音来源面板已加载"), 3000);
-            pages->setCurrentWidget(view);
-            connect(view->rootObject(), SIGNAL(soundSourceAddDialogRequested()), this, SLOT(showAudioSourceAddDialog()), Qt::UniqueConnection);
-            connect(view->rootObject(), SIGNAL(soundSourcePropertiesDialogRequested(QString)), this, SLOT(showAudioSourcePropertiesDialog(QString)), Qt::UniqueConnection);
-            connect(view->rootObject(), SIGNAL(soundSourceRemovalDialogRequested(QString)), this, SLOT(showAudioSourceRemovalDialog(QString)), Qt::UniqueConnection);
-        }
-    });
-    connect(view, &QQuickWidget::sceneGraphError, this,
-            [showError](QQuickWindow::SceneGraphError, const QString &message) {
-        showError(message);
-    });
-
-    m_audioSourceDock->setWidget(pages);
-    view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/MixerPanel.qml")));
+    m_audioSourceDock->setObjectName("mixerDock");
+    m_audioSourceDock->setMinimumWidth(220); m_audioSourceDock->setMaximumWidth(320);
+    auto *panel = new MixerPanel(m_audioSourceModel, m_audioSourceDock);
+    m_audioSourceDock->setWidget(panel);
+    connect(panel, &MixerPanel::addRequested, this, &MainWindow::showAudioSourceAddDialog);
+    connect(panel, &MixerPanel::removalRequested, this, &MainWindow::showAudioSourceRemovalDialog);
+    connect(panel, &MixerPanel::propertiesRequested, this, &MainWindow::showAudioSourcePropertiesDialog);
 }
 
 void MainWindow::setupControlsDock()
@@ -585,52 +359,11 @@ void MainWindow::setupControlsDock()
     m_controlDock->setMinimumHeight(80);
     m_controlDock->setMaximumHeight(180);
 
-    auto *pages = new QStackedWidget(m_controlDock);
-    auto *view = new QQuickWidget(pages);
-    view->setObjectName(QStringLiteral("controlsQuickWidget"));
-    view->setResizeMode(QQuickWidget::SizeRootObjectToView);
-    configureQuickWidget(view);
-    view->rootContext()->setContextProperty(QStringLiteral("outputSettings"),m_outputSettings);
-    view->rootContext()->setContextProperty(QStringLiteral("recordingController"),m_recordingController);
-    view->rootContext()->setContextProperty(QStringLiteral("streamingController"),m_streamingController);
-    pages->addWidget(view);
-
-    auto *errorLabel = new QLabel(tr("控制面板加载失败，请查看日志。"), pages);
-    errorLabel->setObjectName(QStringLiteral("controlsLoadError"));
-    errorLabel->setProperty("uiError", true);
-    errorLabel->setAlignment(Qt::AlignCenter);
-    errorLabel->setWordWrap(true);
-    pages->addWidget(errorLabel);
-
-    const auto showError = [this, pages, errorLabel](const QString &details) {
-        qWarning().noquote() << tr("控制面板加载失败：") << details;
-        errorLabel->setToolTip(details);
-        pages->setCurrentWidget(errorLabel);
-        statusBar()->showMessage(tr("控制面板加载失败，请查看日志。"));
-    };
-    connect(view, &QQuickWidget::statusChanged, this,
-            [this, view, pages, errorLabel, showError](QQuickWidget::Status status) {
-        if (status == QQuickWidget::Error) {
-            QStringList errors;
-            for (const auto &error : view->errors())
-                errors.append(error.toString());
-            showError(errors.join('\n'));
-        } else if (status == QQuickWidget::Ready) {
-            if (pages->currentWidget() == errorLabel)
-                statusBar()->showMessage(tr("控制面板已加载"), 3000);
-            pages->setCurrentWidget(view);
-            connect(view->rootObject(),SIGNAL(settingsDialogRequested()),this,SLOT(showOutputSettingsDialog()),Qt::UniqueConnection);
-            connect(view->rootObject(),SIGNAL(recordingToggleRequested()),this,SLOT(toggleRecording()),Qt::UniqueConnection);
-            connect(view->rootObject(),SIGNAL(streamingToggleRequested()),this,SLOT(toggleStreaming()),Qt::UniqueConnection);
-        }
-    });
-    connect(view, &QQuickWidget::sceneGraphError, this,
-            [showError](QQuickWindow::SceneGraphError, const QString &message) {
-        showError(message);
-    });
-
-    m_controlDock->setWidget(pages);
-    view->setSource(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/ControlsPanel.qml")));
+    auto *controls = createOutputControls(m_controlDock, m_outputSettings, m_recordingController, m_streamingController);
+    m_controlDock->setWidget(controls);
+    connect(controls->findChild<QPushButton *>("recordButton"), &QPushButton::clicked, this, &MainWindow::toggleRecording);
+    connect(controls->findChild<QPushButton *>("streamButton"), &QPushButton::clicked, this, &MainWindow::toggleStreaming);
+    connect(controls->findChild<QPushButton *>("settingsButton"), &QPushButton::clicked, this, &MainWindow::showOutputSettingsDialog);
 }
 
 void MainWindow::setupDockLayout()

@@ -2,12 +2,9 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
-#include <QUrl>
-#include <QVariantMap>
 
 class QDockWidget;
 class QLabel;
-class QQuickWidget;
 class VideoSourceModel;
 class VideoSourceAggregator;
 class ImageSourceController;
@@ -27,9 +24,6 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
 
-    void showDialog(const QUrl &source, const QString &title,
-                    const QVariantMap &properties = {});
-
 protected:
     void closeEvent(QCloseEvent *event) override;
 
@@ -42,13 +36,11 @@ private slots:
     void showAudioSourcePropertiesDialog(const QString &sourceId);
     void showAudioSourceRemovalDialog(const QString &sourceId);
     void showOutputSettingsDialog();
-    void browseRecordingDirectory();
     void toggleRecording();
     void toggleStreaming();
 
 private:
     void applyColors();
-    void configureQuickWidget(QQuickWidget *view);
     void setupPreview();
     void setupStatusBar();
     void setupSourcesDock();

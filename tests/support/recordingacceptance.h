@@ -15,6 +15,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcess>
+#include <QPushButton>
 #include <QSaveFile>
 #include <QScopeGuard>
 #include <QUuid>
@@ -165,8 +166,8 @@ inline void run(MainWindow &window)
     });
     heartbeat.start(); render(); producer->start();
     QTRY_VERIFY_WITH_TIMEOUT(latest.size()>=3,5000);
-    auto *controls=window.findChild<QQuickWidget *>("controlsQuickWidget"); QVERIFY(controls && controls->rootObject());
-    QVERIFY(QMetaObject::invokeMethod(controls->rootObject(),"recordingToggleRequested"));
+    auto *recordButton = window.findChild<QPushButton *>("recordButton"); QVERIFY(recordButton);
+    recordButton->click();
     QTRY_COMPARE_WITH_TIMEOUT(recorder->state(),QString("recording"),10000);
     window.showMinimized();
     QElapsedTimer elapsed; elapsed.start();
@@ -229,7 +230,7 @@ inline void run(MainWindow &window)
                 {"recordingState",recorder->state()},{"file",recorder->filePath()},{"maximumUiGapMs",maximumUiGap},{"events",events},{"resources",samples}});
         }
     }
-    QVERIFY(QMetaObject::invokeMethod(controls->rootObject(),"recordingToggleRequested"));
+    recordButton->click();
     QTRY_VERIFY_WITH_TIMEOUT(!recorder->busy(),15000);
     QVERIFY2(recorder->lastError().isEmpty(),qPrintable(recorder->lastError())); QVERIFY(recorder->fileComplete());
     const auto status=recorder->status(); const QString movie=recorder->filePath();

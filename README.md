@@ -1,6 +1,6 @@
 # OpenLive Studio
 
-基于 Qt6 的 Windows 桌面录制与直播工具，采用 QML + Qt Widgets 混合界面。界面固定使用浅色配色，颜色集中定义在 `src/ui/uicolors.h`，不提供主题切换。
+基于 Qt6 的 Windows 桌面录制与直播工具，界面全部采用 Qt Widgets，以 C++ 布局编写。界面固定使用浅色配色，颜色集中定义在 `src/ui/uicolors.h`，不提供主题切换。
 
 ## 目录结构
 
@@ -9,13 +9,13 @@
 - `src/audio/`：声音源模型、音频采集、重采样和混音。
 - `src/graphics/`：画面合成、渲染、共享帧和 GPU 资源交接。
 - `src/output/`：编码、录制、推流和输出设置。
-- `src/ui/`：主窗口、预览控件和 QML 界面。
+- `src/ui/`：主窗口、OpenGL 预览控件和 Widgets 面板及对话框。
 - `tests/`：按 `video/`、`audio/`、`graphics/`、`output/`、`ui/` 分组，公共测试辅助代码放在 `support/`。
 - `assets/`：图标和着色器；`docs/`：功能与验收说明；`tools/`：开发和验证脚本。
 
 C++ 项目头文件统一以 `src/` 为引用根目录，例如 `#include "video/videosourcemodel.h"`。
 
-QML 基础控件集中在 `src/ui/qml/components/`，页面通过 `import "components"` 使用 `StudioButton`、`StudioIconButton`、`StudioTextField`、`StudioComboBox`、`StudioCheckBox`、`StudioRadioButton`、`StudioSlider`、`StudioSpinBox`、`StudioTabButton` 等组件。组件继承 Qt Quick Controls Basic，保留标准属性和信号；校验、提交、设备操作等业务逻辑放在页面。颜色沿用 `uiColors`，公共尺寸放在 `ControlMetrics.js`，页面可以按布局覆盖尺寸。`StudioIconButton.outlined` 用于需要边框和底色的图标操作；`StudioListScrollBar` 保留来源列表的常驻轨道，其余滚动区域使用保留 Basic 淡出行为的 `StudioScrollBar`。
+界面使用 C++ 与 Qt 布局管理器构建，不使用 `.ui` 文件。`sourcewidgets`、`audiowidgets`、`outputwidgets` 分别负责画面来源、声音来源和输出控制界面，复用现有模型与控制器。颜色沿用 `UiColors`，操作图标使用 `assets/icons/` 中的 Lucide SVG；预览保留 `QOpenGLWidget`。
 
 ## MVP 功能
 

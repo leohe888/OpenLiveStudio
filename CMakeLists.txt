@@ -3,18 +3,20 @@ project(OpenLiveStudio LANGUAGES CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 find_package(FFmpeg REQUIRED)
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Network Widgets QuickWidgets QuickControls2 Svg OpenGL OpenGLWidgets)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Network Widgets Svg OpenGL OpenGLWidgets)
 
 qt_standard_project_setup()
-
-if(Qt6_VERSION VERSION_GREATER_EQUAL 6.8)
-    qt_policy(SET QTP0004 NEW)
-endif()
 
 qt_add_executable(OpenLiveStudio
     WIN32 MACOSX_BUNDLE
     src/main.cpp
     src/ui/mainwindow.cpp
+    src/ui/outputwidgets.cpp
+    src/ui/sourcewidgets.cpp
+    src/ui/audiowidgets.cpp
+    src/ui/audiowidgets.h
+    src/ui/sourcewidgets.h
+    src/ui/outputwidgets.h
     src/ui/mainwindow.h
     src/ui/previewwidget.cpp
     src/ui/previewwidget.h
@@ -70,51 +72,6 @@ qt_add_executable(OpenLiveStudio
     src/core/mediaclock.h
 )
 
-set(OPENLIVE_STUDIO_QML_FILES
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioButton.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioCheckBox.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioComboBox.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioIconButton.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioItemDelegate.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioLabel.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioListScrollBar.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioRadioButton.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioScrollBar.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioScrollView.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioSlider.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioSpinBox.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioTabBar.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioTabButton.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/StudioTextField.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/components/ControlMetrics.js"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/OutputSettingsDialog.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/AudioSourceDialog.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/SourcesPanel.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/MixerPanel.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/ControlsPanel.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/SourceAddDialog.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/SourceRemovalDialog.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/SourceFiltersDialog.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/DisplayCaptureSettings.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/DisplayPropertiesDialog.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/CameraCaptureSettings.qml"
-    "${PROJECT_SOURCE_DIR}/src/ui/qml/CameraPropertiesDialog.qml"
-)
-
-foreach(qml_file IN LISTS OPENLIVE_STUDIO_QML_FILES)
-    file(RELATIVE_PATH qml_name "${PROJECT_SOURCE_DIR}/src/ui/qml" "${qml_file}")
-    set_source_files_properties("${qml_file}" PROPERTIES
-        QT_RESOURCE_ALIAS "qml/${qml_name}"
-    )
-endforeach()
-
-qt_add_qml_module(OpenLiveStudio
-    URI OpenLiveStudio.Ui
-    VERSION 1.0
-    RESOURCE_PREFIX "/"
-    QML_FILES ${OPENLIVE_STUDIO_QML_FILES}
-)
-
 set(OPENLIVE_STUDIO_ICON_FILES
     "${PROJECT_SOURCE_DIR}/assets/icons/plus.svg"
     "${PROJECT_SOURCE_DIR}/assets/icons/minus.svg"
@@ -156,8 +113,6 @@ target_link_libraries(OpenLiveStudio
     PRIVATE
         Qt::Core
         Qt::Widgets
-        Qt::QuickWidgets
-        Qt::QuickControls2
         Qt::Svg
         Qt::OpenGL
         Qt::OpenGLWidgets
@@ -197,7 +152,7 @@ install(FILES assets/icons/NOTICE.md
     RENAME lucide-icons.md
 )
 
-qt_generate_deploy_qml_app_script(
+qt_generate_deploy_app_script(
     TARGET OpenLiveStudio
     OUTPUT_SCRIPT deploy_script
     NO_UNSUPPORTED_PLATFORM_ERROR

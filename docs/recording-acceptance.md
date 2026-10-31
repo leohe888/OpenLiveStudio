@@ -4,12 +4,11 @@
 
 ## 运行
 
-在可访问交互桌面、桌面 OpenGL、摄像头和音频设备的 Windows 环境执行。先完成构建，并把 Qt、FFmpeg 的 bin 目录加入 PATH，配置 Qt 插件及 QML 路径。例如 PowerShell：
+在可访问交互桌面、桌面 OpenGL、摄像头和音频设备的 Windows 环境执行。先完成构建，并把 Qt、FFmpeg 的 bin 目录加入 PATH，配置 Qt 插件路径。例如 PowerShell：
 
 ```powershell
 $env:PATH = 'D:/DevEnvs/Qt/6.12.0/msvc2022_64/bin;D:/DevEnvs/ffmpeg-9.0.2-full_build-shared/bin;' + $env:PATH
 $env:QT_PLUGIN_PATH = 'D:/DevEnvs/Qt/6.12.0/msvc2022_64/plugins'
-$env:QML_IMPORT_PATH = 'D:/DevEnvs/Qt/6.12.0/msvc2022_64/qml'
 $env:OPENLIVE_RECORDING_SOAK_SECONDS = '600'
 $env:QTEST_FUNCTION_TIMEOUT = '1200000'
 ./build/recording-compositor-Debug/tst_mainwindow.exe canShowAndClose recordingAcceptance -o acceptance-results.txt,txt
