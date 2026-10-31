@@ -6,11 +6,10 @@ import "components"
 Rectangle {
     id: root
     objectName: "mixerPanel"
-    readonly property var themeColors: uiColors
     readonly property var audioState: typeof audioSourceModel !== "undefined" ? audioSourceModel : null
     implicitWidth: 220
     implicitHeight: 240
-    color: themeColors.background.panel
+    color: uiColors.background.panel
     signal soundSourceAddDialogRequested()
     signal soundSourceRemovalDialogRequested(string sourceId)
     signal soundSourcePropertiesDialogRequested(string sourceId)
@@ -21,16 +20,16 @@ Rectangle {
         objectName: "levelTrack"
         implicitWidth: vertical ? 7 : 80
         implicitHeight: vertical ? 78 : 5
-        color: root.themeColors.background.input
-        border.color: root.themeColors.border.subtle
+        color: uiColors.background.input
+        border.color: uiColors.border.subtle
         Rectangle {
             objectName: "levelFill"
             anchors.left: parent.left
             anchors.bottom: parent.bottom
             width: parent.vertical ? parent.width : parent.width * Math.min(1, Math.max(0, parent.peak))
             height: parent.vertical ? parent.height * Math.min(1, Math.max(0, parent.peak)) : parent.height
-            color: parent.peak >= 1 ? root.themeColors.status.error
-                : parent.peak >= .8 ? root.themeColors.status.warning : root.themeColors.status.success
+            color: parent.peak >= 1 ? uiColors.status.error
+                : parent.peak >= .8 ? uiColors.status.warning : uiColors.status.success
         }
     }
     ColumnLayout {
@@ -40,7 +39,7 @@ Rectangle {
             Layout.fillWidth: true
             Layout.margins: 6
             spacing: 6
-            StudioLabel { text: qsTr("混音"); color: root.themeColors.text.secondary; font.pixelSize: 11 }
+            StudioLabel { text: qsTr("混音"); color: uiColors.text.secondary; font.pixelSize: 11 }
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 2
@@ -50,7 +49,7 @@ Rectangle {
             StudioLabel {
                 objectName: "mixedClipLabel"
                 text: root.audioState && root.audioState.masterClipped ? qsTr("过载") : qsTr("输出")
-                color: root.audioState && root.audioState.masterClipped ? root.themeColors.status.error : root.themeColors.text.secondary
+                color: root.audioState && root.audioState.masterClipped ? uiColors.status.error : uiColors.text.secondary
                 font.pixelSize: 11
             }
         }
@@ -105,8 +104,8 @@ Rectangle {
                             implicitWidth: 96
                             implicitHeight: 168
                             color: root.audioState && root.audioState.currentSourceId === soundId
-                                ? root.themeColors.background.selected : "transparent"
-                            border.color: root.themeColors.border.subtle
+                                ? uiColors.background.selected : "transparent"
+                            border.color: uiColors.border.subtle
                             radius: 2
                             ColumnLayout {
                                 anchors.fill: parent
@@ -161,7 +160,7 @@ Rectangle {
                                     StudioLabel {
                                         objectName: "channelValue"
                                         text: Math.round(channel.soundVolume * 100) + "%"
-                                        color: root.themeColors.text.secondary
+                                        color: uiColors.text.secondary
                                         font.pixelSize: 10
                                     }
                                 }
@@ -171,7 +170,7 @@ Rectangle {
                                     text: channel.soundState === "error" ? qsTr("等待设备恢复")
                                         : channel.soundState === "starting" ? qsTr("正在连接…")
                                         : channel.soundMuted ? qsTr("已静音") : qsTr("采集中")
-                                    color: channel.soundState === "error" ? root.themeColors.status.error : root.themeColors.text.secondary
+                                    color: channel.soundState === "error" ? uiColors.status.error : uiColors.text.secondary
                                     horizontalAlignment: Text.AlignHCenter
                                     font.pixelSize: 10
                                     ToolTip.text: channel.soundError
@@ -187,14 +186,14 @@ Rectangle {
                 objectName: "emptySoundSourcesLabel"
                 anchors.centerIn: parent
                 text: qsTr("暂无声音来源")
-                color: root.themeColors.text.secondary
+                color: uiColors.text.secondary
                 visible: !root.audioState || root.audioState.count === 0
             }
         }
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: 32
-            color: root.themeColors.background.header
+            color: uiColors.background.header
             RowLayout {
                 anchors.fill: parent
                 spacing: 2

@@ -20,7 +20,6 @@
 #include <QDialog>
 #include <QDockWidget>
 #include <QLabel>
-#include <QQmlComponent>
 #include <QQmlContext>
 #include <QQmlError>
 #include <QQuickItem>
@@ -272,36 +271,17 @@ void MainWindow::showDialog(const QUrl &source, const QString &title,
             [showError](QQuickWindow::SceneGraphError, const QString &message) {
         showError(message);
     });
-    auto *component = new QQmlComponent(view->engine(), view);
-    connect(component, &QQmlComponent::statusChanged, dialog,
-            [this, dialog, view, component, source, properties, showError](QQmlComponent::Status status) {
-        if (status == QQmlComponent::Error) {
+    for (auto it = properties.cbegin(); it != properties.cend(); ++it)
+        view->rootContext()->setContextProperty(it.key(), it.value());
+    connect(view, &QQuickWidget::statusChanged, dialog,
+            [this, dialog, view, source, showError](QQuickWidget::Status status) {
+        if (status == QQuickWidget::Error) {
             QStringList errors;
-            for (const auto &error : component->errors())
+            for (const auto &error : view->errors())
                 errors.append(error.toString());
             showError(errors.join('\n'));
-        } else if (status == QQmlComponent::Ready) {
-            // Compatible with Qt 6.5; properties precede Component.onCompleted.
-            QVariantMap initialProperties = properties;
-            if (source.fileName() == QStringLiteral("SourceAddDialog.qml"))
-                initialProperties.insert(QStringLiteral("imageSourceController"),
-                    QVariant::fromValue(m_imageSourceController));
-            if (source.fileName() == QStringLiteral("SourceAddDialog.qml")
-                || source.fileName() == QStringLiteral("DisplayPropertiesDialog.qml"))
-                initialProperties.insert(QStringLiteral("displaySourceController"), QVariant::fromValue(m_displaySourceController));
-            if (source.fileName() == QStringLiteral("SourceAddDialog.qml")
-                || source.fileName() == QStringLiteral("CameraPropertiesDialog.qml"))
-                initialProperties.insert(QStringLiteral("cameraSourceController"), QVariant::fromValue(m_cameraSourceController));
-            auto *object = component->createWithInitialProperties(initialProperties, view->rootContext());
-            auto *root = qobject_cast<QQuickItem *>(object);
-            if (!root) {
-                QStringList errors;
-                for (const auto &error : component->errors())
-                    errors.append(error.toString());
-                showError(errors.isEmpty() ? tr("QML 根对象必须是可视 Item。") : errors.join('\n'));
-                delete object;
-                return;
-            }
+        } else if (status == QQuickWidget::Ready) {
+            auto *root = view->rootObject();
             if (source.fileName() == QStringLiteral("SourceAddDialog.qml")) {
                 auto *cancel = new QShortcut(QKeySequence(Qt::Key_Escape), dialog);
                 connect(cancel, &QShortcut::activated, dialog, &QDialog::reject);
@@ -314,12 +294,11 @@ void MainWindow::showDialog(const QUrl &source, const QString &title,
                 connect(root,SIGNAL(browseDirectoryRequested()),this,SLOT(browseRecordingDirectory()));
             const QSize contentSize(qMax(1, qRound(root->implicitWidth())),
                                     qMax(1, qRound(root->implicitHeight())));
-            view->setContent(source, component, root);
             if (contentSize.width() > 1 && contentSize.height() > 1)
                 dialog->resize(contentSize);
         }
     });
-    component->loadUrl(source, QQmlComponent::PreferSynchronous);
+    view->setSource(source);
     dialog->open();
 }
 
@@ -330,7 +309,10 @@ void MainWindow::showSourceAddDialog()
         return;
     showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml")),
         tr("添加来源"), {{QStringLiteral("videoSourceModel"), QVariant::fromValue(m_videoSourceModel)},
-                       {QStringLiteral("initialName"), initialName}});
+                       {QStringLiteral("initialName"), initialName},
+                       {QStringLiteral("imageSourceController"), QVariant::fromValue(m_imageSourceController)},
+                       {QStringLiteral("displaySourceController"), QVariant::fromValue(m_displaySourceController)},
+                       {QStringLiteral("cameraSourceController"), QVariant::fromValue(m_cameraSourceController)}});
 }
 
 void MainWindow::showAudioSourceAddDialog()
@@ -380,7 +362,8 @@ void MainWindow::showSourceRemovalDialog(const QString &sourceId)
         showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceRemovalDialog.qml")),
             tr("移除来源"), {{QStringLiteral("videoSourceModel"), QVariant::fromValue(m_videoSourceModel)},
                            {QStringLiteral("sourceId"), sourceId},
-                           {QStringLiteral("sourceName"), index.data(VideoSourceModel::NameRole)}});
+                           {QStringLiteral("sourceName"), index.data(VideoSourceModel::NameRole)},
+                           {QStringLiteral("removalHint"), tr("仅从来源列表移除，不会删除磁盘上的文件。")}});
         return;
     }
 }
@@ -415,13 +398,15 @@ void MainWindow::showSourcePropertiesDialog(const QString &sourceId)
         m_cameraSourceController->refreshDevices();
         showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/CameraPropertiesDialog.qml")),
             tr("摄像头来源属性"), {{QStringLiteral("videoSourceModel"), QVariant::fromValue(m_videoSourceModel)},
-                                   {QStringLiteral("sourceId"), sourceId}});
+                                   {QStringLiteral("sourceId"), sourceId},
+                                   {QStringLiteral("cameraSourceController"), QVariant::fromValue(m_cameraSourceController)}});
         return;
     }
     m_displaySourceController->refreshDisplays();
     showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/DisplayPropertiesDialog.qml")),
         tr("显示器来源属性"), {{QStringLiteral("videoSourceModel"), QVariant::fromValue(m_videoSourceModel)},
-                              {QStringLiteral("sourceId"), sourceId}});
+                              {QStringLiteral("sourceId"), sourceId},
+                              {QStringLiteral("displaySourceController"), QVariant::fromValue(m_displaySourceController)}});
 }
 
 void MainWindow::setupPreview()

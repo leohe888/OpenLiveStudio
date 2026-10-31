@@ -8,6 +8,7 @@
 #include "video/videosourceaggregator.h"
 #include "video/image/imagesourcecontroller.h"
 #include "video/camera/camerasourcecontroller.h"
+#include "video/display/displaysourcecontroller.h"
 #include <QPainter>
 #include <QLineF>
 #include <QFileDialog>
@@ -90,7 +91,7 @@ private slots:
     void sourcePanelCanMoveAndToggle();
     void listScrollBarsHandleOverflow_data();
     void listScrollBarsHandleOverflow();
-    void qmlDialogReceivesInitialPropertiesAndCloses();
+    void qmlDialogReceivesContextBeforeCompletionAndCloses();
     void qmlDialogShowsLoadErrors_data();
     void qmlDialogShowsLoadErrors();
     void sourcePanelOpensAddDialog_data();
@@ -1249,10 +1250,15 @@ void MainWindowTest::basicDialogColors()
     auto *state = window.findChild<VideoSourceModel *>();
     QVERIFY(state);
     QVariantMap properties{{"videoSourceModel", QVariant::fromValue(state)}};
-    if (dialogName == "SourceAddDialog") properties.insert("initialName", "Color sample");
-    else {
+    if (dialogName == "SourceAddDialog") {
+        properties.insert("initialName", "Color sample");
+        properties.insert("imageSourceController", QVariant::fromValue(window.findChild<ImageSourceController *>()));
+        properties.insert("displaySourceController", QVariant::fromValue(window.findChild<DisplaySourceController *>()));
+        properties.insert("cameraSourceController", QVariant::fromValue(window.findChild<CameraSourceController *>()));
+    } else {
         properties.insert("sourceId", "fixed-source-id");
         properties.insert("sourceName", "Color sample");
+        properties.insert("removalHint", "Remove source");
     }
     const QUrl url(QString("qrc:/OpenLiveStudio/Ui/qml/%1.qml").arg(dialogName));
     for (int opening = 0; opening < 2; ++opening) {
@@ -1270,7 +1276,7 @@ void MainWindowTest::basicDialogColors()
             QTRY_VERIFY(dialog->isActiveWindow());
         }
         auto *input = root->findChild<QQuickItem *>("sourceNameInput");
-        const auto sourceId = root->property("sourceId");
+        const auto sourceId = view->rootContext()->contextProperty("sourceId");
         if (input) {
             input->setProperty("text", "Unsaved name");
             QVERIFY(QMetaObject::invokeMethod(input, "selectAll"));
@@ -1280,7 +1286,7 @@ void MainWindowTest::basicDialogColors()
         {
 
             QCOMPARE(view->rootObject(), root.data());
-            QCOMPARE(root->property("sourceId"), sourceId);
+            QCOMPARE(view->rootContext()->contextProperty("sourceId"), sourceId);
             QTRY_COMPARE(root->property("color").value<QColor>(), UiColors::color("background.panel"));
             if (input) {
                 QCOMPARE(input->property("text").toString(), "Unsaved name");
@@ -1398,7 +1404,11 @@ void MainWindowTest::dialogsUseLightColorsAndReleaseTheirViews()
     QVERIFY(state);
     for (int i = 0; i < 2; ++i) {
         window->showDialog(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml"), "Add source",
-            {{"videoSourceModel", QVariant::fromValue(state)}});
+            {{"videoSourceModel", QVariant::fromValue(state)},
+             {"initialName", QStringLiteral("显示器采集")},
+             {"imageSourceController", QVariant::fromValue(window->findChild<ImageSourceController *>())},
+             {"displaySourceController", QVariant::fromValue(window->findChild<DisplaySourceController *>())},
+             {"cameraSourceController", QVariant::fromValue(window->findChild<CameraSourceController *>())}});
         QPointer<QDialog> dialog = window->findChild<QDialog *>("qmlDialog");
         QVERIFY(dialog);
         QPointer<QQuickWidget> view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
@@ -1420,7 +1430,7 @@ void MainWindowTest::dialogsUseLightColorsAndReleaseTheirViews()
 
 }
 
-void MainWindowTest::qmlDialogReceivesInitialPropertiesAndCloses()
+void MainWindowTest::qmlDialogReceivesContextBeforeCompletionAndCloses()
 {
     QTemporaryDir directory;
     QVERIFY(directory.isValid());
@@ -1430,7 +1440,6 @@ void MainWindowTest::qmlDialogReceivesInitialPropertiesAndCloses()
 import QtQuick
 Rectangle {
     implicitWidth: 340; implicitHeight: 180
-    required property string message
     property string completedMessage
     signal closeRequested()
     Component.onCompleted: completedMessage = message
@@ -1454,6 +1463,18 @@ Rectangle {
     QTRY_VERIFY(dialog->isVisible());
     dialog->resize(400, 240);
     QTRY_COMPARE(root->size(), QSizeF(view->size()));
+    window.showDialog(QUrl::fromLocalFile(file.fileName()), QStringLiteral("Second dialog"),
+                      {{QStringLiteral("message"), QStringLiteral("Separate value")}});
+    const auto dialogs = window.findChildren<QDialog *>(QStringLiteral("qmlDialog"));
+    QCOMPARE(dialogs.size(), 2);
+    QPointer<QDialog> second = dialogs.last();
+    auto *secondView = second->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
+    QTRY_COMPARE(secondView->status(), QQuickWidget::Ready);
+    QCOMPARE(secondView->rootObject()->property("completedMessage").toString(), QStringLiteral("Separate value"));
+    QCOMPARE(view->rootContext()->contextProperty("message").toString(), QStringLiteral("Initial value"));
+    QCOMPARE(root->property("completedMessage").toString(), QStringLiteral("Initial value"));
+    second->close();
+    QTRY_VERIFY(second.isNull());
     QTest::mouseClick(view, Qt::LeftButton, Qt::NoModifier, QPoint(20, 20));
     QTRY_VERIFY(dialog.isNull());
     QVERIFY(root.isNull());
@@ -1585,7 +1606,11 @@ void MainWindowTest::addsImageThroughDialog()
     QVERIFY(model);
     const auto open = [&] {
         window.showDialog(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml"), "Add image",
-            {{"videoSourceModel", QVariant::fromValue(model)}});
+            {{"videoSourceModel", QVariant::fromValue(model)},
+             {"initialName", QStringLiteral("显示器采集")},
+             {"imageSourceController", QVariant::fromValue(window.findChild<ImageSourceController *>())},
+             {"displaySourceController", QVariant::fromValue(window.findChild<DisplaySourceController *>())},
+             {"cameraSourceController", QVariant::fromValue(window.findChild<CameraSourceController *>())}});
     };
     open();
     QPointer<QDialog> dialog = window.findChild<QDialog *>("qmlDialog");
@@ -1652,7 +1677,11 @@ void MainWindowTest::cancelsPendingImageThroughDialog()
     auto *model = window.findChild<VideoSourceModel *>();
     auto *controller = window.findChild<ImageSourceController *>();
     window.showDialog(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml"), "Add image",
-        {{"videoSourceModel", QVariant::fromValue(model)}});
+        {{"videoSourceModel", QVariant::fromValue(model)},
+         {"initialName", QStringLiteral("显示器采集")},
+         {"imageSourceController", QVariant::fromValue(window.findChild<ImageSourceController *>())},
+         {"displaySourceController", QVariant::fromValue(window.findChild<DisplaySourceController *>())},
+         {"cameraSourceController", QVariant::fromValue(window.findChild<CameraSourceController *>())}});
     QPointer<QDialog> dialog = window.findChild<QDialog *>("qmlDialog");
     auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
     QTRY_COMPARE(view->status(), QQuickWidget::Ready);
@@ -1696,7 +1725,11 @@ void MainWindowTest::sourceAddDialogHandlesInput()
     auto *state = window.findChild<VideoSourceModel *>();
     QVERIFY(state);
     window.showDialog(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml"), "Add source",
-        {{"videoSourceModel", QVariant::fromValue(state)}});
+        {{"videoSourceModel", QVariant::fromValue(state)},
+         {"initialName", QStringLiteral("显示器采集")},
+         {"imageSourceController", QVariant::fromValue(window.findChild<ImageSourceController *>())},
+         {"displaySourceController", QVariant::fromValue(window.findChild<DisplaySourceController *>())},
+         {"cameraSourceController", QVariant::fromValue(window.findChild<CameraSourceController *>())}});
     QPointer<QDialog> dialog = window.findChild<QDialog *>("qmlDialog");
     QVERIFY(dialog);
     auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
@@ -1742,7 +1775,11 @@ void MainWindowTest::sourceAddDialogHandlesTypeSelection()
     auto *manager = window.findChild<VideoSourceModel *>();
     QVERIFY(manager);
     window.showDialog(QUrl("qrc:/OpenLiveStudio/Ui/qml/SourceAddDialog.qml"), "Add source",
-        {{"videoSourceModel", QVariant::fromValue(manager)}});
+        {{"videoSourceModel", QVariant::fromValue(manager)},
+         {"initialName", QStringLiteral("显示器采集")},
+         {"imageSourceController", QVariant::fromValue(window.findChild<ImageSourceController *>())},
+         {"displaySourceController", QVariant::fromValue(window.findChild<DisplaySourceController *>())},
+         {"cameraSourceController", QVariant::fromValue(window.findChild<CameraSourceController *>())}});
     QPointer<QDialog> dialog = window.findChild<QDialog *>("qmlDialog");
     QVERIFY(dialog);
     auto *view = dialog->findChild<QQuickWidget *>("dialogQuickWidget");
@@ -1914,7 +1951,7 @@ void MainWindowTest::sourceRemovalDialogHandlesConfirmation()
     window.show();
     window.showDialog(QUrl(QStringLiteral("qrc:/OpenLiveStudio/Ui/qml/SourceRemovalDialog.qml")),
         QStringLiteral("Remove source"), {{"videoSourceModel", QVariant::fromValue(&state)},
-        {"sourceId", action == "invalid-source" ? QString("missing") : QString("shared")}, {"sourceName", name}});
+        {"sourceId", action == "invalid-source" ? QString("missing") : QString("shared")}, {"sourceName", name}, {"removalHint", QStringLiteral("Remove source")}});
     QPointer<QDialog> dialog = window.findChild<QDialog *>(QStringLiteral("qmlDialog"));
     QVERIFY(dialog);
     auto *view = dialog->findChild<QQuickWidget *>(QStringLiteral("dialogQuickWidget"));
@@ -2719,7 +2756,7 @@ void MainWindowTest::sourceFiltersDialogEditsAndRetainsState()
     QTRY_VERIFY(view && view->rootObject());
     auto *root = view->rootObject();
     QCOMPARE(root->objectName(), QString("sourceFiltersDialog"));
-    QCOMPARE(root->property("sourceId").toString(), QString("image"));
+    QCOMPARE(view->rootContext()->contextProperty("sourceId").toString(), QString("image"));
     QCOMPARE(root->property("color").value<QColor>(), UiColors::color("background.panel"));
     const auto click = [&](const QString &name) {
         auto *item = findItem(root, name);
@@ -2765,7 +2802,7 @@ void MainWindowTest::sourceFiltersDialogEditsAndRetainsState()
     click("removeFilterButton");
     QCOMPARE(root->property("selectedId").toString(), first);
     QVERIFY(model->selectSource("camera"));
-    QCOMPARE(root->property("sourceId").toString(), QString("image"));
+    QCOMPARE(view->rootContext()->contextProperty("sourceId").toString(), QString("image"));
     QVERIFY(model->sourceFilters("camera").isEmpty());
     QVERIFY(model->setSourceLocked("image", true));
     click("resetFilterButton");

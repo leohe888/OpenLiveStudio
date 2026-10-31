@@ -5,10 +5,8 @@ import "components"
 
 Rectangle {
     id: root
+    readonly property var cameraController: cameraSourceController
     objectName: "cameraPropertiesDialog"
-    required property var videoSourceModel
-    required property var cameraSourceController
-    required property string sourceId
     property var status: ({})
     property string errorText: ""
     readonly property var colors: uiColors
@@ -23,9 +21,9 @@ Rectangle {
         settings.deviceId = status.deviceId || ""
     }
     Connections {
-        target: root.videoSourceModel
+        target: videoSourceModel
         function onCaptureStatusChanged(id) {
-            if (id === root.sourceId) root.status = root.videoSourceModel.cameraProperties(id)
+            if (id === sourceId) root.status = videoSourceModel.cameraProperties(id)
         }
     }
     ColumnLayout {
@@ -36,7 +34,7 @@ Rectangle {
             id: settings
             objectName: "cameraSettings"
             Layout.fillWidth: true
-            cameraSourceController: root.cameraSourceController
+            cameraSourceController: root.cameraController
         }
         StudioLabel {
             objectName: "cameraStateLabel"
@@ -65,7 +63,7 @@ Rectangle {
                 text: qsTr("确定")
                 enabled: settings.deviceId.length > 0 && !settings.loadingModes
                 onClicked: {
-                    if (root.cameraSourceController.applyProperties(root.sourceId, settings.deviceId, settings.selectedMode))
+                    if (cameraSourceController.applyProperties(sourceId, settings.deviceId, settings.selectedMode))
                         root.closeRequested()
                     else root.errorText = qsTr("无法应用配置：所选摄像头已被其他来源使用，或采集模式无效。")
                 }
@@ -74,7 +72,7 @@ Rectangle {
                 objectName: "retryCameraButton"
                 text: qsTr("重试")
                 enabled: root.status.state === "error"
-                onClicked: root.cameraSourceController.retry(root.sourceId)
+                onClicked: cameraSourceController.retry(sourceId)
             }
             StudioButton {
                 objectName: "cancelCameraPropertiesButton"

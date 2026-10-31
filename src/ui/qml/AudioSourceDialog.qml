@@ -6,8 +6,6 @@ import "components"
 Rectangle {
     id: root
     objectName: "audioSourceDialog"
-    required property var audioSources
-    property string sourceId: ""
     readonly property bool editing: sourceId.length > 0
     property string deviceId: ""
     property string errorText: ""
@@ -36,11 +34,11 @@ Rectangle {
         }
     }
     Connections {
-        target: root.audioSources
+        target: audioSources
         function onDevicesChanged() { root.updateChoices() }
         function onRowsInserted() { root.updateChoices() }
         function onRowsRemoved() {
-            if (root.editing && !root.audioSources.source(root.sourceId).id) root.closeRequested()
+            if (root.editing && !audioSources.source(sourceId).id) root.closeRequested()
             root.updateChoices()
         }
     }
@@ -64,7 +62,7 @@ Rectangle {
             enabled: !root.editing
             model: [qsTr("麦克风"), qsTr("系统声音")]
             onActivated: {
-                nameInput.text = root.audioSources.suggestedSourceName(currentIndex === 0 ? qsTr("麦克风") : qsTr("系统声音"))
+                nameInput.text = audioSources.suggestedSourceName(currentIndex === 0 ? qsTr("麦克风") : qsTr("系统声音"))
                 root.deviceId = ""
                 root.updateChoices()
             }
@@ -76,7 +74,7 @@ Rectangle {
                 implicitHeight: 34
                 Layout.fillWidth: true
                 objectName: "soundDeviceInput"
-                enabled: !root.editing && !root.audioSources.refreshing
+                enabled: !root.editing && !audioSources.refreshing
                 textRole: "name"
                 model: root.targets
                 currentIndex: root.targets.findIndex(e => e.id === root.deviceId)
@@ -88,14 +86,14 @@ Rectangle {
                 implicitWidth: 80
                 objectName: "refreshSoundDevicesButton"
                 visible: !root.editing
-                text: root.audioSources.refreshing ? qsTr("刷新中…") : qsTr("刷新")
-                enabled: !root.audioSources.refreshing
-                onClicked: root.audioSources.refreshDevices()
+                text: audioSources.refreshing ? qsTr("刷新中…") : qsTr("刷新")
+                enabled: !audioSources.refreshing
+                onClicked: audioSources.refreshDevices()
             }
         }
         StudioLabel {
             Layout.fillWidth: true
-            text: root.errorText || (!root.editing ? root.audioSources.catalogError : "")
+            text: root.errorText || (!root.editing ? audioSources.catalogError : "")
             textFormat: Text.PlainText
             wrapMode: Text.WrapAnywhere
             color: root.colors.status.error
@@ -109,8 +107,8 @@ Rectangle {
                 text: root.editing ? qsTr("确定") : qsTr("添加")
                 enabled: nameInput.text.trim().length > 0 && (root.editing || root.deviceId.length > 0)
                 onClicked: {
-                    const success = root.editing ? root.audioSources.renameSource(root.sourceId, nameInput.text)
-                        : root.audioSources.addSource(nameInput.text, root.selectedType, root.deviceId).length > 0
+                    const success = root.editing ? audioSources.renameSource(sourceId, nameInput.text)
+                        : audioSources.addSource(nameInput.text, root.selectedType, root.deviceId).length > 0
                     if (success) root.closeRequested()
                     else root.errorText = qsTr("名称为空或重复，或设备已被其他声音来源使用。")
                 }

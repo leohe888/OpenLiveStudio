@@ -5,11 +5,10 @@ import "components"
 
 Rectangle {
     id: root
-    readonly property var themeColors: uiColors
     objectName: "sourcesPanel"
     implicitWidth: 220
     implicitHeight: 320
-    color: themeColors.background.panel
+    color: uiColors.background.panel
     readonly property var state: typeof videoSourceModel !== "undefined" ? videoSourceModel : null
     signal sourceAddDialogRequested()
     signal sourceRemovalDialogRequested(string sourceId)
@@ -53,8 +52,8 @@ Rectangle {
                     objectName: "sourceRow_" + sourceId
                     width: sourceList.width - (sourceScrollBar.visible ? sourceScrollBar.width : 0)
                     height: 32
-                    color: selected ? root.themeColors.background.selected
-                        : (rowHover.hovered ? root.themeColors.background.hovered : "transparent")
+                    color: selected ? uiColors.background.selected
+                        : (rowHover.hovered ? uiColors.background.hovered : "transparent")
                     Accessible.role: Accessible.ListItem
                     Accessible.name: sourceName
                     Accessible.selected: selected
@@ -108,7 +107,7 @@ Rectangle {
                 objectName: "emptySourcesLabel"
                 anchors.centerIn: parent
                 text: qsTr("暂无来源")
-                color: root.themeColors.text.secondary
+                color: uiColors.text.secondary
                 visible: sourceList.count === 0
             }
         }
@@ -116,13 +115,13 @@ Rectangle {
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: 1
-            color: root.themeColors.border.subtle
+            color: uiColors.border.subtle
         }
 
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: 32
-            color: root.themeColors.background.header
+            color: uiColors.background.header
 
             RowLayout {
                 objectName: "sourceActions"
@@ -167,7 +166,7 @@ Rectangle {
                 Rectangle {
                     implicitWidth: 1
                     implicitHeight: 18
-                    color: root.themeColors.border.subtle
+                    color: uiColors.border.subtle
                 }
                 StudioIconButton {
                     objectName: "sourceFiltersButton"

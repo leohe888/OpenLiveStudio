@@ -6,7 +6,6 @@ import "components"
 Rectangle {
     id: root
     objectName: "outputSettingsDialog"
-    required property var outputSettings
     property string directory: ""
     property int recordingBitrate: 12000
     property int streamingBitrate: 6000
@@ -55,7 +54,7 @@ Rectangle {
                     maximumLength: 4096
                     Layout.fillWidth: true
                     objectName: "streamServerInput"
-                    enabled: !root.outputSettings.streamingLocked
+                    enabled: !outputSettings.streamingLocked
                     text: root.server
                     placeholderText: "rtmp://server/app"
                     onTextEdited: root.server=text
@@ -66,7 +65,7 @@ Rectangle {
                     maximumLength: 4096
                     Layout.fillWidth: true
                     objectName: "streamKeyInput"
-                    enabled: !root.outputSettings.streamingLocked
+                    enabled: !outputSettings.streamingLocked
                     text: root.key
                     echoMode: TextInput.Password
                     onTextEdited: root.key=text
@@ -77,7 +76,7 @@ Rectangle {
                     maximumLength: 4096
                     Layout.fillWidth: true
                     objectName: "streamingBitrateInput"
-                    enabled: !root.outputSettings.streamingLocked
+                    enabled: !outputSettings.streamingLocked
                     text: String(root.streamingBitrate)
                     inputMethodHints: Qt.ImhDigitsOnly
                     validator: IntValidator { bottom: 500; top: 50000 }
@@ -102,14 +101,14 @@ Rectangle {
                         Layout.fillWidth: true
                         objectName: "recordingDirectoryInput"
                         text: root.directory
-                        enabled: !root.outputSettings.recordingLocked
+                        enabled: !outputSettings.recordingLocked
                         onTextEdited: root.directory=text
                     }
                     StudioButton {
                         implicitWidth: 88
                         objectName: "browseRecordingDirectoryButton"
                         text: qsTr("浏览…")
-                        enabled: !root.outputSettings.recordingLocked
+                        enabled: !outputSettings.recordingLocked
                         onClicked: root.browseDirectoryRequested()
                     }
                 }
@@ -119,7 +118,7 @@ Rectangle {
                     maximumLength: 4096
                     Layout.fillWidth: true
                     objectName: "recordingBitrateInput"
-                    enabled: !root.outputSettings.recordingLocked
+                    enabled: !outputSettings.recordingLocked
                     text: String(root.recordingBitrate)
                     inputMethodHints: Qt.ImhDigitsOnly
                     validator: IntValidator { bottom: 500; top: 50000 }
@@ -153,8 +152,8 @@ Rectangle {
                 objectName: "applyOutputSettingsButton"
                 text: qsTr("确定")
                 onClicked: {
-                    if (root.outputSettings.apply(root.directory,root.recordingBitrate,root.server,root.key,root.streamingBitrate)) root.closeRequested()
-                    else root.errorText=root.outputSettings.lastError
+                    if (outputSettings.apply(root.directory,root.recordingBitrate,root.server,root.key,root.streamingBitrate)) root.closeRequested()
+                    else root.errorText=outputSettings.lastError
                 }
             }
             StudioButton {

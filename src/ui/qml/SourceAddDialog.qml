@@ -5,22 +5,18 @@ import "components"
 
 Rectangle {
     id: root
-    readonly property var themeColors: uiColors
+    readonly property var displayController: displaySourceController
+    readonly property var cameraController: cameraSourceController
     objectName: "sourceAddDialogContent"
     implicitWidth: 520
     implicitHeight: supportsDisplay || supportsCamera ? 430 : 300
-    color: root.themeColors.background.panel
-    required property var videoSourceModel
-    property var imageSourceController: null
-    property var displaySourceController: null
-    property var cameraSourceController: null
+    color: uiColors.background.panel
     readonly property bool isCamera: sourceType.currentValue === "camera"
     readonly property bool supportsCamera: isCamera && cameraSourceController !== null
     property bool loading: false
     readonly property bool isImage: sourceType.currentValue === "image"
     readonly property bool isDisplay: sourceType.currentValue === "displayCapture"
     readonly property bool supportsDisplay: isDisplay && displaySourceController !== null
-    property string initialName: qsTr("显示器采集")
     property string errorText: ""
     property bool nameEdited: false
     signal closeRequested()
@@ -45,7 +41,7 @@ Rectangle {
     }
 
     Connections {
-        target: root.imageSourceController
+        target: imageSourceController
         function onImageAdded(requester) {
             if (requester !== root) return
             root.loading = false
@@ -87,8 +83,8 @@ Rectangle {
                 ]
                 onActivated: {
                     root.errorText = ""
-                    if (!root.nameEdited && root.videoSourceModel)
-                        nameInput.text = root.videoSourceModel.suggestedSourceName(currentText)
+                    if (!root.nameEdited && videoSourceModel)
+                        nameInput.text = videoSourceModel.suggestedSourceName(currentText)
                 }
                 Accessible.name: qsTr("来源类型")
             }
@@ -99,7 +95,7 @@ Rectangle {
                 objectName: "sourceNameInput"
                 Layout.fillWidth: true
                 enabled: !root.loading
-                text: root.initialName
+                text: initialName
                 Accessible.name: qsTr("来源名称")
                 onTextEdited: { root.errorText = ""; root.nameEdited = true }
             }
@@ -123,9 +119,9 @@ Rectangle {
                 StudioButton {
                     objectName: "browseSourceImageButton"
                     text: qsTr("浏览…")
-                    enabled: !root.loading && root.imageSourceController !== null
+                    enabled: !root.loading && imageSourceController !== null
                     onClicked: {
-                        const path = root.imageSourceController.browseImage(fileInput.text)
+                        const path = imageSourceController.browseImage(fileInput.text)
                         if (path.length > 0) {
                             fileInput.text = path
                             root.errorText = ""
@@ -139,14 +135,14 @@ Rectangle {
             objectName: "cameraSettings"
             Layout.fillWidth: true
             visible: root.supportsCamera
-            cameraSourceController: root.cameraSourceController
+            cameraSourceController: root.cameraController
         }
         DisplayCaptureSettings {
             id: displaySettings
             objectName: "displaySettings"
             Layout.fillWidth: true
             visible: root.supportsDisplay
-            displaySourceController: root.displaySourceController
+            displaySourceController: root.displayController
         }
         StudioLabel {
             objectName: "sourceAddError"
@@ -154,7 +150,7 @@ Rectangle {
             text: root.errorText
             textFormat: Text.PlainText
             wrapMode: Text.WrapAnywhere
-            color: root.themeColors.status.error
+            color: uiColors.status.error
         }
         Item { Layout.fillHeight: true }
         RowLayout {
@@ -163,7 +159,7 @@ Rectangle {
             StudioButton {
                 objectName: "confirmSourceAddButton"
                 text: root.loading ? qsTr("加载中…") : qsTr("确定")
-                enabled: !root.loading && ((root.isImage && root.imageSourceController !== null)
+                enabled: !root.loading && ((root.isImage && imageSourceController !== null)
                     || (root.supportsDisplay && displaySettings.displayId.length > 0)
                     || (root.supportsCamera && cameraSettings.deviceId.length > 0 && !cameraSettings.loadingModes))
                 onClicked: root.submit()

@@ -5,11 +5,10 @@ import "components"
 
 Rectangle {
     id: root
-    readonly property var themeColors: uiColors
     objectName: "controlsPanel"
     implicitWidth: 358
     implicitHeight: 48
-    color: themeColors.background.panel
+    color: uiColors.background.panel
     readonly property var recorder: typeof recordingController !== "undefined" ? recordingController : null
     readonly property var settings: typeof outputSettings !== "undefined" ? outputSettings : null
     readonly property var streamer: typeof streamingController !== "undefined" ? streamingController : null

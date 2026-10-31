@@ -6,16 +6,13 @@ import "components"
 Rectangle {
     id: root
     objectName: "sourceFiltersDialog"
-    required property var videoSourceModel
-    required property string sourceId
-    readonly property var themeColors: uiColors
     property var filters: []
     property string selectedId: ""
     readonly property int selectedIndex: filters.findIndex(f => f.id === selectedId)
     readonly property var selectedFilter: selectedIndex >= 0 ? filters[selectedIndex] : null
     implicitWidth: 680
     implicitHeight: 380
-    color: themeColors.background.panel
+    color: uiColors.background.panel
     signal closeRequested()
 
     function refresh() {
@@ -32,8 +29,8 @@ Rectangle {
     }
     Component.onCompleted: refresh()
     Connections {
-        target: root.videoSourceModel
-        function onSourceFiltersChanged(id) { if (id === root.sourceId) root.refresh() }
+        target: videoSourceModel
+        function onSourceFiltersChanged(id) { if (id === sourceId) root.refresh() }
     }
 
     RowLayout {
@@ -48,8 +45,8 @@ Rectangle {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                color: root.themeColors.background.input
-                border.color: root.themeColors.border.default
+                color: uiColors.background.input
+                border.color: uiColors.border.default
                 ListView {
                     id: filterList
                     objectName: "filterList"
@@ -77,14 +74,14 @@ Rectangle {
                             width: 32
                             text: row.modelData.enabled ? qsTr("停用滤镜") : qsTr("启用滤镜")
                             icon.source: "qrc:/assets/icons/" + (row.modelData.enabled ? "eye" : "eye-off") + ".svg"
-                            onClicked: root.videoSourceModel.setFilterEnabled(root.sourceId, row.modelData.id, !row.modelData.enabled)
+                            onClicked: videoSourceModel.setFilterEnabled(sourceId, row.modelData.id, !row.modelData.enabled)
                         }
                     }
                     StudioLabel {
                         anchors.centerIn: parent
                         visible: root.filters.length === 0
                         text: qsTr("暂无滤镜")
-                        color: root.themeColors.text.secondary
+                        color: uiColors.text.secondary
                     }
                 }
             }
@@ -95,7 +92,7 @@ Rectangle {
                     objectName: "addFilterButton"
                     text: qsTr("添加色彩校正")
                     icon.source: "qrc:/assets/icons/plus.svg"
-                    onClicked: root.selectedId = root.videoSourceModel.addColorCorrection(root.sourceId)
+                    onClicked: root.selectedId = videoSourceModel.addColorCorrection(sourceId)
                 }
                 Repeater {
                     model: [ { action: "remove", icon: "minus", label: qsTr("删除滤镜") },
@@ -111,8 +108,8 @@ Rectangle {
                             || (modelData.action === "up" ? root.selectedIndex > 0 : root.selectedIndex < root.filters.length - 1))
                         onClicked: {
                             if (modelData.action === "remove")
-                                root.videoSourceModel.removeFilter(root.sourceId, root.selectedId)
-                            else root.videoSourceModel.moveFilter(root.sourceId, root.selectedId, modelData.action === "up" ? -1 : 1)
+                                videoSourceModel.removeFilter(sourceId, root.selectedId)
+                            else videoSourceModel.moveFilter(sourceId, root.selectedId, modelData.action === "up" ? -1 : 1)
                         }
                     }
                 }
@@ -125,7 +122,7 @@ Rectangle {
             StudioLabel {
                 Layout.fillWidth: true
                 text: qsTr("修改立即生效，关闭后保留。")
-                color: root.themeColors.text.secondary
+                color: uiColors.text.secondary
             }
             Repeater {
                 model: [ { key: "brightness", label: qsTr("亮度"), min: -1, max: 1, initial: 0 },
@@ -172,7 +169,7 @@ Rectangle {
                 objectName: "resetFilterButton"
                 text: qsTr("恢复默认")
                 enabled: root.selectedFilter !== null
-                onClicked: root.videoSourceModel.setFilterParameters(root.sourceId, root.selectedId, 0, 1, 1)
+                onClicked: videoSourceModel.setFilterParameters(sourceId, root.selectedId, 0, 1, 1)
             }
             Item { Layout.fillHeight: true }
             StudioButton {

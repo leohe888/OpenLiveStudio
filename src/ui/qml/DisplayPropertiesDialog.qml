@@ -5,10 +5,8 @@ import "components"
 
 Rectangle {
     id: root
+    readonly property var displayController: displaySourceController
     objectName: "displayPropertiesDialog"
-    required property var videoSourceModel
-    required property var displaySourceController
-    required property string sourceId
     property var status: ({})
     readonly property var colors: uiColors
     implicitWidth: 560
@@ -21,9 +19,9 @@ Rectangle {
         settings.captureCursor = status.captureCursor === true
     }
     Connections {
-        target: root.videoSourceModel
+        target: videoSourceModel
         function onCaptureStatusChanged(id) {
-            if (id === root.sourceId) root.status = root.videoSourceModel.displayProperties(id)
+            if (id === sourceId) root.status = videoSourceModel.displayProperties(id)
         }
     }
     ColumnLayout {
@@ -35,7 +33,7 @@ Rectangle {
             id: settings
             objectName: "displaySettings"
             Layout.fillWidth: true
-            displaySourceController: root.displaySourceController
+            displaySourceController: root.displayController
         }
         StudioLabel {
             objectName: "captureStateLabel"
@@ -59,12 +57,12 @@ Rectangle {
                 objectName: "applyDisplayPropertiesButton"
                 text: qsTr("应用")
                 enabled: settings.displayId.length > 0
-                onClicked: root.displaySourceController.applyProperties(root.sourceId, settings.displayId, settings.captureCursor)
+                onClicked: displaySourceController.applyProperties(sourceId, settings.displayId, settings.captureCursor)
             }
             StudioButton {
                 objectName: "retryDisplayButton"
                 text: qsTr("重试")
-                onClicked: root.displaySourceController.retry(root.sourceId)
+                onClicked: displaySourceController.retry(sourceId)
             }
             StudioButton {
                 objectName: "closeDisplayPropertiesButton"
