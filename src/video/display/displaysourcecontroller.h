@@ -5,7 +5,7 @@
 #include "graphics/previewsource.h"
 #include <QObject>
 #include <QTimer>
-#include <QVariantList>
+#include "video/display/displaytargets.h"
 #include <map>
 #include <vector>
 
@@ -14,21 +14,19 @@ class VideoSourceManager;
 class DisplaySourceController : public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(QVariantList displays READ displays NOTIFY displaysChanged)
 public:
     explicit DisplaySourceController(VideoSourceManager &manager, QObject *parent = nullptr);
     ~DisplaySourceController() override;
 
-    QVariantList displays() const
+    QList<DisplayTarget> displays() const
     {
         return m_displays;
     }
 
-    Q_INVOKABLE void refreshDisplays();
-    Q_INVOKABLE QString addDisplay(const QString &name, const QString &displayId, bool cursor);
-    Q_INVOKABLE bool applyProperties(const QString &sourceId, const QString &displayId,
-                                     bool cursor);
-    Q_INVOKABLE bool retry(const QString &sourceId);
+    void refreshDisplays();
+    QString addDisplay(const QString &name, const QString &displayId, bool cursor);
+    bool applyProperties(const QString &sourceId, const QString &displayId, bool cursor);
+    bool retry(const QString &sourceId);
     void failTransfer(const QString &id, quint64 generation, const QString &reason);
     int activeWorkerCount() const;
 signals:
@@ -51,7 +49,7 @@ private:
     void publish();
     void stop(Entry &entry);
     VideoSourceManager &m_sourceManager;
-    QVariantList m_displays;
+    QList<DisplayTarget> m_displays;
     std::map<QString, Entry> m_entries;
     std::vector<std::unique_ptr<DisplayCaptureWorker>> m_retired;
     QTimer m_timer;

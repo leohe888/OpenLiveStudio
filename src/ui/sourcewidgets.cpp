@@ -55,13 +55,13 @@ QDialog *dialogShell(QWidget *parent, const char *name, const QString &title)
 }
 
 // Preserve a disconnected selection so merely refreshing never changes the saved device.
-void fillDevices(QComboBox *combo, const QVariantList &entries, const QString &selected)
+template <typename Device>
+void fillDevices(QComboBox *combo, const QList<Device> &entries, const QString &selected)
 {
     QSignalBlocker blocker(combo);
     combo->clear();
     for (const auto &entry : entries) {
-        const auto map = entry.toMap();
-        combo->addItem(map.value("name").toString(), map.value("id"));
+        combo->addItem(entry.name, entry.id);
     }
     int index = combo->findData(selected);
     if (index < 0 && !selected.isEmpty()) {
@@ -80,11 +80,12 @@ public:
     QPushButton *refresh;
     QLabel *error;
     bool loading = false;
-    QVariantMap originalMode;
+    CameraMode originalMode;
     std::function<void()> changed;
 
     CaptureSettings(QWidget *parent, DisplaySourceController *displays,
-                    CameraSourceController *cameras, bool camera, const QVariantMap &initial = {})
+                    CameraSourceController *cameras, bool camera,
+                    const VideoSource *initial = nullptr)
         : QWidget(parent)
     {
         auto *layout = new QVBoxLayout(this);
@@ -105,11 +106,13 @@ public:
         if (!camera) {
             cursor = new QCheckBox(tr("采集鼠标光标"), this);
             cursor->setObjectName("captureCursorInput");
-            cursor->setChecked(initial.value("captureCursor", true).toBool());
+            const DisplayConfig config =
+                initial ? std::get<DisplaySourceDetails>(initial->details).config : DisplayConfig{};
+            cursor->setChecked(config.captureCursor);
             layout->addWidget(cursor);
             layout->addWidget(
                 label(this, "displayCaptureHint", tr("原始分辨率 · 最高 30 FPS · SDR")));
-            fillDevices(device, displays->displays(), initial.value("displayId").toString());
+            fillDevices(device, displays->displays(), config.displayId);
             connect(displays, &DisplaySourceController::displaysChanged, this, [=] {
                 fillDevices(device, displays->displays(), device->currentData().toString());
                 if (changed)
@@ -119,14 +122,15 @@ public:
                     &DisplaySourceController::refreshDisplays);
             displays->refreshDisplays();
         } else {
-            originalMode = {{"width", initial.value("width")},
-                            {"height", initial.value("height")},
-                            {"numerator", initial.value("numerator")},
-                            {"denominator", initial.value("denominator")}};
+            const CameraConfig config =
+                initial ? std::get<CameraSourceDetails>(initial->details).config : CameraConfig{};
+            originalMode = {config.requestedResolution.width(), config.requestedResolution.height(),
+                            config.requestedFrameRateNumerator,
+                            config.requestedFrameRateDenominator};
             mode = new QComboBox(this);
             mode->setObjectName("cameraModeInput");
             layout->addWidget(mode);
-            fillDevices(device, cameras->devices(), initial.value("deviceId").toString());
+            fillDevices(device, cameras->devices(), config.deviceId);
 
             const auto loadModes = [=] {
                 const auto id = device->currentData().toString();
@@ -154,28 +158,21 @@ public:
                         if (id != device->currentData().toString())
                             return;
 
-                        auto selected = mode->currentData().toMap();
-                        if (selected.isEmpty())
+                        auto selected = mode->currentData().value<CameraMode>();
+                        if (!selected.isValid())
                             selected = originalMode;
                         QSignalBlocker blocker(mode);
                         mode->clear();
-                        mode->addItem(tr("设备默认"), QVariantMap{});
+                        mode->addItem(tr("设备默认"), QVariant::fromValue(CameraMode{}));
                         int current = 0;
-
-                        const auto entries = cameras->modes(id);
-                        for (const auto &entry : entries) {
-                            const auto value = entry.toMap();
-                            mode->addItem(value.value("name").toString(), value);
-                            if (value.value("width") == selected.value("width") &&
-                                value.value("height") == selected.value("height") &&
-                                value.value("numerator").toLongLong() *
-                                        selected.value("denominator").toLongLong() ==
-                                    selected.value("numerator").toLongLong() *
-                                        value.value("denominator").toLongLong())
+                        for (const auto &entry : cameras->modes(id)) {
+                            mode->addItem(entry.name, QVariant::fromValue(entry));
+                            if (entry.sameFormat(selected))
                                 current = mode->count() - 1;
                         }
-                        if (!current && selected.value("width").toInt() > 0) {
-                            mode->addItem(tr("原采集模式（当前未列出）"), selected);
+                        if (!current && selected.isValid()) {
+                            mode->addItem(tr("原采集模式（当前未列出）"),
+                                          QVariant::fromValue(selected));
                             current = mode->count() - 1;
                         }
                         mode->setCurrentIndex(current);
@@ -186,7 +183,7 @@ public:
                             changed();
                     });
             connect(device, &QComboBox::activated, this, [=] {
-                originalMode.clear();
+                originalMode = {};
                 mode->clear();
                 loadModes();
             });
@@ -551,9 +548,12 @@ QDialog *createSourceAddDialog(QWidget *parent, VideoSourceManager *manager,
                                       display->cursor->isChecked());
         else
             id = cameras->addCamera(
-                name->text(),
-                cameraPage->findChild<QComboBox *>("cameraDeviceInput")->currentData().toString(),
-                cameraPage->findChild<QComboBox *>("cameraModeInput")->currentData().toMap());
+                name->text(), cameraPage->findChild<QComboBox *>("cameraModeInput")
+                                  ->currentData()
+                                  .value<CameraMode>()
+                                  .config(cameraPage->findChild<QComboBox *>("cameraDeviceInput")
+                                              ->currentData()
+                                              .toString()));
         if (!id.isEmpty())
             dialog->accept();
         else
@@ -569,7 +569,7 @@ QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceManager *manag
                                       const QString &id, DisplaySourceController *displays,
                                       CameraSourceController *cameras)
 {
-    const bool camera = !manager->cameraProperties(id).isEmpty();
+    const bool camera = manager->cameraSource(id) != nullptr;
 
     auto *dialog =
         dialogShell(parent, camera ? "cameraPropertiesDialog" : "displayPropertiesDialog",
@@ -577,9 +577,7 @@ QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceManager *manag
     dialog->setProperty("displaySourceId", id);
 
     auto *layout = new QVBoxLayout(dialog);
-    auto *settings = new CaptureSettings(dialog, displays, cameras, camera,
-                                         camera ? manager->cameraProperties(id)
-                                                : manager->displayProperties(id));
+    auto *settings = new CaptureSettings(dialog, displays, cameras, camera, manager->source(id));
     layout->addWidget(settings);
 
     auto *state = label(dialog, camera ? "cameraStateLabel" : "captureStateLabel");
@@ -603,26 +601,30 @@ QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceManager *manag
         ->setObjectName(camera ? "cancelCameraPropertiesButton" : "closeDisplayPropertiesButton");
 
     const auto refresh = [=] {
-        auto info = camera ? manager->cameraProperties(id) : manager->displayProperties(id);
-        if (info.isEmpty()) {
+        const auto *cameraSource = manager->cameraSource(id);
+        const auto *displaySource = manager->displaySource(id);
+        if ((camera && !cameraSource) || (!camera && !displaySource)) {
             dialog->close();
             return;
         }
-
-        const auto status = info.value("state").toString();
+        const QString status =
+            camera ? cameraSource->runtime.captureState : displaySource->runtime.captureState;
         QString text = status == "capturing" ? QObject::tr("采集中")
                        : status == "paused"  ? QObject::tr("已暂停：来源当前隐藏")
                        : status == "error"   ? QObject::tr("采集失败")
                                              : QObject::tr("等待采集画面…");
-        if (camera && status == "capturing")
+        if (camera && status == "capturing") {
+            const auto &runtime = cameraSource->runtime;
             text += QObject::tr(" · %1 × %2 · 协商帧率 %3 FPS")
-                        .arg(info.value("actualWidth").toInt())
-                        .arg(info.value("actualHeight").toInt())
-                        .arg(info.value("actualFrameRateNumerator").toDouble() /
-                                 qMax(1, info.value("actualFrameRateDenominator").toInt()),
+                        .arg(runtime.pixelSize.width())
+                        .arg(runtime.pixelSize.height())
+                        .arg(double(runtime.actualFrameRateNumerator) /
+                                 qMax(1, runtime.actualFrameRateDenominator),
                              0, 'f', 2);
+        }
         state->setText(text);
-        error->setText(info.value("error").toString());
+        error->setText(camera ? cameraSource->runtime.captureError
+                              : displaySource->runtime.captureError);
         retry->setEnabled(!camera || status == "error");
         apply->setEnabled(settings->ready());
     };
@@ -636,8 +638,9 @@ QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceManager *manag
     QObject::connect(manager, &VideoSourceManager::sourcesChanged, dialog, refresh);
     QObject::connect(apply, &QPushButton::clicked, dialog, [=] {
         bool success =
-            camera ? cameras->applyProperties(id, settings->device->currentData().toString(),
-                                              settings->mode->currentData().toMap())
+            camera ? cameras->applyProperties(
+                         id, settings->mode->currentData().value<CameraMode>().config(
+                                 settings->device->currentData().toString()))
                    : displays->applyProperties(id, settings->device->currentData().toString(),
                                                settings->cursor->isChecked());
         if (success && camera)

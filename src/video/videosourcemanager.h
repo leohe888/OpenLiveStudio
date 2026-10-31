@@ -3,7 +3,6 @@
 
 #include "video/videosource.h"
 
-#include <QVariantMap>
 #include <QList>
 #include <QObject>
 #include <QString>
@@ -32,12 +31,12 @@ public:
     bool setImageLoadStatus(const QString &id, const QString &state, const QString &error);
     bool canEditCurrentDisplay() const;
     bool canEditCurrentSource() const;
-    QVariantMap cameraProperties(const QString &id) const;
+    const CameraSourceDetails *cameraSource(const QString &id) const;
     bool setCameraConfig(const QString &id, const CameraConfig &config);
     bool cameraDeviceInUse(const QString &deviceId, const QString &exceptId = {}) const;
     void setCameraActualMode(const QString &id, const QSize &size, int numerator, int denominator);
 
-    QVariantMap displayProperties(const QString &id) const;
+    const DisplaySourceDetails *displaySource(const QString &id) const;
     bool setDisplayConfig(const QString &id, const QString &displayId, bool cursor);
 
     QString currentSourceId() const

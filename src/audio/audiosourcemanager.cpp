@@ -99,11 +99,10 @@ QString AudioSourceManager::addSource(const QString &name, const QString &type,
     entry.source.deviceId = deviceId;
     entry.source.deviceName = deviceId;
     for (const auto &device : m_devices) {
-        const auto info = device.toMap();
-        if (info.value("id").toString() == deviceId) {
-            if (info.value("type").toString() != type)
+        if (device.id == deviceId) {
+            if (device.type != type)
                 return {};
-            entry.source.deviceName = info.value("name").toString();
+            entry.source.deviceName = device.name;
             break;
         }
     }

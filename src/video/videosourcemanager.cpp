@@ -298,18 +298,10 @@ bool VideoSourceManager::canEditCurrentDisplay() const
     return row >= 0 && m_sources[row].type() == VideoSourceType::DisplayCapture;
 }
 
-QVariantMap VideoSourceManager::displayProperties(const QString &id) const
+const DisplaySourceDetails *VideoSourceManager::displaySource(const QString &id) const
 {
-    const int row = sourceRow(id);
-    if (row < 0)
-        return {};
-    const auto *display = std::get_if<DisplaySourceDetails>(&m_sources[row].details);
-    if (!display)
-        return {};
-    return {{"displayId", display->config.displayId},
-            {"captureCursor", display->config.captureCursor},
-            {"state", display->runtime.captureState},
-            {"error", display->runtime.captureError}};
+    const auto *entry = source(id);
+    return entry ? std::get_if<DisplaySourceDetails>(&entry->details) : nullptr;
 }
 
 bool VideoSourceManager::setDisplayConfig(const QString &id, const QString &displayId, bool cursor)
@@ -382,25 +374,10 @@ bool VideoSourceManager::cameraDeviceInUse(const QString &deviceId, const QStrin
     return false;
 }
 
-QVariantMap VideoSourceManager::cameraProperties(const QString &id) const
+const CameraSourceDetails *VideoSourceManager::cameraSource(const QString &id) const
 {
-    const int row = sourceRow(id);
-    if (row < 0 || m_sources[row].type() != VideoSourceType::Camera)
-        return {};
-    const auto &config = std::get<CameraSourceDetails>(m_sources[row].details).config;
-    QVariantMap result{{"deviceId", config.deviceId},
-                       {"width", config.requestedResolution.width()},
-                       {"height", config.requestedResolution.height()},
-                       {"numerator", config.requestedFrameRateNumerator},
-                       {"denominator", config.requestedFrameRateDenominator}};
-    const auto &camera = std::get<CameraSourceDetails>(m_sources[row].details).runtime;
-    result.insert("state", camera.captureState);
-    result.insert("error", camera.captureError);
-    result.insert("actualWidth", camera.pixelSize.width());
-    result.insert("actualHeight", camera.pixelSize.height());
-    result.insert("actualFrameRateNumerator", camera.actualFrameRateNumerator);
-    result.insert("actualFrameRateDenominator", camera.actualFrameRateDenominator);
-    return result;
+    const auto *entry = source(id);
+    return entry ? std::get_if<CameraSourceDetails>(&entry->details) : nullptr;
 }
 
 bool VideoSourceManager::setCameraConfig(const QString &id, const CameraConfig &value)

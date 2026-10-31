@@ -127,23 +127,22 @@ inline void run(MainWindow &window)
              "A Media Foundation camera is required for comprehensive acceptance");
     QString microphoneId, systemId;
     for (const auto &value : audio->devices()) {
-        const auto device = value.toMap();
-        if (device["type"] == "microphone" && microphoneId.isEmpty())
-            microphoneId = device["id"].toString();
-        if (device["type"] == "system" && systemId.isEmpty())
-            systemId = device["id"].toString();
+        const auto &device = value;
+        if (device.type == "microphone" && microphoneId.isEmpty())
+            microphoneId = device.id;
+        if (device.type == "system" && systemId.isEmpty())
+            systemId = device.id;
     }
     QVERIFY(!microphoneId.isEmpty() && !systemId.isEmpty());
-    const auto screen =
-        display->addDisplay("Screen", display->displays()[0].toMap()["id"].toString(), true);
-    const auto cam = camera->addCamera("Camera", camera->devices()[0].toMap()["id"].toString(), {});
+    const auto screen = display->addDisplay("Screen", display->displays()[0].id, true);
+    const auto cam = camera->addCamera("Camera", CameraConfig{camera->devices()[0].id});
     const auto mic = audio->addSource("Microphone", "microphone", microphoneId);
     QString system = audio->addSource("System", "system", systemId);
     QVERIFY(!screen.isEmpty() && !cam.isEmpty() && !mic.isEmpty() && !system.isEmpty());
-    QTRY_COMPARE_WITH_TIMEOUT(model->displayProperties(screen)["state"].toString(),
+    QTRY_COMPARE_WITH_TIMEOUT(model->displaySource(screen)->runtime.captureState,
                               QString("capturing"), 15000);
-    QTRY_COMPARE_WITH_TIMEOUT(model->cameraProperties(cam)["state"].toString(),
-                              QString("capturing"), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(model->cameraSource(cam)->runtime.captureState, QString("capturing"),
+                              15000);
     QTRY_COMPARE_WITH_TIMEOUT(audio->source(mic)->state, QString("capturing"), 5000);
     QTRY_COMPARE_WITH_TIMEOUT(audio->source(system)->state, QString("capturing"), 5000);
     QVERIFY(audio->setVolume(mic, .05));
@@ -275,7 +274,7 @@ inline void run(MainWindow &window)
         if (pausedAt >= 0 && now - pausedAt > std::min(1500, seconds * 20)) {
             pausedAt = -1;
             QVERIFY(model->setSourceVisible(cam, true));
-            QTRY_COMPARE_WITH_TIMEOUT(model->cameraProperties(cam)["state"].toString(),
+            QTRY_COMPARE_WITH_TIMEOUT(model->cameraSource(cam)->runtime.captureState,
                                       QString("capturing"), 10000);
             event("camera-restored");
         }

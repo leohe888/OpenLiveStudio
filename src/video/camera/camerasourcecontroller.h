@@ -13,14 +13,11 @@ class VideoSourceManager;
 class CameraSourceController : public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(QVariantList devices READ devices NOTIFY devicesChanged)
-    Q_PROPERTY(bool refreshing READ refreshing NOTIFY devicesChanged)
-    Q_PROPERTY(QString catalogError READ catalogError NOTIFY devicesChanged)
 public:
     explicit CameraSourceController(VideoSourceManager &manager, QObject *parent = nullptr);
     ~CameraSourceController() override;
 
-    QVariantList devices() const
+    QList<CameraDevice> devices() const
     {
         return m_devices;
     }
@@ -35,19 +32,17 @@ public:
         return m_catalogError;
     }
 
-    Q_INVOKABLE void refreshDevices();
-    Q_INVOKABLE void requestModes(const QString &deviceId);
+    void refreshDevices();
+    void requestModes(const QString &deviceId);
 
-    Q_INVOKABLE QVariantList modes(const QString &deviceId) const
+    QList<CameraMode> modes(const QString &deviceId) const
     {
         return m_modes.value(deviceId);
     }
 
-    Q_INVOKABLE QString addCamera(const QString &name, const QString &deviceId,
-                                  const QVariantMap &mode);
-    Q_INVOKABLE bool applyProperties(const QString &sourceId, const QString &deviceId,
-                                     const QVariantMap &mode);
-    Q_INVOKABLE bool retry(const QString &sourceId);
+    QString addCamera(const QString &name, const CameraConfig &config);
+    bool applyProperties(const QString &sourceId, const CameraConfig &config);
+    bool retry(const QString &sourceId);
     int activeWorkerCount() const;
 signals:
     void devicesChanged();
@@ -70,8 +65,8 @@ private:
     void publish();
     void stop(Entry &entry);
     VideoSourceManager &m_sourceManager;
-    QVariantList m_devices;
-    QHash<QString, QVariantList> m_modes;
+    QList<CameraDevice> m_devices;
+    QHash<QString, QList<CameraMode>> m_modes;
     QSet<QString> m_querying;
     QString m_catalogError;
     bool m_refreshing = false, m_busy = false, m_pending = false;

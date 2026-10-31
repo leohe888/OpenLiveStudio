@@ -15,9 +15,9 @@ class ImageSourceController : public QObject
 public:
     explicit ImageSourceController(VideoSourceManager &manager, QObject *parent = nullptr);
     ~ImageSourceController() override;
-    Q_INVOKABLE void addImage(const QString &name, const QString &path, QObject *requester);
-    Q_INVOKABLE void cancelAdd(QObject *requester);
-    Q_INVOKABLE QString browseImage(const QString &currentPath);
+    void addImage(const QString &name, const QString &path, QObject *requester);
+    void cancelAdd(QObject *requester);
+    QString browseImage(const QString &currentPath);
 
 signals:
     void imageAdded(QObject *requester);

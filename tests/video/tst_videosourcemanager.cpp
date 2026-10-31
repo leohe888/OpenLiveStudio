@@ -71,6 +71,10 @@ void VideoSourceManagerTest::exposesTypedSourcesAndRejectsMissingIds()
     QVERIFY(source->locked);
     QCOMPARE(std::get<ImageSourceDetails>(source->details).config.filePath, QString("fixture.png"));
     QVERIFY(!manager.source("missing"));
+    QVERIFY(!manager.cameraSource("image"));
+    QVERIFY(!manager.displaySource("image"));
+    QVERIFY(!manager.cameraSource("missing"));
+    QVERIFY(!manager.displaySource("missing"));
     QVERIFY(!manager.source({}));
 }
 
@@ -551,25 +555,24 @@ void VideoSourceManagerTest::displayPropertiesPreserveSourceState()
     QCOMPARE(changed.last().at(0).toString(), QString("screen"));
     QCOMPARE(model.sources().at(0).transform, transform);
     QCOMPARE(model.sourceFilters("screen")[0].id, filter);
-    QCOMPARE(model.displayProperties("screen").value("displayId").toString(),
-             QString("another-physical-path"));
-    QVERIFY(!model.displayProperties("screen").value("captureCursor").toBool());
+    QCOMPARE(model.displaySource("screen")->config.displayId, QString("another-physical-path"));
+    QVERIFY(!model.displaySource("screen")->config.captureCursor);
     QVERIFY(model.setSourceCaptureStatus("screen", "error", "Disconnected"));
     QCOMPARE(status.count(), 1);
     QVERIFY(model.setSourceCaptureStatus("screen", "error", "Disconnected"));
     QCOMPARE(status.count(), 1);
     QCOMPARE(std::get<DisplaySourceDetails>(model.sources().at(0).details).runtime.captureState,
              QString("error"));
-    QCOMPARE(model.displayProperties("screen").value("error").toString(), QString("Disconnected"));
+    QCOMPARE(model.displaySource("screen")->runtime.captureError, QString("Disconnected"));
     QVERIFY(model.setSourceCaptureStatus("screen", "starting", {}));
-    QVERIFY(model.displayProperties("screen").value("error").toString().isEmpty());
+    QVERIFY(model.displaySource("screen")->runtime.captureError.isEmpty());
     QVERIFY(model.selectSource("image"));
     QVERIFY(!model.canEditCurrentDisplay() && model.canFilterCurrentSource());
     QVERIFY(model.selectSource("camera"));
     QVERIFY(!model.canEditCurrentDisplay() && model.canFilterCurrentSource() &&
             model.canEditCurrentSource());
     QVERIFY(model.removeSource("screen"));
-    QVERIFY(model.displayProperties("screen").isEmpty());
+    QVERIFY(!model.displaySource("screen"));
     QVERIFY(!model.setSourceCaptureStatus("screen", "error", "Removed"));
 }
 

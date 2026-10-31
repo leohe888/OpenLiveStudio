@@ -4,20 +4,6 @@
 #include <QUuid>
 #include <algorithm>
 
-namespace {
-CameraConfig configFrom(const QString &deviceId, const QVariantMap &mode)
-{
-    CameraConfig result;
-    result.deviceId = deviceId;
-    if (mode.value("width").toInt() > 0) {
-        result.requestedResolution = {mode.value("width").toInt(), mode.value("height").toInt()};
-        result.requestedFrameRateNumerator = mode.value("numerator").toInt();
-        result.requestedFrameRateDenominator = mode.value("denominator").toInt();
-    }
-    return result;
-}
-}
-
 CameraSourceController::CameraSourceController(VideoSourceManager &manager, QObject *parent)
     : QObject(parent), m_sourceManager(manager)
 {
@@ -106,30 +92,28 @@ void CameraSourceController::requestModes(const QString &id)
     m_queries.push_back(std::move(query));
 }
 
-QString CameraSourceController::addCamera(const QString &name, const QString &id,
-                                          const QVariantMap &mode)
+QString CameraSourceController::addCamera(const QString &name, const CameraConfig &config)
 {
-    if (name.trimmed().isEmpty() || id.isEmpty() || m_sourceManager.cameraDeviceInUse(id))
+    if (name.trimmed().isEmpty() || !config.isValid() ||
+        m_sourceManager.cameraDeviceInUse(config.deviceId))
         return {};
-    const auto config = configFrom(id, mode);
-    if ((!config.requestedResolution.isEmpty() &&
-         (config.requestedFrameRateNumerator <= 0 || config.requestedFrameRateDenominator <= 0)))
+    const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    if (!m_sourceManager.addSource({id, name.trimmed(), CameraSourceDetails{config}}))
         return {};
-    const QString sourceId = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    if (!m_sourceManager.addSource({sourceId, name.trimmed(), CameraSourceDetails{config}}))
-        return {};
-    return sourceId;
+    return id;
 }
 
-bool CameraSourceController::applyProperties(const QString &sourceId, const QString &id,
-                                             const QVariantMap &mode)
+bool CameraSourceController::applyProperties(const QString &id, const CameraConfig &config)
 {
-    const auto old = m_sourceManager.cameraProperties(sourceId);
-    if (!m_sourceManager.setCameraConfig(sourceId, configFrom(id, mode)))
+    const auto *camera = m_sourceManager.cameraSource(id);
+    if (!camera)
+        return false;
+    const bool unchanged = camera->config == config;
+    if (!m_sourceManager.setCameraConfig(id, config))
         return false;
     // A changed config already restarts through the manager notification.
-    if (old == m_sourceManager.cameraProperties(sourceId))
-        retry(sourceId);
+    if (unchanged)
+        retry(id);
     return true;
 }
 

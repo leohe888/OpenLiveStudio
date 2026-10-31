@@ -27,7 +27,7 @@ public:
         return m_selected;
     }
 
-    QVariantList devices() const
+    QList<AudioDevice> devices() const
     {
         return m_devices;
     }
@@ -100,7 +100,7 @@ private:
     AudioMixer m_mixer;
     QTimer m_timer;
     QString m_selected, m_catalogError;
-    QVariantList m_devices;
+    QList<AudioDevice> m_devices;
     bool m_refreshing = false;
     AudioPeak m_master;
     int m_clipTicks = 0;

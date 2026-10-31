@@ -1,6 +1,7 @@
 #include "video/display/displaysourcecontroller.h"
 #include "video/display/displaytargets.h"
 #include "video/videosourcemanager.h"
+#include <QDebug>
 #include <QScopeGuard>
 #include <QSet>
 #include <QUuid>
@@ -34,9 +35,7 @@ DisplaySourceController::~DisplaySourceController()
 
 void DisplaySourceController::refreshDisplays()
 {
-    QVariantList targets;
-    for (const auto &target : displayTargets())
-        targets.append(QVariantMap{{"id", target.id}, {"name", target.name}});
+    const auto targets = displayTargets();
     if (targets != m_displays) {
         m_displays = targets;
         emit displaysChanged();
@@ -59,11 +58,14 @@ QString DisplaySourceController::addDisplay(const QString &name, const QString &
 bool DisplaySourceController::applyProperties(const QString &id, const QString &displayId,
                                               bool cursor)
 {
-    const auto old = m_sourceManager.displayProperties(id);
+    const auto *display = m_sourceManager.displaySource(id);
+    if (!display)
+        return false;
+    const bool unchanged =
+        display->config.displayId == displayId && display->config.captureCursor == cursor;
     if (!m_sourceManager.setDisplayConfig(id, displayId, cursor))
         return false;
-    if (old.value("displayId").toString() == displayId &&
-        old.value("captureCursor").toBool() == cursor)
+    if (unchanged)
         retry(id);
     return true;
 }

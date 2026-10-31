@@ -321,15 +321,15 @@ private slots:
         const auto devices = audioDevices(&error);
         QVERIFY2(error.isEmpty(), qPrintable(error));
         QVERIFY(!devices.isEmpty());
-        qInfo() << "Active audio endpoints:" << devices;
+        qInfo() << "Active audio endpoints:" << devices.size();
         bool microphone = false, system = false;
         for (const auto &value : devices) {
-            const auto info = value.toMap();
-            const auto type = info["type"].toString();
+            const auto &info = value;
+            const auto type = info.type;
             if ((type == "microphone" && microphone) || (type == "system" && system))
                 continue;
             auto queue = std::make_shared<AudioPacketQueue>();
-            AudioCaptureWorker worker(info["id"].toString(), type, queue);
+            AudioCaptureWorker worker(info.id, type, queue);
             worker.start();
             QTRY_COMPARE_WITH_TIMEOUT(worker.status().state, QString("capturing"), 5000);
             int frames = 0;
@@ -365,11 +365,11 @@ private slots:
         QTRY_VERIFY(!manager.refreshing());
         QString microphone, system;
         for (const auto &value : manager.devices()) {
-            const auto device = value.toMap();
-            if (device["type"] == "microphone" && microphone.isEmpty())
-                microphone = device["id"].toString();
-            if (device["type"] == "system" && system.isEmpty())
-                system = device["id"].toString();
+            const auto &device = value;
+            if (device.type == "microphone" && microphone.isEmpty())
+                microphone = device.id;
+            if (device.type == "system" && system.isEmpty())
+                system = device.id;
         }
         QVERIFY(!microphone.isEmpty() && !system.isEmpty());
         const auto mic = manager.addSource("Mic", "microphone", microphone);

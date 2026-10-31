@@ -371,11 +371,10 @@ QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceManager *manager, c
         if (editing)
             devices->addItem(original.deviceName, original.deviceId);
         else
-            for (const auto &value : manager->devices()) {
-                const auto device = value.toMap();
-                if (device.value("type") == type->currentData() &&
-                    !manager->deviceInUse(device.value("id").toString()))
-                    devices->addItem(device.value("name").toString(), device.value("id"));
+            for (const auto &device : manager->devices()) {
+                if (device.type == type->currentData().toString() &&
+                    !manager->deviceInUse(device.id))
+                    devices->addItem(device.name, device.id);
             }
         const int index = devices->findData(previous);
         if (index >= 0)

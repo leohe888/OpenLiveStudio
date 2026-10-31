@@ -270,8 +270,8 @@ void MainWindow::showSourceFiltersDialog(const QString &sourceId)
 
 void MainWindow::showSourcePropertiesDialog(const QString &sourceId)
 {
-    if (m_videoSourceManager->cameraProperties(sourceId).isEmpty() &&
-        m_videoSourceManager->displayProperties(sourceId).isEmpty())
+    if (!m_videoSourceManager->cameraSource(sourceId) &&
+        !m_videoSourceManager->displaySource(sourceId))
         return;
     for (auto *dialog : findChildren<QDialog *>()) {
         if (dialog->property("displaySourceId").toString() == sourceId) {

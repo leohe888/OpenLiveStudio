@@ -296,7 +296,7 @@ void MainWindowTest::disconnectedDeviceDrafts()
     dialog->findChild<QCheckBox *>("captureCursorInput")->setChecked(true);
     dialog->reject();
     QTRY_VERIFY(dialog.isNull());
-    QVERIFY(!model->displayProperties("display").value("captureCursor").toBool());
+    QVERIFY(!model->displaySource("display")->config.captureCursor);
     CameraConfig config;
     config.deviceId = "unavailable-camera";
     config.requestedResolution = QSize(640, 480);
@@ -309,12 +309,9 @@ void MainWindowTest::disconnectedDeviceDrafts()
     QCOMPARE(dialog->findChild<QComboBox *>("cameraDeviceInput")->currentData().toString(),
              config.deviceId);
     QTRY_VERIFY(dialog->findChild<QComboBox *>("cameraModeInput")->isEnabled());
-    QCOMPARE(dialog->findChild<QComboBox *>("cameraModeInput")
-                 ->currentData()
-                 .toMap()
-                 .value("width")
-                 .toInt(),
-             640);
+    QCOMPARE(
+        dialog->findChild<QComboBox *>("cameraModeInput")->currentData().value<CameraMode>().width,
+        640);
     QVERIFY(model->removeSource("camera"));
     QTRY_VERIFY(dialog.isNull());
 }
@@ -730,11 +727,10 @@ void MainWindowTest::cameraHardwarePreview()
     const auto devices = controller->devices();
     QVERIFY(!devices.isEmpty());
     QSignalSpy failures(preview, &PreviewWidget::sourceError);
-    const QString id =
-        controller->addCamera("Camera", devices[0].toMap().value("id").toString(), {});
+    const QString id = controller->addCamera("Camera", CameraConfig{devices[0].id});
     QVERIFY(!id.isEmpty());
-    QTRY_COMPARE_WITH_TIMEOUT(model->cameraProperties(id).value("state").toString(),
-                              QString("capturing"), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(model->cameraSource(id)->runtime.captureState, QString("capturing"),
+                              15000);
 
     const auto filter = model->addColorCorrection(id);
     QVERIFY(model->setFilterParameters(id, filter, 0, 1, 0));
