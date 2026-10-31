@@ -226,7 +226,6 @@ set_tests_properties(video.sourceaggregator PROPERTIES LABELS "video;smoke" TIME
 
 qt_add_executable(tst_mainwindow
     ui/tst_mainwindow.cpp
-    ../src/ui/uicolors.h
     ../src/ui/mainwindow.cpp
     ../src/ui/outputwidgets.cpp
     ../src/ui/sourcewidgets.cpp
@@ -409,3 +408,9 @@ add_test(NAME capture.camera COMMAND "${CMAKE_COMMAND}" -E env
     "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
     "$<TARGET_FILE:tst_cameracapture>" -o "-,txt")
 set_tests_properties(capture.camera PROPERTIES LABELS "capture;camera" TIMEOUT 60)
+
+qt_add_resources(tst_mainwindow "style"
+    PREFIX "/"
+    BASE "${PROJECT_SOURCE_DIR}"
+    FILES "${PROJECT_SOURCE_DIR}/assets/styles/studio.qss"
+)

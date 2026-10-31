@@ -249,15 +249,15 @@ void PreviewWidget::paintSelection()
     const auto style = source->locked ? Qt::DashLine : Qt::SolidLine;
     painter.setPen(QPen(QColor(0, 0, 0, 220), 3, style));
     painter.drawPolygon(outline);
-    painter.setPen(QPen(m_selectionColor, 1, style));
+    painter.setPen(QPen(selectionColor(), 1, style));
     painter.drawPolygon(outline);
     if (source->locked) return;
     painter.setPen(QPen(Qt::black, 3));
     painter.drawLine(handles[1], handles[8]);
-    painter.setPen(QPen(m_selectionColor, 1));
+    painter.setPen(QPen(selectionColor(), 1));
     painter.drawLine(handles[1], handles[8]);
     painter.setPen(QPen(Qt::black, 1));
-    painter.setBrush(m_selectionColor);
+    painter.setBrush(selectionColor());
     for (int index = 0; index < 8; ++index)
         painter.drawRect(QRectF(handles[index] - QPointF(4, 4), QSizeF(8, 8)));
     painter.drawEllipse(QRectF(handles[8] - QPointF(4, 4), QSizeF(8, 8)));

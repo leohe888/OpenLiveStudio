@@ -2,6 +2,7 @@
 #include "output/outputsettings.h"
 #include "output/recordingcontroller.h"
 #include "output/streamingcontroller.h"
+
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFileDialog>
@@ -22,6 +23,7 @@ QWidget *createOutputControls(QWidget *parent, OutputSettings *settings,
     scroll->setObjectName("controlsPanel");
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
+
     auto *content = new QWidget(scroll);
     auto *layout = new QHBoxLayout(content);
     layout->setContentsMargins(8, 8, 8, 8);
@@ -33,6 +35,7 @@ QWidget *createOutputControls(QWidget *parent, OutputSettings *settings,
     }
     layout->addStretch();
     scroll->setWidget(content);
+
     auto *record = content->findChild<QPushButton *>("recordButton");
     auto *stream = content->findChild<QPushButton *>("streamButton");
     auto *options = content->findChild<QPushButton *>("settingsButton");
@@ -40,15 +43,24 @@ QWidget *createOutputControls(QWidget *parent, OutputSettings *settings,
     stream->setIcon(QIcon(":/assets/icons/radio.svg"));
     options->setText(QObject::tr("设置"));
     options->setEnabled(settings);
+
     const auto refresh = [record, stream, recorder, streamer] {
         const auto rec = recorder ? recorder->state() : QString();
-        record->setText(rec == "recording" ? QObject::tr("停止录制") : rec == "starting" ? QObject::tr("取消启动")
-            : rec == "stopping" ? QObject::tr("正在停止…") : QObject::tr("开始录制"));
-        record->setEnabled(recorder && rec != "stopping" && (recorder->busy() || recorder->ready()));
+        record->setText(rec == "recording"  ? QObject::tr("停止录制")
+                        : rec == "starting" ? QObject::tr("取消启动")
+                        : rec == "stopping" ? QObject::tr("正在停止…")
+                                            : QObject::tr("开始录制"));
+        record->setEnabled(recorder && rec != "stopping" &&
+                           (recorder->busy() || recorder->ready()));
+
         const auto live = streamer ? streamer->state() : QString();
-        stream->setText(live == "live" ? QObject::tr("停止直播") : live == "connecting" ? QObject::tr("取消连接")
-            : live == "reconnecting" ? QObject::tr("停止重连") : live == "stopping" ? QObject::tr("正在停止…") : QObject::tr("开始直播"));
-        stream->setEnabled(streamer && live != "stopping" && (streamer->busy() || streamer->ready()));
+        stream->setText(live == "live"           ? QObject::tr("停止直播")
+                        : live == "connecting"   ? QObject::tr("取消连接")
+                        : live == "reconnecting" ? QObject::tr("停止重连")
+                        : live == "stopping"     ? QObject::tr("正在停止…")
+                                                 : QObject::tr("开始直播"));
+        stream->setEnabled(streamer && live != "stopping" &&
+                           (streamer->busy() || streamer->ready()));
     };
     if (recorder) {
         QObject::connect(recorder, &RecordingController::statusChanged, content, refresh);
@@ -69,15 +81,18 @@ QDialog *createOutputSettingsDialog(QWidget *parent, OutputSettings *settings)
     dialog->setWindowTitle(QObject::tr("设置"));
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->resize(620, 460);
+
     auto *layout = new QVBoxLayout(dialog);
     auto *tabs = new QTabWidget(dialog);
     tabs->setObjectName("outputSettingsTabs");
     layout->addWidget(tabs);
+
     auto *live = new QWidget(tabs);
     auto *record = new QWidget(tabs);
     tabs->addTab(live, QObject::tr("直播推流"));
     tabs->addTab(record, QObject::tr("录屏"));
     tabs->setCurrentIndex(1);
+
     auto *liveForm = new QFormLayout(live);
     auto *recForm = new QFormLayout(record);
     const auto input = [](const QString &text, const char *name, QWidget *owner) {
@@ -86,10 +101,13 @@ QDialog *createOutputSettingsDialog(QWidget *parent, OutputSettings *settings)
         edit->setMaxLength(4096);
         return edit;
     };
+
     auto *server = input(settings->streamServer(), "streamServerInput", live);
     server->setPlaceholderText("rtmp://server/app");
+
     auto *key = input(settings->streamKey(), "streamKeyInput", live);
     key->setEchoMode(QLineEdit::Password);
+
     auto *directory = input(settings->recordingDirectory(), "recordingDirectoryInput", record);
     const auto bitrate = [](int value, const char *name, QWidget *owner) {
         auto *spin = new QSpinBox(owner);
@@ -99,20 +117,26 @@ QDialog *createOutputSettingsDialog(QWidget *parent, OutputSettings *settings)
         spin->setSuffix(" kbps");
         return spin;
     };
+
     auto *liveRate = bitrate(settings->streamingBitrate(), "streamingBitrateInput", live);
     auto *recRate = bitrate(settings->recordingBitrate(), "recordingBitrateInput", record);
     liveForm->addRow(QObject::tr("服务器地址"), server);
     liveForm->addRow(QObject::tr("串流密钥"), key);
     liveForm->addRow(QObject::tr("视频码率"), liveRate);
-    liveForm->addRow(new QLabel(QObject::tr("RTMP · H.264 / AAC · 1080p · 30 FPS；连接和重连期间设置锁定。"), live));
+    liveForm->addRow(new QLabel(
+        QObject::tr("RTMP · H.264 / AAC · 1080p · 30 FPS；连接和重连期间设置锁定。"), live));
+
     auto *directoryRow = new QHBoxLayout;
     directoryRow->addWidget(directory);
+
     auto *browse = new QPushButton(QObject::tr("浏览…"), record);
     browse->setObjectName("browseRecordingDirectoryButton");
     directoryRow->addWidget(browse);
     recForm->addRow(QObject::tr("保存目录"), directoryRow);
     recForm->addRow(QObject::tr("视频码率"), recRate);
-    recForm->addRow(new QLabel(QObject::tr("MP4 · 1080p · 30 FPS；录制期间保存目录和码率保持不变。"), record));
+    recForm->addRow(
+        new QLabel(QObject::tr("MP4 · 1080p · 30 FPS；录制期间保存目录和码率保持不变。"), record));
+
     const auto refreshLocks = [=] {
         server->setEnabled(!settings->streamingLocked());
         key->setEnabled(!settings->streamingLocked());
@@ -121,13 +145,17 @@ QDialog *createOutputSettingsDialog(QWidget *parent, OutputSettings *settings)
         browse->setEnabled(!settings->recordingLocked());
         recRate->setEnabled(!settings->recordingLocked());
     };
+
     QObject::connect(settings, &OutputSettings::recordingLockedChanged, dialog, refreshLocks);
     QObject::connect(settings, &OutputSettings::streamingLockedChanged, dialog, refreshLocks);
     refreshLocks();
     QObject::connect(browse, &QPushButton::clicked, dialog, [=] {
-        const auto path = QFileDialog::getExistingDirectory(dialog, QObject::tr("选择录制保存目录"), directory->text());
-        if (!path.isEmpty()) directory->setText(path);
+        const auto path = QFileDialog::getExistingDirectory(dialog, QObject::tr("选择录制保存目录"),
+                                                            directory->text());
+        if (!path.isEmpty())
+            directory->setText(path);
     });
+
     auto *error = new QLabel(dialog);
     error->setObjectName("outputSettingsError");
     error->setProperty("uiError", true);
@@ -135,6 +163,7 @@ QDialog *createOutputSettingsDialog(QWidget *parent, OutputSettings *settings)
     error->setWordWrap(true);
     layout->addWidget(error);
     layout->addWidget(new QLabel(QObject::tr("设置仅在本次运行中生效"), dialog));
+
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, dialog);
     buttons->button(QDialogButtonBox::Ok)->setObjectName("applyOutputSettingsButton");
     buttons->button(QDialogButtonBox::Ok)->setText(QObject::tr("确定"));
@@ -145,8 +174,11 @@ QDialog *createOutputSettingsDialog(QWidget *parent, OutputSettings *settings)
     QObject::connect(buttons, &QDialogButtonBox::accepted, dialog, [=] {
         recRate->interpretText();
         liveRate->interpretText();
-        if (settings->apply(directory->text(), recRate->value(), server->text(), key->text(), liveRate->value())) dialog->accept();
-        else error->setText(settings->lastError());
+        if (settings->apply(directory->text(), recRate->value(), server->text(), key->text(),
+                            liveRate->value()))
+            dialog->accept();
+        else
+            error->setText(settings->lastError());
     });
     return dialog;
 }

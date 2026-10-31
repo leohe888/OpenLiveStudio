@@ -1,6 +1,6 @@
 # OpenLive Studio
 
-基于 Qt6 的 Windows 桌面录制与直播工具，界面全部采用 Qt Widgets，以 C++ 布局编写。界面固定使用浅色配色，颜色集中定义在 `src/ui/uicolors.h`，不提供主题切换。
+基于 Qt6 的 Windows 桌面录制与直播工具，界面全部采用 Qt Widgets，以 C++ 布局编写。界面固定使用浅色配色，样式集中定义在 `assets/styles/studio.qss`，不提供主题切换。
 
 ## 目录结构
 
@@ -15,7 +15,9 @@
 
 C++ 项目头文件统一以 `src/` 为引用根目录，例如 `#include "video/videosourcemodel.h"`。
 
-界面使用 C++ 与 Qt 布局管理器构建，不使用 `.ui` 文件。`sourcewidgets`、`audiowidgets`、`outputwidgets` 分别负责画面来源、声音来源和输出控制界面，复用现有模型与控制器。颜色沿用 `UiColors`，操作图标使用 `assets/icons/` 中的 Lucide SVG；预览保留 `QOpenGLWidget`。
+界面使用 C++ 与 Qt 布局管理器构建，不使用 `.ui` 文件。`sourcewidgets`、`audiowidgets`、`outputwidgets` 分别负责画面来源、声音来源和输出控制界面，复用现有模型与控制器。样式由启动时加载的 `assets/styles/studio.qss` 统一控制，操作图标使用 `assets/icons/` 中的 Lucide SVG；预览保留 `QOpenGLWidget`。
+
+QSS 编入 Qt 资源，修改后重新构建并启动程序即可生效。预览的 `qproperty-selectionColor`、`qproperty-surroundingColor` 和电平条的 `qproperty-normalColor`、`qproperty-warningColor`、`qproperty-clippingColor` 也在同一文件配置；声音通道使用 `[selected="true"]` 表示选中状态。
 
 ## MVP 功能
 

@@ -18,6 +18,8 @@ class QOpenGLVertexArrayObject;
 class PreviewWidget : public QOpenGLWidget, protected QOpenGLFunctions
 {
     Q_OBJECT
+    Q_PROPERTY(QColor selectionColor READ selectionColor WRITE setSelectionColor)
+    Q_PROPERTY(QColor surroundingColor READ surroundingColor WRITE setSurroundingColor)
 
 public:
     explicit PreviewWidget(QWidget *parent = nullptr);
@@ -27,10 +29,29 @@ public:
     // An unset transform uses the initial centered, fit-without-upscaling layout.
     void setSources(const QList<PreviewSource> &sources);
     void setSelectedSourceId(const QString &id);
+
+    QColor selectionColor() const
+    {
+        return m_selectionColor.isValid() ? m_selectionColor : palette().color(QPalette::Highlight);
+    }
+
+    QColor surroundingColor() const
+    {
+        return m_surroundingColor;
+    }
+
     void setSelectionColor(const QColor &color);
     void setSurroundingColor(const QColor &color);
-    QString lastError() const { return m_lastError; }
-    Compositor *compositor() { return &m_compositor; }
+
+    QString lastError() const
+    {
+        return m_lastError;
+    }
+
+    Compositor *compositor()
+    {
+        return &m_compositor;
+    }
 
 signals:
     void selectionRequested(const QString &id);
@@ -69,8 +90,13 @@ private:
 
     QList<PreviewSource> m_sources;
     QString m_selectedSourceId;
-    QColor m_selectionColor{QStringLiteral("#72AAFF")};
-    enum class Gesture { None, Move, Resize, Rotate };
+    QColor m_selectionColor;
+    enum class Gesture {
+        None,
+        Move,
+        Resize,
+        Rotate
+    };
     Gesture m_gesture = Gesture::None;
     QString m_gestureSourceId;
     SourceTransform m_gestureStart;

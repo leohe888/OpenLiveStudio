@@ -21,7 +21,6 @@ qt_add_executable(OpenLiveStudio
     src/ui/previewwidget.cpp
     src/ui/previewwidget.h
     src/graphics/previewsource.h
-    src/ui/uicolors.h
     src/video/videosource.cpp
     src/video/videosource.h
     src/video/sourcefilter.h
@@ -163,3 +162,9 @@ include(CTest)
 if(BUILD_TESTING)
     add_subdirectory(tests)
 endif()
+
+qt_add_resources(OpenLiveStudio "style"
+    PREFIX "/"
+    BASE "${PROJECT_SOURCE_DIR}"
+    FILES "${PROJECT_SOURCE_DIR}/assets/styles/studio.qss"
+)

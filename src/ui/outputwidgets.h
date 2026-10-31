@@ -1,5 +1,7 @@
 #pragma once
+
 #include <QWidget>
+
 class QDialog;
 class OutputSettings;
 class RecordingController;

@@ -40,7 +40,6 @@ private slots:
     void toggleStreaming();
 
 private:
-    void applyColors();
     void setupPreview();
     void setupStatusBar();
     void setupSourcesDock();
@@ -62,6 +61,6 @@ private:
     StreamingController *m_streamingController = nullptr;
     OutputSettings *m_outputSettings = nullptr;
     bool m_closePending = false;
-    QString m_previousRecordingError,m_previousStreamingError;
+    QString m_previousRecordingError, m_previousStreamingError;
 };
 #endif // MAINWINDOW_H
