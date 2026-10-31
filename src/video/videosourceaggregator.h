@@ -6,14 +6,14 @@
 #include <QHash>
 #include <QObject>
 
-class VideoSourceModel;
+class VideoSourceManager;
 
-// GUI-thread snapshots from each controller are combined in model order.
+// GUI-thread snapshots from each controller are combined in manager order.
 class VideoSourceAggregator : public QObject
 {
     Q_OBJECT
 public:
-    explicit VideoSourceAggregator(VideoSourceModel &model, QObject *parent = nullptr);
+    explicit VideoSourceAggregator(VideoSourceManager &manager, QObject *parent = nullptr);
 
     // Each update replaces the complete snapshot for that source type.
     void setImageSources(const QList<PreviewSource> &sources);
@@ -29,7 +29,7 @@ private:
     void schedulePublish();
     void publish();
 
-    VideoSourceModel &m_model;
+    VideoSourceManager &m_sourceManager;
     Snapshot m_images;
     Snapshot m_displays;
     Snapshot m_cameras;

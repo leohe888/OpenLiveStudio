@@ -14,10 +14,9 @@ int main(int argc, char *argv[])
 
     QApplication a(argc, argv);
 
-    QFile style(":/assets/styles/studio.qss");
-    if (!style.open(QIODevice::ReadOnly))
+    QFile style(":/assets/styles/style.qss");
+    if (!style.open(QIODevice::ReadOnly | QIODevice::Text))
         qFatal("Cannot load application style sheet");
-
     a.setStyleSheet(QString::fromUtf8(style.readAll()));
 
     MainWindow w;

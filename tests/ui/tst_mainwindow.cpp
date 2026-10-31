@@ -3,7 +3,7 @@
 #include "ui/audiowidgets.h"
 #include "ui/outputwidgets.h"
 #include "ui/previewwidget.h"
-#include "video/videosourcemodel.h"
+#include "video/videosourcemanager.h"
 #include "video/videosourceaggregator.h"
 #include "video/image/imagesourcecontroller.h"
 #include "video/display/displaysourcecontroller.h"
@@ -158,7 +158,7 @@ void MainWindowTest::sourceActionsAndSelection()
 {
     MainWindow window;
 
-    auto *model = window.findChild<VideoSourceModel *>();
+    auto *model = window.findChild<VideoSourceManager *>();
     auto *panel = window.findChild<SourcesPanel *>();
     auto *list = panel->findChild<QListWidget *>("sourceList");
     QVERIFY(!panel->findChild<QToolButton *>("removeSourceButton")->isEnabled());
@@ -173,12 +173,20 @@ void MainWindowTest::sourceActionsAndSelection()
     auto *item = list->currentItem();
     const auto id = model->currentSourceId();
     auto *row = list->itemWidget(item);
+    QPointer<QWidget> retainedRow(row);
+    QPointer<QWidget> otherRow(list->itemWidget(list->item(1)));
+    QVERIFY(model->setSourceCaptureStatus(id, "error", "Device disconnected"));
+    QCOMPARE(list->itemWidget(item), retainedRow.data());
+    QCOMPARE(list->itemWidget(list->item(1)), otherRow.data());
+    QCOMPARE(row->findChild<QLabel *>()->toolTip(), QString("Device disconnected"));
+    QCOMPARE(model->currentSourceId(), id);
+
     row->findChild<QToolButton *>("sourceVisibilityButton")->click();
-    QCOMPARE(model->index(0, 0).data(VideoSourceModel::VisibleRole).toBool(), false);
+    QCOMPARE(model->sources().at(0).visible, false);
     row->findChild<QToolButton *>("sourceLockButton")->click();
-    QCOMPARE(model->index(0, 0).data(VideoSourceModel::LockedRole).toBool(), true);
+    QCOMPARE(model->sources().at(0).locked, true);
     panel->findChild<QToolButton *>("moveSourceDownButton")->click();
-    QCOMPARE(model->index(1, 0).data(VideoSourceModel::IdRole).toString(), id);
+    QCOMPARE(model->sources().at(1).id, id);
     QCOMPARE(list->currentRow(), 1);
     QVERIFY(model->removeSource(id));
     QCOMPARE(list->count(), 1);
@@ -190,7 +198,7 @@ void MainWindowTest::imageDialogAndCancellation()
     MainWindow window;
     window.show();
 
-    auto *model = window.findChild<VideoSourceModel *>();
+    auto *model = window.findChild<VideoSourceManager *>();
     QTemporaryDir directory;
     QImage image(128, 128, QImage::Format_RGB32);
     image.fill(Qt::cyan);
@@ -211,10 +219,10 @@ void MainWindowTest::imageDialogAndCancellation()
     dialog->findChild<QLineEdit *>("sourceFileInput")->setText(directory.filePath("missing.png"));
     dialog->findChild<QPushButton *>("confirmSourceAddButton")->click();
     QTRY_VERIFY(!dialog->findChild<QLabel *>("sourceAddError")->text().isEmpty());
-    QCOMPARE(model->rowCount(), 0);
+    QCOMPARE(model->sources().size(), 0);
     dialog->findChild<QLineEdit *>("sourceFileInput")->setText(path);
     dialog->findChild<QPushButton *>("confirmSourceAddButton")->click();
-    QTRY_COMPARE(model->rowCount(), 1);
+    QTRY_COMPARE(model->sources().size(), 1);
     QTRY_VERIFY(dialog.isNull());
     dialog = open();
     dialog->findChild<QLineEdit *>("sourceNameInput")->setText("Cancelled");
@@ -223,7 +231,7 @@ void MainWindowTest::imageDialogAndCancellation()
     QTest::keyClick(dialog, Qt::Key_Escape);
     QTRY_VERIFY(dialog.isNull());
     QTest::qWait(100);
-    QCOMPARE(model->rowCount(), 1);
+    QCOMPARE(model->sources().size(), 1);
 }
 
 void MainWindowTest::removalAndFilters()
@@ -231,7 +239,7 @@ void MainWindowTest::removalAndFilters()
     MainWindow window;
     window.show();
 
-    auto *model = window.findChild<VideoSourceModel *>();
+    auto *model = window.findChild<VideoSourceManager *>();
     QVERIFY(model->addSource({"one", "<b>Literal</b>"}));
     QVERIFY(model->selectSource("one"));
     window.findChild<QToolButton *>("removeSourceButton")->click();
@@ -240,29 +248,28 @@ void MainWindowTest::removalAndFilters()
     QCOMPARE(removal->findChild<QLabel *>("sourceRemovalMessage")->textFormat(), Qt::PlainText);
     QTest::keyClick(removal, Qt::Key_Escape);
     QTRY_VERIFY(removal.isNull());
-    QCOMPARE(model->rowCount(), 1);
+    QCOMPARE(model->sources().size(), 1);
     window.findChild<QToolButton *>("sourceFiltersButton")->click();
     QPointer<QDialog> dialog = window.findChild<QDialog *>("sourceFiltersDialog");
     QVERIFY(dialog);
     dialog->findChild<QToolButton *>("addFilterButton")->click();
     QCOMPARE(model->sourceFilters("one").size(), 1);
     dialog->findChild<QDoubleSpinBox *>("brightnessInput")->setValue(.45);
-    QCOMPARE(model->sourceFilters("one")[0].toMap().value("brightness").toDouble(),
-             double(float(.45)));
+    QCOMPARE(model->sourceFilters("one")[0].brightness, double(float(.45)));
 
     auto *list = dialog->findChild<QListWidget *>("filterList");
     list->item(0)->setCheckState(Qt::Unchecked);
-    QCOMPARE(model->sourceFilters("one")[0].toMap().value("enabled").toBool(), false);
+    QCOMPARE(model->sourceFilters("one")[0].enabled, false);
     dialog->findChild<QToolButton *>("addFilterButton")->click();
     QCOMPARE(model->sourceFilters("one").size(), 2);
 
-    const auto second = model->sourceFilters("one")[1].toMap().value("id");
+    const auto second = model->sourceFilters("one")[1].id;
     dialog->findChild<QToolButton *>("upFilterButton")->click();
-    QCOMPARE(model->sourceFilters("one")[0].toMap().value("id"), second);
+    QCOMPARE(model->sourceFilters("one")[0].id, second);
     dialog->findChild<QSlider *>("contrastSlider")->setValue(150);
-    QCOMPARE(model->sourceFilters("one")[0].toMap().value("contrast").toDouble(), 1.5);
+    QCOMPARE(model->sourceFilters("one")[0].contrast, 1.5);
     dialog->findChild<QPushButton *>("resetFilterButton")->click();
-    QCOMPARE(model->sourceFilters("one")[0].toMap().value("contrast").toDouble(), 1.);
+    QCOMPARE(model->sourceFilters("one")[0].contrast, 1.);
     dialog->close();
     QTRY_VERIFY(dialog.isNull());
     QCOMPARE(model->sourceFilters("one").size(), 2);
@@ -276,7 +283,7 @@ void MainWindowTest::disconnectedDeviceDrafts()
 {
     MainWindow window;
 
-    auto *model = window.findChild<VideoSourceModel *>();
+    auto *model = window.findChild<VideoSourceManager *>();
     QVERIFY(model->addSource(
         {"display", "Missing", DisplaySourceDetails{{"unavailable-display", false}}}));
     QVERIFY(model->selectSource("display"));
@@ -391,7 +398,7 @@ void MainWindowTest::outputDraftsAndLocks()
 
 void MainWindowTest::scrollingAndKeyboard()
 {
-    VideoSourceModel model;
+    VideoSourceManager model;
     SourcesPanel panel(&model);
     panel.resize(240, 160);
     panel.show();
@@ -419,7 +426,7 @@ void MainWindowTest::aggregatesIndependentSourceControllers()
 {
     MainWindow window;
 
-    auto *model = window.findChild<VideoSourceModel *>();
+    auto *model = window.findChild<VideoSourceManager *>();
     auto *aggregator = window.findChild<VideoSourceAggregator *>();
     auto *images = window.findChild<ImageSourceController *>();
     auto *display = window.findChild<DisplaySourceController *>();
@@ -485,7 +492,7 @@ void MainWindowTest::previewEditsModelAndSynchronizesSelection()
     window.show();
     QVERIFY(QTest::qWaitForWindowActive(&window));
 
-    auto *model = window.findChild<VideoSourceModel *>();
+    auto *model = window.findChild<VideoSourceManager *>();
     auto *controller = window.findChild<ImageSourceController *>();
     QTemporaryDir dir;
     QImage background(1200, 800, QImage::Format_RGBA8888);
@@ -497,14 +504,14 @@ void MainWindowTest::previewEditsModelAndSynchronizesSelection()
     QVERIFY(foreground.save(frontPath));
     QObject request;
     controller->addImage("Background", backPath, &request);
-    QTRY_COMPARE(model->rowCount(), 1);
+    QTRY_COMPARE(model->sources().size(), 1);
     const QString backId = model->currentSourceId();
     controller->addImage("Foreground", frontPath, &request);
-    QTRY_COMPARE(model->rowCount(), 2);
+    QTRY_COMPARE(model->sources().size(), 2);
     const QString frontId = model->currentSourceId();
 
     const auto currentTransform = [&] {
-        return model->index(0, 0).data(VideoSourceModel::TransformRole).value<SourceTransform>();
+        return model->sources().at(0).transform;
     };
 
     const auto canvasPoint = [&](const QPointF &point) {
@@ -595,7 +602,7 @@ void MainWindowTest::previewShowsRenderingError()
     auto *error = window.findChild<QLabel *>("previewErrorLabel");
     QVERIFY(pages && error);
 
-    auto *model = window.findChild<VideoSourceModel *>();
+    auto *model = window.findChild<VideoSourceManager *>();
     QVERIFY(model->addSource({"example", "Logo"}));
     preview->sourceError("example", "Texture upload failed");
     QTRY_VERIFY(window.statusBar()->currentMessage().contains("Logo"));
@@ -708,7 +715,7 @@ void MainWindowTest::cameraHardwarePreview()
     QVERIFY2(preview, "Requires an interactive desktop OpenGL preview");
     QTRY_VERIFY_WITH_TIMEOUT(preview->isValid(), 10000);
 
-    auto *model = window.findChild<VideoSourceModel *>();
+    auto *model = window.findChild<VideoSourceManager *>();
     auto *controller = window.findChild<CameraSourceController *>();
     controller->refreshDevices();
     QTRY_VERIFY_WITH_TIMEOUT(!controller->refreshing(), 10000);
@@ -770,8 +777,7 @@ void MainWindowTest::cameraHardwarePreview()
         QTest::qWait(150);
         mouse(QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
 
-        const auto actual =
-            model->index(0, 0).data(VideoSourceModel::TransformRole).value<SourceTransform>();
+        const auto actual = model->sources().at(0).transform;
         if (operation == 0)
             QVERIFY(QLineF(actual.center, QPointF(1080, 600)).length() < 0.001);
         else if (operation == 1) {
@@ -926,9 +932,9 @@ void MainWindowTest::previewDisplaysImageSources()
     auto *pages = window.findChild<QStackedWidget *>("previewPages");
     QCOMPARE(pages->currentWidget(), preview);
 
-    auto *sources = window.findChild<VideoSourceModel *>();
+    auto *sources = window.findChild<VideoSourceManager *>();
     QVERIFY(sources);
-    QCOMPARE(sources->rowCount(), 0);
+    QCOMPARE(sources->sources().size(), 0);
 
     const auto empty = grabPreview(*preview);
     QCOMPARE(empty.pixelColor(empty.width() / 2, empty.height() / 2), QColor(Qt::black));
@@ -951,7 +957,7 @@ void MainWindowTest::previewDisplaysImageSources()
     QVERIFY(controller);
     QObject request;
     controller->addImage("Corners", imagePath, &request);
-    QTRY_COMPARE(sources->rowCount(), 1);
+    QTRY_COMPARE(sources->sources().size(), 1);
 
     const auto verifyFrame = [&] {
         const QImage frame = grabPreview(*preview);
@@ -989,7 +995,7 @@ void MainWindowTest::previewDisplaysImageSources()
     const QString overlayPath = images.filePath("overlay.png");
     QVERIFY(overlay.save(overlayPath));
     controller->addImage("Overlay", overlayPath, &request);
-    QTRY_COMPARE(sources->rowCount(), 2);
+    QTRY_COMPARE(sources->sources().size(), 2);
     const QString overlayId = sources->currentSourceId();
 
     const auto sampleCanvas = [&](double u, double v) {
@@ -1014,19 +1020,19 @@ void MainWindowTest::previewDisplaysImageSources()
     };
     click(lock);
     click(visibility);
-    QTRY_VERIFY(!sources->index(0, 0).data(VideoSourceModel::VisibleRole).toBool());
+    QTRY_VERIFY(!sources->sources().at(0).visible);
     QTRY_COMPARE(sampleCanvas(.6, .6), QColor(Qt::white));
     click(visibility);
-    QTRY_VERIFY(sources->index(0, 0).data(VideoSourceModel::VisibleRole).toBool());
+    QTRY_VERIFY(sources->sources().at(0).visible);
     QTRY_COMPARE(sampleCanvas(.6, .6), QColor(Qt::yellow));
     click(down);
-    QTRY_COMPARE(sources->index(1, 0).data(VideoSourceModel::IdRole).toString(), overlayId);
+    QTRY_COMPARE(sources->sources().at(1).id, overlayId);
     QTRY_COMPARE(sampleCanvas(.6, .6), QColor(Qt::white));
     QVERIFY(sources->moveSource(overlayId, -1));
     QTRY_COMPARE(sampleCanvas(.6, .6), QColor(Qt::yellow));
     QVERIFY(sources->removeSource(overlayId));
     verifyFrame();
-    QVERIFY(sources->removeSource(sources->index(0, 0).data(VideoSourceModel::IdRole).toString()));
+    QVERIFY(sources->removeSource(sources->sources().at(0).id));
     QTRY_COMPARE(sampleCanvas(.6, .6), QColor(Qt::black));
     QVERIFY(window.close());
 }
@@ -1040,8 +1046,8 @@ int main(int argc, char **argv)
     QSurfaceFormat::setDefaultFormat(format);
     QApplication application(argc, argv);
     application.setQuitOnLastWindowClosed(false);
-    QFile style(":/assets/styles/studio.qss");
-    if (!style.open(QIODevice::ReadOnly))
+    QFile style(":/assets/styles/style.qss");
+    if (!style.open(QIODevice::ReadOnly | QIODevice::Text))
         qFatal("Cannot load application style sheet");
     application.setStyleSheet(QString::fromUtf8(style.readAll()));
     MainWindowTest test;

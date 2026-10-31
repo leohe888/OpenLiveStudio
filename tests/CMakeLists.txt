@@ -155,8 +155,8 @@ qt_add_executable(tst_captureinterop graphics/tst_captureinterop.cpp
     ../src/ui/previewwidget.cpp
     ../src/ui/previewwidget.h
     ../src/video/videosource.cpp
-    ../src/video/videosourcemodel.cpp
-    ../src/video/videosourcemodel.h
+    ../src/video/videosourcemanager.cpp
+    ../src/video/videosourcemanager.h
     ../src/graphics/captureframe.h
     ../src/graphics/d3dtexture.h
     ../src/video/display/displaytargets.h
@@ -189,31 +189,31 @@ add_test(NAME capture.interop COMMAND "${CMAKE_COMMAND}" -E env
     "$<TARGET_FILE:tst_captureinterop>" -o "${CMAKE_CURRENT_BINARY_DIR}/captureinterop-results.txt,txt")
 set_tests_properties(capture.interop PROPERTIES LABELS "capture;gpu" TIMEOUT 30)
 
-qt_add_executable(tst_videosourcemodel
-    video/tst_videosourcemodel.cpp
+qt_add_executable(tst_videosourcemanager
+    video/tst_videosourcemanager.cpp
     ../src/video/videosource.cpp
     ../src/video/videosource.h
     ../src/video/sourcetransform.h
-    ../src/video/videosourcemodel.cpp
-    ../src/video/videosourcemodel.h
+    ../src/video/videosourcemanager.cpp
+    ../src/video/videosourcemanager.h
 )
-target_include_directories(tst_videosourcemodel PRIVATE
+target_include_directories(tst_videosourcemanager PRIVATE
     "${PROJECT_SOURCE_DIR}/src"
 )
-target_link_libraries(tst_videosourcemodel PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
-add_test(NAME core.videosourcemodel
+target_link_libraries(tst_videosourcemanager PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+add_test(NAME core.videosourcemanager
     COMMAND "${CMAKE_COMMAND}" -E env
         "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
-        "$<TARGET_FILE:tst_videosourcemodel>"
+        "$<TARGET_FILE:tst_videosourcemanager>"
         -o "-,txt"
 )
-set_tests_properties(core.videosourcemodel PROPERTIES LABELS "core;smoke" TIMEOUT 10)
+set_tests_properties(core.videosourcemanager PROPERTIES LABELS "core;smoke" TIMEOUT 10)
 
 qt_add_executable(tst_videosourceaggregator
     video/tst_videosourceaggregator.cpp
     ../src/video/videosource.cpp
-    ../src/video/videosourcemodel.cpp
-    ../src/video/videosourcemodel.h
+    ../src/video/videosourcemanager.cpp
+    ../src/video/videosourcemanager.h
     ../src/video/videosourceaggregator.cpp
     ../src/video/videosourceaggregator.h
 )
@@ -240,8 +240,8 @@ qt_add_executable(tst_mainwindow
     ../src/video/videosource.cpp
     ../src/video/videosource.h
     ../src/video/sourcetransform.h
-    ../src/video/videosourcemodel.cpp
-    ../src/video/videosourcemodel.h
+    ../src/video/videosourcemanager.cpp
+    ../src/video/videosourcemanager.h
     ../src/video/image/imagesourcecontroller.cpp
     ../src/video/image/imagesourcecontroller.h
     ../src/video/videosourceaggregator.cpp
@@ -368,7 +368,7 @@ set_tests_properties(ui.previewwidget PROPERTIES
 qt_add_executable(tst_imagesourcecontroller
     video/tst_imagesourcecontroller.cpp
     ../src/video/videosource.cpp
-    ../src/video/videosourcemodel.cpp
+    ../src/video/videosourcemanager.cpp
     ../src/video/image/imagesourcecontroller.cpp
     ../src/video/image/imagesourcecontroller.h
     ../src/graphics/previewsource.h
@@ -387,8 +387,8 @@ set_tests_properties(core.imagesourcecontroller PROPERTIES LABELS "core;smoke" T
 
 qt_add_executable(tst_cameracapture video/tst_cameracapture.cpp
     ../src/video/videosource.cpp
-    ../src/video/videosourcemodel.cpp
-    ../src/video/videosourcemodel.h
+    ../src/video/videosourcemanager.cpp
+    ../src/video/videosourcemanager.h
     ../src/video/camera/cameracaptureworker.h
     ../src/video/camera/cameracaptureworker.cpp
     ../src/video/camera/camerasourcecontroller.h
@@ -412,5 +412,5 @@ set_tests_properties(capture.camera PROPERTIES LABELS "capture;camera" TIMEOUT 6
 qt_add_resources(tst_mainwindow "style"
     PREFIX "/"
     BASE "${PROJECT_SOURCE_DIR}"
-    FILES "${PROJECT_SOURCE_DIR}/assets/styles/studio.qss"
+    FILES "${PROJECT_SOURCE_DIR}/assets/styles/style.qss"
 )

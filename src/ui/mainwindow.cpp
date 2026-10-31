@@ -2,7 +2,7 @@
 #include "ui/outputwidgets.h"
 #include "ui/sourcewidgets.h"
 #include "ui/audiowidgets.h"
-#include "video/videosourcemodel.h"
+#include "video/videosourcemanager.h"
 #include "video/videosourceaggregator.h"
 #include "video/image/imagesourcecontroller.h"
 #include "video/display/displaysourcecontroller.h"
@@ -31,13 +31,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     setMinimumSize(960, 640);
     resize(1280, 720);
 
-    m_videoSourceModel = new VideoSourceModel;
+    m_videoSourceManager = new VideoSourceManager;
     m_audioSourceModel = new AudioSourceModel;
     m_outputSettings = new OutputSettings;
-    m_imageSourceController = new ImageSourceController(*m_videoSourceModel, this);
-    m_displaySourceController = new DisplaySourceController(*m_videoSourceModel, this);
-    m_cameraSourceController = new CameraSourceController(*m_videoSourceModel, this);
-    m_videoSourceAggregator = new VideoSourceAggregator(*m_videoSourceModel, this);
+    m_imageSourceController = new ImageSourceController(*m_videoSourceManager, this);
+    m_displaySourceController = new DisplaySourceController(*m_videoSourceManager, this);
+    m_cameraSourceController = new CameraSourceController(*m_videoSourceManager, this);
+    m_videoSourceAggregator = new VideoSourceAggregator(*m_videoSourceManager, this);
     connect(m_displaySourceController, &DisplaySourceController::sourcesChanged,
             m_videoSourceAggregator, &VideoSourceAggregator::setDisplaySources);
     connect(m_imageSourceController, &ImageSourceController::sourcesChanged,
@@ -75,13 +75,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
 
     const auto showSourceError = [this](const QString &id, const QString &message) {
         QString name = tr("图片");
-        for (int row = 0; row < m_videoSourceModel->rowCount(); ++row) {
-            const auto index = m_videoSourceModel->index(row, 0);
-            if (index.data(VideoSourceModel::IdRole).toString() == id) {
-                name = index.data(VideoSourceModel::NameRole).toString();
-                break;
-            }
-        }
+        if (const auto *source = m_videoSourceManager->source(id))
+            name = source->name;
         statusBar()->showMessage(tr("来源“%1”：%2").arg(name, message));
     };
 
@@ -98,7 +93,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     // Do not pass `this` when constructing these objects above: Qt deletes child
     // objects in child-list order. Set their parent after creating the docks so
     // the dock widgets are destroyed before the models/settings they reference.
-    m_videoSourceModel->setParent(this);
+    m_videoSourceManager->setParent(this);
     m_audioSourceModel->setParent(this);
     m_outputSettings->setParent(this);
 }
@@ -210,7 +205,7 @@ void MainWindow::showOutputSettingsDialog()
 
 void MainWindow::showSourceAddDialog()
 {
-    createSourceAddDialog(this, m_videoSourceModel, m_imageSourceController,
+    createSourceAddDialog(this, m_videoSourceManager, m_imageSourceController,
                           m_displaySourceController, m_cameraSourceController)
         ->open();
 }
@@ -250,23 +245,19 @@ void MainWindow::showAudioSourceRemovalDialog(const QString &sourceId)
 
 void MainWindow::showSourceRemovalDialog(const QString &sourceId)
 {
-    for (int row = 0; row < m_videoSourceModel->rowCount(); ++row) {
-        const auto index = m_videoSourceModel->index(row, 0);
-        if (index.data(VideoSourceModel::IdRole).toString() != sourceId)
-            continue;
-        createRemovalDialog(this, index.data(VideoSourceModel::NameRole).toString(),
-                            tr("仅从来源列表移除，不会删除磁盘上的文件。"),
-                            [this, sourceId] {
-                                return m_videoSourceModel->removeSource(sourceId);
-                            })
-            ->open();
+    const auto *source = m_videoSourceManager->source(sourceId);
+    if (!source)
         return;
-    }
+    createRemovalDialog(this, source->name, tr("仅从来源列表移除，不会删除磁盘上的文件。"),
+                        [this, sourceId] {
+                            return m_videoSourceManager->removeSource(sourceId);
+                        })
+        ->open();
 }
 
 void MainWindow::showSourceFiltersDialog(const QString &sourceId)
 {
-    if (!m_videoSourceModel->canFilterSource(sourceId))
+    if (!m_videoSourceManager->canFilterSource(sourceId))
         return;
     for (auto *dialog : findChildren<QDialog *>()) {
         if (dialog->property("filterSourceId").toString() == sourceId) {
@@ -276,13 +267,13 @@ void MainWindow::showSourceFiltersDialog(const QString &sourceId)
             return;
         }
     }
-    createSourceFiltersDialog(this, m_videoSourceModel, sourceId)->open();
+    createSourceFiltersDialog(this, m_videoSourceManager, sourceId)->open();
 }
 
 void MainWindow::showSourcePropertiesDialog(const QString &sourceId)
 {
-    if (m_videoSourceModel->cameraProperties(sourceId).isEmpty() &&
-        m_videoSourceModel->displayProperties(sourceId).isEmpty())
+    if (m_videoSourceManager->cameraProperties(sourceId).isEmpty() &&
+        m_videoSourceManager->displayProperties(sourceId).isEmpty())
         return;
     for (auto *dialog : findChildren<QDialog *>()) {
         if (dialog->property("displaySourceId").toString() == sourceId) {
@@ -292,7 +283,7 @@ void MainWindow::showSourcePropertiesDialog(const QString &sourceId)
             return;
         }
     }
-    createSourcePropertiesDialog(this, m_videoSourceModel, sourceId, m_displaySourceController,
+    createSourcePropertiesDialog(this, m_videoSourceManager, sourceId, m_displaySourceController,
                                  m_cameraSourceController)
         ->open();
 }
@@ -336,15 +327,15 @@ void MainWindow::setupPreview()
             &PreviewWidget::setSources);
     connect(preview, &PreviewWidget::gpuTransferFailed, m_displaySourceController,
             &DisplaySourceController::failTransfer, Qt::QueuedConnection);
-    connect(preview, &PreviewWidget::selectionRequested, m_videoSourceModel,
-            &VideoSourceModel::selectSource);
-    connect(preview, &PreviewWidget::transformRequested, m_videoSourceModel,
-            &VideoSourceModel::setSourceTransform);
-    connect(m_videoSourceModel, &VideoSourceModel::currentSourceIdChanged, preview,
+    connect(preview, &PreviewWidget::selectionRequested, m_videoSourceManager,
+            &VideoSourceManager::selectSource);
+    connect(preview, &PreviewWidget::transformRequested, m_videoSourceManager,
+            &VideoSourceManager::setSourceTransform);
+    connect(m_videoSourceManager, &VideoSourceManager::currentSourceIdChanged, preview,
             [this, preview] {
-                preview->setSelectedSourceId(m_videoSourceModel->currentSourceId());
+                preview->setSelectedSourceId(m_videoSourceManager->currentSourceId());
             });
-    preview->setSelectedSourceId(m_videoSourceModel->currentSourceId());
+    preview->setSelectedSourceId(m_videoSourceManager->currentSourceId());
     pages->addWidget(preview);
     pages->setCurrentWidget(preview);
 }
@@ -367,7 +358,7 @@ void MainWindow::setupSourcesDock()
     m_videoSourceDock->setMinimumWidth(220);
     m_videoSourceDock->setMaximumWidth(320);
 
-    auto *panel = new SourcesPanel(m_videoSourceModel, m_videoSourceDock);
+    auto *panel = new SourcesPanel(m_videoSourceManager, m_videoSourceDock);
     m_videoSourceDock->setWidget(panel);
     connect(panel, &SourcesPanel::addRequested, this, &MainWindow::showSourceAddDialog);
     connect(panel, &SourcesPanel::removalRequested, this, &MainWindow::showSourceRemovalDialog);

@@ -3,7 +3,7 @@
 #include <QWidget>
 #include <functional>
 
-class VideoSourceModel;
+class VideoSourceManager;
 class ImageSourceController;
 class DisplaySourceController;
 class CameraSourceController;
@@ -14,7 +14,7 @@ class SourcesPanel : public QWidget
     Q_OBJECT
 
 public:
-    explicit SourcesPanel(VideoSourceModel *model, QWidget *parent = nullptr);
+    explicit SourcesPanel(VideoSourceManager *manager, QWidget *parent = nullptr);
 
 signals:
     void addRequested();
@@ -23,12 +23,12 @@ signals:
     void propertiesRequested(const QString &id);
 };
 
-QDialog *createSourceAddDialog(QWidget *parent, VideoSourceModel *model,
+QDialog *createSourceAddDialog(QWidget *parent, VideoSourceManager *manager,
                                ImageSourceController *images, DisplaySourceController *displays,
                                CameraSourceController *cameras);
-QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceModel *model, const QString &id,
-                                      DisplaySourceController *displays,
+QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceManager *manager,
+                                      const QString &id, DisplaySourceController *displays,
                                       CameraSourceController *cameras);
-QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceModel *model, const QString &id);
+QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager, const QString &id);
 QDialog *createRemovalDialog(QWidget *parent, const QString &name, const QString &hint,
                              const std::function<bool()> &remove);

@@ -1,5 +1,5 @@
 #include "ui/sourcewidgets.h"
-#include "video/videosourcemodel.h"
+#include "video/videosourcemanager.h"
 #include "video/image/imagesourcecontroller.h"
 #include "video/display/displaysourcecontroller.h"
 #include "video/camera/camerasourcecontroller.h"
@@ -21,6 +21,7 @@
 #include <QStackedLayout>
 #include <QToolButton>
 #include <QVBoxLayout>
+#include <array>
 
 namespace {
 QToolButton *action(QWidget *parent, const char *name, const QString &text, const char *icon)
@@ -210,7 +211,7 @@ public:
 };
 }
 
-SourcesPanel::SourcesPanel(VideoSourceModel *model, QWidget *parent) : QWidget(parent)
+SourcesPanel::SourcesPanel(VideoSourceManager *manager, QWidget *parent) : QWidget(parent)
 {
     setObjectName("sourcesPanel");
     setAttribute(Qt::WA_StyledBackground);
@@ -261,51 +262,59 @@ SourcesPanel::SourcesPanel(VideoSourceModel *model, QWidget *parent) : QWidget(p
         QSignalBlocker block(list);
         int selected = -1;
         for (int row = 0; row < list->count(); ++row)
-            if (list->item(row)->data(Qt::UserRole).toString() == model->currentSourceId())
+            if (list->item(row)->data(Qt::UserRole).toString() == manager->currentSourceId())
                 selected = row;
         list->setCurrentRow(selected);
         remove->setEnabled(selected >= 0);
-        up->setEnabled(model->canMoveCurrentSourceUp());
-        down->setEnabled(model->canMoveCurrentSourceDown());
-        filters->setEnabled(model->canFilterCurrentSource());
-        properties->setEnabled(model->canEditCurrentSource());
+        up->setEnabled(manager->canMoveCurrentSourceUp());
+        down->setEnabled(manager->canMoveCurrentSourceDown());
+        filters->setEnabled(manager->canFilterCurrentSource());
+        properties->setEnabled(manager->canEditCurrentSource());
     };
 
-    const auto update = [=] {
+    const auto updateRow = [=](const QString &id) {
+        const auto *source = manager->source(id);
+        if (!source)
+            return;
+        QListWidgetItem *item = nullptr;
         for (int row = 0; row < list->count(); ++row) {
-            auto index = model->index(row, 0);
-            auto *item = list->item(row);
-            auto *widget = list->itemWidget(item);
-            const auto name = index.data(VideoSourceModel::NameRole).toString();
-            auto *text = widget->findChild<QLabel *>();
-            text->setText(name + (index.data(VideoSourceModel::CaptureStateRole) == "error"
-                                      ? tr(" · 采集失败")
-                                      : QString()));
-
-            const auto error = index.data(VideoSourceModel::CaptureErrorRole).toString();
-            text->setToolTip(error.isEmpty() ? name : error);
-            item->setData(Qt::AccessibleTextRole, name);
-            item->setData(Qt::AccessibleDescriptionRole, error);
-            for (auto pair : {qMakePair("sourceVisibilityButton", VideoSourceModel::VisibleRole),
-                              qMakePair("sourceLockButton", VideoSourceModel::LockedRole)}) {
-                auto *button = widget->findChild<QToolButton *>(pair.first);
-                const bool enabled = index.data(pair.second).toBool();
-                const QString icon = pair.second == VideoSourceModel::VisibleRole
-                                         ? (enabled ? "eye" : "eye-off")
-                                         : (enabled ? "lock" : "lock-open");
-                button->setIcon(QIcon(":/assets/icons/" + icon + ".svg"));
-                button->setChecked(enabled);
+            if (list->item(row)->data(Qt::UserRole).toString() == id) {
+                item = list->item(row);
+                break;
             }
         }
-        empty->setVisible(model->rowCount() == 0);
-        selection();
+        if (!item)
+            return;
+        auto *widget = list->itemWidget(item);
+        QString state, error;
+        if (const auto *display = std::get_if<DisplaySourceDetails>(&source->details)) {
+            state = display->runtime.captureState;
+            error = display->runtime.captureError;
+        } else if (const auto *camera = std::get_if<CameraSourceDetails>(&source->details)) {
+            state = camera->runtime.captureState;
+            error = camera->runtime.captureError;
+        }
+        auto *text = widget->findChild<QLabel *>();
+        text->setText(source->name + (state == "error" ? tr(" · 采集失败") : QString()));
+        text->setToolTip(error.isEmpty() ? source->name : error);
+        item->setData(Qt::AccessibleTextRole, source->name);
+        item->setData(Qt::AccessibleDescriptionRole, error);
+
+        auto *visibility = widget->findChild<QToolButton *>("sourceVisibilityButton");
+        visibility->setChecked(source->visible);
+        visibility->setIcon(
+            QIcon(source->visible ? ":/assets/icons/eye.svg" : ":/assets/icons/eye-off.svg"));
+        auto *lock = widget->findChild<QToolButton *>("sourceLockButton");
+        lock->setChecked(source->locked);
+        lock->setIcon(
+            QIcon(source->locked ? ":/assets/icons/lock.svg" : ":/assets/icons/lock-open.svg"));
     };
 
     const auto rebuild = [=] {
         QSignalBlocker block(list);
         list->clear();
-        for (int row = 0; row < model->rowCount(); ++row) {
-            const auto id = model->index(row, 0).data(VideoSourceModel::IdRole).toString();
+        for (const auto &source : manager->sources()) {
+            const auto id = source.id;
             auto *item = new QListWidgetItem(list);
             item->setData(Qt::UserRole, id);
             item->setSizeHint(QSize(180, 34));
@@ -332,41 +341,42 @@ SourcesPanel::SourcesPanel(VideoSourceModel *model, QWidget *parent) : QWidget(p
             visible->setCheckable(true);
             locked->setCheckable(true);
             connect(visible, &QToolButton::clicked, this, [=](bool value) {
-                model->setSourceVisible(id, value);
+                manager->setSourceVisible(id, value);
             });
             connect(locked, &QToolButton::clicked, this, [=](bool value) {
-                model->setSourceLocked(id, value);
+                manager->setSourceLocked(id, value);
             });
             list->setItemWidget(item, widget);
         }
-        update();
+        empty->setVisible(manager->sources().isEmpty());
+        for (const auto &source : manager->sources())
+            updateRow(source.id);
+        selection();
     };
 
-    connect(model, &QAbstractItemModel::rowsInserted, this, rebuild);
-    connect(model, &QAbstractItemModel::rowsRemoved, this, rebuild);
-    connect(model, &QAbstractItemModel::rowsMoved, this, rebuild);
-    connect(model, &QAbstractItemModel::modelReset, this, rebuild);
-    connect(model, &QAbstractItemModel::dataChanged, this, update);
-    connect(model, &VideoSourceModel::currentSourceIdChanged, this, selection);
-    connect(model, &VideoSourceModel::sourceMoveAvailabilityChanged, this, selection);
+    connect(manager, &VideoSourceManager::sourcesChanged, this, rebuild);
+    connect(manager, &VideoSourceManager::sourceChanged, this, updateRow);
+    connect(manager, &VideoSourceManager::sourceStatusChanged, this, updateRow);
+    connect(manager, &VideoSourceManager::currentSourceIdChanged, this, selection);
+    connect(manager, &VideoSourceManager::sourceMoveAvailabilityChanged, this, selection);
     connect(list, &QListWidget::currentRowChanged, this, [=](int row) {
-        model->selectSource(row < 0 ? QString() : list->item(row)->data(Qt::UserRole).toString());
+        manager->selectSource(row < 0 ? QString() : list->item(row)->data(Qt::UserRole).toString());
     });
     connect(add, &QToolButton::clicked, this, &SourcesPanel::addRequested);
     connect(remove, &QToolButton::clicked, this, [=] {
-        emit removalRequested(model->currentSourceId());
+        emit removalRequested(manager->currentSourceId());
     });
     connect(up, &QToolButton::clicked, this, [=] {
-        model->moveSource(model->currentSourceId(), -1);
+        manager->moveSource(manager->currentSourceId(), -1);
     });
     connect(down, &QToolButton::clicked, this, [=] {
-        model->moveSource(model->currentSourceId(), 1);
+        manager->moveSource(manager->currentSourceId(), 1);
     });
     connect(filters, &QToolButton::clicked, this, [=] {
-        emit filtersRequested(model->currentSourceId());
+        emit filtersRequested(manager->currentSourceId());
     });
     connect(properties, &QToolButton::clicked, this, [=] {
-        emit propertiesRequested(model->currentSourceId());
+        emit propertiesRequested(manager->currentSourceId());
     });
     rebuild();
 }
@@ -407,7 +417,7 @@ QDialog *createRemovalDialog(QWidget *parent, const QString &name, const QString
     return dialog;
 }
 
-QDialog *createSourceAddDialog(QWidget *parent, VideoSourceModel *model,
+QDialog *createSourceAddDialog(QWidget *parent, VideoSourceManager *manager,
                                ImageSourceController *images, DisplaySourceController *displays,
                                CameraSourceController *cameras)
 {
@@ -422,7 +432,7 @@ QDialog *createSourceAddDialog(QWidget *parent, VideoSourceModel *model,
     type->addItem(QObject::tr("摄像头"), "camera");
     type->addItem(QObject::tr("图片"), "image");
 
-    auto *name = new QLineEdit(model->suggestedSourceName(type->currentText()), dialog);
+    auto *name = new QLineEdit(manager->suggestedSourceName(type->currentText()), dialog);
     name->setObjectName("sourceNameInput");
     form->addRow(QObject::tr("来源类型"), type);
     form->addRow(QObject::tr("名称"), name);
@@ -494,7 +504,7 @@ QDialog *createSourceAddDialog(QWidget *parent, VideoSourceModel *model,
         pages->setCurrentIndex(index);
         error->clear();
         if (!dialog->property("nameEdited").toBool())
-            name->setText(model->suggestedSourceName(type->currentText()));
+            name->setText(manager->suggestedSourceName(type->currentText()));
         if (index == 1 && !cameraPage->findChild<QComboBox *>("cameraDeviceInput")) {
             auto *camera = new CaptureSettings(cameraPage, displays, cameras, true);
             cameraLayout->addWidget(camera);
@@ -555,11 +565,11 @@ QDialog *createSourceAddDialog(QWidget *parent, VideoSourceModel *model,
     return dialog;
 }
 
-QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceModel *model, const QString &id,
-                                      DisplaySourceController *displays,
+QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceManager *manager,
+                                      const QString &id, DisplaySourceController *displays,
                                       CameraSourceController *cameras)
 {
-    const bool camera = !model->cameraProperties(id).isEmpty();
+    const bool camera = !manager->cameraProperties(id).isEmpty();
 
     auto *dialog =
         dialogShell(parent, camera ? "cameraPropertiesDialog" : "displayPropertiesDialog",
@@ -567,9 +577,9 @@ QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceModel *model, 
     dialog->setProperty("displaySourceId", id);
 
     auto *layout = new QVBoxLayout(dialog);
-    auto *settings =
-        new CaptureSettings(dialog, displays, cameras, camera,
-                            camera ? model->cameraProperties(id) : model->displayProperties(id));
+    auto *settings = new CaptureSettings(dialog, displays, cameras, camera,
+                                         camera ? manager->cameraProperties(id)
+                                                : manager->displayProperties(id));
     layout->addWidget(settings);
 
     auto *state = label(dialog, camera ? "cameraStateLabel" : "captureStateLabel");
@@ -593,7 +603,7 @@ QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceModel *model, 
         ->setObjectName(camera ? "cancelCameraPropertiesButton" : "closeDisplayPropertiesButton");
 
     const auto refresh = [=] {
-        auto info = camera ? model->cameraProperties(id) : model->displayProperties(id);
+        auto info = camera ? manager->cameraProperties(id) : manager->displayProperties(id);
         if (info.isEmpty()) {
             dialog->close();
             return;
@@ -618,13 +628,12 @@ QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceModel *model, 
     };
     settings->changed = refresh;
 
-    QObject::connect(model, &VideoSourceModel::captureStatusChanged, dialog,
+    QObject::connect(manager, &VideoSourceManager::sourceStatusChanged, dialog,
                      [=](const QString &sourceId) {
                          if (sourceId == id)
                              refresh();
                      });
-    QObject::connect(model, &QAbstractItemModel::rowsRemoved, dialog, refresh);
-    QObject::connect(model, &QAbstractItemModel::modelReset, dialog, refresh);
+    QObject::connect(manager, &VideoSourceManager::sourcesChanged, dialog, refresh);
     QObject::connect(apply, &QPushButton::clicked, dialog, [=] {
         bool success =
             camera ? cameras->applyProperties(id, settings->device->currentData().toString(),
@@ -647,7 +656,7 @@ QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceModel *model, 
     return dialog;
 }
 
-QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceModel *model, const QString &id)
+QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager, const QString &id)
 {
     auto *dialog = dialogShell(parent, "sourceFiltersDialog", QObject::tr("来源滤镜"));
     dialog->setProperty("filterSourceId", id);
@@ -717,29 +726,31 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceModel *model, con
     };
 
     const auto updateSelection = [=] {
-        const auto filters = model->sourceFilters(id);
+        const auto filters = manager->sourceFilters(id);
         const int index = list->currentRow();
 
-        const auto filter =
-            index >= 0 && index < filters.size() ? filters[index].toMap() : QVariantMap{};
-        remove->setEnabled(!filter.isEmpty());
-        reset->setEnabled(!filter.isEmpty());
+        const SourceFilter *filter =
+            index >= 0 && index < filters.size() ? &filters[index] : nullptr;
+        remove->setEnabled(filter != nullptr);
+        reset->setEnabled(filter != nullptr);
         up->setEnabled(index > 0);
         down->setEnabled(index >= 0 && index + 1 < filters.size());
-        int n = 0;
-        for (const auto &key : {"brightness", "contrast", "saturation"}) {
-            QSignalBlocker a(inputs[n]), b(sliders[n]);
-            const double value = filter.value(key, n ? 1 : 0).toDouble();
-            inputs[n]->setValue(value);
-            sliders[n]->setValue(qRound(value * 100));
-            inputs[n]->setEnabled(!filter.isEmpty());
-            sliders[n]->setEnabled(!filter.isEmpty());
-            ++n;
+
+        std::array<double, 3> values{0, 1, 1};
+        if (filter)
+            values = {filter->brightness, filter->contrast, filter->saturation};
+        for (int n = 0; n < inputs.size(); ++n) {
+            QSignalBlocker inputBlocker(inputs[n]);
+            QSignalBlocker sliderBlocker(sliders[n]);
+            inputs[n]->setValue(values[n]);
+            sliders[n]->setValue(qRound(values[n] * 100));
+            inputs[n]->setEnabled(filter != nullptr);
+            sliders[n]->setEnabled(filter != nullptr);
         }
     };
 
     const auto refresh = [=] {
-        if (!model->canFilterSource(id)) {
+        if (!manager->canFilterSource(id)) {
             dialog->close();
             return;
         }
@@ -748,13 +759,12 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceModel *model, con
         QSignalBlocker blocker(list);
         list->clear();
         int index = 0;
-        for (const auto &value : model->sourceFilters(id)) {
-            auto entry = value.toMap();
+        for (const auto &entry : manager->sourceFilters(id)) {
             auto *item = new QListWidgetItem(QObject::tr("色彩校正 %1").arg(++index), list);
-            item->setData(Qt::UserRole, entry.value("id"));
+            item->setData(Qt::UserRole, entry.id);
             item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
-            item->setCheckState(entry.value("enabled").toBool() ? Qt::Checked : Qt::Unchecked);
-            if (entry.value("id").toString() == current)
+            item->setCheckState(entry.enabled ? Qt::Checked : Qt::Unchecked);
+            if (entry.id == current)
                 list->setCurrentItem(item);
         }
         if (!list->currentItem() && list->count())
@@ -764,8 +774,8 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceModel *model, con
 
     const auto parameters = [=] {
         if (!selected().isEmpty())
-            model->setFilterParameters(id, selected(), inputs[0]->value(), inputs[1]->value(),
-                                       inputs[2]->value());
+            manager->setFilterParameters(id, selected(), inputs[0]->value(), inputs[1]->value(),
+                                         inputs[2]->value());
     };
     for (int n = 0; n < inputs.size(); ++n) {
         QObject::connect(inputs[n], &QDoubleSpinBox::valueChanged, dialog, parameters);
@@ -773,35 +783,34 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceModel *model, con
             inputs[n]->setValue(value / 100.);
         });
     }
-    QObject::connect(model, &VideoSourceModel::sourceFiltersChanged, dialog,
+    QObject::connect(manager, &VideoSourceManager::sourceFiltersChanged, dialog,
                      [=](const QString &source) {
                          if (source == id)
                              refresh();
                      });
-    QObject::connect(model, &QAbstractItemModel::rowsRemoved, dialog, refresh);
-    QObject::connect(model, &QAbstractItemModel::modelReset, dialog, refresh);
+    QObject::connect(manager, &VideoSourceManager::sourcesChanged, dialog, refresh);
     QObject::connect(list, &QListWidget::currentRowChanged, dialog, updateSelection);
     QObject::connect(list, &QListWidget::itemChanged, dialog, [=](QListWidgetItem *item) {
-        model->setFilterEnabled(id, item->data(Qt::UserRole).toString(),
-                                item->checkState() == Qt::Checked);
+        manager->setFilterEnabled(id, item->data(Qt::UserRole).toString(),
+                                  item->checkState() == Qt::Checked);
     });
     QObject::connect(add, &QToolButton::clicked, dialog, [=] {
-        const auto added = model->addColorCorrection(id);
+        const auto added = manager->addColorCorrection(id);
         for (int n = 0; n < list->count(); ++n)
             if (list->item(n)->data(Qt::UserRole).toString() == added)
                 list->setCurrentRow(n);
     });
     QObject::connect(remove, &QToolButton::clicked, dialog, [=] {
-        model->removeFilter(id, selected());
+        manager->removeFilter(id, selected());
     });
     QObject::connect(up, &QToolButton::clicked, dialog, [=] {
-        model->moveFilter(id, selected(), -1);
+        manager->moveFilter(id, selected(), -1);
     });
     QObject::connect(down, &QToolButton::clicked, dialog, [=] {
-        model->moveFilter(id, selected(), 1);
+        manager->moveFilter(id, selected(), 1);
     });
     QObject::connect(reset, &QPushButton::clicked, dialog, [=] {
-        model->setFilterParameters(id, selected(), 0, 1, 1);
+        manager->setFilterParameters(id, selected(), 0, 1, 1);
     });
 
     auto *close = new QDialogButtonBox(QDialogButtonBox::Close, dialog);

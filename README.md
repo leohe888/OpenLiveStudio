@@ -1,11 +1,11 @@
 # OpenLive Studio
 
-基于 Qt6 的 Windows 桌面录制与直播工具，界面全部采用 Qt Widgets，以 C++ 布局编写。界面固定使用浅色配色，样式集中定义在 `assets/styles/studio.qss`，不提供主题切换。
+基于 Qt6 的 Windows 桌面录制与直播工具，界面全部采用 Qt Widgets，以 C++ 布局编写。界面固定使用浅色配色，样式集中定义在 `assets/styles/style.qss`，不提供主题切换。
 
 ## 目录结构
 
 - `src/core/`：跨模块基础设施，如媒体时钟和输出订阅队列。
-- `src/video/`：画面源数据、模型、变换和滤镜；`image/`、`display/`、`camera/` 分别存放对应来源的控制器与采集实现。
+- `src/video/`：画面源数据、来源管理、变换和滤镜；`image/`、`display/`、`camera/` 分别存放对应来源的控制器与采集实现。
 - `src/audio/`：声音源模型、音频采集、重采样和混音。
 - `src/graphics/`：画面合成、渲染、共享帧和 GPU 资源交接。
 - `src/output/`：编码、录制、推流和输出设置。
@@ -13,9 +13,11 @@
 - `tests/`：按 `video/`、`audio/`、`graphics/`、`output/`、`ui/` 分组，公共测试辅助代码放在 `support/`。
 - `assets/`：图标和着色器；`docs/`：功能与验收说明；`tools/`：开发和验证脚本。
 
-C++ 项目头文件统一以 `src/` 为引用根目录，例如 `#include "video/videosourcemodel.h"`。
+C++ 项目头文件统一以 `src/` 为引用根目录，例如 `#include "video/videosourcemanager.h"`。
 
-界面使用 C++ 与 Qt 布局管理器构建，不使用 `.ui` 文件。`sourcewidgets`、`audiowidgets`、`outputwidgets` 分别负责画面来源、声音来源和输出控制界面，复用现有模型与控制器。样式由启动时加载的 `assets/styles/studio.qss` 统一控制，操作图标使用 `assets/icons/` 中的 Lucide SVG；预览保留 `QOpenGLWidget`。
+界面使用 C++ 与 Qt 布局管理器构建，不使用 `.ui` 文件。`sourcewidgets`、`audiowidgets`、`outputwidgets` 分别负责画面来源、声音来源和输出控制界面，复用来源管理类、音频模型与控制器。样式由启动时加载的 `assets/styles/style.qss` 统一控制，操作图标使用 `assets/icons/` 中的 Lucide SVG；预览保留 `QOpenGLWidget`。
+
+`VideoSourceManager` 是普通的 `QObject`，通过 `sources()` 和 `source(id)` 提供只读的 `VideoSource` 数据。来源列表的增删和排序触发 `sourcesChanged`；单个来源的配置及状态变化分别触发 `sourceChanged` 和 `sourceStatusChanged`，面板按来源 ID 更新对应行。
 
 QSS 编入 Qt 资源，修改后重新构建并启动程序即可生效。预览的 `qproperty-selectionColor`、`qproperty-surroundingColor` 和电平条的 `qproperty-normalColor`、`qproperty-warningColor`、`qproperty-clippingColor` 也在同一文件配置；声音通道使用 `[selected="true"]` 表示选中状态。
 

@@ -8,23 +8,45 @@
 #include <QSet>
 #include <map>
 #include <vector>
-class VideoSourceModel;
-class CameraSourceController : public QObject {
+class VideoSourceManager;
+
+class CameraSourceController : public QObject
+{
     Q_OBJECT
     Q_PROPERTY(QVariantList devices READ devices NOTIFY devicesChanged)
     Q_PROPERTY(bool refreshing READ refreshing NOTIFY devicesChanged)
     Q_PROPERTY(QString catalogError READ catalogError NOTIFY devicesChanged)
 public:
-    explicit CameraSourceController(VideoSourceModel &model, QObject *parent = nullptr);
+    explicit CameraSourceController(VideoSourceManager &manager, QObject *parent = nullptr);
     ~CameraSourceController() override;
-    QVariantList devices() const { return m_devices; }
-    bool refreshing() const { return m_refreshing; }
-    QString catalogError() const { return m_catalogError; }
+
+    QVariantList devices() const
+    {
+        return m_devices;
+    }
+
+    bool refreshing() const
+    {
+        return m_refreshing;
+    }
+
+    QString catalogError() const
+    {
+        return m_catalogError;
+    }
+
     Q_INVOKABLE void refreshDevices();
     Q_INVOKABLE void requestModes(const QString &deviceId);
-    Q_INVOKABLE QVariantList modes(const QString &deviceId) const { return m_modes.value(deviceId); }
-    Q_INVOKABLE QString addCamera(const QString &name, const QString &deviceId, const QVariantMap &mode);
-    Q_INVOKABLE bool applyProperties(const QString &sourceId, const QString &deviceId, const QVariantMap &mode);
+
+    Q_INVOKABLE QVariantList modes(const QString &deviceId) const
+    {
+        return m_modes.value(deviceId);
+    }
+
+    Q_INVOKABLE QString addCamera(const QString &name, const QString &deviceId,
+                                  const QVariantMap &mode);
+    Q_INVOKABLE bool applyProperties(const QString &sourceId, const QString &deviceId,
+                                     const QVariantMap &mode);
     Q_INVOKABLE bool retry(const QString &sourceId);
     int activeWorkerCount() const;
 signals:
@@ -32,19 +54,22 @@ signals:
     void modesChanged(const QString &deviceId, const QString &error);
     void sourcesChanged(const QList<PreviewSource> &sources);
     void sourceError(const QString &id, const QString &message);
+
 private:
-    struct Entry {
+    struct Entry
+    {
         CameraConfig config;
         bool failed = false;
         quint64 generation = 0;
         std::unique_ptr<CameraCaptureWorker> worker;
         std::shared_ptr<const CameraFrame> frame;
     };
+
     void synchronize();
     void poll();
     void publish();
     void stop(Entry &entry);
-    VideoSourceModel &m_model;
+    VideoSourceManager &m_sourceManager;
     QVariantList m_devices;
     QHash<QString, QVariantList> m_modes;
     QSet<QString> m_querying;

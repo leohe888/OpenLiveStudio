@@ -25,8 +25,8 @@ qt_add_executable(OpenLiveStudio
     src/video/videosource.h
     src/video/sourcefilter.h
     src/video/sourcetransform.h
-    src/video/videosourcemodel.cpp
-    src/video/videosourcemodel.h
+    src/video/videosourcemanager.cpp
+    src/video/videosourcemanager.h
     src/video/videosourceaggregator.cpp
     src/video/videosourceaggregator.h
     src/video/image/imagesourcecontroller.cpp
@@ -166,5 +166,5 @@ endif()
 qt_add_resources(OpenLiveStudio "style"
     PREFIX "/"
     BASE "${PROJECT_SOURCE_DIR}"
-    FILES "${PROJECT_SOURCE_DIR}/assets/styles/studio.qss"
+    FILES "${PROJECT_SOURCE_DIR}/assets/styles/style.qss"
 )

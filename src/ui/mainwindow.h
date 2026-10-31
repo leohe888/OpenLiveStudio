@@ -5,7 +5,7 @@
 
 class QDockWidget;
 class QLabel;
-class VideoSourceModel;
+class VideoSourceManager;
 class VideoSourceAggregator;
 class ImageSourceController;
 class DisplaySourceController;
@@ -51,7 +51,7 @@ private:
     QDockWidget *m_audioSourceDock = nullptr;
     QDockWidget *m_controlDock = nullptr;
     QLabel *m_outputStatus = nullptr;
-    VideoSourceModel *m_videoSourceModel = nullptr;
+    VideoSourceManager *m_videoSourceManager = nullptr;
     VideoSourceAggregator *m_videoSourceAggregator = nullptr;
     ImageSourceController *m_imageSourceController = nullptr;
     DisplaySourceController *m_displaySourceController = nullptr;
