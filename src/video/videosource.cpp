@@ -4,17 +4,16 @@
 
 bool CameraSourceParams::isValid() const
 {
-    return !deviceId.trimmed().isEmpty() && requestedFrameRateDenominator > 0 &&
-           ((requestedResolution.isEmpty() && requestedFrameRateNumerator == 0) ||
-            (requestedResolution.isValid() && !requestedResolution.isEmpty() &&
-             requestedFrameRateNumerator > 0));
+    return !deviceId.trimmed().isEmpty() && frameRateDenominator > 0 &&
+           ((resolution.isEmpty() && frameRateNumerator == 0) ||
+            (resolution.isValid() && !resolution.isEmpty() && frameRateNumerator > 0));
 }
 
 bool CameraSourceParams::operator==(const CameraSourceParams &other) const
 {
-    return deviceId == other.deviceId && requestedResolution == other.requestedResolution &&
-           requestedFrameRateNumerator == other.requestedFrameRateNumerator &&
-           requestedFrameRateDenominator == other.requestedFrameRateDenominator;
+    return deviceId == other.deviceId && resolution == other.resolution &&
+           frameRateNumerator == other.frameRateNumerator &&
+           frameRateDenominator == other.frameRateDenominator;
 }
 
 bool CameraSourceParams::operator!=(const CameraSourceParams &other) const

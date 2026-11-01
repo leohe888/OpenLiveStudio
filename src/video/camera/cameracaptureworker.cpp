@@ -103,12 +103,11 @@ CameraMode modeInfo(IMFMediaType *type)
 
 bool matches(const CameraSourceParams &params, const CameraMode &mode)
 {
-    if (params.requestedResolution.isEmpty())
+    if (params.resolution.isEmpty())
         return true;
-    const double wanted =
-        double(params.requestedFrameRateNumerator) / params.requestedFrameRateDenominator;
+    const double wanted = double(params.frameRateNumerator) / params.frameRateDenominator;
     const double actual = double(mode.numerator) / mode.denominator;
-    return params.requestedResolution == QSize(mode.width, mode.height) &&
+    return params.resolution == QSize(mode.width, mode.height) &&
            std::abs(wanted - actual) <= std::max(0.001, wanted * 0.0001);
 }
 
@@ -431,7 +430,7 @@ void CameraCaptureWorker::run()
         check(MFCreateMediaType(&output));
         check(output->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video));
         check(output->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32));
-        if (!m_params.requestedResolution.isEmpty()) {
+        if (!m_params.resolution.isEmpty()) {
             bool selected = false;
             for (DWORD i = 0;; ++i) {
                 ComPtr<IMFMediaType> type;

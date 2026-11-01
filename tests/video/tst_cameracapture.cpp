@@ -24,8 +24,8 @@ void CameraCaptureTest::typedModesPreserveDefaultsAndFrameRates()
     QVERIFY(!deviceDefault.isValid());
     const auto automatic = deviceDefault.params("camera");
     QVERIFY(automatic.isValid());
-    QVERIFY(automatic.requestedResolution.isEmpty());
-    QCOMPARE(automatic.requestedFrameRateNumerator, 0);
+    QVERIFY(automatic.resolution.isEmpty());
+    QCOMPARE(automatic.frameRateNumerator, 0);
 
     const CameraMode selected{1280, 720, 30000, 1001};
     const CameraMode equivalent{1280, 720, 60000, 2002};
@@ -35,9 +35,9 @@ void CameraCaptureTest::typedModesPreserveDefaultsAndFrameRates()
     QVERIFY(!selected.sameFormat(different));
     const auto params = selected.params("camera");
     QCOMPARE(params.deviceId, QString("camera"));
-    QCOMPARE(params.requestedResolution, QSize(1280, 720));
-    QCOMPARE(params.requestedFrameRateNumerator, 30000);
-    QCOMPARE(params.requestedFrameRateDenominator, 1001);
+    QCOMPARE(params.resolution, QSize(1280, 720));
+    QCOMPARE(params.frameRateNumerator, 30000);
+    QCOMPARE(params.frameRateDenominator, 1001);
     const CameraMode invalid{640, 480, 30, 0};
     QVERIFY(!invalid.isValid());
     QVERIFY(!invalid.params("camera").isValid());
@@ -51,7 +51,7 @@ void CameraCaptureTest::paramsAndLayout()
     const QString id = controller.addCamera("Camera", mode.params("missing-device"));
     QVERIFY(!id.isEmpty());
     QVERIFY(controller.addCamera("Duplicate", CameraSourceParams{"missing-device"}).isEmpty());
-    QCOMPARE(model.cameraSource(id)->requestedFrameRateDenominator, 1001);
+    QCOMPARE(model.cameraSource(id)->frameRateDenominator, 1001);
     QVERIFY(model.canEditCurrentSource());
     QVERIFY(model.canFilterCurrentSource());
     model.setCameraActualMode(id, {1280, 720}, 30000, 1001);
@@ -82,9 +82,7 @@ void CameraCaptureTest::unavailableDeviceAndLifecycle()
     });
     QImage image(8, 8, QImage::Format_RGB32);
     image.fill(Qt::red);
-    QVERIFY(model.addSource(
-        {"image", "Image",
-         ImageSourceParams{"unused"}}));
+    QVERIFY(model.addSource({"image", "Image", ImageSourceParams{"unused"}}));
     const QString id = controller.addCamera("Camera", CameraSourceParams{"missing-device"});
     QVERIFY(!id.isEmpty());
     QTRY_COMPARE_WITH_TIMEOUT(model.sourceStatus(id).state, QString("error"),
@@ -200,7 +198,7 @@ void CameraCaptureTest::hardware()
     QVERIFY(controller.applyProperties(ids[0], unsupported.params(deviceId)));
     QTRY_COMPARE_WITH_TIMEOUT(model.sourceStatus(ids[0]).state, QString("error"),
                               15000);
-    QCOMPARE(model.cameraSource(ids[0])->requestedResolution.width(), 9999);
+    QCOMPARE(model.cameraSource(ids[0])->resolution.width(), 9999);
     QVERIFY(controller.applyProperties(ids[0], mode.params(deviceId)));
     QTRY_COMPARE_WITH_TIMEOUT(model.sourceStatus(ids[0]).state,
                               QString("capturing"), 15000);

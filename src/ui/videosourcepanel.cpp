@@ -124,9 +124,8 @@ public:
         } else {
             const CameraSourceParams params =
                 initial ? std::get<CameraSourceParams>(initial->params) : CameraSourceParams{};
-            originalMode = {params.requestedResolution.width(), params.requestedResolution.height(),
-                            params.requestedFrameRateNumerator,
-                            params.requestedFrameRateDenominator};
+            originalMode = {params.resolution.width(), params.resolution.height(),
+                            params.frameRateNumerator, params.frameRateDenominator};
             mode = new QComboBox(this);
             mode->setObjectName("cameraModeInput");
             layout->addWidget(mode);

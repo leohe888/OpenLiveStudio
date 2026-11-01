@@ -299,8 +299,8 @@ void MainWindowTest::disconnectedDeviceDrafts()
     QVERIFY(!model->displaySource("display")->captureCursor);
     CameraSourceParams params;
     params.deviceId = "unavailable-camera";
-    params.requestedResolution = QSize(640, 480);
-    params.requestedFrameRateNumerator = 30;
+    params.resolution = QSize(640, 480);
+    params.frameRateNumerator = 30;
     QVERIFY(model->addSource({"camera", "Missing camera", params}));
     QVERIFY(model->selectSource("camera"));
     window.findChild<QToolButton *>("sourcePropertiesButton")->click();
@@ -459,8 +459,7 @@ void MainWindowTest::aggregatesIndependentSourceControllers()
     const auto path = directory.filePath("image.png");
     QVERIFY(pixels.save(path));
     QVERIFY(model->addSource({"image", "Image", ImageSourceParams{path}}));
-    VideoSource screen{"display", "Display",
-                       DisplaySourceParams{"missing-display"}};
+    VideoSource screen{"display", "Display", DisplaySourceParams{"missing-display"}};
     screen.visible = false; // Exercise wiring without opening physical devices.
     QVERIFY(model->addSource(screen));
     VideoSource webcam{"camera", "Camera", CameraSourceParams{"missing-camera"}};

@@ -24,9 +24,9 @@ struct CameraSourceParams
 {
     QString deviceId;
     // Invalid size and zero frame rate mean no explicit preference.
-    QSize requestedResolution;
-    int requestedFrameRateNumerator = 0;
-    int requestedFrameRateDenominator = 1;
+    QSize resolution;
+    int frameRateNumerator = 0;
+    int frameRateDenominator = 1;
     bool isValid() const;
     bool operator==(const CameraSourceParams &other) const;
     bool operator!=(const CameraSourceParams &other) const;
@@ -37,8 +37,7 @@ struct ImageSourceParams
     QString filePath;
 };
 
-using VideoSourceParams =
-    std::variant<DisplaySourceParams, CameraSourceParams, ImageSourceParams>;
+using VideoSourceParams = std::variant<DisplaySourceParams, CameraSourceParams, ImageSourceParams>;
 
 struct VideoSource
 {
