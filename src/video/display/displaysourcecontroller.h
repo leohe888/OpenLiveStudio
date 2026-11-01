@@ -32,7 +32,7 @@ public:
 signals:
     void displaysChanged();
     void sourcesChanged(const QList<PreviewSource> &sources);
-    void sourceError(const QString &sourceId, const QString &message);
+    void sourceFailed(const QString &sourceId, const QString &message);
 
 private:
     struct Entry

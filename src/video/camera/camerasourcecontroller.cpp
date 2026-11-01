@@ -172,7 +172,7 @@ void CameraSourceController::synchronize()
         }
         if (!item.visible) {
             stop(entry);
-            m_sourceManager.setSourceCaptureStatus(
+            m_sourceManager.setSourceStatus(
                 id, "paused",
                 entry.failed ? std::get<CameraSourceDetails>(item.details).runtime.captureError
                              : QString());
@@ -183,15 +183,15 @@ void CameraSourceController::synchronize()
                     return worker->deviceId() == config.deviceId && !worker->isFinished();
                 });
             if (retiring) {
-                m_sourceManager.setSourceCaptureStatus(id, "starting", {});
+                m_sourceManager.setSourceStatus(id, "starting", {});
                 continue;
             }
             entry.generation = ++m_generation;
             entry.worker = std::make_unique<CameraCaptureWorker>(config, entry.generation);
             entry.worker->start();
-            m_sourceManager.setSourceCaptureStatus(id, "starting", {});
+            m_sourceManager.setSourceStatus(id, "starting", {});
         } else if (entry.failed) {
-            m_sourceManager.setSourceCaptureStatus(
+            m_sourceManager.setSourceStatus(
                 id, "error", std::get<CameraSourceDetails>(item.details).runtime.captureError);
         }
     }
@@ -218,8 +218,8 @@ void CameraSourceController::poll()
         if (!error.isEmpty()) {
             stop(entry);
             entry.failed = true;
-            m_sourceManager.setSourceCaptureStatus(id, "error", error);
-            emit sourceError(id, error);
+            m_sourceManager.setSourceStatus(id, "error", error);
+            emit sourceFailed(id, error);
             changed = true;
         } else if (auto frame = entry.worker->takeLatest()) {
             if (frame->generation != entry.generation)
@@ -228,7 +228,7 @@ void CameraSourceController::poll()
             m_sourceManager.setCameraActualMode(id, entry.frame->image.size(),
                                                 entry.frame->rateNumerator,
                                                 entry.frame->rateDenominator);
-            m_sourceManager.setSourceCaptureStatus(id, "capturing", {});
+            m_sourceManager.setSourceStatus(id, "capturing", {});
             changed = true;
         }
     }

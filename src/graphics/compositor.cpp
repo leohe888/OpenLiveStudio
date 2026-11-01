@@ -28,7 +28,7 @@ bool Compositor::startRendering(QOpenGLContext *shareContext)
     m_context->setFormat(shareContext ? shareContext->format() : QSurfaceFormat::defaultFormat());
     if (shareContext) m_context->setShareContext(shareContext);
     if (!m_context->create() || (shareContext && !QOpenGLContext::areSharing(m_context.get(), shareContext))) {
-        emit renderingError(tr("无法创建独立 OpenGL 合成上下文或共享纹理。"));
+        emit renderingFailed(tr("无法创建独立 OpenGL 合成上下文或共享纹理。"));
         m_context.reset();
         return false;
     }
@@ -37,7 +37,7 @@ bool Compositor::startRendering(QOpenGLContext *shareContext)
     m_surface->setFormat(m_context->format());
     m_surface->create();
     if (!m_surface->isValid()) {
-        emit renderingError(tr("无法创建离屏合成表面。"));
+        emit renderingFailed(tr("无法创建离屏合成表面。"));
         m_surface.reset();
         m_context.reset();
         return false;
@@ -123,7 +123,7 @@ void Compositor::run()
             m_failed = true;
         }
         m_wake.notify_all();
-        emit renderingError(message);
+        emit renderingFailed(message);
     };
     auto contextOwner = std::move(m_context);
     auto &context = *contextOwner;
@@ -133,7 +133,8 @@ void Compositor::run()
     }
     {
         CanvasRenderer renderer;
-        connect(&renderer, &CanvasRenderer::sourceError, this, &Compositor::sourceError, Qt::DirectConnection);
+        connect(&renderer, &CanvasRenderer::sourceFailed, this, &Compositor::sourceFailed,
+                Qt::DirectConnection);
         connect(&renderer, &CanvasRenderer::gpuTransferFailed, this, &Compositor::gpuTransferFailed, Qt::DirectConnection);
         // Fatal errors are handled below so pending readbacks also wake up.
         if (!renderer.initialize()) {

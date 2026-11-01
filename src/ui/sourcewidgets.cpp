@@ -800,7 +800,7 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
                                   item->checkState() == Qt::Checked);
     });
     QObject::connect(add, &QToolButton::clicked, dialog, [=] {
-        const auto added = manager->addColorCorrection(sourceId);
+        const auto added = manager->addFilter(sourceId);
         for (int n = 0; n < list->count(); ++n)
             if (list->item(n)->data(Qt::UserRole).toString() == added)
                 list->setCurrentRow(n);

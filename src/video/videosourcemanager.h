@@ -27,9 +27,7 @@ public:
     bool setSourceTransform(const QString &sourceId, const SourceTransform &transform);
     bool addSource(const VideoSource &source);
     bool setSourcePixelSize(const QString &sourceId, const QSize &size);
-    bool setSourceCaptureStatus(const QString &sourceId, const QString &state,
-                                const QString &error);
-    bool setImageLoadStatus(const QString &sourceId, const QString &state, const QString &error);
+    bool setSourceStatus(const QString &sourceId, const QString &state, const QString &error);
     bool canEditCurrentDisplay() const;
     bool canEditCurrentSource() const;
     const CameraSourceDetails *cameraSource(const QString &sourceId) const;
@@ -66,7 +64,7 @@ public:
 
     bool canFilterSource(const QString &sourceId) const;
     QList<SourceFilter> sourceFilters(const QString &sourceId) const;
-    QString addColorCorrection(const QString &sourceId);
+    QString addFilter(const QString &sourceId);
     bool removeFilter(const QString &sourceId, const QString &filterId);
     bool moveFilter(const QString &sourceId, const QString &filterId, int offset);
     bool setFilterEnabled(const QString &sourceId, const QString &filterId, bool enabled);

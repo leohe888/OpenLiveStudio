@@ -221,7 +221,7 @@ void VideoSourceManager::notifyFiltersChanged(int row)
     emit sourceFiltersChanged(id);
 }
 
-QString VideoSourceManager::addColorCorrection(const QString &sourceId)
+QString VideoSourceManager::addFilter(const QString &sourceId)
 {
     if (!canFilterSource(sourceId))
         return {};
@@ -321,42 +321,29 @@ bool VideoSourceManager::setDisplayConfig(const QString &sourceId, const QString
     return true;
 }
 
-bool VideoSourceManager::setSourceCaptureStatus(const QString &sourceId, const QString &state,
-                                                const QString &error)
+bool VideoSourceManager::setSourceStatus(const QString &sourceId, const QString &state,
+                                         const QString &error)
 {
     const int row = sourceRow(sourceId);
     if (row < 0)
         return false;
-    const auto updateStatus = [&](auto &runtime) {
-        if (runtime.captureState == state && runtime.captureError == error)
-            return;
-        runtime.captureState = state;
-        runtime.captureError = error;
-        emit sourceStatusChanged(sourceId);
+    const auto update = [&](QString &currentState, QString &currentError) {
+        if (currentState == state && currentError == error)
+            return false;
+        currentState = state;
+        currentError = error;
+        return true;
     };
-    if (auto *display = std::get_if<DisplaySourceDetails>(&m_sources[row].details))
-        updateStatus(display->runtime);
-    else if (auto *camera = std::get_if<CameraSourceDetails>(&m_sources[row].details))
-        updateStatus(camera->runtime);
-    else
-        return false;
-    return true;
-}
-
-bool VideoSourceManager::setImageLoadStatus(const QString &sourceId, const QString &state,
-                                            const QString &error)
-{
-    const int row = sourceRow(sourceId);
-    if (row < 0)
-        return false;
-    auto *image = std::get_if<ImageSourceDetails>(&m_sources[row].details);
-    if (!image)
-        return false;
-    if (image->runtime.loadState != state || image->runtime.loadError != error) {
-        image->runtime.loadState = state;
-        image->runtime.loadError = error;
+    auto &details = m_sources[row].details;
+    bool changed = false;
+    if (auto *display = std::get_if<DisplaySourceDetails>(&details))
+        changed = update(display->runtime.captureState, display->runtime.captureError);
+    else if (auto *camera = std::get_if<CameraSourceDetails>(&details))
+        changed = update(camera->runtime.captureState, camera->runtime.captureError);
+    else if (auto *image = std::get_if<ImageSourceDetails>(&details))
+        changed = update(image->runtime.loadState, image->runtime.loadError);
+    if (changed)
         emit sourceStatusChanged(sourceId);
-    }
     return true;
 }
 

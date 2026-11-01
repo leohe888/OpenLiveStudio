@@ -52,8 +52,8 @@ public:
     quint64 droppedOutputFrames() const;
 
 signals:
-    void sourceError(const QString &sourceId, const QString &message);
-    void renderingError(const QString &message);
+    void sourceFailed(const QString &sourceId, const QString &message);
+    void renderingFailed(const QString &message);
     void gpuTransferFailed(const QString &sourceId, quint64 generation, const QString &message);
 
 protected:

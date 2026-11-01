@@ -57,7 +57,7 @@ private slots:
         widget.resize(480, 270);
         widget.show();
         QVERIFY(QTest::qWaitForWindowExposed(&widget));
-        QSignalSpy errors(&widget, &PreviewWidget::sourceError);
+        QSignalSpy errors(&widget, &PreviewWidget::sourceFailed);
         QImage image(32, 16, QImage::Format_RGBA8888);
         image.fill(QColor(64, 128, 192));
         PreviewSource source{"image", image, true, {{960, 540}, {1920, 1080}, 0}};
@@ -165,7 +165,7 @@ private slots:
     void createsFixedCanvasAndKeepsItAcrossImageAndWidgetChanges()
     {
         PreviewWidget widget;
-        QSignalSpy errors(&widget, &PreviewWidget::renderingError);
+        QSignalSpy errors(&widget, &PreviewWidget::renderingFailed);
         widget.resize(240, 200);
         widget.show();
         QVERIFY(QTest::qWaitForWindowExposed(&widget));
@@ -207,7 +207,7 @@ private slots:
             }
         }
         PreviewWidget widget;
-        QSignalSpy errors(&widget, &PreviewWidget::renderingError);
+        QSignalSpy errors(&widget, &PreviewWidget::renderingFailed);
         widget.setSources({{"image", image, true}});
         widget.resize(240, 200);
         widget.show();
@@ -350,7 +350,7 @@ private slots:
         QVERIFY(!oversized.isNull());
         oversized.fill(Qt::white);
         widget.setSources({{"image", oversized, true}});
-        QSignalSpy errors(&widget, &PreviewWidget::sourceError);
+        QSignalSpy errors(&widget, &PreviewWidget::sourceFailed);
         widget.compositor()->captureImage();
         QCoreApplication::processEvents();
         widget.makeCurrent();
@@ -391,7 +391,7 @@ private slots:
         background.fill(Qt::blue);
         const SourceTransform transform{{960, 540}, {200, 100}, 30};
         widget->setSources({{"overlay", overlay, true, transform}, {"background", background, true}});
-        widget->setSelectedSourceId("overlay");
+        widget->setCurrentSourceId("overlay");
         firstWindow.show();
         QVERIFY(QTest::qWaitForWindowExposed(&firstWindow));
         QCOMPARE(sample(grabPreview(*widget), .5, .5), QColor(Qt::yellow));
@@ -410,7 +410,7 @@ private slots:
         QCOMPARE(sample(grabPreview(*widget), .5, .5), QColor(Qt::yellow));
         QCOMPARE(sample(readCanvas(*widget), .5, .5), QColor(Qt::yellow));
         QVERIFY(widget->m_sources[0].transform == transform);
-        QCOMPARE(widget->m_selectedSourceId, QString("overlay"));
+        QCOMPARE(widget->m_currentSourceId, QString("overlay"));
         QCOMPARE(sample(readCanvas(*widget), .1, .5), QColor(Qt::blue));
         widget->makeCurrent();
         auto *functions = widget->context()->functions();
@@ -480,8 +480,8 @@ private slots:
         widget.doneCurrent();
         QImage invalid(maxSize + 1, 1, QImage::Format_RGBA8888);
         invalid.fill(Qt::white);
-        QSignalSpy sourceErrors(&widget, &PreviewWidget::sourceError);
-        QSignalSpy fatalErrors(&widget, &PreviewWidget::renderingError);
+        QSignalSpy sourceErrors(&widget, &PreviewWidget::sourceFailed);
+        QSignalSpy fatalErrors(&widget, &PreviewWidget::renderingFailed);
         widget.setSources({{"invalid", invalid, true}, {"tall", tall, true}});
         QCOMPARE(sample(grabPreview(widget), .5, .5), QColor(Qt::yellow));
         QCOMPARE(sourceErrors.size(), 1);
@@ -526,7 +526,7 @@ private slots:
         const auto unselected = grabPreview(widget);
         verifyColors();
         const auto canvas = readCanvas(widget);
-        widget.setSelectedSourceId("image");
+        widget.setCurrentSourceId("image");
         const auto selected = grabPreview(widget);
         QVERIFY(selected != unselected);
         QCOMPARE(readCanvas(widget), canvas);
@@ -560,7 +560,7 @@ private slots:
         SourceTransform start{{960, 540}, {600, 300}, 0};
         widget.resize(640, 480);
         widget.setSources({{"image", image, true, start}});
-        widget.setSelectedSourceId("image");
+        widget.setCurrentSourceId("image");
         widget.show();
         QVERIFY(QTest::qWaitForWindowActive(&widget));
         for (const QSize &size : {QSize(640, 480), QSize(800, 280), QSize(300, 500)}) {
@@ -589,12 +589,12 @@ private slots:
             mouse(widget, QEvent::MouseButtonRelease, insideHandle, Qt::LeftButton, Qt::NoButton);
             const auto outsideHandle = handles[0] - QPointF(7.5, 7.5);
             drag(widget, outsideHandle, outsideHandle);
-            QVERIFY(widget.m_selectedSourceId.isEmpty());
+            QVERIFY(widget.m_currentSourceId.isEmpty());
             mouse(widget, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
             mouse(widget, QEvent::MouseButtonRelease, point + QPointF(10, 0), Qt::LeftButton, Qt::NoButton);
             QVERIFY(closePoint(widget.m_sources[0].transform.center,
                 display.inverted().map(point + QPointF(10, 0))));
-            widget.setSelectedSourceId("image");
+            widget.setCurrentSourceId("image");
         }
         widget.resize(800, 500);
         start.rotation = 37;
@@ -636,7 +636,7 @@ private slots:
         QImage image(200, 100, QImage::Format_RGBA8888);
         image.fill(Qt::red);
         widget.setSources({{"image", image, true, {{960, 540}, {600, 300}, 0}}});
-        widget.setSelectedSourceId("image");
+        widget.setCurrentSourceId("image");
         widget.show();
         QVERIFY(QTest::qWaitForWindowActive(&widget));
         grabPreview(widget);
@@ -686,29 +686,29 @@ private slots:
         const auto display = SourceGeometry::canvasToWidget(widget.size());
         const auto center = display.map(QPointF(960, 540));
         drag(widget, center, center);
-        QCOMPARE(widget.m_selectedSourceId, QString("bottom"));
+        QCOMPARE(widget.m_currentSourceId, QString("bottom"));
         sources[0].locked = false;
         widget.setSources(sources);
         drag(widget, center, center);
-        QCOMPARE(widget.m_selectedSourceId, QString("top"));
+        QCOMPARE(widget.m_currentSourceId, QString("top"));
         const auto bounds = SourceGeometry::sourceToCanvas(sources[0].transform).mapRect(
             QRectF(QPointF(), sources[0].transform.size));
         const auto outsideRotatedRectangle = bounds.topLeft() + QPointF(5, 5);
         QVERIFY(!SourceGeometry::contains(sources[0].transform, outsideRotatedRectangle));
         drag(widget, display.map(outsideRotatedRectangle), display.map(outsideRotatedRectangle));
-        QCOMPARE(widget.m_selectedSourceId, QString("bottom"));
+        QCOMPARE(widget.m_currentSourceId, QString("bottom"));
         sources[0].locked = true;
         widget.setSources(sources);
-        widget.setSelectedSourceId("top");
+        widget.setCurrentSourceId("top");
         QCOMPARE(widget.handleAt(widget.m_sources[0], widget.selectionHandles(widget.m_sources[0])[0]), -1);
         drag(widget, center, center);
-        QCOMPARE(widget.m_selectedSourceId, QString("bottom"));
+        QCOMPARE(widget.m_currentSourceId, QString("bottom"));
         sources[0].visible = false;
         widget.setSources(sources);
-        widget.setSelectedSourceId("top");
+        widget.setCurrentSourceId("top");
         QVERIFY(!widget.selectedSource());
         drag(widget, QPointF(5, 5), QPointF(5, 5));
-        QVERIFY(widget.m_selectedSourceId.isEmpty());
+        QVERIFY(widget.m_currentSourceId.isEmpty());
     }
 
     void captureFramesDoNotInterruptEditing_data()
@@ -781,7 +781,7 @@ private slots:
         const auto handles = widget.selectionHandles(widget.m_sources[0]);
         const auto center = display.map(start.center);
         const auto from = operation == 0 ? center : handles[operation == 1 ? 4 : 8];
-        if (operation != 0) widget.setSelectedSourceId("dynamic");
+        if (operation != 0) widget.setCurrentSourceId("dynamic");
         // Receive a new frame before mouse input, without uploading it yet.
         const auto pixelsPresented = [&] {
             const auto &ready = widget.m_presentedFrame->sources[QStringLiteral("dynamic")];
@@ -790,7 +790,7 @@ private slots:
         publish();
         QVERIFY(!pixelsPresented());
         mouse(widget, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
-        QCOMPARE(widget.m_selectedSourceId, QString("dynamic"));
+        QCOMPARE(widget.m_currentSourceId, QString("dynamic"));
         const auto gesture = operation == 0 ? PreviewWidget::Gesture::Move
             : operation == 1 ? PreviewWidget::Gesture::Resize : PreviewWidget::Gesture::Rotate;
         QVERIFY(widget.m_gesture == gesture);
@@ -840,7 +840,7 @@ private slots:
             widget.show();
             QVERIFY(QTest::qWaitForWindowExposed(&widget));
             widget.setSources({{"image", image, true, {{960, 540}, {600, 300}, 0}}});
-            widget.setSelectedSourceId("image");
+            widget.setCurrentSourceId("image");
             grabPreview(widget);
             const QPointF center = SourceGeometry::canvasToWidget(widget.size()).map(QPointF(960, 540));
             mouse(widget, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
@@ -851,7 +851,7 @@ private slots:
             if (reason == 0) { changed[0].visible = false; widget.setSources(changed); }
             if (reason == 1) { changed[0].locked = true; widget.setSources(changed); }
             if (reason == 2) widget.setSources({});
-            if (reason == 3) widget.setSelectedSourceId({});
+            if (reason == 3) widget.setCurrentSourceId({});
             if (reason == 4) widget.resize(widget.width() + 10, widget.height());
             if (reason == 5) {
                 QFocusEvent event(QEvent::FocusOut);
@@ -893,7 +893,7 @@ private:
 
     static void wireEditor(PreviewWidget &widget)
     {
-        connect(&widget, &PreviewWidget::selectionRequested, &widget, &PreviewWidget::setSelectedSourceId);
+        connect(&widget, &PreviewWidget::selectionRequested, &widget, &PreviewWidget::setCurrentSourceId);
         connect(&widget, &PreviewWidget::transformRequested, &widget,
             [&widget](const QString &sourceId, const SourceTransform &transform) {
                 auto sources = widget.m_sources;

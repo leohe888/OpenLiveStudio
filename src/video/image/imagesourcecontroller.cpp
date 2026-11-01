@@ -124,16 +124,16 @@ void ImageSourceController::synchronize()
         if (it == m_images.end() || it->path != path) {
             const quint64 generation = ++m_generation;
             it = m_images.insert(id, {path, {}, generation});
-            m_sourceManager.setImageLoadStatus(id, "loading", {});
+            m_sourceManager.setSourceStatus(id, "loading", {});
             loadImage(path, [this, id, generation](QImage image, QString error) {
                 auto entry = m_images.find(id);
                 if (entry == m_images.end() || entry->generation != generation)
                     return;
                 entry->image = image;
                 m_sourceManager.setSourcePixelSize(id, image.size());
-                m_sourceManager.setImageLoadStatus(id, error.isEmpty() ? "ready" : "error", error);
+                m_sourceManager.setSourceStatus(id, error.isEmpty() ? "ready" : "error", error);
                 if (!error.isEmpty())
-                    emit sourceError(id, error);
+                    emit sourceFailed(id, error);
                 synchronize();
             });
         }

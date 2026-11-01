@@ -58,7 +58,7 @@ void CameraCaptureTest::configurationAndLayout()
     const SourceTransform transform{{440, 330}, {600, 337.5}, 35};
     QVERIFY(model.setSourceTransform(id, transform));
     QVERIFY(model.setSourceLocked(id, true));
-    const QString filter = model.addColorCorrection(id);
+    const QString filter = model.addFilter(id);
     QVERIFY(!filter.isEmpty());
     model.setCameraActualMode(id, {640, 480}, 30, 1);
     const auto adjusted = model.sources().at(0).transform;
@@ -75,7 +75,7 @@ void CameraCaptureTest::unavailableDeviceAndLifecycle()
 {
     VideoSourceManager model;
     CameraSourceController controller(model);
-    QSignalSpy errors(&controller, &CameraSourceController::sourceError);
+    QSignalSpy errors(&controller, &CameraSourceController::sourceFailed);
     QList<PreviewSource> output;
     connect(&controller, &CameraSourceController::sourcesChanged, this, [&](const auto &sources) {
         output = sources;

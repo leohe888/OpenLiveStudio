@@ -21,8 +21,8 @@ PreviewWidget::PreviewWidget(QWidget *parent)
 {
     setFocusPolicy(Qt::StrongFocus);
     setMouseTracking(true);
-    connect(&m_compositor, &Compositor::sourceError, this, &PreviewWidget::sourceError, Qt::QueuedConnection);
-    connect(&m_compositor, &Compositor::renderingError, this, &PreviewWidget::reportError, Qt::QueuedConnection);
+    connect(&m_compositor, &Compositor::sourceFailed, this, &PreviewWidget::sourceFailed, Qt::QueuedConnection);
+    connect(&m_compositor, &Compositor::renderingFailed, this, &PreviewWidget::reportError, Qt::QueuedConnection);
     connect(&m_compositor, &Compositor::gpuTransferFailed, this, &PreviewWidget::gpuTransferFailed, Qt::QueuedConnection);
     m_framePoll.setInterval(16);
     m_framePoll.setTimerType(Qt::PreciseTimer);
@@ -53,11 +53,11 @@ void PreviewWidget::setSources(const QList<PreviewSource> &sources)
     update();
 }
 
-void PreviewWidget::setSelectedSourceId(const QString &sourceId)
+void PreviewWidget::setCurrentSourceId(const QString &sourceId)
 {
-    if (m_selectedSourceId == sourceId) return;
+    if (m_currentSourceId == sourceId) return;
     endGesture();
-    m_selectedSourceId = sourceId;
+    m_currentSourceId = sourceId;
     update();
 }
 
@@ -204,7 +204,7 @@ bool PreviewWidget::selectable(const PreviewSource &source) const
 const PreviewSource *PreviewWidget::selectedSource() const
 {
     for (const auto &source : m_sources)
-        if (source.id == m_selectedSourceId && selectable(source)) return &source;
+        if (source.id == m_currentSourceId && selectable(source)) return &source;
     return nullptr;
 }
 
@@ -458,5 +458,5 @@ void PreviewWidget::reportError(const QString &message)
 {
     m_lastError = message;
     qWarning().noquote() << message;
-    emit renderingError(message);
+    emit renderingFailed(message);
 }

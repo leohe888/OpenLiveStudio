@@ -23,7 +23,7 @@ signals:
     void imageAdded(QObject *requester);
     void addFailed(QObject *requester, const QString &message);
     void sourcesChanged(const QList<PreviewSource> &sources);
-    void sourceError(const QString &sourceId, const QString &message);
+    void sourceFailed(const QString &sourceId, const QString &message);
 
 private:
     void synchronize();

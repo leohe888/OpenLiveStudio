@@ -91,7 +91,7 @@ private slots:
     void removalFromSourceNotificationsIsSafe()
     {
         AudioSourceManager manager;
-        connect(&manager, &AudioSourceManager::sourceError, &manager,
+        connect(&manager, &AudioSourceManager::sourceFailed, &manager,
                 [&](const QString &sourceId, const QString &) {
                     manager.removeSource(sourceId);
                 });

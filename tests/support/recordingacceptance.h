@@ -259,7 +259,7 @@ inline void run(MainWindow &window)
         if (percent >= 10 && !done[0]) {
             done[0] = true;
             QVERIFY(model->setSourceTransform(imageId, {{700, 500}, {350, 200}, 35}));
-            const auto filter = model->addColorCorrection(imageId);
+            const auto filter = model->addFilter(imageId);
             QVERIFY(!filter.isEmpty());
             QVERIFY(model->setFilterParameters(imageId, filter, .1, .8, .3));
             event("transform-and-filter");

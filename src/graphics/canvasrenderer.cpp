@@ -178,7 +178,7 @@ bool CanvasRenderer::render(const QList<PreviewSource> &sources)
                 resource.ready = true;
             }
         }
-        if (!error.isEmpty() && error != resource.uploadError) emit sourceError(source.id, error);
+        if (!error.isEmpty() && error != resource.uploadError) emit sourceFailed(source.id, error);
         resource.uploadError = error;
     }
     if (!m_program->bind()) {
@@ -225,7 +225,7 @@ GLuint CanvasRenderer::filterTexture(const PreviewSource &source, GLuint origina
     const auto fail = [&](const QString &message) {
         if (error != message) {
             error = message;
-            emit sourceError(source.id, message);
+            emit sourceFailed(source.id, message);
         }
         flipY = false;
         return original;
@@ -303,5 +303,5 @@ QHash<QString, RenderedSource> CanvasRenderer::renderedSources() const
 void CanvasRenderer::reportError(const QString &message)
 {
     m_lastError = message;
-    emit renderingError(message);
+    emit renderingFailed(message);
 }

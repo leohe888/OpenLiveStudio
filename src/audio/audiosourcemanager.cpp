@@ -247,7 +247,7 @@ void AudioSourceManager::poll()
         if (levelsChanged && rowFor(id) >= 0)
             emit sourceLevelsChanged(id);
         if (statusChanged && state.state == "error" && rowFor(id) >= 0)
-            emit sourceError(id, state.error);
+            emit sourceFailed(id, state.error);
     }
     m_master = {std::max(levels.master.left, m_master.left * .72f),
                 std::max(levels.master.right, m_master.right * .72f)};

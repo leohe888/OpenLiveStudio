@@ -106,7 +106,7 @@ private slots:
     void independentWorkerRendersWithoutGuiEventsAndRestarts()
     {
         Compositor compositor;
-        QSignalSpy errors(&compositor, &Compositor::renderingError);
+        QSignalSpy errors(&compositor, &Compositor::renderingFailed);
         compositor.setSources({solid(Qt::red)});
         QVERIFY(compositor.startRendering(&m_context));
         QCOMPARE(compositor.captureImage().pixelColor(960, 540), QColor(Qt::red));

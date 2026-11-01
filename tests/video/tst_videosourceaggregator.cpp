@@ -141,7 +141,7 @@ void VideoSourceAggregatorTest::usesModelPropertiesWithoutNewFrames()
     QVERIFY(model.setSourceTransform("image", transform));
     QVERIFY(model.setSourceVisible("image", false));
     QVERIFY(model.setSourceLocked("image", true));
-    const auto filter = model.addColorCorrection("image");
+    const auto filter = model.addFilter("image");
     QVERIFY(!filter.isEmpty());
     QVERIFY(model.setFilterParameters("image", filter, .2, .8, 1.1));
     QTRY_COMPARE(output[0].transform, transform);
@@ -153,7 +153,7 @@ void VideoSourceAggregatorTest::usesModelPropertiesWithoutNewFrames()
     QCOMPARE(output[0].image, pixels);
 
     changes.clear();
-    QVERIFY(model.setImageLoadStatus("image", "error", "failed"));
+    QVERIFY(model.setSourceStatus("image", "error", "failed"));
     QCoreApplication::processEvents();
     QCOMPARE(changes.count(), 0); // Status text alone does not change the render snapshot.
 }

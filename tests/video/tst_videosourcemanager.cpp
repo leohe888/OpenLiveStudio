@@ -131,24 +131,24 @@ void VideoSourceManagerTest::runtimeDetailsFollowSourceType()
     QCOMPARE(manager.source("image")->pixelSize(), QSize(64, 32));
     QSignalSpy changed(&manager, &VideoSourceManager::sourceChanged);
     QSignalSpy status(&manager, &VideoSourceManager::sourceStatusChanged);
-    QVERIFY(!manager.setSourceCaptureStatus("image", "capturing", {}));
-    QVERIFY(!manager.setImageLoadStatus("camera", "ready", {}));
-    QVERIFY(!manager.setImageLoadStatus("display", "ready", {}));
-    QVERIFY(!manager.setImageLoadStatus("missing", "ready", {}));
+    QVERIFY(!manager.setSourceStatus("image", "capturing", {}));
+    QVERIFY(!manager.setSourceStatus("camera", "ready", {}));
+    QVERIFY(!manager.setSourceStatus("display", "ready", {}));
+    QVERIFY(!manager.setSourceStatus("missing", "ready", {}));
     manager.setCameraActualMode("image", {800, 600}, 30, 1);
     QCOMPARE(changed.count(), 0);
     QCOMPARE(status.count(), 0);
-    QVERIFY(manager.setImageLoadStatus("image", "error", "Load failed"));
+    QVERIFY(manager.setSourceStatus("image", "error", "Load failed"));
     QCOMPARE(status.count(), 1);
     QCOMPARE(status.last().at(0).toString(), QString("image"));
     QCOMPARE(std::get<ImageSourceDetails>(manager.source("image")->details).runtime.loadError,
              QString("Load failed"));
-    QVERIFY(manager.setImageLoadStatus("image", "error", "Load failed"));
+    QVERIFY(manager.setSourceStatus("image", "error", "Load failed"));
     QCOMPARE(status.count(), 1);
-    QVERIFY(manager.setImageLoadStatus("image", "ready", {}));
+    QVERIFY(manager.setSourceStatus("image", "ready", {}));
     QVERIFY(
         std::get<ImageSourceDetails>(manager.source("image")->details).runtime.loadError.isEmpty());
-    QVERIFY(manager.setSourceCaptureStatus("camera", "error", "Device lost"));
+    QVERIFY(manager.setSourceStatus("camera", "error", "Device lost"));
     QCOMPARE(std::get<CameraSourceDetails>(manager.source("camera")->details).runtime.captureError,
              QString("Device lost"));
     QCOMPARE(changed.count(), 0); // Runtime notifications do not restart controllers.
@@ -484,9 +484,9 @@ void VideoSourceManagerTest::filtersAreOrderedValidatedAndIndependent()
     QVERIFY(model.selectSource("a"));
     QVERIFY(model.canFilterCurrentSource());
     QVERIFY(model.canFilterSource("camera"));
-    QVERIFY(model.addColorCorrection("missing").isEmpty());
-    const QString first = model.addColorCorrection("a");
-    const QString second = model.addColorCorrection("a");
+    QVERIFY(model.addFilter("missing").isEmpty());
+    const QString first = model.addFilter("a");
+    const QString second = model.addFilter("a");
     QVERIFY(!first.isEmpty() && first != second);
     QCOMPARE(changed.count(), 2);
     QCOMPARE(data.last().at(0).toString(), QString("a"));
@@ -543,7 +543,7 @@ void VideoSourceManagerTest::displayPropertiesPreserveSourceState()
     QVERIFY(model.setSourcePixelSize("screen", QSize(1920, 1080)));
     const SourceTransform transform{{300, 500}, {640, 360}, 45};
     QVERIFY(model.setSourceTransform("screen", transform));
-    const auto filter = model.addColorCorrection("screen");
+    const auto filter = model.addFilter("screen");
     QVERIFY(model.setSourceLocked("screen", true));
     const int before = changed.count();
     QVERIFY(!model.setDisplayConfig("screen", " ", true));
@@ -557,14 +557,14 @@ void VideoSourceManagerTest::displayPropertiesPreserveSourceState()
     QCOMPARE(model.sourceFilters("screen")[0].id, filter);
     QCOMPARE(model.displaySource("screen")->config.displayId, QString("another-physical-path"));
     QVERIFY(!model.displaySource("screen")->config.captureCursor);
-    QVERIFY(model.setSourceCaptureStatus("screen", "error", "Disconnected"));
+    QVERIFY(model.setSourceStatus("screen", "error", "Disconnected"));
     QCOMPARE(status.count(), 1);
-    QVERIFY(model.setSourceCaptureStatus("screen", "error", "Disconnected"));
+    QVERIFY(model.setSourceStatus("screen", "error", "Disconnected"));
     QCOMPARE(status.count(), 1);
     QCOMPARE(std::get<DisplaySourceDetails>(model.sources().at(0).details).runtime.captureState,
              QString("error"));
     QCOMPARE(model.displaySource("screen")->runtime.captureError, QString("Disconnected"));
-    QVERIFY(model.setSourceCaptureStatus("screen", "starting", {}));
+    QVERIFY(model.setSourceStatus("screen", "starting", {}));
     QVERIFY(model.displaySource("screen")->runtime.captureError.isEmpty());
     QVERIFY(model.selectSource("image"));
     QVERIFY(!model.canEditCurrentDisplay() && model.canFilterCurrentSource());
@@ -573,7 +573,7 @@ void VideoSourceManagerTest::displayPropertiesPreserveSourceState()
             model.canEditCurrentSource());
     QVERIFY(model.removeSource("screen"));
     QVERIFY(!model.displaySource("screen"));
-    QVERIFY(!model.setSourceCaptureStatus("screen", "error", "Removed"));
+    QVERIFY(!model.setSourceStatus("screen", "error", "Removed"));
 }
 
 void VideoSourceManagerTest::sourceRemovalDuringGeometryNotificationIsSafe()

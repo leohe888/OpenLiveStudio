@@ -48,7 +48,7 @@ private slots:
                 .isAbsolute());
         const QString first = snapshot[0].id;
         const auto key = snapshot[0].image.cacheKey();
-        const auto filter = model.addColorCorrection(first);
+        const auto filter = model.addFilter(first);
         QVERIFY(model.setFilterParameters(first, filter, .3, .7, 1.2));
         QCOMPARE(snapshot[0].filters.size(), 1);
         QCOMPARE(snapshot[0].filters[0].id, filter);
@@ -203,7 +203,7 @@ private slots:
             {{"valid", "Valid", ImageSourceDetails{ImageConfig{path}}},
              {"bad", "Bad", ImageSourceDetails{ImageConfig{dir.filePath("missing.png")}}}});
         ImageSourceController controller(model);
-        QSignalSpy errors(&controller, &ImageSourceController::sourceError);
+        QSignalSpy errors(&controller, &ImageSourceController::sourceFailed);
         QStringList loadStates;
         connect(&model, &VideoSourceManager::sourceStatusChanged, this,
                 [&](const QString &sourceId) {

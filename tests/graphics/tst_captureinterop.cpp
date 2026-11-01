@@ -66,7 +66,7 @@ private slots:
     {
         VideoSourceManager model;
         DisplaySourceController controller(model);
-        connect(&controller, &DisplaySourceController::sourceError, &model,
+        connect(&controller, &DisplaySourceController::sourceFailed, &model,
                 [&model](const QString &sourceId, const QString &) {
                     model.removeSource(sourceId);
                 });
@@ -79,7 +79,7 @@ private slots:
     {
         VideoSourceManager model;
         DisplaySourceController controller(model);
-        QSignalSpy errors(&controller, &DisplaySourceController::sourceError);
+        QSignalSpy errors(&controller, &DisplaySourceController::sourceFailed);
         const QString id = controller.addDisplay("Screen", "missing-display", true);
         controller.failTransfer(id, 0, "stale generation");
         QCOMPARE(model.displaySource(id)->runtime.captureState, QString("starting"));
@@ -112,7 +112,7 @@ private slots:
                 [&](const auto &sources) {
                     snapshot = sources;
                 });
-        QSignalSpy errors(&controller, &DisplaySourceController::sourceError);
+        QSignalSpy errors(&controller, &DisplaySourceController::sourceFailed);
         const auto id = controller.addDisplay("Missing", "missing-display", true);
         QVERIFY(!id.isEmpty());
         QCOMPARE(model.sources().size(), 1);
@@ -125,7 +125,7 @@ private slots:
         QCOMPARE(errors.count(), 1);
         const SourceTransform transform{{400, 300}, {500, 250}, 25};
         QVERIFY(model.setSourceTransform(id, transform));
-        const QString filter = model.addColorCorrection(id);
+        const QString filter = model.addFilter(id);
         QVERIFY(!filter.isEmpty());
         QVERIFY(controller.applyProperties(id, "another-missing-display", false));
         QCOMPARE(model.sources().at(0).transform, transform);
@@ -170,7 +170,7 @@ private slots:
                 });
         connect(&preview, &PreviewWidget::gpuTransferFailed, &controller,
                 &DisplaySourceController::failTransfer, Qt::QueuedConnection);
-        QSignalSpy errors(&controller, &DisplaySourceController::sourceError);
+        QSignalSpy errors(&controller, &DisplaySourceController::sourceFailed);
         QSignalSpy transferFailures(&preview, &PreviewWidget::gpuTransferFailed);
         const QString id = controller.addDisplay("Screen", targets[0].id, true);
         const auto hasFrame = [&] {
@@ -190,7 +190,7 @@ private slots:
                      "GPU interop required");
             QSKIP("GPU interop unavailable on this desktop");
         }
-        const QString filter = model.addColorCorrection(id);
+        const QString filter = model.addFilter(id);
         QVERIFY(model.setFilterParameters(id, filter, .1, .8, 1.2));
         QVERIFY(model.setSourceTransform(id, {{960, 540}, {1200, 700}, 17}));
         QVERIFY(!grabPreview(preview).isNull());

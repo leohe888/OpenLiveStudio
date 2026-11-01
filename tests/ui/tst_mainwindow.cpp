@@ -175,7 +175,7 @@ void MainWindowTest::sourceActionsAndSelection()
     auto *row = list->itemWidget(item);
     QPointer<QWidget> retainedRow(row);
     QPointer<QWidget> otherRow(list->itemWidget(list->item(1)));
-    QVERIFY(model->setSourceCaptureStatus(id, "error", "Device disconnected"));
+    QVERIFY(model->setSourceStatus(id, "error", "Device disconnected"));
     QCOMPARE(list->itemWidget(item), retainedRow.data());
     QCOMPARE(list->itemWidget(list->item(1)), otherRow.data());
     QCOMPARE(row->findChild<QLabel *>()->toolTip(), QString("Device disconnected"));
@@ -607,13 +607,13 @@ void MainWindowTest::previewShowsRenderingError()
 
     auto *model = window.findChild<VideoSourceManager *>();
     QVERIFY(model->addSource({"example", "Logo"}));
-    preview->sourceError("example", "Texture upload failed");
+    preview->sourceFailed("example", "Texture upload failed");
     QTRY_VERIFY(window.statusBar()->currentMessage().contains("Logo"));
     QVERIFY(window.statusBar()->currentMessage().contains("Texture upload failed"));
     QCOMPARE(pages->currentWidget(), preview);
     QVERIFY(preview->lastError().isEmpty());
     const QString details = QStringLiteral("<b>测试渲染错误</b>");
-    preview->renderingError(details);
+    preview->renderingFailed(details);
     QCOMPARE(pages->currentWidget(), preview);
     QTRY_COMPARE(pages->currentWidget(), error);
     QVERIFY(error->isVisible());
@@ -726,13 +726,13 @@ void MainWindowTest::cameraHardwarePreview()
 
     const auto devices = controller->devices();
     QVERIFY(!devices.isEmpty());
-    QSignalSpy failures(preview, &PreviewWidget::sourceError);
+    QSignalSpy failures(preview, &PreviewWidget::sourceFailed);
     const QString id = controller->addCamera("Camera", CameraConfig{devices[0].id});
     QVERIFY(!id.isEmpty());
     QTRY_COMPARE_WITH_TIMEOUT(model->cameraSource(id)->runtime.captureState, QString("capturing"),
                               15000);
 
-    const auto filter = model->addColorCorrection(id);
+    const auto filter = model->addFilter(id);
     QVERIFY(model->setFilterParameters(id, filter, 0, 1, 0));
     QTest::qWait(500);
     QVERIFY(preview->lastError().isEmpty());

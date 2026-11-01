@@ -66,7 +66,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
         });
     }
     setupStatusBar();
-    connect(m_audioSourceManager, &AudioSourceManager::sourceError, this,
+    connect(m_audioSourceManager, &AudioSourceManager::sourceFailed, this,
             [this](const QString &sourceId, const QString &message) {
                 const auto *source = m_audioSourceManager->source(sourceId);
                 statusBar()->showMessage(
@@ -80,12 +80,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
         statusBar()->showMessage(tr("来源“%1”：%2").arg(name, message));
     };
 
-    connect(m_imageSourceController, &ImageSourceController::sourceError, this, showSourceError);
-    connect(m_displaySourceController, &DisplaySourceController::sourceError, this,
+    connect(m_imageSourceController, &ImageSourceController::sourceFailed, this, showSourceError);
+    connect(m_displaySourceController, &DisplaySourceController::sourceFailed, this,
             showSourceError);
-    connect(m_cameraSourceController, &CameraSourceController::sourceError, this, showSourceError);
+    connect(m_cameraSourceController, &CameraSourceController::sourceFailed, this, showSourceError);
     if (auto *preview = findChild<PreviewWidget *>(QStringLiteral("previewWidget")))
-        connect(preview, &PreviewWidget::sourceError, this, showSourceError, Qt::QueuedConnection);
+        connect(preview, &PreviewWidget::sourceFailed, this, showSourceError, Qt::QueuedConnection);
     setupSourcesDock();
     setupMixerDock();
     setupControlsDock();
@@ -320,7 +320,7 @@ void MainWindow::setupPreview()
 
     auto *preview = new PreviewWidget(pages);
     preview->setObjectName(QStringLiteral("previewWidget"));
-    connect(preview, &PreviewWidget::renderingError, pages, showError, Qt::QueuedConnection);
+    connect(preview, &PreviewWidget::renderingFailed, pages, showError, Qt::QueuedConnection);
     connect(m_videoSourceAggregator, &VideoSourceAggregator::sourcesChanged, preview,
             &PreviewWidget::setSources);
     connect(preview, &PreviewWidget::gpuTransferFailed, m_displaySourceController,
@@ -331,9 +331,9 @@ void MainWindow::setupPreview()
             &VideoSourceManager::setSourceTransform);
     connect(m_videoSourceManager, &VideoSourceManager::currentSourceIdChanged, preview,
             [this, preview] {
-                preview->setSelectedSourceId(m_videoSourceManager->currentSourceId());
+                preview->setCurrentSourceId(m_videoSourceManager->currentSourceId());
             });
-    preview->setSelectedSourceId(m_videoSourceManager->currentSourceId());
+    preview->setCurrentSourceId(m_videoSourceManager->currentSourceId());
     pages->addWidget(preview);
     pages->setCurrentWidget(preview);
 }

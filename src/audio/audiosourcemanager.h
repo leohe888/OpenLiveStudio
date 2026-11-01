@@ -80,7 +80,7 @@ signals:
     void currentSourceIdChanged();
     void devicesChanged();
     void masterLevelsChanged();
-    void sourceError(const QString &sourceId, const QString &message);
+    void sourceFailed(const QString &sourceId, const QString &message);
 
 private:
     struct Entry

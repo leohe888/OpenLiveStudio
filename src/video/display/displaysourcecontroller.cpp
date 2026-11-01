@@ -128,7 +128,7 @@ void DisplaySourceController::synchronize()
         }
         if (!item.visible) {
             stop(entry);
-            m_sourceManager.setSourceCaptureStatus(
+            m_sourceManager.setSourceStatus(
                 id, "paused",
                 entry.failed ? std::get<DisplaySourceDetails>(item.details).runtime.captureError
                              : QString());
@@ -137,9 +137,9 @@ void DisplaySourceController::synchronize()
             entry.worker =
                 std::make_unique<DisplayCaptureWorker>(displayId, cursor, entry.generation);
             entry.worker->start();
-            m_sourceManager.setSourceCaptureStatus(id, "starting", {});
+            m_sourceManager.setSourceStatus(id, "starting", {});
         } else if (entry.failed) {
-            m_sourceManager.setSourceCaptureStatus(
+            m_sourceManager.setSourceStatus(
                 id, "error", std::get<DisplaySourceDetails>(item.details).runtime.captureError);
         }
     }
@@ -164,9 +164,9 @@ void DisplaySourceController::failTransfer(const QString &sourceId, quint64 gene
     entry.failed = true;
     stop(entry);
     const QString message = tr("GPU 画面传输失败，已停止采集。请检查显卡驱动后手动重试。");
-    m_sourceManager.setSourceCaptureStatus(sourceId, "error", message);
+    m_sourceManager.setSourceStatus(sourceId, "error", message);
     qWarning().noquote() << "Display GPU transfer failed:" << sourceId << reason;
-    emit sourceError(sourceId, message);
+    emit sourceFailed(sourceId, message);
     publish();
 }
 
@@ -186,15 +186,15 @@ void DisplaySourceController::poll()
         if (!error.isEmpty()) {
             entry.failed = true;
             stop(entry);
-            m_sourceManager.setSourceCaptureStatus(id, "error", error);
-            emit sourceError(id, error);
+            m_sourceManager.setSourceStatus(id, "error", error);
+            emit sourceFailed(id, error);
             changed = true;
         } else if (auto frame = entry.worker->takeLatest()) {
             if (frame->generation != entry.generation)
                 continue;
             entry.frame = std::move(frame);
             m_sourceManager.setSourcePixelSize(id, entry.frame->size);
-            m_sourceManager.setSourceCaptureStatus(id, "capturing", {});
+            m_sourceManager.setSourceStatus(id, "capturing", {});
             changed = true;
         }
     }
