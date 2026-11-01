@@ -43,14 +43,14 @@ public:
     bool setSourceStatus(const QString &sourceId, const QString &state, const QString &error);
     bool canEditCurrentDisplay() const;
     bool canEditCurrentSource() const;
-    const CameraSourceConfig *cameraSource(const QString &sourceId) const;
-    bool setCameraConfig(const QString &sourceId, const CameraSourceConfig &config);
+    const CameraSourceParams *cameraSource(const QString &sourceId) const;
+    bool setCameraParams(const QString &sourceId, const CameraSourceParams &params);
     bool cameraDeviceInUse(const QString &deviceId, const QString &exceptId = {}) const;
     bool setCameraActualMode(const QString &sourceId, const QSize &size, int numerator,
                              int denominator);
 
-    const DisplaySourceConfig *displaySource(const QString &sourceId) const;
-    bool setDisplayConfig(const QString &sourceId, const QString &displayId, bool cursor);
+    const DisplaySourceParams *displaySource(const QString &sourceId) const;
+    bool setDisplayParams(const QString &sourceId, const QString &displayId, bool cursor);
 
     QString currentSourceId() const
     {

@@ -35,10 +35,10 @@ struct CameraMode
                qint64(numerator) * other.denominator == qint64(other.numerator) * denominator;
     }
 
-    CameraSourceConfig config(const QString &deviceId) const
+    CameraSourceParams params(const QString &deviceId) const
     {
-        return width > 0 ? CameraSourceConfig{deviceId, QSize(width, height), numerator, denominator}
-                         : CameraSourceConfig{deviceId};
+        return width > 0 ? CameraSourceParams{deviceId, QSize(width, height), numerator, denominator}
+                         : CameraSourceParams{deviceId};
     }
 };
 Q_DECLARE_METATYPE(CameraMode)
@@ -59,7 +59,7 @@ QList<CameraMode> cameraModes(const QString &deviceId, QString *error = nullptr)
 class CameraCaptureWorker : public QThread
 {
 public:
-    CameraCaptureWorker(CameraSourceConfig config, quint64 generation);
+    CameraCaptureWorker(CameraSourceParams params, quint64 generation);
     ~CameraCaptureWorker() override;
     void stop();
     std::shared_ptr<const CameraFrame> takeLatest();
@@ -67,7 +67,7 @@ public:
 
     const QString &deviceId() const
     {
-        return m_config.deviceId;
+        return m_params.deviceId;
     }
 
 protected:
@@ -75,7 +75,7 @@ protected:
 
 private:
     void fail(const QString &error);
-    CameraSourceConfig m_config;
+    CameraSourceParams m_params;
     quint64 m_generation;
     std::atomic_bool m_stop{false};
     mutable QMutex m_mutex;

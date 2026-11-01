@@ -285,7 +285,7 @@ void MainWindowTest::disconnectedDeviceDrafts()
 
     auto *model = window.findChild<VideoSourceManager *>();
     QVERIFY(model->addSource(
-        {"display", "Missing", DisplaySourceConfig{"unavailable-display", false}}));
+        {"display", "Missing", DisplaySourceParams{"unavailable-display", false}}));
     QVERIFY(model->selectSource("display"));
     window.findChild<QToolButton *>("sourcePropertiesButton")->click();
     QPointer<QDialog> dialog = window.findChild<QDialog *>("displayPropertiesDialog");
@@ -297,17 +297,17 @@ void MainWindowTest::disconnectedDeviceDrafts()
     dialog->reject();
     QTRY_VERIFY(dialog.isNull());
     QVERIFY(!model->displaySource("display")->captureCursor);
-    CameraSourceConfig config;
-    config.deviceId = "unavailable-camera";
-    config.requestedResolution = QSize(640, 480);
-    config.requestedFrameRateNumerator = 30;
-    QVERIFY(model->addSource({"camera", "Missing camera", config}));
+    CameraSourceParams params;
+    params.deviceId = "unavailable-camera";
+    params.requestedResolution = QSize(640, 480);
+    params.requestedFrameRateNumerator = 30;
+    QVERIFY(model->addSource({"camera", "Missing camera", params}));
     QVERIFY(model->selectSource("camera"));
     window.findChild<QToolButton *>("sourcePropertiesButton")->click();
     dialog = window.findChild<QDialog *>("cameraPropertiesDialog");
     QVERIFY(dialog);
     QCOMPARE(dialog->findChild<QComboBox *>("cameraDeviceInput")->currentData().toString(),
-             config.deviceId);
+             params.deviceId);
     QTRY_VERIFY(dialog->findChild<QComboBox *>("cameraModeInput")->isEnabled());
     QCOMPARE(
         dialog->findChild<QComboBox *>("cameraModeInput")->currentData().value<CameraMode>().width,
@@ -458,12 +458,12 @@ void MainWindowTest::aggregatesIndependentSourceControllers()
 
     const auto path = directory.filePath("image.png");
     QVERIFY(pixels.save(path));
-    QVERIFY(model->addSource({"image", "Image", ImageSourceConfig{path}}));
+    QVERIFY(model->addSource({"image", "Image", ImageSourceParams{path}}));
     VideoSource screen{"display", "Display",
-                       DisplaySourceConfig{"missing-display"}};
+                       DisplaySourceParams{"missing-display"}};
     screen.visible = false; // Exercise wiring without opening physical devices.
     QVERIFY(model->addSource(screen));
-    VideoSource webcam{"camera", "Camera", CameraSourceConfig{"missing-camera"}};
+    VideoSource webcam{"camera", "Camera", CameraSourceParams{"missing-camera"}};
     webcam.visible = false;
     QVERIFY(model->addSource(webcam));
     QTRY_COMPARE(output.size(), 3);
@@ -729,7 +729,7 @@ void MainWindowTest::cameraHardwarePreview()
     const auto devices = controller->devices();
     QVERIFY(!devices.isEmpty());
     QSignalSpy failures(preview, &PreviewWidget::sourceFailed);
-    const QString id = controller->addCamera("Camera", CameraSourceConfig{devices[0].id});
+    const QString id = controller->addCamera("Camera", CameraSourceParams{devices[0].id});
     QVERIFY(!id.isEmpty());
     QTRY_COMPARE_WITH_TIMEOUT(model->sourceStatus(id).state, QString("capturing"),
                               15000);

@@ -38,7 +38,7 @@ void CameraSourceController::refreshDevices()
     for (auto it = m_modes.begin(); it != m_modes.end();) {
         const bool active =
             std::any_of(m_entries.cbegin(), m_entries.cend(), [&](const auto &entry) {
-                return entry.second.worker && entry.second.config.deviceId == it.key();
+                return entry.second.worker && entry.second.params.deviceId == it.key();
             });
         if (!active)
             it = m_modes.erase(it);
@@ -92,26 +92,26 @@ void CameraSourceController::requestModes(const QString &deviceId)
     m_queries.push_back(std::move(query));
 }
 
-QString CameraSourceController::addCamera(const QString &name, const CameraSourceConfig &config)
+QString CameraSourceController::addCamera(const QString &name, const CameraSourceParams &params)
 {
-    if (name.trimmed().isEmpty() || !config.isValid() ||
-        m_sourceManager.cameraDeviceInUse(config.deviceId))
+    if (name.trimmed().isEmpty() || !params.isValid() ||
+        m_sourceManager.cameraDeviceInUse(params.deviceId))
         return {};
     const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    if (!m_sourceManager.addSource({id, name.trimmed(), config}))
+    if (!m_sourceManager.addSource({id, name.trimmed(), params}))
         return {};
     return id;
 }
 
-bool CameraSourceController::applyProperties(const QString &sourceId, const CameraSourceConfig &config)
+bool CameraSourceController::applyProperties(const QString &sourceId, const CameraSourceParams &params)
 {
     const auto *camera = m_sourceManager.cameraSource(sourceId);
     if (!camera)
         return false;
-    const bool unchanged = (*camera) == config;
-    if (!m_sourceManager.setCameraConfig(sourceId, config))
+    const bool unchanged = (*camera) == params;
+    if (!m_sourceManager.setCameraParams(sourceId, params))
         return false;
-    // A changed config already restarts through the manager notification.
+    // Changed parameters already restart through the manager notification.
     if (unchanged)
         retry(sourceId);
     return true;
@@ -164,10 +164,10 @@ void CameraSourceController::synchronize()
         const QString id = item.id;
         retained.insert(id);
         auto &entry = m_entries[id];
-        const auto &config = std::get<CameraSourceConfig>(item.config);
-        if (!(entry.config == config)) {
+        const auto &params = std::get<CameraSourceParams>(item.params);
+        if (!(entry.params == params)) {
             stop(entry);
-            entry.config = config;
+            entry.params = params;
             entry.failed = false;
         }
         if (!item.visible) {
@@ -180,14 +180,14 @@ void CameraSourceController::synchronize()
             // Never reopen while an old session on the same device is still retiring.
             const bool retiring =
                 std::any_of(m_retired.cbegin(), m_retired.cend(), [&](const auto &worker) {
-                    return worker->deviceId() == config.deviceId && !worker->isFinished();
+                    return worker->deviceId() == params.deviceId && !worker->isFinished();
                 });
             if (retiring) {
                 m_sourceManager.setSourceStatus(id, "starting", {});
                 continue;
             }
             entry.generation = ++m_generation;
-            entry.worker = std::make_unique<CameraCaptureWorker>(config, entry.generation);
+            entry.worker = std::make_unique<CameraCaptureWorker>(params, entry.generation);
             entry.worker->start();
             m_sourceManager.setSourceStatus(id, "starting", {});
         } else if (entry.failed) {

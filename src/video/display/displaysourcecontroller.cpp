@@ -50,7 +50,7 @@ QString DisplaySourceController::addDisplay(const QString &name, const QString &
     const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     // Keep the source even if opening the selected display subsequently fails.
     if (!m_sourceManager.addSource(
-            {id, name.trimmed(), DisplaySourceConfig{displayId, cursor}}))
+            {id, name.trimmed(), DisplaySourceParams{displayId, cursor}}))
         return {};
     return id;
 }
@@ -63,7 +63,7 @@ bool DisplaySourceController::applyProperties(const QString &sourceId, const QSt
         return false;
     const bool unchanged =
         display->displayId == displayId && display->captureCursor == cursor;
-    if (!m_sourceManager.setDisplayConfig(sourceId, displayId, cursor))
+    if (!m_sourceManager.setDisplayParams(sourceId, displayId, cursor))
         return false;
     if (unchanged)
         retry(sourceId);
@@ -115,11 +115,11 @@ void DisplaySourceController::synchronize()
         if (item.type() != VideoSourceType::DisplayCapture)
             continue;
         const QString id = item.id;
-        const auto &config = std::get<DisplaySourceConfig>(item.config);
+        const auto &params = std::get<DisplaySourceParams>(item.params);
         retained.insert(id);
         auto &entry = m_entries[id];
-        const QString displayId = config.displayId;
-        const bool cursor = config.captureCursor;
+        const QString displayId = params.displayId;
+        const bool cursor = params.captureCursor;
         if (entry.displayId != displayId || entry.cursor != cursor) {
             stop(entry);
             entry.displayId = displayId;

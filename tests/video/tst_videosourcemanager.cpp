@@ -18,7 +18,7 @@ private slots:
     void sharesGeometryForMappingAndResizing();
     void startsWithEmptySourceList();
     void exposesTypedSourcesAndRejectsMissingIds();
-    void supportsAllSourceConfigurations();
+    void supportsAllSourceParameters();
     void runtimeDetailsFollowSourceType();
     void selectionNotifiesOnlyOnChange();
     void removesSelectedSource_data();
@@ -59,7 +59,7 @@ void VideoSourceManagerTest::exposesTypedSourcesAndRejectsMissingIds()
 {
     VideoSourceManager manager(
         {{"image", "Logo",
-          ImageSourceConfig{"fixture.png"}, false,
+          ImageSourceParams{"fixture.png"}, false,
           true}});
     QCOMPARE(manager.sources().size(), 1);
     const auto *source = manager.source("image");
@@ -70,7 +70,7 @@ void VideoSourceManagerTest::exposesTypedSourcesAndRejectsMissingIds()
     QCOMPARE(manager.sourceStatus("image").pixelSize, QSize(64, 32));
     QVERIFY(!source->visible);
     QVERIFY(source->locked);
-    QCOMPARE(std::get<ImageSourceConfig>(source->config).filePath, QString("fixture.png"));
+    QCOMPARE(std::get<ImageSourceParams>(source->params).filePath, QString("fixture.png"));
     QVERIFY(!manager.source("missing"));
     QVERIFY(!manager.cameraSource("image"));
     QVERIFY(!manager.displaySource("image"));
@@ -79,13 +79,13 @@ void VideoSourceManagerTest::exposesTypedSourcesAndRejectsMissingIds()
     QVERIFY(!manager.source({}));
 }
 
-void VideoSourceManagerTest::supportsAllSourceConfigurations()
+void VideoSourceManagerTest::supportsAllSourceParameters()
 {
     QList<VideoSource> entries{
-        {"display", "Display", DisplaySourceConfig{"monitor-1", false}},
-        {"camera", "Camera", CameraSourceConfig{"camera-1", QSize(1280, 720), 30}},
+        {"display", "Display", DisplaySourceParams{"monitor-1", false}},
+        {"camera", "Camera", CameraSourceParams{"camera-1", QSize(1280, 720), 30}},
         {"image", "Image",
-         ImageSourceConfig{"fixture.png"}}};
+         ImageSourceParams{"fixture.png"}}};
     VideoSourceManager manager(entries);
     manager.setSourcePixelSize("image", {64, 32});
     QCOMPARE(manager.source("display")->type(), VideoSourceType::DisplayCapture);
@@ -97,7 +97,7 @@ void VideoSourceManagerTest::supportsAllSourceConfigurations()
         QVERIFY(manager.setSourceVisible(entry.id, false));
         QVERIFY(manager.setSourceLocked(entry.id, true));
     }
-    entries[0].config = ImageSourceConfig{"replacement.png"};
+    entries[0].params = ImageSourceParams{"replacement.png"};
     QCOMPARE(manager.source("display")->type(), VideoSourceType::DisplayCapture);
     QVERIFY(manager.moveSource("image", -1));
     QCOMPARE(manager.sources().at(1).id, QString("image"));
@@ -111,8 +111,8 @@ void VideoSourceManagerTest::supportsAllSourceConfigurations()
 
 void VideoSourceManagerTest::runtimeDetailsFollowSourceType()
 {
-    VideoSource camera{"camera", "Camera", CameraSourceConfig{"device"}};
-    VideoSource image{"image", "Image", ImageSourceConfig{"image.png"}};
+    VideoSource camera{"camera", "Camera", CameraSourceParams{"device"}};
+    VideoSource image{"image", "Image", ImageSourceParams{"image.png"}};
     VideoSourceManager manager({camera, image});
     QVERIFY(manager.setCameraActualMode("camera", {1280, 720}, 30000, 1001));
     QCOMPARE(manager.sourceStatus("camera").actualFrameRateNumerator, 30000);
@@ -131,7 +131,7 @@ void VideoSourceManagerTest::runtimeDetailsFollowSourceType()
     QVERIFY(manager.setSourceStatus("image", "ready", {}));
     QVERIFY(manager.sourceStatus("image").error.isEmpty());
     QCOMPARE(changed.count(), 0);
-    // A copied configuration does not carry runtime state into another manager.
+    // A copied source list does not carry runtime state into another manager.
     VideoSourceManager copy(manager.sources());
     QVERIFY(copy.sourceStatus("camera").pixelSize.isEmpty());
     QVERIFY(copy.sourceStatus("image").state.isEmpty());
@@ -314,8 +314,8 @@ void VideoSourceManagerTest::sameImageEntriesRemainIndependent()
     image.fill(Qt::red);
     QVERIFY(image.save(path));
     QList<VideoSource> entries{
-        {"a", "First", ImageSourceConfig{path}},
-        {"b", "Second", ImageSourceConfig{path}}};
+        {"a", "First", ImageSourceParams{path}},
+        {"b", "Second", ImageSourceParams{path}}};
     VideoSourceManager state(entries);
     state.setSourcePixelSize("a", image.size());
     state.setSourcePixelSize("b", image.size());
@@ -351,9 +351,9 @@ void VideoSourceManagerTest::insertsSourcesAtTop()
     QSignalSpy changed(&model, &VideoSourceManager::sourceChanged);
     QSignalSpy availability(&model, &VideoSourceManager::sourceMoveAvailabilityChanged);
     QVERIFY(!model.addSource({" ", "Invalid"}));
-    QVERIFY(model.addSource({"one", "First", ImageSourceConfig{"one.png"}}));
+    QVERIFY(model.addSource({"one", "First", ImageSourceParams{"one.png"}}));
     QVERIFY(!model.addSource({"one", "Duplicate"}));
-    QVERIFY(model.addSource({"two", "Second", ImageSourceConfig{"one.png"}}));
+    QVERIFY(model.addSource({"two", "Second", ImageSourceParams{"one.png"}}));
     QCOMPARE(model.sources().size(), 2);
     QCOMPARE(inserted.count(), 2);
     QCOMPARE(model.currentSourceId(), QString("two"));
@@ -370,7 +370,7 @@ void VideoSourceManagerTest::insertsSourcesAtTop()
 void VideoSourceManagerTest::initializesAndValidatesTransforms()
 {
     VideoSourceManager model;
-    QVERIFY(model.addSource({"image", "Image", ImageSourceConfig{"image.png"}}));
+    QVERIFY(model.addSource({"image", "Image", ImageSourceParams{"image.png"}}));
     const auto current = [&] {
         return model.sources().at(0).transform;
     };
@@ -413,7 +413,7 @@ void VideoSourceManagerTest::initializesAndValidatesTransforms()
     }
     VideoSourceManager ready(
         {{"ready", "Ready",
-          ImageSourceConfig{"ready.png"}}});
+          ImageSourceParams{"ready.png"}}});
     ready.setSourcePixelSize("ready", {40, 20});
     QCOMPARE(ready.sources().at(0).transform.size, QSizeF(40, 20));
 }
@@ -466,9 +466,9 @@ void VideoSourceManagerTest::sharesGeometryForMappingAndResizing()
 void VideoSourceManagerTest::filtersAreOrderedValidatedAndIndependent()
 {
     VideoSourceManager model(
-        QList<VideoSource>{{"a", "A", ImageSourceConfig{"a.png"}},
-                           {"b", "B", ImageSourceConfig{"a.png"}},
-                           {"camera", "Camera", CameraSourceConfig{}}});
+        QList<VideoSource>{{"a", "A", ImageSourceParams{"a.png"}},
+                           {"b", "B", ImageSourceParams{"a.png"}},
+                           {"camera", "Camera", CameraSourceParams{}}});
     QSignalSpy changed(&model, &VideoSourceManager::sourceFiltersChanged);
     QSignalSpy data(&model, &VideoSourceManager::sourceChanged);
     QVERIFY(!model.canFilterCurrentSource());
@@ -524,9 +524,9 @@ void VideoSourceManagerTest::filtersAreOrderedValidatedAndIndependent()
 void VideoSourceManagerTest::displayPropertiesPreserveSourceState()
 {
     VideoSourceManager model(QList<VideoSource>{
-        {"screen", "Screen", DisplaySourceConfig{"physical-path", true}},
-        {"image", "Image", ImageSourceConfig{"a.png"}},
-        {"camera", "Camera", CameraSourceConfig{}}});
+        {"screen", "Screen", DisplaySourceParams{"physical-path", true}},
+        {"image", "Image", ImageSourceParams{"a.png"}},
+        {"camera", "Camera", CameraSourceParams{}}});
     QSignalSpy changed(&model, &VideoSourceManager::sourceChanged);
     QSignalSpy status(&model, &VideoSourceManager::sourceStatusChanged);
     QVERIFY(model.selectSource("screen"));
@@ -537,12 +537,12 @@ void VideoSourceManagerTest::displayPropertiesPreserveSourceState()
     const auto filter = model.addFilter("screen");
     QVERIFY(model.setSourceLocked("screen", true));
     const int before = changed.count();
-    QVERIFY(!model.setDisplayConfig("screen", " ", true));
-    QVERIFY(!model.setDisplayConfig("image", "another", true));
-    QVERIFY(!model.setDisplayConfig("missing", "another", true));
-    QVERIFY(model.setDisplayConfig("screen", "physical-path", true));
+    QVERIFY(!model.setDisplayParams("screen", " ", true));
+    QVERIFY(!model.setDisplayParams("image", "another", true));
+    QVERIFY(!model.setDisplayParams("missing", "another", true));
+    QVERIFY(model.setDisplayParams("screen", "physical-path", true));
     QCOMPARE(changed.count(), before);
-    QVERIFY(model.setDisplayConfig("screen", "another-physical-path", false));
+    QVERIFY(model.setDisplayParams("screen", "another-physical-path", false));
     QCOMPARE(changed.last().at(0).toString(), QString("screen"));
     QCOMPARE(model.sources().at(0).transform, transform);
     QCOMPARE(model.sourceFilters("screen")[0].id, filter);
@@ -570,7 +570,7 @@ void VideoSourceManagerTest::displayPropertiesPreserveSourceState()
 void VideoSourceManagerTest::sourceRemovalDuringGeometryNotificationIsSafe()
 {
     VideoSourceManager manager;
-    QVERIFY(manager.addSource({"camera", "Camera", CameraSourceConfig{"device"}}));
+    QVERIFY(manager.addSource({"camera", "Camera", CameraSourceParams{"device"}}));
     connect(&manager, &VideoSourceManager::sourceChanged, this, [&](const QString &sourceId) {
         manager.removeSource(sourceId);
     });

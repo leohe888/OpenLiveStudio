@@ -41,10 +41,10 @@ private slots:
         QCOMPARE(model.sources().at(0).name, QString("First"));
         QCOMPARE(model.sourceStatus(model.sources().at(0).id).state,
                  QString("ready"));
-        QVERIFY(std::holds_alternative<ImageSourceConfig>(model.sources().at(0).config));
+        QVERIFY(std::holds_alternative<ImageSourceParams>(model.sources().at(0).params));
         QCOMPARE(model.sourceStatus(model.sources().at(0).id).pixelSize, image.size());
         QVERIFY(
-            QFileInfo(std::get<ImageSourceConfig>(model.sources().at(0).config).filePath)
+            QFileInfo(std::get<ImageSourceParams>(model.sources().at(0).params).filePath)
                 .isAbsolute());
         const QString first = snapshot[0].id;
         const auto key = snapshot[0].image.cacheKey();
@@ -200,15 +200,15 @@ private slots:
         const QString path = dir.filePath("valid.png");
         QVERIFY(image.save(path));
         VideoSourceManager model(
-            {{"valid", "Valid", ImageSourceConfig{path}},
-             {"bad", "Bad", ImageSourceConfig{dir.filePath("missing.png")}}});
+            {{"valid", "Valid", ImageSourceParams{path}},
+             {"bad", "Bad", ImageSourceParams{dir.filePath("missing.png")}}});
         ImageSourceController controller(model);
         QSignalSpy errors(&controller, &ImageSourceController::sourceFailed);
         QStringList loadStates;
         connect(&model, &VideoSourceManager::sourceStatusChanged, this,
                 [&](const QString &sourceId) {
                     if (const auto *source = model.source(sourceId))
-                        if (const auto *image = std::get_if<ImageSourceConfig>(&source->config))
+                        if (const auto *image = std::get_if<ImageSourceParams>(&source->params))
                             loadStates.append(model.sourceStatus(sourceId).state);
                 });
         QList<PreviewSource> snapshot;

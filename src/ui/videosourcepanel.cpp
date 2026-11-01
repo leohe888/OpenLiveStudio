@@ -106,13 +106,13 @@ public:
         if (!camera) {
             cursor = new QCheckBox(tr("采集鼠标光标"), this);
             cursor->setObjectName("captureCursorInput");
-            const DisplaySourceConfig config =
-                initial ? std::get<DisplaySourceConfig>(initial->config) : DisplaySourceConfig{};
-            cursor->setChecked(config.captureCursor);
+            const DisplaySourceParams params =
+                initial ? std::get<DisplaySourceParams>(initial->params) : DisplaySourceParams{};
+            cursor->setChecked(params.captureCursor);
             layout->addWidget(cursor);
             layout->addWidget(
                 label(this, "displayCaptureHint", tr("原始分辨率 · 最高 30 FPS · SDR")));
-            fillDevices(device, displays->displayDevices(), config.displayId);
+            fillDevices(device, displays->displayDevices(), params.displayId);
             connect(displays, &DisplaySourceController::displayDevicesChanged, this, [=] {
                 fillDevices(device, displays->displayDevices(), device->currentData().toString());
                 if (changed)
@@ -122,15 +122,15 @@ public:
                     &DisplaySourceController::refreshDisplayDevices);
             displays->refreshDisplayDevices();
         } else {
-            const CameraSourceConfig config =
-                initial ? std::get<CameraSourceConfig>(initial->config) : CameraSourceConfig{};
-            originalMode = {config.requestedResolution.width(), config.requestedResolution.height(),
-                            config.requestedFrameRateNumerator,
-                            config.requestedFrameRateDenominator};
+            const CameraSourceParams params =
+                initial ? std::get<CameraSourceParams>(initial->params) : CameraSourceParams{};
+            originalMode = {params.requestedResolution.width(), params.requestedResolution.height(),
+                            params.requestedFrameRateNumerator,
+                            params.requestedFrameRateDenominator};
             mode = new QComboBox(this);
             mode->setObjectName("cameraModeInput");
             layout->addWidget(mode);
-            fillDevices(device, cameras->devices(), config.deviceId);
+            fillDevices(device, cameras->devices(), params.deviceId);
 
             const auto loadModes = [=] {
                 const auto id = device->currentData().toString();
@@ -546,7 +546,7 @@ QDialog *createSourceAddDialog(QWidget *parent, VideoSourceManager *manager,
                 name->text(), cameraPage->findChild<QComboBox *>("cameraModeInput")
                                   ->currentData()
                                   .value<CameraMode>()
-                                  .config(cameraPage->findChild<QComboBox *>("cameraDeviceInput")
+                                  .params(cameraPage->findChild<QComboBox *>("cameraDeviceInput")
                                               ->currentData()
                                               .toString()));
         if (!id.isEmpty())
@@ -633,7 +633,7 @@ QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceManager *manag
     QObject::connect(apply, &QPushButton::clicked, dialog, [=] {
         bool success =
             camera ? cameras->applyProperties(
-                         sourceId, settings->mode->currentData().value<CameraMode>().config(
+                         sourceId, settings->mode->currentData().value<CameraMode>().params(
                                        settings->device->currentData().toString()))
                    : displays->applyProperties(sourceId, settings->device->currentData().toString(),
                                                settings->cursor->isChecked());

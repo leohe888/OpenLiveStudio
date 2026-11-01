@@ -7,9 +7,9 @@
 namespace {
 QList<VideoSource> mixedSources()
 {
-    return {{"camera", "Camera", CameraSourceConfig{"device"}},
-            {"image", "Image", ImageSourceConfig{"image.png"}},
-            {"display", "Display", DisplaySourceConfig{"monitor"}}};
+    return {{"camera", "Camera", CameraSourceParams{"device"}},
+            {"image", "Image", ImageSourceParams{"image.png"}},
+            {"display", "Display", DisplaySourceParams{"monitor"}}};
 }
 
 QImage image(Qt::GlobalColor color)
@@ -53,7 +53,7 @@ void VideoSourceAggregatorTest::publishesInitialAndPendingSnapshots()
     QTRY_COMPARE(changes.count(), 1);
     QVERIFY(output.isEmpty());
 
-    QVERIFY(model.addSource({"image", "Image", ImageSourceConfig{"pending.png"}}));
+    QVERIFY(model.addSource({"image", "Image", ImageSourceParams{"pending.png"}}));
     aggregator.setImageSources({PreviewSource{"image", {}}});
     QTRY_COMPARE(output.size(), 1);
     QVERIFY(!output[0].hasFrame()); // Loading/failed sources are not silently dropped.
@@ -127,7 +127,7 @@ void VideoSourceAggregatorTest::usesModelPropertiesWithoutNewFrames()
 {
     VideoSourceManager model(
         {{"image", "Image",
-          ImageSourceConfig{"image.png"}}});
+          ImageSourceParams{"image.png"}}});
     model.setSourcePixelSize("image", {40, 20});
     VideoSourceAggregator aggregator(model);
     QList<PreviewSource> output;

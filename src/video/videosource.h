@@ -14,13 +14,13 @@ enum class VideoSourceType {
     Image
 };
 
-struct DisplaySourceConfig
+struct DisplaySourceParams
 {
     QString displayId;
     bool captureCursor = true;
 };
 
-struct CameraSourceConfig
+struct CameraSourceParams
 {
     QString deviceId;
     // Invalid size and zero frame rate mean no explicit preference.
@@ -28,23 +28,23 @@ struct CameraSourceConfig
     int requestedFrameRateNumerator = 0;
     int requestedFrameRateDenominator = 1;
     bool isValid() const;
-    bool operator==(const CameraSourceConfig &other) const;
-    bool operator!=(const CameraSourceConfig &other) const;
+    bool operator==(const CameraSourceParams &other) const;
+    bool operator!=(const CameraSourceParams &other) const;
 };
 
-struct ImageSourceConfig
+struct ImageSourceParams
 {
     QString filePath;
 };
 
-using VideoSourceConfig =
-    std::variant<DisplaySourceConfig, CameraSourceConfig, ImageSourceConfig>;
+using VideoSourceParams =
+    std::variant<DisplaySourceParams, CameraSourceParams, ImageSourceParams>;
 
 struct VideoSource
 {
     QString id;
     QString name;
-    VideoSourceConfig config = DisplaySourceConfig{};
+    VideoSourceParams params = DisplaySourceParams{};
     bool visible = true;
     bool locked = false;
     VideoSourceTransform transform;

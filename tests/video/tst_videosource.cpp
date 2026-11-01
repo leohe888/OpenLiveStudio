@@ -7,25 +7,25 @@ class VideoSourceTest : public QObject
     Q_OBJECT
 
 private slots:
-    void typeFollowsConfiguration();
-    void cameraConfigurationValidation_data();
-    void cameraConfigurationValidation();
-    void cameraConfigurationComparison();
+    void typeFollowsParameters();
+    void cameraParametersValidation_data();
+    void cameraParametersValidation();
+    void cameraParametersComparison();
 };
 
-void VideoSourceTest::typeFollowsConfiguration()
+void VideoSourceTest::typeFollowsParameters()
 {
     VideoSource source;
     QCOMPARE(source.type(), VideoSourceType::DisplayCapture);
-    source.config = CameraSourceConfig{"camera"};
+    source.params = CameraSourceParams{"camera"};
     QCOMPARE(source.type(), VideoSourceType::Camera);
-    source.config = ImageSourceConfig{"image.png"};
+    source.params = ImageSourceParams{"image.png"};
     QCOMPARE(source.type(), VideoSourceType::Image);
-    source.config = DisplaySourceConfig{"display", false};
+    source.params = DisplaySourceParams{"display", false};
     QCOMPARE(source.type(), VideoSourceType::DisplayCapture);
 }
 
-void VideoSourceTest::cameraConfigurationValidation_data()
+void VideoSourceTest::cameraParametersValidation_data()
 {
     QTest::addColumn<QString>("deviceId");
     QTest::addColumn<QSize>("resolution");
@@ -51,7 +51,7 @@ void VideoSourceTest::cameraConfigurationValidation_data()
         << QString("camera") << QSize(1280, 720) << -30 << 1 << false;
 }
 
-void VideoSourceTest::cameraConfigurationValidation()
+void VideoSourceTest::cameraParametersValidation()
 {
     QFETCH(QString, deviceId);
     QFETCH(QSize, resolution);
@@ -59,28 +59,28 @@ void VideoSourceTest::cameraConfigurationValidation()
     QFETCH(int, denominator);
     QFETCH(bool, valid);
 
-    const CameraSourceConfig config{deviceId, resolution, numerator, denominator};
-    QCOMPARE(config.isValid(), valid);
+    const CameraSourceParams params{deviceId, resolution, numerator, denominator};
+    QCOMPARE(params.isValid(), valid);
 }
 
-void VideoSourceTest::cameraConfigurationComparison()
+void VideoSourceTest::cameraParametersComparison()
 {
-    const CameraSourceConfig config{"camera", {1280, 720}, 30000, 1001};
-    const auto copy = config;
-    QVERIFY(config == copy);
-    QVERIFY(!(config != copy));
+    const CameraSourceParams params{"camera", {1280, 720}, 30000, 1001};
+    const auto copy = params;
+    QVERIFY(params == copy);
+    QVERIFY(!(params != copy));
 
-    const CameraSourceConfig different[] = {
+    const CameraSourceParams different[] = {
         {"another-camera", {1280, 720}, 30000, 1001},
         {"camera", {1920, 1080}, 30000, 1001},
         {"camera", {1280, 720}, 60000, 1001},
         {"camera", {1280, 720}, 30000, 2002},
     };
     for (const auto &other : different) {
-        QVERIFY(!(config == other));
-        QVERIFY(!(other == config));
-        QVERIFY(config != other);
-        QVERIFY(other != config);
+        QVERIFY(!(params == other));
+        QVERIFY(!(other == params));
+        QVERIFY(params != other);
+        QVERIFY(other != params);
     }
 }
 
