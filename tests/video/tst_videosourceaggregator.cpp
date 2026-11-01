@@ -5,11 +5,11 @@
 #include <QtTest/QTest>
 
 namespace {
-QList<VideoSource> mixedSources()
+QList<VideoSourceDefinition> mixedSources()
 {
-    return {{"camera", "Camera", CameraSourceDetails{CameraConfig{"device"}}},
-            {"image", "Image", ImageSourceDetails{ImageConfig{"image.png"}}},
-            {"display", "Display", DisplaySourceDetails{DisplayConfig{"monitor"}}}};
+    return {{"camera", "Camera", CameraSourceConfig{"device"}},
+            {"image", "Image", ImageSourceConfig{"image.png"}},
+            {"display", "Display", DisplaySourceConfig{"monitor"}}};
 }
 
 QImage image(Qt::GlobalColor color)
@@ -53,7 +53,7 @@ void VideoSourceAggregatorTest::publishesInitialAndPendingSnapshots()
     QTRY_COMPARE(changes.count(), 1);
     QVERIFY(output.isEmpty());
 
-    QVERIFY(model.addSource({"image", "Image", ImageSourceDetails{ImageConfig{"pending.png"}}}));
+    QVERIFY(model.addSource({"image", "Image", ImageSourceConfig{"pending.png"}}));
     aggregator.setImageSources({PreviewSource{"image", {}}});
     QTRY_COMPARE(output.size(), 1);
     QVERIFY(!output[0].hasFrame()); // Loading/failed sources are not silently dropped.
@@ -127,7 +127,8 @@ void VideoSourceAggregatorTest::usesModelPropertiesWithoutNewFrames()
 {
     VideoSourceManager model(
         {{"image", "Image",
-          ImageSourceDetails{ImageConfig{"image.png"}, ImageRuntime{QSize(40, 20)}}}});
+          ImageSourceConfig{"image.png"}}});
+    model.setSourcePixelSize("image", {40, 20});
     VideoSourceAggregator aggregator(model);
     QList<PreviewSource> output;
     QSignalSpy changes(&aggregator, &VideoSourceAggregator::sourcesChanged);

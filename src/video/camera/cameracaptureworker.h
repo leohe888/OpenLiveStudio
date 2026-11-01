@@ -1,7 +1,7 @@
 #ifndef CAMERACAPTUREWORKER_H
 #define CAMERACAPTUREWORKER_H
 
-#include "video/videosource.h"
+#include "video/videosourcedefinition.h"
 #include <QImage>
 #include <QMutex>
 #include <QThread>
@@ -35,10 +35,10 @@ struct CameraMode
                qint64(numerator) * other.denominator == qint64(other.numerator) * denominator;
     }
 
-    CameraConfig config(const QString &deviceId) const
+    CameraSourceConfig config(const QString &deviceId) const
     {
-        return width > 0 ? CameraConfig{deviceId, QSize(width, height), numerator, denominator}
-                         : CameraConfig{deviceId};
+        return width > 0 ? CameraSourceConfig{deviceId, QSize(width, height), numerator, denominator}
+                         : CameraSourceConfig{deviceId};
     }
 };
 Q_DECLARE_METATYPE(CameraMode)
@@ -59,7 +59,7 @@ QList<CameraMode> cameraModes(const QString &deviceId, QString *error = nullptr)
 class CameraCaptureWorker : public QThread
 {
 public:
-    CameraCaptureWorker(CameraConfig config, quint64 generation);
+    CameraCaptureWorker(CameraSourceConfig config, quint64 generation);
     ~CameraCaptureWorker() override;
     void stop();
     std::shared_ptr<const CameraFrame> takeLatest();
@@ -75,7 +75,7 @@ protected:
 
 private:
     void fail(const QString &error);
-    CameraConfig m_config;
+    CameraSourceConfig m_config;
     quint64 m_generation;
     std::atomic_bool m_stop{false};
     mutable QMutex m_mutex;

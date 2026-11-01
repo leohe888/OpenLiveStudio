@@ -92,23 +92,23 @@ void CameraSourceController::requestModes(const QString &deviceId)
     m_queries.push_back(std::move(query));
 }
 
-QString CameraSourceController::addCamera(const QString &name, const CameraConfig &config)
+QString CameraSourceController::addCamera(const QString &name, const CameraSourceConfig &config)
 {
     if (name.trimmed().isEmpty() || !config.isValid() ||
         m_sourceManager.cameraDeviceInUse(config.deviceId))
         return {};
     const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    if (!m_sourceManager.addSource({id, name.trimmed(), CameraSourceDetails{config}}))
+    if (!m_sourceManager.addSource({id, name.trimmed(), config}))
         return {};
     return id;
 }
 
-bool CameraSourceController::applyProperties(const QString &sourceId, const CameraConfig &config)
+bool CameraSourceController::applyProperties(const QString &sourceId, const CameraSourceConfig &config)
 {
     const auto *camera = m_sourceManager.cameraSource(sourceId);
     if (!camera)
         return false;
-    const bool unchanged = camera->config == config;
+    const bool unchanged = (*camera) == config;
     if (!m_sourceManager.setCameraConfig(sourceId, config))
         return false;
     // A changed config already restarts through the manager notification.
@@ -164,7 +164,7 @@ void CameraSourceController::synchronize()
         const QString id = item.id;
         retained.insert(id);
         auto &entry = m_entries[id];
-        const auto &config = std::get<CameraSourceDetails>(item.details).config;
+        const auto &config = std::get<CameraSourceConfig>(item.config);
         if (!(entry.config == config)) {
             stop(entry);
             entry.config = config;
@@ -174,7 +174,7 @@ void CameraSourceController::synchronize()
             stop(entry);
             m_sourceManager.setSourceStatus(
                 id, "paused",
-                entry.failed ? std::get<CameraSourceDetails>(item.details).runtime.captureError
+                entry.failed ? m_sourceManager.sourceStatus(id).error
                              : QString());
         } else if (!entry.worker && !entry.failed) {
             // Never reopen while an old session on the same device is still retiring.
@@ -192,7 +192,7 @@ void CameraSourceController::synchronize()
             m_sourceManager.setSourceStatus(id, "starting", {});
         } else if (entry.failed) {
             m_sourceManager.setSourceStatus(
-                id, "error", std::get<CameraSourceDetails>(item.details).runtime.captureError);
+                id, "error", m_sourceManager.sourceStatus(id).error);
         }
     }
     for (auto it = m_entries.begin(); it != m_entries.end();) {

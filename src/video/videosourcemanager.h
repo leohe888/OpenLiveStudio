@@ -1,11 +1,22 @@
 #ifndef VIDEOSOURCEMANAGER_H
 #define VIDEOSOURCEMANAGER_H
 
-#include "video/videosource.h"
+#include "video/videosourcedefinition.h"
 
+#include <QHash>
 #include <QList>
 #include <QObject>
 #include <QString>
+
+struct VideoSourceStatus
+{
+    QSize pixelSize;
+    QString state;
+    QString error;
+    // Only populated for camera sources.
+    int actualFrameRateNumerator = 0;
+    int actualFrameRateDenominator = 1;
+};
 
 class VideoSourceManager : public QObject
 {
@@ -14,29 +25,31 @@ class VideoSourceManager : public QObject
 public:
     explicit VideoSourceManager(QObject *parent = nullptr);
     // Initial source IDs must be nonempty and unique.
-    explicit VideoSourceManager(const QList<VideoSource> &sources, QObject *parent = nullptr);
+    explicit VideoSourceManager(const QList<VideoSourceDefinition> &sources, QObject *parent = nullptr);
 
-    const QList<VideoSource> &sources() const
+    const QList<VideoSourceDefinition> &sources() const
     {
         return m_sources;
     }
 
     // The pointer is only valid until the next mutation; do not retain it across signals.
-    const VideoSource *source(const QString &sourceId) const;
+    const VideoSourceDefinition *source(const QString &sourceId) const;
+
+    VideoSourceStatus sourceStatus(const QString &sourceId) const;
 
     bool setSourceTransform(const QString &sourceId, const VideoSourceTransform &transform);
-    bool addSource(const VideoSource &source);
+    bool addSource(const VideoSourceDefinition &source, const VideoSourceStatus &status = {});
     bool setSourcePixelSize(const QString &sourceId, const QSize &size);
     bool setSourceStatus(const QString &sourceId, const QString &state, const QString &error);
     bool canEditCurrentDisplay() const;
     bool canEditCurrentSource() const;
-    const CameraSourceDetails *cameraSource(const QString &sourceId) const;
-    bool setCameraConfig(const QString &sourceId, const CameraConfig &config);
+    const CameraSourceConfig *cameraSource(const QString &sourceId) const;
+    bool setCameraConfig(const QString &sourceId, const CameraSourceConfig &config);
     bool cameraDeviceInUse(const QString &deviceId, const QString &exceptId = {}) const;
     bool setCameraActualMode(const QString &sourceId, const QSize &size, int numerator,
                              int denominator);
 
-    const DisplaySourceDetails *displaySource(const QString &sourceId) const;
+    const DisplaySourceConfig *displaySource(const QString &sourceId) const;
     bool setDisplayConfig(const QString &sourceId, const QString &displayId, bool cursor);
 
     QString currentSourceId() const
@@ -84,7 +97,8 @@ private:
     int sourceRow(const QString &sourceId) const;
     int filterRow(int sourceRow, const QString &filterId) const;
     void notifyFiltersChanged(int row);
-    QList<VideoSource> m_sources;
+    QList<VideoSourceDefinition> m_sources;
+    QHash<QString, VideoSourceStatus> m_statuses;
     QString m_currentSourceId;
 };
 

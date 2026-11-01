@@ -82,10 +82,9 @@ void ImageSourceController::addImage(const QString &name, const QString &path, Q
             }
             const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
             m_images.insert(id, {absolutePath, image, ++m_generation});
-            VideoSource source{id, name.trimmed(),
-                               ImageSourceDetails{ImageConfig{absolutePath},
-                                                  ImageRuntime{image.size(), "ready", {}}}};
-            if (!m_sourceManager.addSource(source)) {
+            VideoSourceDefinition source{id, name.trimmed(),
+                               ImageSourceConfig{absolutePath}};
+            if (!m_sourceManager.addSource(source, {image.size(), "ready", {}})) {
                 m_images.remove(id);
                 emit addFailed(owner, tr("无法添加图片来源。"));
                 return;
@@ -118,7 +117,7 @@ void ImageSourceController::synchronize()
         if (item.type() != VideoSourceType::Image)
             continue;
         const QString id = item.id;
-        const QString path = std::get<ImageSourceDetails>(item.details).config.filePath;
+        const QString path = std::get<ImageSourceConfig>(item.config).filePath;
         retained.insert(id);
         auto it = m_images.find(id);
         if (it == m_images.end() || it->path != path) {

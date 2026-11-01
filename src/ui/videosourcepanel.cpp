@@ -85,7 +85,7 @@ public:
 
     CaptureSettings(QWidget *parent, DisplaySourceController *displays,
                     CameraSourceController *cameras, bool camera,
-                    const VideoSource *initial = nullptr)
+                    const VideoSourceDefinition *initial = nullptr)
         : QWidget(parent)
     {
         auto *layout = new QVBoxLayout(this);
@@ -106,8 +106,8 @@ public:
         if (!camera) {
             cursor = new QCheckBox(tr("采集鼠标光标"), this);
             cursor->setObjectName("captureCursorInput");
-            const DisplayConfig config =
-                initial ? std::get<DisplaySourceDetails>(initial->details).config : DisplayConfig{};
+            const DisplaySourceConfig config =
+                initial ? std::get<DisplaySourceConfig>(initial->config) : DisplaySourceConfig{};
             cursor->setChecked(config.captureCursor);
             layout->addWidget(cursor);
             layout->addWidget(
@@ -122,8 +122,8 @@ public:
                     &DisplaySourceController::refreshDisplayDevices);
             displays->refreshDisplayDevices();
         } else {
-            const CameraConfig config =
-                initial ? std::get<CameraSourceDetails>(initial->details).config : CameraConfig{};
+            const CameraSourceConfig config =
+                initial ? std::get<CameraSourceConfig>(initial->config) : CameraSourceConfig{};
             originalMode = {config.requestedResolution.width(), config.requestedResolution.height(),
                             config.requestedFrameRateNumerator,
                             config.requestedFrameRateDenominator};
@@ -283,14 +283,9 @@ VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent)
         if (!item)
             return;
         auto *widget = list->itemWidget(item);
-        QString state, error;
-        if (const auto *display = std::get_if<DisplaySourceDetails>(&source->details)) {
-            state = display->runtime.captureState;
-            error = display->runtime.captureError;
-        } else if (const auto *camera = std::get_if<CameraSourceDetails>(&source->details)) {
-            state = camera->runtime.captureState;
-            error = camera->runtime.captureError;
-        }
+        const auto runtime = manager->sourceStatus(sourceId);
+        const QString state = source->type() == VideoSourceType::Image ? QString() : runtime.state;
+        const QString error = source->type() == VideoSourceType::Image ? QString() : runtime.error;
         auto *text = widget->findChild<QLabel *>();
         text->setText(source->name + (state == "error" ? tr(" · 采集失败") : QString()));
         text->setToolTip(error.isEmpty() ? source->name : error);
@@ -608,14 +603,13 @@ QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceManager *manag
             dialog->close();
             return;
         }
-        const QString status =
-            camera ? cameraSource->runtime.captureState : displaySource->runtime.captureState;
+        const auto runtime = manager->sourceStatus(sourceId);
+        const QString status = runtime.state;
         QString text = status == "capturing" ? QObject::tr("采集中")
                        : status == "paused"  ? QObject::tr("已暂停：来源当前隐藏")
                        : status == "error"   ? QObject::tr("采集失败")
                                              : QObject::tr("等待采集画面…");
         if (camera && status == "capturing") {
-            const auto &runtime = cameraSource->runtime;
             text += QObject::tr(" · %1 × %2 · 协商帧率 %3 FPS")
                         .arg(runtime.pixelSize.width())
                         .arg(runtime.pixelSize.height())
@@ -624,8 +618,7 @@ QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceManager *manag
                              0, 'f', 2);
         }
         state->setText(text);
-        error->setText(camera ? cameraSource->runtime.captureError
-                              : displaySource->runtime.captureError);
+        error->setText(runtime.error);
         retry->setEnabled(!camera || status == "error");
         apply->setEnabled(settings->ready());
     };

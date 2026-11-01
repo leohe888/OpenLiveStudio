@@ -50,7 +50,7 @@ QString DisplaySourceController::addDisplay(const QString &name, const QString &
     const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     // Keep the source even if opening the selected display subsequently fails.
     if (!m_sourceManager.addSource(
-            {id, name.trimmed(), DisplaySourceDetails{DisplayConfig{displayId, cursor}}}))
+            {id, name.trimmed(), DisplaySourceConfig{displayId, cursor}}))
         return {};
     return id;
 }
@@ -62,7 +62,7 @@ bool DisplaySourceController::applyProperties(const QString &sourceId, const QSt
     if (!display)
         return false;
     const bool unchanged =
-        display->config.displayId == displayId && display->config.captureCursor == cursor;
+        display->displayId == displayId && display->captureCursor == cursor;
     if (!m_sourceManager.setDisplayConfig(sourceId, displayId, cursor))
         return false;
     if (unchanged)
@@ -115,7 +115,7 @@ void DisplaySourceController::synchronize()
         if (item.type() != VideoSourceType::DisplayCapture)
             continue;
         const QString id = item.id;
-        const auto &config = std::get<DisplaySourceDetails>(item.details).config;
+        const auto &config = std::get<DisplaySourceConfig>(item.config);
         retained.insert(id);
         auto &entry = m_entries[id];
         const QString displayId = config.displayId;
@@ -130,7 +130,7 @@ void DisplaySourceController::synchronize()
             stop(entry);
             m_sourceManager.setSourceStatus(
                 id, "paused",
-                entry.failed ? std::get<DisplaySourceDetails>(item.details).runtime.captureError
+                entry.failed ? m_sourceManager.sourceStatus(id).error
                              : QString());
         } else if (!entry.worker && !entry.failed) {
             entry.generation = ++m_generation;
@@ -140,7 +140,7 @@ void DisplaySourceController::synchronize()
             m_sourceManager.setSourceStatus(id, "starting", {});
         } else if (entry.failed) {
             m_sourceManager.setSourceStatus(
-                id, "error", std::get<DisplaySourceDetails>(item.details).runtime.captureError);
+                id, "error", m_sourceManager.sourceStatus(id).error);
         }
     }
     for (auto it = m_entries.begin(); it != m_entries.end();) {

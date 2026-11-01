@@ -2,27 +2,28 @@
 #include <QUuid>
 
 VideoSourceManager::VideoSourceManager(QObject *parent)
-    : VideoSourceManager(QList<VideoSource>{}, parent)
+    : VideoSourceManager(QList<VideoSourceDefinition>{}, parent)
 {
 }
 
-VideoSourceManager::VideoSourceManager(const QList<VideoSource> &sources, QObject *parent)
+VideoSourceManager::VideoSourceManager(const QList<VideoSourceDefinition> &sources, QObject *parent)
     : QObject(parent), m_sources(sources)
 {
-    for (auto &source : m_sources) {
-        if (source.transform.size.isEmpty())
-            source.transform = VideoSourceGeometry::initial(source.pixelSize());
-    }
     connect(this, &VideoSourceManager::currentSourceIdChanged, this,
             &VideoSourceManager::sourceMoveAvailabilityChanged);
     connect(this, &VideoSourceManager::sourcesChanged, this,
             &VideoSourceManager::sourceMoveAvailabilityChanged);
 }
 
-const VideoSource *VideoSourceManager::source(const QString &sourceId) const
+const VideoSourceDefinition *VideoSourceManager::source(const QString &sourceId) const
 {
     const int row = sourceRow(sourceId);
     return row >= 0 ? &m_sources.at(row) : nullptr;
+}
+
+VideoSourceStatus VideoSourceManager::sourceStatus(const QString &sourceId) const
+{
+    return m_statuses.value(sourceId);
 }
 
 bool VideoSourceManager::selectSource(const QString &sourceId)
@@ -65,6 +66,7 @@ bool VideoSourceManager::removeSource(const QString &sourceId)
     if (sourceId == m_currentSourceId)
         selectSource({});
     m_sources.removeAt(row);
+    m_statuses.remove(sourceId);
     emit sourcesChanged();
     return true;
 }
@@ -131,18 +133,19 @@ bool VideoSourceManager::setSourceLocked(const QString &sourceId, bool locked)
     return true;
 }
 
-bool VideoSourceManager::addSource(const VideoSource &source)
+bool VideoSourceManager::addSource(const VideoSourceDefinition &source, const VideoSourceStatus &status)
 {
     if (source.id.trimmed().isEmpty() || sourceRow(source.id) >= 0)
         return false;
-    if (const auto *camera = std::get_if<CameraSourceDetails>(&source.details)) {
-        if (!camera->config.isValid() || cameraDeviceInUse(camera->config.deviceId))
+    if (const auto *camera = std::get_if<CameraSourceConfig>(&source.config)) {
+        if (!camera->isValid() || cameraDeviceInUse(camera->deviceId))
             return false;
     }
-    VideoSource initialized = source;
+    VideoSourceDefinition initialized = source;
     if (initialized.transform.size.isEmpty())
-        initialized.transform = VideoSourceGeometry::initial(initialized.pixelSize());
+        initialized.transform = VideoSourceGeometry::initial(status.pixelSize);
     m_sources.prepend(initialized);
+    m_statuses.insert(source.id, status);
     emit sourcesChanged();
     selectSource(source.id);
     return true;
@@ -153,11 +156,7 @@ bool VideoSourceManager::setSourcePixelSize(const QString &sourceId, const QSize
     const int row = sourceRow(sourceId);
     if (row < 0)
         return false;
-    auto &pixelSize = std::visit(
-        [](auto &source) -> QSize & {
-            return source.runtime.pixelSize;
-        },
-        m_sources[row].details);
+    auto &pixelSize = m_statuses[sourceId].pixelSize;
     if (pixelSize != size) {
         const QSize previous = pixelSize;
         pixelSize = size;
@@ -299,10 +298,10 @@ bool VideoSourceManager::canEditCurrentDisplay() const
     return row >= 0 && m_sources[row].type() == VideoSourceType::DisplayCapture;
 }
 
-const DisplaySourceDetails *VideoSourceManager::displaySource(const QString &sourceId) const
+const DisplaySourceConfig *VideoSourceManager::displaySource(const QString &sourceId) const
 {
     const auto *entry = source(sourceId);
-    return entry ? std::get_if<DisplaySourceDetails>(&entry->details) : nullptr;
+    return entry ? std::get_if<DisplaySourceConfig>(&entry->config) : nullptr;
 }
 
 bool VideoSourceManager::setDisplayConfig(const QString &sourceId, const QString &displayId,
@@ -311,11 +310,11 @@ bool VideoSourceManager::setDisplayConfig(const QString &sourceId, const QString
     const int row = sourceRow(sourceId);
     if (row < 0 || displayId.trimmed().isEmpty())
         return false;
-    auto *display = std::get_if<DisplaySourceDetails>(&m_sources[row].details);
+    auto *display = std::get_if<DisplaySourceConfig>(&m_sources[row].config);
     if (!display)
         return false;
-    if (display->config.displayId != displayId || display->config.captureCursor != cursor) {
-        display->config = {displayId, cursor};
+    if (display->displayId != displayId || display->captureCursor != cursor) {
+        (*display) = {displayId, cursor};
         emit sourceChanged(sourceId);
     }
     return true;
@@ -327,23 +326,12 @@ bool VideoSourceManager::setSourceStatus(const QString &sourceId, const QString 
     const int row = sourceRow(sourceId);
     if (row < 0)
         return false;
-    const auto update = [&](QString &currentState, QString &currentError) {
-        if (currentState == state && currentError == error)
-            return false;
-        currentState = state;
-        currentError = error;
-        return true;
-    };
-    auto &details = m_sources[row].details;
-    bool changed = false;
-    if (auto *display = std::get_if<DisplaySourceDetails>(&details))
-        changed = update(display->runtime.captureState, display->runtime.captureError);
-    else if (auto *camera = std::get_if<CameraSourceDetails>(&details))
-        changed = update(camera->runtime.captureState, camera->runtime.captureError);
-    else if (auto *image = std::get_if<ImageSourceDetails>(&details))
-        changed = update(image->runtime.loadState, image->runtime.loadError);
-    if (changed)
+    auto &status = m_statuses[sourceId];
+    if (status.state != state || status.error != error) {
+        status.state = state;
+        status.error = error;
         emit sourceStatusChanged(sourceId);
+    }
     return true;
 }
 
@@ -357,28 +345,28 @@ bool VideoSourceManager::canEditCurrentSource() const
 bool VideoSourceManager::cameraDeviceInUse(const QString &deviceId, const QString &exceptId) const
 {
     for (const auto &source : m_sources)
-        if (const auto *camera = std::get_if<CameraSourceDetails>(&source.details))
-            if (source.id != exceptId && camera->config.deviceId == deviceId)
+        if (const auto *camera = std::get_if<CameraSourceConfig>(&source.config))
+            if (source.id != exceptId && camera->deviceId == deviceId)
                 return true;
     return false;
 }
 
-const CameraSourceDetails *VideoSourceManager::cameraSource(const QString &sourceId) const
+const CameraSourceConfig *VideoSourceManager::cameraSource(const QString &sourceId) const
 {
     const auto *entry = source(sourceId);
-    return entry ? std::get_if<CameraSourceDetails>(&entry->details) : nullptr;
+    return entry ? std::get_if<CameraSourceConfig>(&entry->config) : nullptr;
 }
 
-bool VideoSourceManager::setCameraConfig(const QString &sourceId, const CameraConfig &value)
+bool VideoSourceManager::setCameraConfig(const QString &sourceId, const CameraSourceConfig &value)
 {
     const int row = sourceRow(sourceId);
     if (row < 0 || !value.isValid() || cameraDeviceInUse(value.deviceId, sourceId))
         return false;
-    auto *camera = std::get_if<CameraSourceDetails>(&m_sources[row].details);
+    auto *camera = std::get_if<CameraSourceConfig>(&m_sources[row].config);
     if (!camera)
         return false;
-    if (camera->config != value) {
-        camera->config = value;
+    if ((*camera) != value) {
+        (*camera) = value;
         emit sourceChanged(sourceId);
     }
     return true;
@@ -391,7 +379,10 @@ bool VideoSourceManager::setCameraActualMode(const QString &sourceId, const QSiz
     if (row < 0 || m_sources[row].type() != VideoSourceType::Camera)
         return false;
     setSourcePixelSize(sourceId, size);
-    auto &camera = std::get<CameraSourceDetails>(m_sources[row].details).runtime;
+    // Geometry notifications may synchronously remove the source.
+    if (!source(sourceId))
+        return false;
+    auto &camera = m_statuses[sourceId];
     if (camera.actualFrameRateNumerator == numerator &&
         camera.actualFrameRateDenominator == denominator)
         return true;

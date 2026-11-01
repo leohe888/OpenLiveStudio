@@ -40,8 +40,8 @@ public:
         return m_modes.value(deviceId);
     }
 
-    QString addCamera(const QString &name, const CameraConfig &config);
-    bool applyProperties(const QString &sourceId, const CameraConfig &config);
+    QString addCamera(const QString &name, const CameraSourceConfig &config);
+    bool applyProperties(const QString &sourceId, const CameraSourceConfig &config);
     bool retry(const QString &sourceId);
     int activeWorkerCount() const;
 signals:
@@ -53,7 +53,7 @@ signals:
 private:
     struct Entry
     {
-        CameraConfig config;
+        CameraSourceConfig config;
         bool failed = false;
         quint64 generation = 0;
         std::unique_ptr<CameraCaptureWorker> worker;

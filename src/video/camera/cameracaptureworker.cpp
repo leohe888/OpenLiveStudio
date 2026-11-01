@@ -101,7 +101,7 @@ CameraMode modeInfo(IMFMediaType *type)
                 .arg(double(numerator) / denominator, 0, 'f', denominator == 1 ? 0 : 2)};
 }
 
-bool matches(const CameraConfig &config, const CameraMode &mode)
+bool matches(const CameraSourceConfig &config, const CameraMode &mode)
 {
     if (config.requestedResolution.isEmpty())
         return true;
@@ -347,7 +347,7 @@ QList<CameraMode> cameraModes(const QString &deviceId, QString *error)
     return result;
 }
 
-CameraCaptureWorker::CameraCaptureWorker(CameraConfig config, quint64 generation)
+CameraCaptureWorker::CameraCaptureWorker(CameraSourceConfig config, quint64 generation)
     : m_config(std::move(config)), m_generation(generation)
 {
 }

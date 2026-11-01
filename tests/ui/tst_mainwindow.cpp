@@ -285,7 +285,7 @@ void MainWindowTest::disconnectedDeviceDrafts()
 
     auto *model = window.findChild<VideoSourceManager *>();
     QVERIFY(model->addSource(
-        {"display", "Missing", DisplaySourceDetails{{"unavailable-display", false}}}));
+        {"display", "Missing", DisplaySourceConfig{"unavailable-display", false}}));
     QVERIFY(model->selectSource("display"));
     window.findChild<QToolButton *>("sourcePropertiesButton")->click();
     QPointer<QDialog> dialog = window.findChild<QDialog *>("displayPropertiesDialog");
@@ -296,12 +296,12 @@ void MainWindowTest::disconnectedDeviceDrafts()
     dialog->findChild<QCheckBox *>("captureCursorInput")->setChecked(true);
     dialog->reject();
     QTRY_VERIFY(dialog.isNull());
-    QVERIFY(!model->displaySource("display")->config.captureCursor);
-    CameraConfig config;
+    QVERIFY(!model->displaySource("display")->captureCursor);
+    CameraSourceConfig config;
     config.deviceId = "unavailable-camera";
     config.requestedResolution = QSize(640, 480);
     config.requestedFrameRateNumerator = 30;
-    QVERIFY(model->addSource({"camera", "Missing camera", CameraSourceDetails{config}}));
+    QVERIFY(model->addSource({"camera", "Missing camera", config}));
     QVERIFY(model->selectSource("camera"));
     window.findChild<QToolButton *>("sourcePropertiesButton")->click();
     dialog = window.findChild<QDialog *>("cameraPropertiesDialog");
@@ -458,12 +458,12 @@ void MainWindowTest::aggregatesIndependentSourceControllers()
 
     const auto path = directory.filePath("image.png");
     QVERIFY(pixels.save(path));
-    QVERIFY(model->addSource({"image", "Image", ImageSourceDetails{ImageConfig{path}}}));
-    VideoSource screen{"display", "Display",
-                       DisplaySourceDetails{DisplayConfig{"missing-display"}}};
+    QVERIFY(model->addSource({"image", "Image", ImageSourceConfig{path}}));
+    VideoSourceDefinition screen{"display", "Display",
+                       DisplaySourceConfig{"missing-display"}};
     screen.visible = false; // Exercise wiring without opening physical devices.
     QVERIFY(model->addSource(screen));
-    VideoSource webcam{"camera", "Camera", CameraSourceDetails{CameraConfig{"missing-camera"}}};
+    VideoSourceDefinition webcam{"camera", "Camera", CameraSourceConfig{"missing-camera"}};
     webcam.visible = false;
     QVERIFY(model->addSource(webcam));
     QTRY_COMPARE(output.size(), 3);
@@ -614,18 +614,18 @@ void MainWindowTest::previewShowsRenderingError()
     QVERIFY(window.statusBar()->currentMessage().contains("Texture upload failed"));
     QCOMPARE(pages->currentWidget(), preview);
     QVERIFY(preview->lastError().isEmpty());
-    const QString details = QStringLiteral("<b>测试渲染错误</b>");
-    preview->renderingFailed(details);
+    const QString detail = QStringLiteral("<b>测试渲染错误</b>");
+    preview->renderingFailed(detail);
     QCOMPARE(pages->currentWidget(), preview);
     QTRY_COMPARE(pages->currentWidget(), error);
     QVERIFY(error->isVisible());
     QVERIFY(!preview->isVisible());
     QCOMPARE(error->textFormat(), Qt::PlainText);
-    QCOMPARE(error->text(), QStringLiteral("预览不可用\n") + details);
+    QCOMPARE(error->text(), QStringLiteral("预览不可用\n") + detail);
 
     QTRY_COMPARE(error->palette().color(QPalette::WindowText), QColor("#B72C3C"));
     QTRY_COMPARE(error->palette().color(QPalette::Window), QColor("#F8FAFC"));
-    QCOMPARE(error->text(), QStringLiteral("预览不可用\n") + details);
+    QCOMPARE(error->text(), QStringLiteral("预览不可用\n") + detail);
     QCOMPARE(pages->currentWidget(), error);
     QVERIFY(window.close());
 }
@@ -729,9 +729,9 @@ void MainWindowTest::cameraHardwarePreview()
     const auto devices = controller->devices();
     QVERIFY(!devices.isEmpty());
     QSignalSpy failures(preview, &PreviewWidget::sourceFailed);
-    const QString id = controller->addCamera("Camera", CameraConfig{devices[0].id});
+    const QString id = controller->addCamera("Camera", CameraSourceConfig{devices[0].id});
     QVERIFY(!id.isEmpty());
-    QTRY_COMPARE_WITH_TIMEOUT(model->cameraSource(id)->runtime.captureState, QString("capturing"),
+    QTRY_COMPARE_WITH_TIMEOUT(model->sourceStatus(id).state, QString("capturing"),
                               15000);
 
     const auto filter = model->addFilter(id);
