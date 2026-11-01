@@ -6,16 +6,34 @@
 #include <QString>
 #include <condition_variable>
 
-class DisplayCaptureWorker : public QThread {
+class DisplayCaptureWorker : public QThread
+{
 public:
     DisplayCaptureWorker(QString displayId, bool cursor, quint64 generation);
     ~DisplayCaptureWorker() override;
-    void stop() { m_stop.store(true); m_wait.notify_one(); m_frames.clear(); }
-    std::shared_ptr<const CaptureFrame> takeLatest() { return m_frames.take(); }
+
+    void stop()
+    {
+        m_stop.store(true);
+        m_wait.notify_one();
+        m_frames.clear();
+    }
+
+    std::shared_ptr<const CaptureFrame> takeLatest()
+    {
+        return m_frames.take();
+    }
+
     QString lastError() const;
-    quint64 generation() const { return m_generation; }
+
+    quint64 generation() const
+    {
+        return m_generation;
+    }
+
 protected:
     void run() override;
+
 private:
     QString m_displayId;
     bool m_cursor;

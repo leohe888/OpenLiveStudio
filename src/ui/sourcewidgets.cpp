@@ -641,7 +641,7 @@ QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceManager *manag
         bool success =
             camera ? cameras->applyProperties(
                          sourceId, settings->mode->currentData().value<CameraMode>().config(
-                                 settings->device->currentData().toString()))
+                                       settings->device->currentData().toString()))
                    : displays->applyProperties(sourceId, settings->device->currentData().toString(),
                                                settings->cursor->isChecked());
         if (success && camera)

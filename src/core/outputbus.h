@@ -5,20 +5,44 @@
 #include <vector>
 #include <algorithm>
 
-template<class T> class OutputBus {
+template <class T> class OutputBus
+{
 public:
     // Caller holds the producer's mutex for subscribe/publish/active.
-    std::shared_ptr<OutputTap<T>> subscribe(size_t capacity) {
-        auto tap=std::make_shared<OutputTap<T>>(capacity); m_taps.push_back(tap); return tap;
+    std::shared_ptr<OutputTap<T>> subscribe(size_t capacity)
+    {
+        auto tap = std::make_shared<OutputTap<T>>(capacity);
+        m_taps.push_back(tap);
+        return tap;
     }
-    bool active() { prune(); return !m_taps.empty(); }
-    void publish(const T &value) {
-        for (auto it=m_taps.begin(); it!=m_taps.end();) {
-            if (auto tap=it->lock()) { tap->push(value); ++it; } else it=m_taps.erase(it);
+
+    bool active()
+    {
+        prune();
+        return !m_taps.empty();
+    }
+
+    void publish(const T &value)
+    {
+        for (auto it = m_taps.begin(); it != m_taps.end();) {
+            if (auto tap = it->lock()) {
+                tap->push(value);
+                ++it;
+            } else
+                it = m_taps.erase(it);
         }
     }
+
 private:
-    void prune() { m_taps.erase(std::remove_if(m_taps.begin(),m_taps.end(),[](const auto &tap) { return tap.expired(); }),m_taps.end()); }
+    void prune()
+    {
+        m_taps.erase(std::remove_if(m_taps.begin(), m_taps.end(),
+                                    [](const auto &tap) {
+                                        return tap.expired();
+                                    }),
+                     m_taps.end());
+    }
+
     std::vector<std::weak_ptr<OutputTap<T>>> m_taps;
 };
 #endif

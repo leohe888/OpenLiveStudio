@@ -14,11 +14,14 @@ enum class VideoSourceType {
     Image
 };
 
-struct DisplayConfig {
+struct DisplayConfig
+{
     QString displayId;
     bool captureCursor = true;
 };
-struct CameraConfig {
+
+struct CameraConfig
+{
     QString deviceId;
     // Invalid size and zero frame rate mean no explicit preference.
     QSize requestedResolution;
@@ -28,41 +31,58 @@ struct CameraConfig {
     bool operator==(const CameraConfig &other) const;
     bool operator!=(const CameraConfig &other) const;
 };
-struct ImageConfig {
+
+struct ImageConfig
+{
     QString filePath;
 };
-struct DisplayRuntimeState {
+
+struct DisplayRuntimeState
+{
     QSize pixelSize;
     QString captureState;
     QString captureError;
 };
-struct ImageRuntimeState {
+
+struct ImageRuntimeState
+{
     QSize pixelSize;
     QString loadState;
     QString loadError;
 };
-struct CameraRuntimeState {
+
+struct CameraRuntimeState
+{
     QSize pixelSize;
     QString captureState;
     QString captureError;
     int actualFrameRateNumerator = 0;
     int actualFrameRateDenominator = 1;
 };
-struct ImageSourceDetails {
+
+struct ImageSourceDetails
+{
     ImageConfig config;
     ImageRuntimeState runtime;
 };
-struct DisplaySourceDetails {
+
+struct DisplaySourceDetails
+{
     DisplayConfig config;
     DisplayRuntimeState runtime;
 };
-struct CameraSourceDetails {
+
+struct CameraSourceDetails
+{
     CameraConfig config;
     CameraRuntimeState runtime;
 };
-using VideoSourceDetails = std::variant<DisplaySourceDetails, CameraSourceDetails, ImageSourceDetails>;
 
-struct VideoSource {
+using VideoSourceDetails =
+    std::variant<DisplaySourceDetails, CameraSourceDetails, ImageSourceDetails>;
+
+struct VideoSource
+{
     QString id;
     QString name;
     VideoSourceDetails details = DisplaySourceDetails{};

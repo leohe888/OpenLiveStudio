@@ -61,8 +61,7 @@ private slots:
         QVERIFY(manager.addSource("Other", AudioSourceType::Microphone, "missing-a").isEmpty());
         QVERIFY(manager.addSource("Other", AudioSourceType::Microphone, "MISSING-A").isEmpty());
         QVERIFY(manager.addSource("mic", AudioSourceType::SystemAudio, "missing-b").isEmpty());
-        const auto second =
-            manager.addSource("System", AudioSourceType::SystemAudio, "missing-b");
+        const auto second = manager.addSource("System", AudioSourceType::SystemAudio, "missing-b");
         QVERIFY(!second.isEmpty());
         QCOMPARE(manager.count(), 2);
         QVERIFY(manager.setVolume(first, .25));
@@ -151,14 +150,14 @@ private slots:
         QString replacement;
         connect(&manager, &AudioSourceManager::sourceChanged, &manager,
                 [&](const QString &sourceId) {
-            const auto *source = manager.source(sourceId);
-            if (replaced || !source || source->state != "error")
-                return;
-            replaced = true;
-            QVERIFY(manager.removeSource(sourceId));
-            replacement = manager.addSource("Replacement", AudioSourceType::SystemAudio,
-                                            "missing-replacement");
-        });
+                    const auto *source = manager.source(sourceId);
+                    if (replaced || !source || source->state != "error")
+                        return;
+                    replaced = true;
+                    QVERIFY(manager.removeSource(sourceId));
+                    replacement = manager.addSource("Replacement", AudioSourceType::SystemAudio,
+                                                    "missing-replacement");
+                });
         const auto original =
             manager.addSource("Original", AudioSourceType::Microphone, "missing-original");
         QVERIFY(!original.isEmpty());

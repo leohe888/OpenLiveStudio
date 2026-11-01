@@ -16,7 +16,8 @@ class QOpenGLBuffer;
 class QOpenGLVertexArrayObject;
 class QOpenGLFramebufferObject;
 
-struct RenderedSource {
+struct RenderedSource
+{
     qint64 imageKey = 0;
     quint64 generation = 0;
     quint64 sequence = 0;
@@ -33,9 +34,18 @@ public:
     bool initialize();
     bool render(const QList<PreviewSource> &sources);
     void cleanup();
-    QOpenGLFramebufferObject *canvas() const { return m_canvasFbo.get(); }
+
+    QOpenGLFramebufferObject *canvas() const
+    {
+        return m_canvasFbo.get();
+    }
+
     QHash<QString, RenderedSource> renderedSources() const;
-    QString lastError() const { return m_lastError; }
+
+    QString lastError() const
+    {
+        return m_lastError;
+    }
 
 signals:
     void sourceFailed(const QString &sourceId, const QString &message);
@@ -52,7 +62,9 @@ private:
     std::unique_ptr<QOpenGLShaderProgram> m_program;
     std::unique_ptr<QOpenGLBuffer> m_vertexBuffer;
     std::unique_ptr<QOpenGLVertexArrayObject> m_vertexArray;
-    struct TextureResource {
+
+    struct TextureResource
+    {
         qint64 imageKey = 0;
         std::unique_ptr<QOpenGLTexture> texture;
         QString filterError;
@@ -62,6 +74,7 @@ private:
         bool ready = false;
         bool transferFailed = false;
     };
+
     std::map<QString, TextureResource> m_textures;
     std::unique_ptr<QOpenGLFramebufferObject> m_canvasFbo;
     std::array<std::unique_ptr<QOpenGLFramebufferObject>, 2> m_filterFbos;

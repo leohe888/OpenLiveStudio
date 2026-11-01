@@ -310,8 +310,7 @@ inline void run(MainWindow &window)
             done[5] = true;
             QVERIFY(audio->removeSource(system));
             QTRY_VERIFY_WITH_TIMEOUT(!audio->deviceInUse(systemId), 5000);
-            system = audio->addSource("System restored", AudioSourceType::SystemAudio,
-                                      systemId);
+            system = audio->addSource("System restored", AudioSourceType::SystemAudio, systemId);
             QVERIFY(!system.isEmpty());
             QVERIFY(audio->setVolume(system, .05));
             QTRY_COMPARE_WITH_TIMEOUT(audio->source(system)->state, QString("capturing"), 5000);

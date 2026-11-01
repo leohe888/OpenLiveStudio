@@ -207,10 +207,10 @@ private slots:
         QStringList loadStates;
         connect(&model, &VideoSourceManager::sourceStatusChanged, this,
                 [&](const QString &sourceId) {
-            if (const auto *source = model.source(sourceId))
-                if (const auto *image = std::get_if<ImageSourceDetails>(&source->details))
-                    loadStates.append(image->runtime.loadState);
-        });
+                    if (const auto *source = model.source(sourceId))
+                        if (const auto *image = std::get_if<ImageSourceDetails>(&source->details))
+                            loadStates.append(image->runtime.loadState);
+                });
         QList<PreviewSource> snapshot;
         connect(&controller, &ImageSourceController::sourcesChanged, this,
                 [&](const QList<PreviewSource> &sources) {

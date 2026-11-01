@@ -15,7 +15,8 @@ class QOpenGLContext;
 // An immutable lease on one of three shared output textures. A consumer must
 // finish its GL reads before releasing the lease. Release all leases before stop().
 // timestamp is composition time on the shared monotonic media clock (not capture PTS).
-struct CompositionFrame {
+struct CompositionFrame
+{
     GLuint texture = 0;
     QSize size;
     quint64 sequence = 0;
@@ -24,7 +25,8 @@ struct CompositionFrame {
     QHash<QString, RenderedSource> sources;
 };
 
-struct ComposedImage {
+struct ComposedImage
+{
     QImage image;
     qint64 timestampNs = 0;
 };

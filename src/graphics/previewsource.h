@@ -9,7 +9,8 @@
 #include <QList>
 #include <QString>
 
-struct PreviewSource {
+struct PreviewSource
+{
     QString id;
     QImage image;
     bool visible = true;
@@ -18,8 +19,15 @@ struct PreviewSource {
     QList<SourceFilter> filters;
     std::shared_ptr<const CaptureFrame> frame;
 
-    QSize pixelSize() const { return frame ? frame->size : image.size(); }
-    bool hasFrame() const { return frame ? bool(frame->gpu) : !image.isNull(); }
+    QSize pixelSize() const
+    {
+        return frame ? frame->size : image.size();
+    }
+
+    bool hasFrame() const
+    {
+        return frame ? bool(frame->gpu) : !image.isNull();
+    }
 };
 
 #endif

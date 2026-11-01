@@ -48,14 +48,20 @@ void DisplayCaptureWorker::run()
     };
 #ifdef Q_OS_WIN
     try {
-        if (m_stop.load()) return;
+        if (m_stop.load())
+            return;
         HMONITOR monitor = nullptr;
         for (const auto &target : displayDevices())
-            if (target.id == m_displayId) monitor = reinterpret_cast<HMONITOR>(target.monitor);
-        if (!monitor) { fail(tr("所选显示器已断开，请在来源属性中重新选择或重试。")); return; }
+            if (target.id == m_displayId)
+                monitor = reinterpret_cast<HMONITOR>(target.monitor);
+        if (!monitor) {
+            fail(tr("所选显示器已断开，请在来源属性中重新选择或重试。"));
+            return;
+        }
         winrt::init_apartment(winrt::apartment_type::multi_threaded);
         const auto apartment = qScopeGuard([] {
-            // The last worker MTA must not leave cached factories pointing into unloaded COM servers.
+            // The last worker MTA must not leave cached factories pointing into unloaded COM
+            // servers.
             winrt::clear_factory_cache();
             winrt::uninit_apartment();
         });
@@ -66,34 +72,51 @@ void DisplayCaptureWorker::run()
         ComPtr<ID3D11Device> device;
         ComPtr<ID3D11DeviceContext> context;
         winrt::check_hresult(D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
-            D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0, D3D11_SDK_VERSION, &device, nullptr, &context));
+                                               D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0,
+                                               D3D11_SDK_VERSION, &device, nullptr, &context));
         ComPtr<IDXGIDevice> dxgi;
         winrt::check_hresult(device.As(&dxgi));
         winrt::com_ptr<IInspectable> inspectable;
         winrt::check_hresult(CreateDirect3D11DeviceFromDXGIDevice(dxgi.Get(), inspectable.put()));
         auto directDevice = inspectable.as<IDirect3DDevice>();
-        auto interop = winrt::get_activation_factory<GraphicsCaptureItem, IGraphicsCaptureItemInterop>();
+        auto interop =
+            winrt::get_activation_factory<GraphicsCaptureItem, IGraphicsCaptureItemInterop>();
         GraphicsCaptureItem item{nullptr};
-        winrt::check_hresult(interop->CreateForMonitor(monitor, winrt::guid_of<GraphicsCaptureItem>(), winrt::put_abi(item)));
+        winrt::check_hresult(interop->CreateForMonitor(
+            monitor, winrt::guid_of<GraphicsCaptureItem>(), winrt::put_abi(item)));
         auto size = item.Size();
-        auto pool = Direct3D11CaptureFramePool::CreateFreeThreaded(directDevice,
-            DirectXPixelFormat::B8G8R8A8UIntNormalized, 2, size);
+        auto pool = Direct3D11CaptureFramePool::CreateFreeThreaded(
+            directDevice, DirectXPixelFormat::B8G8R8A8UIntNormalized, 2, size);
         auto session = pool.CreateCaptureSession(item);
         const auto closeObject = [](auto &object) noexcept {
-            try { object.Close(); }
-            catch (const winrt::hresult_error &error) { qWarning() << "WGC cleanup HRESULT:" << error.code().value; }
+            try {
+                object.Close();
+            } catch (const winrt::hresult_error &error) {
+                qWarning() << "WGC cleanup HRESULT:" << error.code().value;
+            }
         };
-        const auto close = qScopeGuard([&] { closeObject(session); closeObject(pool); });
+        const auto close = qScopeGuard([&] {
+            closeObject(session);
+            closeObject(pool);
+        });
         session.IsCursorCaptureEnabled(m_cursor);
         auto closed = std::make_shared<std::atomic_bool>(false);
-        auto token = item.Closed([closed](auto &&, auto &&) { closed->store(true); });
-        const auto revoke = qScopeGuard([&] { item.Closed(token); });
-        if (m_stop.load()) return;
+        auto token = item.Closed([closed](auto &&, auto &&) {
+            closed->store(true);
+        });
+        const auto revoke = qScopeGuard([&] {
+            item.Closed(token);
+        });
+        if (m_stop.load())
+            return;
         session.StartCapture();
-        struct Slot {
+
+        struct Slot
+        {
             std::shared_ptr<GpuFrameResource> resource;
             std::shared_ptr<std::atomic_bool> busy = std::make_shared<std::atomic_bool>(false);
         };
+
         std::array<Slot, 3> poolSlots;
         ComPtr<ID3D11Query> query;
         D3D11_QUERY_DESC queryDesc{D3D11_QUERY_EVENT, 0};
@@ -103,10 +126,15 @@ void DisplayCaptureWorker::run()
         while (!m_stop.load()) {
             // Polling coalesces frame notifications and bounds application processing to 30 Hz.
             const auto next = std::chrono::steady_clock::now() + std::chrono::microseconds(33334);
-            if (closed->load()) { fail(tr("显示器采集已关闭，请手动重试。")); break; }
+            if (closed->load()) {
+                fail(tr("显示器采集已关闭，请手动重试。"));
+                break;
+            }
             if (std::chrono::steady_clock::now() >= nextTargetCheck) {
                 const auto available = displayDevices();
-                if (std::none_of(available.cbegin(), available.cend(), [&](const auto &target) { return target.id == m_displayId; })) {
+                if (std::none_of(available.cbegin(), available.cend(), [&](const auto &target) {
+                        return target.id == m_displayId;
+                    })) {
                     fail(tr("所选显示器已断开，请在来源属性中重新选择或重试。"));
                     break;
                 }
@@ -114,7 +142,8 @@ void DisplayCaptureWorker::run()
             }
             Direct3D11CaptureFrame latest{nullptr};
             while (auto frame = pool.TryGetNextFrame()) {
-                if (latest) latest.Close();
+                if (latest)
+                    latest.Close();
                 latest = std::move(frame);
             }
             if (latest) {
@@ -126,9 +155,12 @@ void DisplayCaptureWorker::run()
                     m_frames.clear();
                     poolSlots = {};
                     if (size.Width > 0 && size.Height > 0)
-                        pool.Recreate(directDevice, DirectXPixelFormat::B8G8R8A8UIntNormalized, 2, size);
+                        pool.Recreate(directDevice, DirectXPixelFormat::B8G8R8A8UIntNormalized, 2,
+                                      size);
                 } else if (content.Width > 0 && content.Height > 0) {
-                    auto access = latest.Surface().as<::Windows::Graphics::DirectX::Direct3D11::IDirect3DDxgiInterfaceAccess>();
+                    auto access = latest.Surface()
+                                      .as<::Windows::Graphics::DirectX::Direct3D11::
+                                              IDirect3DDxgiInterfaceAccess>();
                     ComPtr<ID3D11Texture2D> input;
                     winrt::check_hresult(access->GetInterface(IID_PPV_ARGS(&input)));
                     auto frame = std::make_shared<CaptureFrame>();
@@ -140,7 +172,8 @@ void DisplayCaptureWorker::run()
                     input->GetDesc(&desc);
                     for (auto &slot : poolSlots) {
                         bool available = false;
-                        if (!slot.busy->compare_exchange_strong(available, true)) continue;
+                        if (!slot.busy->compare_exchange_strong(available, true))
+                            continue;
                         frame->busy = slot.busy;
                         if (!slot.resource) {
                             slot.resource = std::make_shared<GpuFrameResource>();
@@ -149,7 +182,8 @@ void DisplayCaptureWorker::run()
                             desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
                             desc.CPUAccessFlags = 0;
                             desc.MiscFlags = 0;
-                            winrt::check_hresult(device->CreateTexture2D(&desc, nullptr, &slot.resource->texture));
+                            winrt::check_hresult(
+                                device->CreateTexture2D(&desc, nullptr, &slot.resource->texture));
                         }
                         frame->gpu = slot.resource;
                         context->CopyResource(slot.resource->texture.Get(), input.Get());
@@ -161,7 +195,9 @@ void DisplayCaptureWorker::run()
                         BOOL ready = FALSE;
                         HRESULT result = S_FALSE;
                         // The worker waits for GPU completion; the GUI never waits on this query.
-                        while (!m_stop.load() && (result = context->GetData(query.Get(), &ready, sizeof(ready), 0)) == S_FALSE)
+                        while (!m_stop.load() &&
+                               (result = context->GetData(query.Get(), &ready, sizeof(ready), 0)) ==
+                                   S_FALSE)
                             QThread::msleep(1);
                         winrt::check_hresult(result);
                         if (!m_stop.load() && ready) {
@@ -172,12 +208,14 @@ void DisplayCaptureWorker::run()
                 }
             }
             std::unique_lock<std::mutex> waitLock(m_waitMutex);
-            m_wait.wait_until(waitLock, next, [this] { return m_stop.load(); });
+            m_wait.wait_until(waitLock, next, [this] {
+                return m_stop.load();
+            });
         }
     } catch (const winrt::hresult_error &error) {
         fail(tr("显示器采集失败：%1（0x%2）。请手动重试。")
-            .arg(QString::fromWCharArray(error.message().c_str()))
-            .arg(quint32(error.code().value), 8, 16, QLatin1Char('0')));
+                 .arg(QString::fromWCharArray(error.message().c_str()))
+                 .arg(quint32(error.code().value), 8, 16, QLatin1Char('0')));
     } catch (const std::exception &error) {
         fail(tr("显示器采集失败：%1").arg(QString::fromUtf8(error.what())));
     }

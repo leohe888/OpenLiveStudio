@@ -123,8 +123,7 @@ void MainWindowTest::styleSheetControlsCustomPainting()
 
     auto *model = window.findChild<AudioSourceManager *>();
     const auto first = model->addSource("First", AudioSourceType::Microphone, "missing-first");
-    const auto second =
-        model->addSource("Second", AudioSourceType::Microphone, "missing-second");
+    const auto second = model->addSource("Second", AudioSourceType::Microphone, "missing-second");
     QVERIFY(!first.isEmpty() && !second.isEmpty());
 
     auto *channel = window.findChild<QFrame *>("soundChannel_" + first);
@@ -421,8 +420,9 @@ void MainWindowTest::scrollingAndKeyboard()
     mixer.resize(220, 160);
     mixer.show();
     for (int n = 0; n < 4; ++n)
-        QVERIFY(!audio.addSource(QString::number(n), AudioSourceType::Microphone,
-                                 "missing-" + QString::number(n))
+        QVERIFY(!audio
+                     .addSource(QString::number(n), AudioSourceType::Microphone,
+                                "missing-" + QString::number(n))
                      .isEmpty());
     QTRY_VERIFY(mixer.findChild<QScrollArea *>()->horizontalScrollBar()->maximum() > 0);
 }

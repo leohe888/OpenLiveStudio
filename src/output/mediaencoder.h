@@ -5,7 +5,11 @@
 #include <QVector>
 #include <functional>
 
-struct StreamFailure { QString message; bool retryable = false; };
+struct StreamFailure
+{
+    QString message;
+    bool retryable = false;
+};
 struct AVFormatContext;
 struct AVCodecContext;
 struct AVFrame;
@@ -16,22 +20,38 @@ struct SwsContext;
 // Worker-thread-only, one-shot FFmpeg encoder. Local failures throw QString;
 // network failures throw redacted StreamFailure with a retry classification.
 // Never overwrites a path; the owning session selects a unique filename.
-class MediaEncoder {
+class MediaEncoder
+{
 public:
     MediaEncoder() = default;
     MediaEncoder(const MediaEncoder &) = delete;
     MediaEncoder &operator=(const MediaEncoder &) = delete;
     ~MediaEncoder();
     void open(const QString &path, int bitrateKbps = 12000);
-    void openStream(const QString &url, int bitrateKbps, std::function<bool()> cancelled,const QString &tcUrl = {});
+    void openStream(const QString &url, int bitrateKbps, std::function<bool()> cancelled,
+                    const QString &tcUrl = {});
     qint64 bytesSent() const;
-    qint64 outputTimeNs() const { return m_outputTimeNs; }
-    qint64 lastConversionNs() const { return m_lastConversionNs; }
+
+    qint64 outputTimeNs() const
+    {
+        return m_outputTimeNs;
+    }
+
+    qint64 lastConversionNs() const
+    {
+        return m_lastConversionNs;
+    }
+
     void video(const QImage &image, qint64 frameIndex);
     void audio(const QVector<float> &samples);
     void skipTo(qint64 nextFrame); // Live-only timeline jump, preserving monotonic PTS.
     void finish();
-    bool completed() const { return m_completed; }
+
+    bool completed() const
+    {
+        return m_completed;
+    }
+
 private:
     void initialize(int bitrateKbps);
     void networkCheck(int result, const char *operation);

@@ -403,13 +403,12 @@ QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceManager *manager,
     QObject::connect(refresh, &QPushButton::clicked, manager, &AudioSourceManager::refreshDevices);
     QObject::connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
     QObject::connect(buttons, &QDialogButtonBox::accepted, dialog, [=] {
-        const bool success = editing
-                                 ? manager->renameSource(sourceId, name->text())
-                                 : !manager
-                                        ->addSource(name->text(),
-                                                    type->currentData().value<AudioSourceType>(),
-                                                    devices->currentData().toString())
-                                        .isEmpty();
+        const bool success =
+            editing ? manager->renameSource(sourceId, name->text())
+                    : !manager
+                           ->addSource(name->text(), type->currentData().value<AudioSourceType>(),
+                                       devices->currentData().toString())
+                           .isEmpty();
         if (success)
             dialog->accept();
         else

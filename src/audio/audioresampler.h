@@ -4,9 +4,17 @@
 #include <QVector>
 struct SwrContext;
 
-enum class PcmFormat { Unsigned8, Signed16, Signed24, Signed32, Float32, Float64 };
+enum class PcmFormat {
+    Unsigned8,
+    Signed16,
+    Signed24,
+    Signed32,
+    Float32,
+    Float64
+};
 
-class AudioResampler {
+class AudioResampler
+{
 public:
     ~AudioResampler();
     bool configure(int rate, int channels, PcmFormat format, quint64 channelMask, QString *error);
@@ -14,6 +22,7 @@ public:
     bool reset();
     qint64 delayFrames() const;
     bool compensate(int delta, int distance);
+
 private:
     SwrContext *m_context = nullptr;
     int m_rate = 0, m_channels = 0;

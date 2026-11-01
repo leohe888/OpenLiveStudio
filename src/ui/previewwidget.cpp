@@ -16,19 +16,22 @@
 #include <QFocusEvent>
 #include <QHideEvent>
 
-PreviewWidget::PreviewWidget(QWidget *parent)
-    : QOpenGLWidget(parent)
+PreviewWidget::PreviewWidget(QWidget *parent) : QOpenGLWidget(parent)
 {
     setFocusPolicy(Qt::StrongFocus);
     setMouseTracking(true);
-    connect(&m_compositor, &Compositor::sourceFailed, this, &PreviewWidget::sourceFailed, Qt::QueuedConnection);
-    connect(&m_compositor, &Compositor::renderingFailed, this, &PreviewWidget::reportError, Qt::QueuedConnection);
-    connect(&m_compositor, &Compositor::gpuTransferFailed, this, &PreviewWidget::gpuTransferFailed, Qt::QueuedConnection);
+    connect(&m_compositor, &Compositor::sourceFailed, this, &PreviewWidget::sourceFailed,
+            Qt::QueuedConnection);
+    connect(&m_compositor, &Compositor::renderingFailed, this, &PreviewWidget::reportError,
+            Qt::QueuedConnection);
+    connect(&m_compositor, &Compositor::gpuTransferFailed, this, &PreviewWidget::gpuTransferFailed,
+            Qt::QueuedConnection);
     m_framePoll.setInterval(16);
     m_framePoll.setTimerType(Qt::PreciseTimer);
     connect(&m_framePoll, &QTimer::timeout, this, [this] {
         const auto frame = m_compositor.latestFrame();
-        if (frame && (!m_presentedFrame || frame->sequence != m_presentedFrame->sequence)) update();
+        if (frame && (!m_presentedFrame || frame->sequence != m_presentedFrame->sequence))
+            update();
     });
 }
 
@@ -55,7 +58,8 @@ void PreviewWidget::setSources(const QList<PreviewSource> &sources)
 
 void PreviewWidget::setCurrentSourceId(const QString &sourceId)
 {
-    if (m_currentSourceId == sourceId) return;
+    if (m_currentSourceId == sourceId)
+        return;
     endGesture();
     m_currentSourceId = sourceId;
     update();
@@ -63,7 +67,8 @@ void PreviewWidget::setCurrentSourceId(const QString &sourceId)
 
 void PreviewWidget::setSelectionColor(const QColor &color)
 {
-    if (!color.isValid() || m_selectionColor == color) return;
+    if (!color.isValid() || m_selectionColor == color)
+        return;
     m_selectionColor = color;
     update();
 }
@@ -86,8 +91,8 @@ void PreviewWidget::showEvent(QShowEvent *event)
 void PreviewWidget::initializeGL()
 {
     initializeOpenGLFunctions();
-    m_contextDestruction = connect(context(), &QOpenGLContext::aboutToBeDestroyed,
-                                  this, &PreviewWidget::cleanup, Qt::DirectConnection);
+    m_contextDestruction = connect(context(), &QOpenGLContext::aboutToBeDestroyed, this,
+                                   &PreviewWidget::cleanup, Qt::DirectConnection);
     m_lastError.clear();
     m_initialized = false;
     if (context()->isOpenGLES() || context()->format().version() < qMakePair(3, 3)) {
@@ -97,20 +102,17 @@ void PreviewWidget::initializeGL()
 
     m_program = std::make_unique<QOpenGLShaderProgram>();
     if (!m_program->addShaderFromSourceFile(QOpenGLShader::Vertex,
-                                           QStringLiteral(":/assets/shaders/texture.vert"))
-        || !m_program->addShaderFromSourceFile(QOpenGLShader::Fragment,
-                                              QStringLiteral(":/assets/shaders/texture.frag"))
-        || !m_program->link() || !m_program->bind()) {
+                                            QStringLiteral(":/assets/shaders/texture.vert")) ||
+        !m_program->addShaderFromSourceFile(QOpenGLShader::Fragment,
+                                            QStringLiteral(":/assets/shaders/texture.frag")) ||
+        !m_program->link() || !m_program->bind()) {
         reportError(tr("无法初始化预览着色器：%1").arg(m_program->log()));
         return;
     }
 
     // Position (x, y), then top-left-origin image coordinates (u, v).
     static constexpr GLfloat vertices[] = {
-        -1, -1, 0, 1,
-         1, -1, 1, 1,
-        -1,  1, 0, 0,
-         1,  1, 1, 0,
+        -1, -1, 0, 1, 1, -1, 1, 1, -1, 1, 0, 0, 1, 1, 1, 0,
     };
     m_vertexArray = std::make_unique<QOpenGLVertexArrayObject>();
     m_vertexBuffer = std::make_unique<QOpenGLBuffer>(QOpenGLBuffer::VertexBuffer);
@@ -142,7 +144,8 @@ void PreviewWidget::initializeGL()
         return;
     }
     m_initialized = m_compositor.startRendering(context());
-    if (m_initialized) m_framePoll.start();
+    if (m_initialized)
+        m_framePoll.start();
 }
 
 void PreviewWidget::paintGL()
@@ -156,14 +159,16 @@ void PreviewWidget::paintGL()
     glDisable(GL_SCISSOR_TEST);
     glDisable(GL_STENCIL_TEST);
     glDisable(GL_BLEND);
-    glClearColor(m_surroundingColor.redF(), m_surroundingColor.greenF(),
-                 m_surroundingColor.blueF(), 1);
+    glClearColor(m_surroundingColor.redF(), m_surroundingColor.greenF(), m_surroundingColor.blueF(),
+                 1);
     glClear(GL_COLOR_BUFFER_BIT);
-    if (!m_initialized || pixelSize.isEmpty()) return;
+    if (!m_initialized || pixelSize.isEmpty())
+        return;
 
     // The previous paint completed its reads before this lease can be released.
     m_presentedFrame = m_compositor.latestFrame();
-    if (!m_presentedFrame) return;
+    if (!m_presentedFrame)
+        return;
     const auto restore = qScopeGuard([&] {
         glBindTexture(GL_TEXTURE_2D, 0);
         m_vertexArray->release();
@@ -177,7 +182,7 @@ void PreviewWidget::paintGL()
     m_vertexArray->bind();
     const QSize canvasSize = m_presentedFrame->size;
     const qreal scale = qMin(qreal(pixelSize.width()) / canvasSize.width(),
-                            qreal(pixelSize.height()) / canvasSize.height());
+                             qreal(pixelSize.height()) / canvasSize.height());
     QMatrix4x4 display;
     display.scale(float(canvasSize.width() * scale / pixelSize.width()),
                   float(canvasSize.height() * scale / pixelSize.height()));
@@ -194,17 +199,19 @@ void PreviewWidget::paintGL()
 
 bool PreviewWidget::selectable(const PreviewSource &source) const
 {
-    if (!m_presentedFrame || !source.visible || !source.hasFrame() || !SourceGeometry::isValid(source.transform))
+    if (!m_presentedFrame || !source.visible || !source.hasFrame() ||
+        !SourceGeometry::isValid(source.transform))
         return false;
     const auto resource = m_presentedFrame->sources.constFind(source.id);
-    return resource != m_presentedFrame->sources.cend()
-        && resource->generation == (source.frame ? source.frame->generation : 0);
+    return resource != m_presentedFrame->sources.cend() &&
+           resource->generation == (source.frame ? source.frame->generation : 0);
 }
 
 const PreviewSource *PreviewWidget::selectedSource() const
 {
     for (const auto &source : m_sources)
-        if (source.id == m_currentSourceId && selectable(source)) return &source;
+        if (source.id == m_currentSourceId && selectable(source))
+            return &source;
     return nullptr;
 }
 
@@ -219,8 +226,9 @@ QPolygonF PreviewWidget::selectionHandles(const PreviewSource &source) const
     const auto display = SourceGeometry::canvasToWidget(size());
     QPolygonF handles;
     for (const auto &fraction : SourceGeometry::handleFractions)
-        handles.append(display.map(local.map(QPointF(fraction.x() * source.transform.size.width(),
-                                                     fraction.y() * source.transform.size.height()))));
+        handles.append(
+            display.map(local.map(QPointF(fraction.x() * source.transform.size.width(),
+                                          fraction.y() * source.transform.size.height()))));
     const QPointF outward = handles[1] - display.map(source.transform.center);
     const qreal length = std::hypot(outward.x(), outward.y());
     handles.append(handles[1] + outward * (24 / length));
@@ -229,18 +237,21 @@ QPolygonF PreviewWidget::selectionHandles(const PreviewSource &source) const
 
 int PreviewWidget::handleAt(const PreviewSource &source, const QPointF &point) const
 {
-    if (source.locked) return -1;
+    if (source.locked)
+        return -1;
     const auto handles = selectionHandles(source);
     // Prefer rotation and corners if small sources make handle targets overlap.
     for (int index : {8, 0, 2, 4, 6, 1, 3, 5, 7})
-        if (QRectF(handles[index] - QPointF(6, 6), QSizeF(12, 12)).contains(point)) return index;
+        if (QRectF(handles[index] - QPointF(6, 6), QSizeF(12, 12)).contains(point))
+            return index;
     return -1;
 }
 
 void PreviewWidget::paintSelection()
 {
     const auto *source = selectedSource();
-    if (!source) return;
+    if (!source)
+        return;
     const auto handles = selectionHandles(*source);
     const QPolygonF outline{handles[0], handles[2], handles[4], handles[6]};
     QPainter painter(this);
@@ -251,7 +262,8 @@ void PreviewWidget::paintSelection()
     painter.drawPolygon(outline);
     painter.setPen(QPen(selectionColor(), 1, style));
     painter.drawPolygon(outline);
-    if (source->locked) return;
+    if (source->locked)
+        return;
     painter.setPen(QPen(Qt::black, 3));
     painter.drawLine(handles[1], handles[8]);
     painter.setPen(QPen(selectionColor(), 1));
@@ -275,11 +287,15 @@ void PreviewWidget::updateCursor(const QPointF &position)
 {
     if (const auto *source = selectedSource()) {
         const int handle = handleAt(*source, position);
-        if (handle == 8) { setCursor(Qt::OpenHandCursor); return; }
+        if (handle == 8) {
+            setCursor(Qt::OpenHandCursor);
+            return;
+        }
         if (handle >= 0) {
             const auto fraction = SourceGeometry::handleFractions[handle];
-            const qreal angle = source->transform.rotation
-                + std::atan2(fraction.y() - .5, fraction.x() - .5) * 180 / std::acos(-1.0);
+            const qreal angle =
+                source->transform.rotation +
+                std::atan2(fraction.y() - .5, fraction.x() - .5) * 180 / std::acos(-1.0);
             const int direction = (qRound(angle / 45) % 4 + 4) % 4;
             static constexpr Qt::CursorShape cursors[]{Qt::SizeHorCursor, Qt::SizeFDiagCursor,
                                                        Qt::SizeVerCursor, Qt::SizeBDiagCursor};
@@ -289,7 +305,8 @@ void PreviewWidget::updateCursor(const QPointF &position)
     }
     if (SourceGeometry::canvasRect(size()).contains(position)) {
         for (const auto &source : m_sources) {
-            if (selectable(source) && !source.locked && SourceGeometry::contains(source.transform, toCanvas(position))) {
+            if (selectable(source) && !source.locked &&
+                SourceGeometry::contains(source.transform, toCanvas(position))) {
                 setCursor(Qt::SizeAllCursor);
                 return;
             }
@@ -316,8 +333,8 @@ void PreviewWidget::mousePressEvent(QMouseEvent *event)
         QString hit;
         if (SourceGeometry::canvasRect(size()).contains(position)) {
             for (const auto &candidate : m_sources) {
-                if (selectable(candidate) && !candidate.locked
-                    && SourceGeometry::contains(candidate.transform, toCanvas(position))) {
+                if (selectable(candidate) && !candidate.locked &&
+                    SourceGeometry::contains(candidate.transform, toCanvas(position))) {
                     hit = candidate.id;
                     break;
                 }
@@ -334,7 +351,8 @@ void PreviewWidget::mousePressEvent(QMouseEvent *event)
     m_gestureSourceId = source->id;
     m_gestureStart = source->transform;
     m_pressCanvas = toCanvas(position);
-    if (m_gesture == Gesture::Rotate) setCursor(Qt::ClosedHandCursor);
+    if (m_gesture == Gesture::Rotate)
+        setCursor(Qt::ClosedHandCursor);
     event->accept();
 }
 
@@ -345,15 +363,18 @@ void PreviewWidget::mouseMoveEvent(QMouseEvent *event)
         event->accept();
         return;
     }
-    if (!(event->buttons() & Qt::LeftButton)) endGesture();
-    else updateGesture(event->position());
+    if (!(event->buttons() & Qt::LeftButton))
+        endGesture();
+    else
+        updateGesture(event->position());
     event->accept();
 }
 
 void PreviewWidget::updateGesture(const QPointF &position)
 {
     const auto *source = selectedSource();
-    if (m_gesture == Gesture::None || !source || source->locked || source->id != m_gestureSourceId) {
+    if (m_gesture == Gesture::None || !source || source->locked ||
+        source->id != m_gestureSourceId) {
         endGesture();
         return;
     }
@@ -369,13 +390,16 @@ void PreviewWidget::updateGesture(const QPointF &position)
     case Gesture::Rotate: {
         const QPointF before = m_pressCanvas - result.center;
         const QPointF after = point - result.center;
-        if (std::hypot(after.x(), after.y()) < 1e-9) break;
-        const qreal angle = (std::atan2(after.y(), after.x()) - std::atan2(before.y(), before.x()))
-            * 180 / std::acos(-1.0);
+        if (std::hypot(after.x(), after.y()) < 1e-9)
+            break;
+        const qreal angle =
+            (std::atan2(after.y(), after.x()) - std::atan2(before.y(), before.x())) * 180 /
+            std::acos(-1.0);
         result.rotation = SourceGeometry::normalizedAngle(result.rotation + angle);
         break;
     }
-    case Gesture::None: break;
+    case Gesture::None:
+        break;
     }
     const QString id = m_gestureSourceId;
     emit transformRequested(id, result);
@@ -384,7 +408,8 @@ void PreviewWidget::updateGesture(const QPointF &position)
 void PreviewWidget::mouseReleaseEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton) {
-        if (m_gesture != Gesture::None) updateGesture(event->position());
+        if (m_gesture != Gesture::None)
+            updateGesture(event->position());
         endGesture();
         updateCursor(event->position());
         event->accept();
@@ -430,7 +455,8 @@ bool PreviewWidget::event(QEvent *event)
 #if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
         || event->type() == QEvent::DevicePixelRatioChange
 #endif
-    ) endGesture();
+    )
+        endGesture();
     return QOpenGLWidget::event(event);
 }
 
@@ -450,7 +476,8 @@ void PreviewWidget::cleanup()
     m_vertexArray.reset();
     m_vertexBuffer.reset();
     m_program.reset();
-    if (context()) doneCurrent();
+    if (context())
+        doneCurrent();
     // Retain the source snapshot for context recreation.
 }
 

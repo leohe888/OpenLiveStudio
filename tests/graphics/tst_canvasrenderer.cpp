@@ -13,18 +13,24 @@ class CanvasRendererTest : public QObject
 {
     Q_OBJECT
 private slots:
+
     void initTestCase()
     {
         m_context.setFormat(QSurfaceFormat::defaultFormat());
-        if (!m_context.create()) QSKIP("Desktop OpenGL unavailable");
+        if (!m_context.create())
+            QSKIP("Desktop OpenGL unavailable");
         m_surface.setFormat(m_context.format());
         m_surface.create();
-        if (!m_context.makeCurrent(&m_surface)) QSKIP("Offscreen OpenGL unavailable");
-        qInfo() << "Compositor test renderer:" << reinterpret_cast<const char *>(
-            m_context.functions()->glGetString(GL_RENDERER));
+        if (!m_context.makeCurrent(&m_surface))
+            QSKIP("Offscreen OpenGL unavailable");
+        qInfo() << "Compositor test renderer:"
+                << reinterpret_cast<const char *>(m_context.functions()->glGetString(GL_RENDERER));
     }
 
-    void init() { QVERIFY(m_context.makeCurrent(&m_surface)); }
+    void init()
+    {
+        QVERIFY(m_context.makeCurrent(&m_surface));
+    }
 
     void fixedCanvasAndInitializationPreserveBindings()
     {
@@ -54,12 +60,13 @@ private slots:
         QCOMPARE(renderer.canvas(), canvas);
         QCOMPARE(canvas->toImage().pixelColor(960, 540), QColor(Qt::black));
         gl->glBindTexture(GL_TEXTURE_2D, canvas->texture());
-        for (GLenum parameter : {GL_TEXTURE_MIN_FILTER, GL_TEXTURE_MAG_FILTER,
-                                 GL_TEXTURE_WRAP_S, GL_TEXTURE_WRAP_T}) {
+        for (GLenum parameter :
+             {GL_TEXTURE_MIN_FILTER, GL_TEXTURE_MAG_FILTER, GL_TEXTURE_WRAP_S, GL_TEXTURE_WRAP_T}) {
             GLint value = 0;
             gl->glGetTexParameteriv(GL_TEXTURE_2D, parameter, &value);
             QCOMPARE(value, parameter == GL_TEXTURE_MIN_FILTER || parameter == GL_TEXTURE_MAG_FILTER
-                               ? GLint(GL_LINEAR) : GLint(GL_CLAMP_TO_EDGE));
+                                ? GLint(GL_LINEAR)
+                                : GLint(GL_CLAMP_TO_EDGE));
         }
         const GLuint texture = canvas->texture(), fbo = canvas->handle();
         renderer.cleanup();
@@ -111,7 +118,8 @@ private slots:
         QVERIFY(compositor.startRendering(&m_context));
         QCOMPARE(compositor.captureImage().pixelColor(960, 540), QColor(Qt::red));
         // Bursty diagnostic reads must not postpone normal output deadlines.
-        for (int i = 0; i < 12; ++i) QVERIFY(!compositor.captureImage().isNull());
+        for (int i = 0; i < 12; ++i)
+            QVERIFY(!compositor.captureImage().isNull());
         auto frame = compositor.latestFrame();
         QVERIFY(frame);
         const quint64 sequence = frame->sequence;
@@ -146,7 +154,8 @@ private slots:
             QCOMPARE(compositor.captureImage().pixelColor(960, 540), colors[i]);
             held[i] = compositor.latestFrame();
             QVERIFY(held[i]);
-            for (int j = 0; j < i; ++j) QVERIFY(held[i]->texture != held[j]->texture);
+            for (int j = 0; j < i; ++j)
+                QVERIFY(held[i]->texture != held[j]->texture);
         }
         compositor.setSources({solid(Qt::yellow)});
         QCOMPARE(compositor.captureImage().pixelColor(960, 540), QColor(Qt::yellow));
@@ -160,8 +169,10 @@ private slots:
             auto *gl = m_context.functions();
             for (int i = 0; i < 3; ++i) {
                 QVERIFY(target.bind());
-                gl->glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, held[i]->texture, 0);
-                QCOMPARE(gl->glCheckFramebufferStatus(GL_FRAMEBUFFER), GLenum(GL_FRAMEBUFFER_COMPLETE));
+                gl->glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                                           held[i]->texture, 0);
+                QCOMPARE(gl->glCheckFramebufferStatus(GL_FRAMEBUFFER),
+                         GLenum(GL_FRAMEBUFFER_COMPLETE));
                 unsigned char pixel[4]{};
                 gl->glReadPixels(960, 540, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel);
                 QCOMPARE(QColor(pixel[0], pixel[1], pixel[2]), colors[i]);
@@ -171,7 +182,8 @@ private slots:
         held[0].reset();
         compositor.captureImage();
         QVERIFY(compositor.latestFrame()->sequence > held[2]->sequence);
-        for (auto &frame : held) frame.reset();
+        for (auto &frame : held)
+            frame.reset();
         const GLuint lastTexture = compositor.latestFrame()->texture;
         compositor.stopRendering();
         QVERIFY(!m_context.functions()->glIsTexture(lastTexture));
@@ -184,6 +196,7 @@ private:
         image.fill(color);
         return {"image", image, true, {{960, 540}, {1920, 1080}, 0}};
     }
+
     QOpenGLContext m_context;
     QOffscreenSurface m_surface;
 };

@@ -15,30 +15,57 @@ namespace AudioFormat {
 inline constexpr int rate = 48000;
 inline constexpr int channels = 2;
 inline constexpr int blockFrames = 480; // 10 ms
-inline qint64 framesToNs(qint64 frames) { return frames * 1000000000LL / rate; }
-inline qint64 nsToFrames(qint64 ns) { return qRound64(double(ns) * rate / 1000000000.0); }
+
+inline qint64 framesToNs(qint64 frames)
+{
+    return frames * 1000000000LL / rate;
+}
+
+inline qint64 nsToFrames(qint64 ns)
+{
+    return qRound64(double(ns) * rate / 1000000000.0);
+}
 }
 
 qint64 audioClockNs(); // Windows QPC time, nanoseconds; independent of wall clock.
 
-struct AudioPeak {
+struct AudioPeak
+{
     float left = 0, right = 0;
-    void add(const AudioPeak &other) { left = std::max(left, other.left); right = std::max(right, other.right); }
+
+    void add(const AudioPeak &other)
+    {
+        left = std::max(left, other.left);
+        right = std::max(right, other.right);
+    }
 };
 
-struct AudioBlock {
+struct AudioBlock
+{
     qint64 timestampNs = 0; // First stereo sample, QPC domain.
     QVector<float> samples; // Interleaved stereo, 48 kHz, normalized float.
-    int frames() const { return int(samples.size() / AudioFormat::channels); }
+
+    int frames() const
+    {
+        return int(samples.size() / AudioFormat::channels);
+    }
 };
 
-class AudioPacketQueue {
+class AudioPacketQueue
+{
 public:
     static constexpr int maxFrames = AudioFormat::rate / 2;
-    struct Batch { quint64 generation; std::deque<AudioBlock> packets; };
+
+    struct Batch
+    {
+        quint64 generation;
+        std::deque<AudioBlock> packets;
+    };
+
     void publish(AudioBlock block)
     {
-        if (block.samples.isEmpty() || block.samples.size() % 2 || block.frames() > maxFrames) return;
+        if (block.samples.isEmpty() || block.samples.size() % 2 || block.frames() > maxFrames)
+            return;
         std::lock_guard<std::mutex> lock(m_mutex);
         m_frames += block.frames();
         m_packets.push_back(std::move(block));
@@ -48,6 +75,7 @@ public:
             m_packets.pop_front();
         }
     }
+
     Batch take()
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -56,12 +84,21 @@ public:
         m_frames = 0;
         return result;
     }
+
     void clear()
     {
         std::lock_guard<std::mutex> lock(m_mutex);
-        m_packets.clear(); m_frames = 0; ++m_generation;
+        m_packets.clear();
+        m_frames = 0;
+        ++m_generation;
     }
-    quint64 droppedFrames() const { std::lock_guard<std::mutex> lock(m_mutex); return m_dropped; }
+
+    quint64 droppedFrames() const
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_dropped;
+    }
+
 private:
     mutable std::mutex m_mutex;
     std::deque<AudioBlock> m_packets;
@@ -69,14 +106,16 @@ private:
     quint64 m_generation = 0, m_dropped = 0;
 };
 
-struct AudioInput {
+struct AudioInput
+{
     QString id;
     float gain = 1;
     bool muted = false;
     std::shared_ptr<AudioPacketQueue> queue;
 };
 
-struct MixedAudioBlock : AudioBlock {
+struct MixedAudioBlock : AudioBlock
+{
     quint64 sequence = 0;
     AudioPeak peak; // Before final hard clipping.
     bool clipped = false;

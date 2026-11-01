@@ -504,7 +504,8 @@ private slots:
         std::shared_ptr<const CaptureFrame> frame;
         QTRY_VERIFY_WITH_TIMEOUT(
             frame || (frame = worker.takeLatest()) || !worker.lastError().isEmpty(), 5000);
-        if (!worker.lastError().isEmpty() && !qEnvironmentVariableIsSet("OPENLIVE_REQUIRE_GPU_INTEROP"))
+        if (!worker.lastError().isEmpty() &&
+            !qEnvironmentVariableIsSet("OPENLIVE_REQUIRE_GPU_INTEROP"))
             QSKIP(qPrintable(worker.lastError()));
         QVERIFY2(worker.lastError().isEmpty(), qPrintable(worker.lastError()));
         QVERIFY(frame && frame->gpu);
