@@ -78,6 +78,10 @@ private:
 
     const PreviewSource *selectedSource() const;
     bool selectable(const PreviewSource &source) const;
+    QRectF canvasRect() const;
+    QTransform canvasToWidget() const;
+    static VideoSourceTransform resized(const VideoSourceTransform &start, int handle,
+                                        const QPointF &canvasDelta);
     QPointF toCanvas(const QPointF &point) const;
     QPolygonF selectionHandles(const PreviewSource &source) const;
     int handleAt(const PreviewSource &source, const QPointF &point) const;

@@ -143,7 +143,7 @@ bool VideoSourceManager::addSource(const VideoSource &source, const VideoSourceS
     }
     VideoSource initialized = source;
     if (initialized.transform.size.isEmpty())
-        initialized.transform = VideoSourceGeometry::initial(status.pixelSize);
+        initialized.transform = VideoSourceTransform(status.pixelSize);
     m_sources.prepend(initialized);
     m_statuses.insert(source.id, status);
     emit sourcesChanged();
@@ -161,7 +161,7 @@ bool VideoSourceManager::setSourcePixelSize(const QString &sourceId, const QSize
         const QSize previous = pixelSize;
         pixelSize = size;
         if (m_sources[row].transform.size.isEmpty() && !size.isEmpty()) {
-            m_sources[row].transform = VideoSourceGeometry::initial(size);
+            m_sources[row].transform = VideoSourceTransform(size);
         } else if (m_sources[row].type() == VideoSourceType::Camera && !size.isEmpty() &&
                    previous != size && !m_sources[row].transform.size.isEmpty()) {
             auto &transform = m_sources[row].transform;
@@ -176,11 +176,11 @@ bool VideoSourceManager::setSourceTransform(const QString &sourceId,
                                             const VideoSourceTransform &transform)
 {
     const int row = sourceRow(sourceId);
-    if (row < 0 || m_sources[row].locked || !VideoSourceGeometry::isValid(transform) ||
+    if (row < 0 || m_sources[row].locked || !transform.isValid() ||
         transform.size.width() < 1 || transform.size.height() < 1)
         return false;
     VideoSourceTransform normalized = transform;
-    normalized.rotation = VideoSourceGeometry::normalizedAngle(normalized.rotation);
+    normalized.rotation = VideoSourceTransform::normalizedAngle(normalized.rotation);
     if (m_sources[row].transform != normalized) {
         m_sources[row].transform = normalized;
         emit sourceChanged(sourceId);

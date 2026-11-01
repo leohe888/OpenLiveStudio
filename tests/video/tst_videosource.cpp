@@ -8,6 +8,7 @@ class VideoSourceTest : public QObject
 
 private slots:
     void typeFollowsParameters();
+    void transformConstructionAndAngles();
     void cameraParametersValidation_data();
     void cameraParametersValidation();
     void cameraParametersComparison();
@@ -23,6 +24,30 @@ void VideoSourceTest::typeFollowsParameters()
     QCOMPARE(source.type(), VideoSourceType::Image);
     source.config = DisplaySourceParams{"display", false};
     QCOMPARE(source.type(), VideoSourceType::DisplayCapture);
+}
+
+void VideoSourceTest::transformConstructionAndAngles()
+{
+    const VideoSourceTransform unset;
+    QVERIFY(!unset.isValid());
+    QVERIFY(!unset.contains(QPointF(960, 540)));
+    QCOMPARE(unset.center, QPointF(960, 540));
+    QCOMPARE(unset.rotation, 0.0);
+    for (const QSizeF &size : {QSizeF(), QSizeF(0, 100), QSizeF(-1, 100)})
+        QVERIFY(VideoSourceTransform(size) == unset);
+    QCOMPARE(VideoSourceTransform(QSizeF(400, 200)).size, QSizeF(400, 200));
+    QCOMPARE(VideoSourceTransform(QSizeF(4000, 2000)).size, QSizeF(1920, 960));
+    QCOMPARE(VideoSourceTransform(QSizeF(1000, 4000)).size, QSizeF(270, 1080));
+    const VideoSourceTransform explicitTransform{{10, 20}, {100, 50}};
+    QCOMPARE(explicitTransform.rotation, 0.0);
+    QVERIFY(explicitTransform.isValid());
+    QVERIFY(explicitTransform.contains(explicitTransform.center));
+    QVERIFY(explicitTransform != unset);
+    QCOMPARE(VideoSourceTransform::normalizedAngle(-30), 330.0);
+    QCOMPARE(VideoSourceTransform::normalizedAngle(690), 330.0);
+    QCOMPARE(VideoSourceTransform::normalizedAngle(360), 0.0);
+    QCOMPARE(VideoSourceTransform::normalizedAngle(-720), 0.0);
+    QCOMPARE(VideoSourceTransform::normalizedAngle(12.5), 12.5);
 }
 
 void VideoSourceTest::cameraParametersValidation_data()

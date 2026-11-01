@@ -10,6 +10,7 @@
 #include <QMouseEvent>
 #include <QKeyEvent>
 #include <QFocusEvent>
+#include <cmath>
 
 class PreviewWidgetTest : public QObject
 {
@@ -519,7 +520,7 @@ private slots:
         grabPreview(widget);
         const auto verifyColors = [&] {
             const auto canvas = readCanvas(widget);
-            const auto matrix = VideoSourceGeometry::sourceToCanvas(transform);
+            const auto matrix = transform.sourceToCanvas();
             const QColor colors[]{Qt::red, Qt::green, Qt::blue, Qt::white};
             int index = 0;
             for (qreal y : {.25, .75}) {
@@ -564,6 +565,55 @@ private slots:
         widget.doneCurrent();
     }
 
+    void resizingKeepsOppositeAnchorAndMinimumSize()
+    {
+        PreviewWidget widget;
+        wireEditor(widget);
+        widget.resize(960, 540);
+        QImage image(40, 20, QImage::Format_RGBA8888);
+        image.fill(Qt::red);
+        widget.show();
+        QVERIFY(QTest::qWaitForWindowActive(&widget));
+        const QPointF fractions[] = {
+            {0, 0}, {.5, 0}, {1, 0}, {1, .5}, {1, 1}, {.5, 1}, {0, 1}, {0, .5}};
+        for (qreal angle : {0., 37., 90., 225.}) {
+            const VideoSourceTransform start{{960, 540}, {400, 200}, angle};
+            QTransform rotation;
+            rotation.rotate(angle);
+            const auto performResize = [&](int handle, const QPointF &delta) {
+                widget.setSources({{"image", image, true, start}});
+                widget.setCurrentSourceId("image");
+                grabPreview(widget);
+                const auto handles = widget.selectionHandles(widget.m_sources[0]);
+                const QPointF widgetDelta = rotation.map(delta) * .5;
+                drag(widget, handles[handle], handles[handle] + widgetDelta);
+                return widget.m_sources[0].transform;
+            };
+            for (int handle = 0; handle < 8; ++handle) {
+                const auto result = performResize(handle, QPointF(40, 30));
+                QVERIFY(result.isValid());
+                QVERIFY(result != start);
+                const auto fraction = fractions[handle];
+                const QPointF opposite(1 - fraction.x(), 1 - fraction.y());
+                const auto anchor = start.sourceToCanvas().map(
+                    QPointF(opposite.x() * 400, opposite.y() * 200));
+                const auto after = result.sourceToCanvas().map(
+                    QPointF(opposite.x() * result.size.width(), opposite.y() * result.size.height()));
+                QVERIFY(closePoint(anchor, after));
+                if (handle % 2 == 0)
+                    QVERIFY(qAbs(result.size.width() / result.size.height() - 2) < 1e-8);
+                else if (fraction.x() == .5)
+                    QCOMPARE(result.size.width(), 400.0);
+                else
+                    QCOMPARE(result.size.height(), 200.0);
+            }
+            const auto crossed = performResize(0, QPointF(10000, 10000));
+            QVERIFY(crossed.size.width() >= 1 && crossed.size.height() >= 1);
+            const auto narrow = performResize(3, QPointF(-10000, 0));
+            QCOMPARE(narrow.size.width(), 1.0);
+        }
+    }
+
     void mouseEditingUsesCanvasCoordinatesAndLocalAxes()
     {
         PreviewWidget widget;
@@ -580,7 +630,7 @@ private slots:
             widget.resize(size);
             widget.setSources({{"image", image, true, start}});
             grabPreview(widget);
-            const auto display = VideoSourceGeometry::canvasToWidget(widget.size());
+            const auto display = widget.canvasToWidget();
             drag(widget, display.map(start.center), display.map(start.center + QPointF(120, -60)));
             const auto moved = widget.m_sources[0].transform;
             QVERIFY(closePoint(moved.center, start.center + QPointF(120, -60)));
@@ -618,14 +668,14 @@ private slots:
         QTransform rotation;
         rotation.rotate(37);
         auto handles = widget.selectionHandles(widget.m_sources[0]);
-        const auto display = VideoSourceGeometry::canvasToWidget(widget.size());
+        const auto display = widget.canvasToWidget();
         const QPointF delta = rotation.map(QPointF(120, 60));
         drag(widget, handles[4], handles[4] + display.map(delta) - display.map(QPointF()));
         const auto resized = widget.m_sources[0].transform;
         QVERIFY(qAbs(resized.size.width() - 720) < 1e-6);
         QVERIFY(qAbs(resized.size.height() - 360) < 1e-6);
-        QVERIFY(closePoint(VideoSourceGeometry::sourceToCanvas(start).map(QPointF()),
-                           VideoSourceGeometry::sourceToCanvas(resized).map(QPointF())));
+        QVERIFY(closePoint(start.sourceToCanvas().map(QPointF()),
+                           resized.sourceToCanvas().map(QPointF())));
         widget.setSources({{"image", image, true, start}});
         handles = widget.selectionHandles(widget.m_sources[0]);
         const QPointF sideDelta = rotation.map(QPointF(80, 0));
@@ -698,7 +748,7 @@ private slots:
         widget.show();
         QVERIFY(QTest::qWaitForWindowActive(&widget));
         grabPreview(widget);
-        const auto display = VideoSourceGeometry::canvasToWidget(widget.size());
+        const auto display = widget.canvasToWidget();
         const auto center = display.map(QPointF(960, 540));
         drag(widget, center, center);
         QCOMPARE(widget.m_currentSourceId, QString("bottom"));
@@ -706,10 +756,10 @@ private slots:
         widget.setSources(sources);
         drag(widget, center, center);
         QCOMPARE(widget.m_currentSourceId, QString("top"));
-        const auto bounds = VideoSourceGeometry::sourceToCanvas(sources[0].transform)
+        const auto bounds = sources[0].transform.sourceToCanvas()
                                 .mapRect(QRectF(QPointF(), sources[0].transform.size));
         const auto outsideRotatedRectangle = bounds.topLeft() + QPointF(5, 5);
-        QVERIFY(!VideoSourceGeometry::contains(sources[0].transform, outsideRotatedRectangle));
+        QVERIFY(!sources[0].transform.contains(outsideRotatedRectangle));
         drag(widget, display.map(outsideRotatedRectangle), display.map(outsideRotatedRectangle));
         QCOMPARE(widget.m_currentSourceId, QString("bottom"));
         sources[0].locked = true;
@@ -800,7 +850,7 @@ private slots:
                      "GPU interop required");
             QSKIP("GPU interop unavailable for capture editing test");
         }
-        const auto display = VideoSourceGeometry::canvasToWidget(widget.size());
+        const auto display = widget.canvasToWidget();
         const auto handles = widget.selectionHandles(widget.m_sources[0]);
         const auto center = display.map(start.center);
         const auto from = operation == 0 ? center : handles[operation == 1 ? 4 : 8];
@@ -869,7 +919,7 @@ private slots:
             widget.setCurrentSourceId("image");
             grabPreview(widget);
             const QPointF center =
-                VideoSourceGeometry::canvasToWidget(widget.size()).map(QPointF(960, 540));
+                widget.canvasToWidget().map(QPointF(960, 540));
             mouse(widget, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
             mouse(widget, QEvent::MouseMove, center + QPointF(10, 0), Qt::NoButton, Qt::LeftButton);
             QVERIFY(widget.m_gesture != PreviewWidget::Gesture::None);
