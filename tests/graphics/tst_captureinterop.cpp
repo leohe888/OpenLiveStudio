@@ -1,8 +1,8 @@
 #include "graphics/captureframe.h"
-#include "graphics/d3dtexture.h"
+#include "graphics/gpuframeresource.h"
 #include "graphics/gpuinterop.h"
 #include "video/display/displaycaptureworker.h"
-#include "video/display/displaytargets.h"
+#include "video/display/displaydevices.h"
 #include "video/display/displaysourcecontroller.h"
 #include "video/videosourcemanager.h"
 #include "ui/previewwidget.h"
@@ -144,7 +144,7 @@ private slots:
 
     void controllerLifecycleAndGpuPreview()
     {
-        const auto targets = displayTargets();
+        const auto targets = displayDevices();
         if (targets.isEmpty())
             QSKIP("Interactive Windows desktop required");
         qInfo() << "Capture target resolution:" << targets[0].size;
@@ -496,7 +496,7 @@ private slots:
 
     void realCaptureProducesGpuFramesAndStops()
     {
-        const auto targets = displayTargets();
+        const auto targets = displayDevices();
         if (targets.isEmpty())
             QSKIP("Interactive Windows desktop required");
         DisplayCaptureWorker worker(targets[0].id, true, 9);

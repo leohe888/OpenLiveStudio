@@ -1,5 +1,5 @@
-#ifndef D3DTEXTURE_H
-#define D3DTEXTURE_H
+#ifndef GPUFRAMERESOURCE_H
+#define GPUFRAMERESOURCE_H
 
 #ifdef Q_OS_WIN
 #include <d3d11.h>

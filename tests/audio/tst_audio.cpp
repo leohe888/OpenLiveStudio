@@ -357,7 +357,7 @@ private slots:
                 microphone = true;
             } else
                 system = true; // Idle loopback may legally return no packets.
-            qInfo() << int(type) << "normalized frames:" << frames;
+            qInfo() << toString(type) << "normalized frames:" << frames;
             worker.stop();
             QVERIFY(worker.wait(2000));
         }

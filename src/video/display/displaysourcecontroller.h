@@ -5,7 +5,7 @@
 #include "graphics/previewsource.h"
 #include <QObject>
 #include <QTimer>
-#include "video/display/displaytargets.h"
+#include "video/display/displaydevices.h"
 #include <map>
 #include <vector>
 
@@ -18,19 +18,19 @@ public:
     explicit DisplaySourceController(VideoSourceManager &manager, QObject *parent = nullptr);
     ~DisplaySourceController() override;
 
-    QList<DisplayTarget> displays() const
+    QList<DisplayDevice> displayDevices() const
     {
-        return m_displays;
+        return m_devices;
     }
 
-    void refreshDisplays();
+    void refreshDisplayDevices();
     QString addDisplay(const QString &name, const QString &displayId, bool cursor);
     bool applyProperties(const QString &sourceId, const QString &displayId, bool cursor);
     bool retry(const QString &sourceId);
     void failTransfer(const QString &sourceId, quint64 generation, const QString &reason);
     int activeWorkerCount() const;
 signals:
-    void displaysChanged();
+    void displayDevicesChanged();
     void sourcesChanged(const QList<PreviewSource> &sources);
     void sourceFailed(const QString &sourceId, const QString &message);
 
@@ -49,7 +49,7 @@ private:
     void publish();
     void stop(Entry &entry);
     VideoSourceManager &m_sourceManager;
-    QList<DisplayTarget> m_displays;
+    QList<DisplayDevice> m_devices;
     std::map<QString, Entry> m_entries;
     std::vector<std::unique_ptr<DisplayCaptureWorker>> m_retired;
     QTimer m_timer;

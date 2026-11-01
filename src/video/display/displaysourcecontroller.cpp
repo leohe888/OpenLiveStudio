@@ -1,5 +1,5 @@
 #include "video/display/displaysourcecontroller.h"
-#include "video/display/displaytargets.h"
+#include "video/display/displaydevices.h"
 #include "video/videosourcemanager.h"
 #include <QDebug>
 #include <QScopeGuard>
@@ -10,7 +10,7 @@
 DisplaySourceController::DisplaySourceController(VideoSourceManager &manager, QObject *parent)
     : QObject(parent), m_sourceManager(manager)
 {
-    refreshDisplays();
+    refreshDisplayDevices();
     const auto sync = [this] {
         synchronize();
     };
@@ -33,12 +33,12 @@ DisplaySourceController::~DisplaySourceController()
         worker->wait();
 }
 
-void DisplaySourceController::refreshDisplays()
+void DisplaySourceController::refreshDisplayDevices()
 {
-    const auto targets = displayTargets();
-    if (targets != m_displays) {
-        m_displays = targets;
-        emit displaysChanged();
+    const auto devices = ::displayDevices();
+    if (devices != m_devices) {
+        m_devices = devices;
+        emit displayDevicesChanged();
     }
 }
 

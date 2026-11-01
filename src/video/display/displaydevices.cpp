@@ -1,9 +1,9 @@
-#include "video/display/displaytargets.h"
+#include "video/display/displaydevices.h"
 #ifdef Q_OS_WIN
 #include <windows.h>
 #include <vector>
 
-QList<DisplayTarget> displayTargets()
+QList<DisplayDevice> displayDevices()
 {
     UINT32 pathCount = 0, modeCount = 0;
     std::vector<DISPLAYCONFIG_PATH_INFO> paths;
@@ -25,7 +25,7 @@ QList<DisplayTarget> displayTargets()
             reinterpret_cast<Monitors *>(data)->entries.append({QString::fromWCharArray(info.szDevice), monitor});
         return TRUE;
     }, reinterpret_cast<LPARAM>(&monitors));
-    QList<DisplayTarget> targets;
+    QList<DisplayDevice> targets;
     for (UINT32 i = 0; i < pathCount; ++i) {
         const auto &path = paths[i];
         DISPLAYCONFIG_SOURCE_DEVICE_NAME source{};
@@ -43,7 +43,7 @@ QList<DisplayTarget> displayTargets()
             const QSize size(info.rcMonitor.right - info.rcMonitor.left, info.rcMonitor.bottom - info.rcMonitor.top);
             QString name = QString::fromWCharArray(target.monitorFriendlyDeviceName);
             if (name.isEmpty()) name = entry.first;
-            DisplayTarget display{id, QStringLiteral("%1 · %2×%3%4").arg(name).arg(size.width()).arg(size.height())
+            DisplayDevice display{id, QStringLiteral("%1 · %2×%3%4").arg(name).arg(size.width()).arg(size.height())
                 .arg(info.dwFlags & MONITORINFOF_PRIMARY ? QStringLiteral(" · 主显示器") : QString()),
                 size, reinterpret_cast<quintptr>(entry.second)};
             if (info.dwFlags & MONITORINFOF_PRIMARY) targets.prepend(display);
@@ -54,5 +54,5 @@ QList<DisplayTarget> displayTargets()
     return targets;
 }
 #else
-QList<DisplayTarget> displayTargets() { return {}; }
+QList<DisplayDevice> displayDevices() { return {}; }
 #endif

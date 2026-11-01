@@ -3,7 +3,7 @@
 
 #include "graphics/canvasrenderer.h"
 #include <QThread>
-#include "core/outputtap.h"
+#include "core/outputbus.h"
 #include <QSurfaceFormat>
 #include <condition_variable>
 #include <mutex>

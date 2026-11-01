@@ -1,5 +1,5 @@
 #include "graphics/gpuinterop.h"
-#include "graphics/d3dtexture.h"
+#include "graphics/gpuframeresource.h"
 #include <QOpenGLContext>
 #include <QOpenGLExtraFunctions>
 #include <QScopeGuard>

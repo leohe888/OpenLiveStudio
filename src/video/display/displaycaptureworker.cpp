@@ -1,6 +1,6 @@
 #include "video/display/displaycaptureworker.h"
-#include "video/display/displaytargets.h"
-#include "graphics/d3dtexture.h"
+#include "video/display/displaydevices.h"
+#include "graphics/gpuframeresource.h"
 #include <QScopeGuard>
 #include <QDebug>
 #include <array>
@@ -50,7 +50,7 @@ void DisplayCaptureWorker::run()
     try {
         if (m_stop.load()) return;
         HMONITOR monitor = nullptr;
-        for (const auto &target : displayTargets())
+        for (const auto &target : displayDevices())
             if (target.id == m_displayId) monitor = reinterpret_cast<HMONITOR>(target.monitor);
         if (!monitor) { fail(tr("所选显示器已断开，请在来源属性中重新选择或重试。")); return; }
         winrt::init_apartment(winrt::apartment_type::multi_threaded);
@@ -105,7 +105,7 @@ void DisplayCaptureWorker::run()
             const auto next = std::chrono::steady_clock::now() + std::chrono::microseconds(33334);
             if (closed->load()) { fail(tr("显示器采集已关闭，请手动重试。")); break; }
             if (std::chrono::steady_clock::now() >= nextTargetCheck) {
-                const auto available = displayTargets();
+                const auto available = displayDevices();
                 if (std::none_of(available.cbegin(), available.cend(), [&](const auto &target) { return target.id == m_displayId; })) {
                     fail(tr("所选显示器已断开，请在来源属性中重新选择或重试。"));
                     break;

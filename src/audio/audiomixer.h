@@ -3,7 +3,7 @@
 
 #include "audio/audiobuffer.h"
 #include <QThread>
-#include "core/outputtap.h"
+#include "core/outputbus.h"
 #include <condition_variable>
 #include <map>
 

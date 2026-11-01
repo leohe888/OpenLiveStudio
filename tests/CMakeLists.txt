@@ -3,7 +3,7 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
 find_program(OPENLIVE_FFPROBE NAMES ffprobe HINTS "${FFmpeg_RUNTIME_DIR}" REQUIRED)
 qt_add_executable(tst_streaming output/tst_streaming.cpp
     ../src/graphics/captureframe.h
-    ../src/graphics/d3dtexture.h
+    ../src/graphics/gpuframeresource.h
     ../src/graphics/gpuinterop.h
     ../src/graphics/gpuinterop.cpp
     ../src/graphics/canvasrenderer.h
@@ -52,7 +52,7 @@ set_tests_properties(output.streaming PROPERTIES LABELS "output;gpu;network" TIM
 
 qt_add_executable(tst_recording output/tst_recording.cpp
     ../src/graphics/captureframe.h
-    ../src/graphics/d3dtexture.h
+    ../src/graphics/gpuframeresource.h
     ../src/graphics/gpuinterop.h
     ../src/graphics/gpuinterop.cpp
     ../src/graphics/canvasrenderer.h
@@ -126,7 +126,7 @@ set_tests_properties(audio.sources PROPERTIES LABELS "audio" TIMEOUT 30)
 
 qt_add_executable(tst_canvasrenderer graphics/tst_canvasrenderer.cpp
     ../src/graphics/captureframe.h
-    ../src/graphics/d3dtexture.h
+    ../src/graphics/gpuframeresource.h
     ../src/graphics/gpuinterop.h
     ../src/graphics/gpuinterop.cpp
     ../src/graphics/canvasrenderer.h
@@ -158,9 +158,9 @@ qt_add_executable(tst_captureinterop graphics/tst_captureinterop.cpp
     ../src/video/videosourcemanager.cpp
     ../src/video/videosourcemanager.h
     ../src/graphics/captureframe.h
-    ../src/graphics/d3dtexture.h
-    ../src/video/display/displaytargets.h
-    ../src/video/display/displaytargets.cpp
+    ../src/graphics/gpuframeresource.h
+    ../src/video/display/displaydevices.h
+    ../src/video/display/displaydevices.cpp
     ../src/video/display/displaycaptureworker.h
     ../src/video/display/displaycaptureworker.cpp
     ../src/graphics/gpuinterop.h
@@ -252,9 +252,9 @@ qt_add_executable(tst_mainwindow
     ../src/video/camera/camerasourcecontroller.h
     ../src/video/camera/camerasourcecontroller.cpp
     ../src/graphics/captureframe.h
-    ../src/graphics/d3dtexture.h
-    ../src/video/display/displaytargets.h
-    ../src/video/display/displaytargets.cpp
+    ../src/graphics/gpuframeresource.h
+    ../src/video/display/displaydevices.h
+    ../src/video/display/displaydevices.cpp
     ../src/video/display/displaycaptureworker.h
     ../src/video/display/displaycaptureworker.cpp
     ../src/graphics/gpuinterop.h
@@ -331,7 +331,7 @@ qt_add_executable(tst_previewwidget
     ../src/graphics/previewsource.h
     ../src/video/sourcetransform.h
     ../src/graphics/captureframe.h
-    ../src/graphics/d3dtexture.h
+    ../src/graphics/gpuframeresource.h
     ../src/graphics/gpuinterop.h
     ../src/graphics/gpuinterop.cpp
     ../src/graphics/canvasrenderer.h
@@ -395,7 +395,7 @@ qt_add_executable(tst_cameracapture video/tst_cameracapture.cpp
     ../src/video/camera/camerasourcecontroller.h
     ../src/video/camera/camerasourcecontroller.cpp
     ../src/graphics/captureframe.h
-    ../src/graphics/d3dtexture.h
+    ../src/graphics/gpuframeresource.h
 )
 target_include_directories(tst_cameracapture PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_cameracapture PRIVATE

@@ -23,7 +23,7 @@ C++ 项目头文件统一以 `src/` 为引用根目录，例如 `#include "video
 
 `OutputSettings` 通过普通 C++ 方法提供录制和推流配置，保留独立的录制/推流锁定信号供设置对话框更新可编辑状态。设置仅在本次运行内生效，应用失败时保留原配置，录制目录只在开始录制时创建。
 
-控制器通过普通 C++ 方法和信号槽与 Widgets 交互。设备目录使用 `DisplayTarget`、`CameraDevice`、`AudioDevice`，摄像头模式使用 `CameraMode`，应用摄像头配置时传递 `CameraConfig`；来源属性通过 `cameraSource(id)`、`displaySource(id)` 读取具体配置和运行状态。保留的颜色 `Q_PROPERTY` 用于 QSS，`CameraMode` 元类型用于 `QComboBox` 的项数据，不依赖 QML。
+控制器通过普通 C++ 方法和信号槽与 Widgets 交互。设备目录使用 `DisplayDevice`、`CameraDevice`、`AudioDevice`，摄像头模式使用 `CameraMode`，应用摄像头配置时传递 `CameraConfig`；来源属性通过 `cameraSource(id)`、`displaySource(id)` 读取具体配置和运行状态。保留的颜色 `Q_PROPERTY` 用于 QSS，`CameraMode` 元类型用于 `QComboBox` 的项数据，不依赖 QML。
 
 QSS 编入 Qt 资源，修改后重新构建并启动程序即可生效。预览的 `qproperty-selectionColor`、`qproperty-surroundingColor` 和电平条的 `qproperty-normalColor`、`qproperty-warningColor`、`qproperty-clippingColor` 也在同一文件配置；声音通道使用 `[selected="true"]` 表示选中状态。
 

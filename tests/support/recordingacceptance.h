@@ -118,8 +118,8 @@ inline void run(MainWindow &window)
     QVERIFY(QDir().mkpath(directory));
     qInfo() << "Acceptance artifacts:" << directory;
     QVERIFY(settings->apply(directory, 12000, "", ""));
-    display->refreshDisplays();
-    QVERIFY(!display->displays().isEmpty());
+    display->refreshDisplayDevices();
+    QVERIFY(!display->displayDevices().isEmpty());
     camera->refreshDevices();
     audio->refreshDevices();
     QTRY_VERIFY_WITH_TIMEOUT(!camera->refreshing() && !audio->refreshing(), 10000);
@@ -134,7 +134,7 @@ inline void run(MainWindow &window)
             systemId = device.id;
     }
     QVERIFY(!microphoneId.isEmpty() && !systemId.isEmpty());
-    const auto screen = display->addDisplay("Screen", display->displays()[0].id, true);
+    const auto screen = display->addDisplay("Screen", display->displayDevices()[0].id, true);
     const auto cam = camera->addCamera("Camera", CameraConfig{camera->devices()[0].id});
     const auto mic = audio->addSource("Microphone", AudioSourceType::Microphone, microphoneId);
     QString system = audio->addSource("System", AudioSourceType::SystemAudio, systemId);

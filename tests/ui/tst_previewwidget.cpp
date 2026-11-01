@@ -1,5 +1,5 @@
 #include "ui/previewwidget.h"
-#include "graphics/d3dtexture.h"
+#include "graphics/gpuframeresource.h"
 
 #include <QApplication>
 #include <QOpenGLContext>

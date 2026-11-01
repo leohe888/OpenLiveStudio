@@ -3,6 +3,7 @@
 #include "graphics/compositor.h"
 #include "audio/audiomixer.h"
 #include "core/mediaclock.h"
+#include "core/outputtap.h"
 #include <functional>
 
 // Worker-owned resampler. Independent subscriptions and origin for each output.

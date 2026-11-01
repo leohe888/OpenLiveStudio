@@ -112,15 +112,15 @@ public:
             layout->addWidget(cursor);
             layout->addWidget(
                 label(this, "displayCaptureHint", tr("原始分辨率 · 最高 30 FPS · SDR")));
-            fillDevices(device, displays->displays(), config.displayId);
-            connect(displays, &DisplaySourceController::displaysChanged, this, [=] {
-                fillDevices(device, displays->displays(), device->currentData().toString());
+            fillDevices(device, displays->displayDevices(), config.displayId);
+            connect(displays, &DisplaySourceController::displayDevicesChanged, this, [=] {
+                fillDevices(device, displays->displayDevices(), device->currentData().toString());
                 if (changed)
                     changed();
             });
             connect(refresh, &QPushButton::clicked, displays,
-                    &DisplaySourceController::refreshDisplays);
-            displays->refreshDisplays();
+                    &DisplaySourceController::refreshDisplayDevices);
+            displays->refreshDisplayDevices();
         } else {
             const CameraConfig config =
                 initial ? std::get<CameraSourceDetails>(initial->details).config : CameraConfig{};

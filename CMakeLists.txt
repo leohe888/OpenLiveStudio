@@ -36,9 +36,9 @@ qt_add_executable(OpenLiveStudio
     src/video/camera/camerasourcecontroller.h
     src/video/camera/camerasourcecontroller.cpp
     src/graphics/captureframe.h
-    src/graphics/d3dtexture.h
-    src/video/display/displaytargets.h
-    src/video/display/displaytargets.cpp
+    src/graphics/gpuframeresource.h
+    src/video/display/displaydevices.h
+    src/video/display/displaydevices.cpp
     src/video/display/displaycaptureworker.h
     src/video/display/displaycaptureworker.cpp
     src/graphics/gpuinterop.h
@@ -71,6 +71,7 @@ qt_add_executable(OpenLiveStudio
     src/output/outputsettings.cpp
     src/core/mediaclock.h
     src/core/outputtap.h
+    src/core/outputbus.h
 )
 
 set(OPENLIVE_STUDIO_ICON_FILES
