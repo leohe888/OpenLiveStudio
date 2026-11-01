@@ -1,5 +1,5 @@
-#ifndef SOURCEWIDGETS_H
-#define SOURCEWIDGETS_H
+#ifndef VIDEOSOURCEPANEL_H
+#define VIDEOSOURCEPANEL_H
 
 #include <QWidget>
 #include <functional>
@@ -10,12 +10,12 @@ class DisplaySourceController;
 class CameraSourceController;
 class QDialog;
 
-class SourcesPanel : public QWidget
+class VideoSourcePanel : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit SourcesPanel(VideoSourceManager *manager, QWidget *parent = nullptr);
+    explicit VideoSourcePanel(VideoSourceManager *manager, QWidget *parent = nullptr);
 
 signals:
     void addRequested();

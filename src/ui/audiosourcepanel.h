@@ -1,17 +1,17 @@
-#ifndef AUDIOWIDGETS_H
-#define AUDIOWIDGETS_H
+#ifndef AUDIOSOURCEPANEL_H
+#define AUDIOSOURCEPANEL_H
 
 #include <QWidget>
 
 class AudioSourceManager;
 class QDialog;
 
-class MixerPanel : public QWidget
+class AudioSourcePanel : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit MixerPanel(AudioSourceManager *manager, QWidget *parent = nullptr);
+    explicit AudioSourcePanel(AudioSourceManager *manager, QWidget *parent = nullptr);
 
 signals:
     void addRequested();

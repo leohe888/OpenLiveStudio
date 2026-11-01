@@ -1,4 +1,4 @@
-#include "ui/sourcewidgets.h"
+#include "ui/videosourcepanel.h"
 #include "video/videosourcemanager.h"
 #include "video/image/imagesourcecontroller.h"
 #include "video/display/displaysourcecontroller.h"
@@ -208,7 +208,7 @@ public:
 };
 }
 
-SourcesPanel::SourcesPanel(VideoSourceManager *manager, QWidget *parent) : QWidget(parent)
+VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent) : QWidget(parent)
 {
     setObjectName("sourcesPanel");
     setAttribute(Qt::WA_StyledBackground);
@@ -359,7 +359,7 @@ SourcesPanel::SourcesPanel(VideoSourceManager *manager, QWidget *parent) : QWidg
     connect(list, &QListWidget::currentRowChanged, this, [=](int row) {
         manager->selectSource(row < 0 ? QString() : list->item(row)->data(Qt::UserRole).toString());
     });
-    connect(add, &QToolButton::clicked, this, &SourcesPanel::addRequested);
+    connect(add, &QToolButton::clicked, this, &VideoSourcePanel::addRequested);
     connect(remove, &QToolButton::clicked, this, [=] {
         emit removalRequested(manager->currentSourceId());
     });

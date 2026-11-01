@@ -12,10 +12,10 @@ qt_add_executable(OpenLiveStudio
     src/main.cpp
     src/ui/mainwindow.cpp
     src/ui/outputwidgets.cpp
-    src/ui/sourcewidgets.cpp
-    src/ui/audiowidgets.cpp
-    src/ui/audiowidgets.h
-    src/ui/sourcewidgets.h
+    src/ui/videosourcepanel.cpp
+    src/ui/audiosourcepanel.cpp
+    src/ui/audiosourcepanel.h
+    src/ui/videosourcepanel.h
     src/ui/outputwidgets.h
     src/ui/mainwindow.h
     src/ui/previewwidget.cpp

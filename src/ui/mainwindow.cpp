@@ -1,7 +1,7 @@
 #include "ui/mainwindow.h"
 #include "ui/outputwidgets.h"
-#include "ui/sourcewidgets.h"
-#include "ui/audiowidgets.h"
+#include "ui/videosourcepanel.h"
+#include "ui/audiosourcepanel.h"
 #include "video/videosourcemanager.h"
 #include "video/videosourceaggregator.h"
 #include "video/image/imagesourcecontroller.h"
@@ -356,12 +356,12 @@ void MainWindow::setupSourcesDock()
     m_videoSourceDock->setMinimumWidth(220);
     m_videoSourceDock->setMaximumWidth(320);
 
-    auto *panel = new SourcesPanel(m_videoSourceManager, m_videoSourceDock);
+    auto *panel = new VideoSourcePanel(m_videoSourceManager, m_videoSourceDock);
     m_videoSourceDock->setWidget(panel);
-    connect(panel, &SourcesPanel::addRequested, this, &MainWindow::showSourceAddDialog);
-    connect(panel, &SourcesPanel::removalRequested, this, &MainWindow::showSourceRemovalDialog);
-    connect(panel, &SourcesPanel::filtersRequested, this, &MainWindow::showSourceFiltersDialog);
-    connect(panel, &SourcesPanel::propertiesRequested, this,
+    connect(panel, &VideoSourcePanel::addRequested, this, &MainWindow::showSourceAddDialog);
+    connect(panel, &VideoSourcePanel::removalRequested, this, &MainWindow::showSourceRemovalDialog);
+    connect(panel, &VideoSourcePanel::filtersRequested, this, &MainWindow::showSourceFiltersDialog);
+    connect(panel, &VideoSourcePanel::propertiesRequested, this,
             &MainWindow::showSourcePropertiesDialog);
 }
 
@@ -373,11 +373,11 @@ void MainWindow::setupMixerDock()
     m_audioSourceDock->setMinimumWidth(220);
     m_audioSourceDock->setMaximumWidth(320);
 
-    auto *panel = new MixerPanel(m_audioSourceManager, m_audioSourceDock);
+    auto *panel = new AudioSourcePanel(m_audioSourceManager, m_audioSourceDock);
     m_audioSourceDock->setWidget(panel);
-    connect(panel, &MixerPanel::addRequested, this, &MainWindow::showAudioSourceAddDialog);
-    connect(panel, &MixerPanel::removalRequested, this, &MainWindow::showAudioSourceRemovalDialog);
-    connect(panel, &MixerPanel::propertiesRequested, this,
+    connect(panel, &AudioSourcePanel::addRequested, this, &MainWindow::showAudioSourceAddDialog);
+    connect(panel, &AudioSourcePanel::removalRequested, this, &MainWindow::showAudioSourceRemovalDialog);
+    connect(panel, &AudioSourcePanel::propertiesRequested, this,
             &MainWindow::showAudioSourcePropertiesDialog);
 }
 

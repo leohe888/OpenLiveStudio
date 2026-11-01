@@ -1,6 +1,6 @@
 #include "ui/mainwindow.h"
-#include "ui/sourcewidgets.h"
-#include "ui/audiowidgets.h"
+#include "ui/videosourcepanel.h"
+#include "ui/audiosourcepanel.h"
 #include "ui/outputwidgets.h"
 #include "ui/previewwidget.h"
 #include "video/videosourcemanager.h"
@@ -94,8 +94,8 @@ void MainWindowTest::shellAndPalette()
         QCOMPARE(dock->features(), QDockWidget::NoDockWidgetFeatures);
         QVERIFY(!dock->isFloating());
     }
-    QVERIFY(window.findChild<SourcesPanel *>());
-    QVERIFY(window.findChild<MixerPanel *>());
+    QVERIFY(window.findChild<VideoSourcePanel *>());
+    QVERIFY(window.findChild<AudioSourcePanel *>());
     QCOMPARE(window.palette().color(QPalette::Window), QColor("#E9EDF2"));
     QCOMPARE(window.palette().color(QPalette::Text), QColor("#202936"));
     QVERIFY(window.findChild<QLabel *>("outputStatus")->isVisible());
@@ -159,7 +159,7 @@ void MainWindowTest::sourceActionsAndSelection()
     MainWindow window;
 
     auto *model = window.findChild<VideoSourceManager *>();
-    auto *panel = window.findChild<SourcesPanel *>();
+    auto *panel = window.findChild<VideoSourcePanel *>();
     auto *list = panel->findChild<QListWidget *>("sourceList");
     QVERIFY(!panel->findChild<QToolButton *>("removeSourceButton")->isEnabled());
     QVERIFY(model->addSource({"one", "One"}));
@@ -402,7 +402,7 @@ void MainWindowTest::outputDraftsAndLocks()
 void MainWindowTest::scrollingAndKeyboard()
 {
     VideoSourceManager model;
-    SourcesPanel panel(&model);
+    VideoSourcePanel panel(&model);
     panel.resize(240, 160);
     panel.show();
     for (int n = 0; n < 30; ++n)
@@ -416,7 +416,7 @@ void MainWindowTest::scrollingAndKeyboard()
     QCOMPARE(list->currentRow(), 1);
     QCOMPARE(model.currentSourceId(), list->currentItem()->data(Qt::UserRole).toString());
     AudioSourceManager audio;
-    MixerPanel mixer(&audio);
+    AudioSourcePanel mixer(&audio);
     mixer.resize(220, 160);
     mixer.show();
     for (int n = 0; n < 4; ++n)

@@ -1,4 +1,4 @@
-#include "ui/audiowidgets.h"
+#include "ui/audiosourcepanel.h"
 #include "audio/audiosourcemanager.h"
 
 #include <QComboBox>
@@ -91,7 +91,7 @@ QLabel *plainLabel(QWidget *parent, const QString &text = {})
 }
 }
 
-MixerPanel::MixerPanel(AudioSourceManager *manager, QWidget *parent) : QWidget(parent)
+AudioSourcePanel::AudioSourcePanel(AudioSourceManager *manager, QWidget *parent) : QWidget(parent)
 {
     setObjectName("mixerPanel");
     setAttribute(Qt::WA_StyledBackground);
@@ -171,7 +171,7 @@ MixerPanel::MixerPanel(AudioSourceManager *manager, QWidget *parent) : QWidget(p
 
     connect(manager, &AudioSourceManager::currentSourceIdChanged, this, select);
     select();
-    connect(add, &QToolButton::clicked, this, &MixerPanel::addRequested);
+    connect(add, &QToolButton::clicked, this, &AudioSourcePanel::addRequested);
     connect(remove, &QToolButton::clicked, this, [=] {
         emit removalRequested(manager->currentSourceId());
     });
@@ -422,4 +422,4 @@ QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceManager *manager,
     return dialog;
 }
 
-#include "audiowidgets.moc"
+#include "audiosourcepanel.moc"
