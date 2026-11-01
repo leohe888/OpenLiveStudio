@@ -206,6 +206,19 @@ add_test(NAME core.videosource COMMAND "${CMAKE_COMMAND}" -E env
     "$<TARGET_FILE:tst_videosource>" -o "-,txt")
 set_tests_properties(core.videosource PROPERTIES LABELS "core;smoke" TIMEOUT 10)
 
+qt_add_executable(tst_videosourcefilter
+    video/tst_videosourcefilter.cpp
+    ../src/video/videosourcefilter.cpp
+    ../src/video/videosourcefilter.h
+)
+
+target_include_directories(tst_videosourcefilter PRIVATE "${PROJECT_SOURCE_DIR}/src")
+target_link_libraries(tst_videosourcefilter PRIVATE Qt6::Core Qt6::Test)
+add_test(NAME core.videosourcefilter COMMAND "${CMAKE_COMMAND}" -E env
+    "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
+    "$<TARGET_FILE:tst_videosourcefilter>" -o "-,txt")
+set_tests_properties(core.videosourcefilter PROPERTIES LABELS "core;smoke" TIMEOUT 10)
+
 qt_add_executable(tst_videosourcemanager
     ../src/video/videosourcefilter.cpp
     video/tst_videosourcemanager.cpp
