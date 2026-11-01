@@ -544,28 +544,28 @@ void MainWindowTest::previewEditsModelAndSynchronizesSelection()
         QTest::mouseRelease(preview, Qt::LeftButton, Qt::NoModifier, to);
     };
     const VideoSourceTransform before = currentTransform();
-    const QPoint from = canvasPoint(before.center), to = from + QPoint(30, 15);
+    const QPoint from = canvasPoint(before.center()), to = from + QPoint(30, 15);
     move(from, to);
 
     const auto inverse = canvasToWidget(preview->size()).inverted();
     const auto expectedCenter =
-        before.center + inverse.map(QPointF(to)) - inverse.map(QPointF(from));
-    QVERIFY(std::hypot(currentTransform().center.x() - expectedCenter.x(),
-                       currentTransform().center.y() - expectedCenter.y()) < 1e-6);
+        before.center() + inverse.map(QPointF(to)) - inverse.map(QPointF(from));
+    QVERIFY(std::hypot(currentTransform().center().x() - expectedCenter.x(),
+                       currentTransform().center().y() - expectedCenter.y()) < 1e-6);
 
     const auto moved = currentTransform();
     window.resize(qMax(window.minimumWidth(), window.width() - 40), window.height());
     QCoreApplication::processEvents();
     QVERIFY(currentTransform() == moved);
-    move(canvasPoint(moved.center), canvasPoint(moved.center) + QPoint(10, 5));
-    QVERIFY(currentTransform().center != moved.center);
+    move(canvasPoint(moved.center()), canvasPoint(moved.center()) + QPoint(10, 5));
+    QVERIFY(currentTransform().center() != moved.center());
     VideoSourceTransform rotated = currentTransform();
-    rotated.rotation = 30;
-    rotated.size = QSizeF(450, 250);
+    rotated.setRotation(30);
+    rotated.setSize(QSizeF(450, 250));
     QVERIFY(model->setSourceTransform(frontId, rotated));
 
     const auto frame = grabPreview(*preview);
-    const auto center = canvasPoint(rotated.center);
+    const auto center = canvasPoint(rotated.center());
     QCOMPARE(frame.pixelColor(qRound(center.x() * preview->devicePixelRatioF()),
                               qRound(center.y() * preview->devicePixelRatioF())),
              QColor(Qt::blue));
@@ -762,7 +762,7 @@ void MainWindowTest::cameraHardwarePreview()
         QTest::qWait(100);
 
         const auto display = canvasToWidget(preview->size());
-        const auto center = display.map(start.center);
+        const auto center = display.map(start.center());
         const QPointF from =
             operation == 0 ? center
             : operation == 1
@@ -793,12 +793,12 @@ void MainWindowTest::cameraHardwarePreview()
 
         const auto actual = model->sources().at(0).transform;
         if (operation == 0)
-            QVERIFY(QLineF(actual.center, QPointF(1080, 600)).length() < 0.001);
+            QVERIFY(QLineF(actual.center(), QPointF(1080, 600)).length() < 0.001);
         else if (operation == 1) {
-            QVERIFY(qAbs(actual.size.width() - 660) < 0.001);
-            QVERIFY(qAbs(actual.size.height() - 330) < 0.001);
+            QVERIFY(qAbs(actual.size().width() - 660) < 0.001);
+            QVERIFY(qAbs(actual.size().height() - 330) < 0.001);
         } else
-            QVERIFY(qAbs(actual.rotation - 30) < 0.001);
+            QVERIFY(qAbs(actual.rotation() - 30) < 0.001);
     }
     window.resize(1100, 720);
     QTest::qWait(100);

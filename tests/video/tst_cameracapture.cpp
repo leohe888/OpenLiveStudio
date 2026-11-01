@@ -62,9 +62,9 @@ void CameraCaptureTest::paramsAndLayout()
     QVERIFY(!filter.isEmpty());
     model.setCameraActualMode(id, {640, 480}, 30, 1);
     const auto adjusted = model.sources().at(0).transform;
-    QCOMPARE(adjusted.center, transform.center);
-    QCOMPARE(adjusted.rotation, transform.rotation);
-    QCOMPARE(adjusted.size, QSizeF(600, 450));
+    QCOMPARE(adjusted.center(), transform.center());
+    QCOMPARE(adjusted.rotation(), transform.rotation());
+    QCOMPARE(adjusted.size(), QSizeF(600, 450));
     QCOMPARE(model.sourceFilters(id)[0].id, filter);
     QVERIFY(!model.setCameraParams(id, CameraSourceParams{"missing-device", {1280, 720}, 30, 0}));
     QVERIFY(model.removeSource(id));

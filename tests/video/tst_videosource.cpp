@@ -1,6 +1,7 @@
 #include "video/videosource.h"
 
 #include <QtTest/QTest>
+#include <limits>
 
 class VideoSourceTest : public QObject
 {
@@ -31,23 +32,42 @@ void VideoSourceTest::transformConstructionAndAngles()
     const VideoSourceTransform unset;
     QVERIFY(!unset.isValid());
     QVERIFY(!unset.contains(QPointF(960, 540)));
-    QCOMPARE(unset.center, QPointF(960, 540));
-    QCOMPARE(unset.rotation, 0.0);
+    QCOMPARE(unset.center(), QPointF(960, 540));
+    QCOMPARE(unset.rotation(), 0.0);
     for (const QSizeF &size : {QSizeF(), QSizeF(0, 100), QSizeF(-1, 100)})
         QVERIFY(VideoSourceTransform(size) == unset);
-    QCOMPARE(VideoSourceTransform(QSizeF(400, 200)).size, QSizeF(400, 200));
-    QCOMPARE(VideoSourceTransform(QSizeF(4000, 2000)).size, QSizeF(1920, 960));
-    QCOMPARE(VideoSourceTransform(QSizeF(1000, 4000)).size, QSizeF(270, 1080));
+    QCOMPARE(VideoSourceTransform(QSizeF(400, 200)).size(), QSizeF(400, 200));
+    QCOMPARE(VideoSourceTransform(QSizeF(4000, 2000)).size(), QSizeF(1920, 960));
+    QCOMPARE(VideoSourceTransform(QSizeF(1000, 4000)).size(), QSizeF(270, 1080));
     const VideoSourceTransform explicitTransform{{10, 20}, {100, 50}};
-    QCOMPARE(explicitTransform.rotation, 0.0);
+    QCOMPARE(explicitTransform.rotation(), 0.0);
     QVERIFY(explicitTransform.isValid());
-    QVERIFY(explicitTransform.contains(explicitTransform.center));
+    QVERIFY(explicitTransform.contains(explicitTransform.center()));
     QVERIFY(explicitTransform != unset);
-    QCOMPARE(VideoSourceTransform::normalizedAngle(-30), 330.0);
-    QCOMPARE(VideoSourceTransform::normalizedAngle(690), 330.0);
-    QCOMPARE(VideoSourceTransform::normalizedAngle(360), 0.0);
-    QCOMPARE(VideoSourceTransform::normalizedAngle(-720), 0.0);
-    QCOMPARE(VideoSourceTransform::normalizedAngle(12.5), 12.5);
+    VideoSourceTransform editable;
+    editable.setCenter(QPointF(-20, 75));
+    editable.setSize(QSizeF(300, 150));
+    QCOMPARE(editable.center(), QPointF(-20, 75));
+    QCOMPARE(editable.size(), QSizeF(300, 150));
+    QVERIFY(editable.isValid());
+    const qreal inputs[] = {-30, 690, 360, -720, 12.5};
+    const qreal expected[] = {330, 330, 0, 0, 12.5};
+    for (int i = 0; i < 5; ++i) {
+        editable.setRotation(inputs[i]);
+        QCOMPARE(editable.rotation(), expected[i]);
+        const VideoSourceTransform constructed{editable.center(), editable.size(), inputs[i]};
+        QVERIFY(editable == constructed);
+        QCOMPARE(editable.sourceToCanvas(), constructed.sourceToCanvas());
+    }
+    for (qreal invalid : {std::numeric_limits<qreal>::infinity(),
+                          -std::numeric_limits<qreal>::infinity(),
+                          std::numeric_limits<qreal>::quiet_NaN()}) {
+        editable.setRotation(invalid);
+        QVERIFY(!editable.isValid());
+        QVERIFY(!VideoSourceTransform(QPointF(), QSizeF(100, 50), invalid).isValid());
+    }
+    editable.setRotation(0);
+    QVERIFY(editable.isValid());
 }
 
 void VideoSourceTest::cameraParametersValidation_data()

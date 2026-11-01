@@ -111,7 +111,7 @@ void Compositor::setSources(const QList<PreviewSource> &sources)
     std::lock_guard<std::mutex> lock(m_mutex);
     m_sources = sources;
     for (auto &source : m_sources)
-        if (source.transform.size.isEmpty())
+        if (source.transform.size().isEmpty())
             source.transform = VideoSourceTransform(source.pixelSize());
     ++m_revision;
 }

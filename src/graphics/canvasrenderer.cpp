@@ -230,10 +230,10 @@ bool CanvasRenderer::render(const QList<PreviewSource> &sources)
             glEnable(GL_BLEND);
             m_program->setUniformValue("colorCorrection", false);
             QMatrix4x4 model(it->transform.sourceToCanvas());
-            model.translate(float(it->transform.size.width() / 2),
-                            float(it->transform.size.height() / 2));
-            model.scale(float(it->transform.size.width() / 2),
-                        float(-it->transform.size.height() / 2));
+            model.translate(float(it->transform.size().width() / 2),
+                            float(it->transform.size().height() / 2));
+            model.scale(float(it->transform.size().width() / 2),
+                        float(-it->transform.size().height() / 2));
             drawTexture(texture, projection * model, flipY);
         }
     }

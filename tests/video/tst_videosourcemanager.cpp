@@ -374,40 +374,40 @@ void VideoSourceManagerTest::initializesAndValidatesTransforms()
     const auto current = [&] {
         return model.sources().at(0).transform;
     };
-    QVERIFY(current().size.isEmpty());
+    QVERIFY(current().size().isEmpty());
     QVERIFY(model.setSourcePixelSize("image", QSize(4000, 2000)));
-    QCOMPARE(current().center, QPointF(960, 540));
-    QCOMPARE(current().size, QSizeF(1920, 960));
+    QCOMPARE(current().center(), QPointF(960, 540));
+    QCOMPARE(current().size(), QSizeF(1920, 960));
     VideoSourceTransform edited{{-20.5, 95.25}, {300.5, 100.25}, -30};
     QSignalSpy changes(&model, &VideoSourceManager::sourceChanged);
     QVERIFY(model.setSourceTransform("image", edited));
-    QCOMPARE(current().rotation, 330.0);
+    QCOMPARE(current().rotation(), 330.0);
     QCOMPARE(changes.size(), 1);
     QCOMPARE(changes.last().at(0).toString(), QString("image"));
-    edited.rotation = 690;
+    edited.setRotation(690);
     QVERIFY(model.setSourceTransform("image", edited));
     QCOMPARE(changes.size(), 1);
     QVERIFY(model.setSourcePixelSize("image", QSize(600, 200)));
-    QCOMPARE(current().center, edited.center);
-    QCOMPARE(current().size, edited.size);
+    QCOMPARE(current().center(), edited.center());
+    QCOMPARE(current().size(), edited.size());
     const VideoSourceTransform before = current();
     QVERIFY(!model.setSourceTransform("missing", before));
     QVERIFY(model.setSourceLocked("image", true));
-    edited.center += QPointF(20, 20);
+    edited.setCenter(edited.center() + QPointF(20, 20));
     QVERIFY(!model.setSourceTransform("image", edited));
     QVERIFY(model.setSourceLocked("image", false));
     for (int part = 0; part < 5; ++part) {
         auto invalid = before;
         if (part == 0)
-            invalid.center.setX(std::numeric_limits<qreal>::infinity());
+            invalid.setCenter(QPointF(std::numeric_limits<qreal>::infinity(), before.center().y()));
         if (part == 1)
-            invalid.center.setY(std::numeric_limits<qreal>::quiet_NaN());
+            invalid.setCenter(QPointF(before.center().x(), std::numeric_limits<qreal>::quiet_NaN()));
         if (part == 2)
-            invalid.size.setWidth(.5);
+            invalid.setSize(QSizeF(.5, before.size().height()));
         if (part == 3)
-            invalid.size.setHeight(-1);
+            invalid.setSize(QSizeF(before.size().width(), -1));
         if (part == 4)
-            invalid.rotation = std::numeric_limits<qreal>::quiet_NaN();
+            invalid.setRotation(std::numeric_limits<qreal>::quiet_NaN());
         QVERIFY(!model.setSourceTransform("image", invalid));
         QVERIFY(current() == before);
     }
@@ -415,15 +415,15 @@ void VideoSourceManagerTest::initializesAndValidatesTransforms()
         {{"ready", "Ready",
           ImageSourceParams{"ready.png"}}});
     ready.setSourcePixelSize("ready", {40, 20});
-    QCOMPARE(ready.sources().at(0).transform.size, QSizeF(40, 20));
+    QCOMPARE(ready.sources().at(0).transform.size(), QSizeF(40, 20));
 }
 
 void VideoSourceManagerTest::mapsSourceCoordinates()
 {
     const auto thin = VideoSourceTransform(QSizeF(1, 4000));
     QVERIFY(thin.isValid());
-    QCOMPARE(thin.size.height(), 1080.0);
-    QCOMPARE(thin.size.width(), .27);
+    QCOMPARE(thin.size().height(), 1080.0);
+    QCOMPARE(thin.size().width(), .27);
     for (qreal angle : {0., 37., 90., 225.}) {
         const VideoSourceTransform start{{960, 540}, {400, 200}, angle};
         const auto matrix = start.sourceToCanvas();

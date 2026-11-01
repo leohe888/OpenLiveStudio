@@ -125,7 +125,7 @@ private slots:
         grabPreview(widget);
         QCOMPARE(sample(readCanvas(widget), .5, .5), QColor(Qt::green));
         source.visible = true;
-        source.transform.rotation = 180;
+        source.transform.setRotation(180);
         widget.resize(300, 300);
         widget.setSources({source, other});
         grabPreview(widget);
@@ -136,7 +136,7 @@ private slots:
         QCOMPARE(sample(readCanvas(widget), .5, .5), QColor(Qt::green));
         // Invalid input from a non-model caller falls back without affecting other sources.
         std::get<ColorCorrectionParams>(source.filters[0].params).brightness = 4;
-        source.transform.rotation = 0;
+        source.transform.setRotation(0);
         widget.setSources({source});
         grabPreview(widget);
         QVERIFY(errors.count() > 0);
@@ -526,7 +526,7 @@ private slots:
             for (qreal y : {.25, .75}) {
                 for (qreal x : {.25, .75}) {
                     const auto point = matrix.map(
-                        QPointF(x * transform.size.width(), y * transform.size.height()));
+                        QPointF(x * transform.size().width(), y * transform.size().height()));
                     QCOMPARE(canvas.pixelColor(qRound(point.x()), qRound(point.y())),
                              colors[index++]);
                 }
@@ -598,19 +598,19 @@ private slots:
                 const auto anchor = start.sourceToCanvas().map(
                     QPointF(opposite.x() * 400, opposite.y() * 200));
                 const auto after = result.sourceToCanvas().map(
-                    QPointF(opposite.x() * result.size.width(), opposite.y() * result.size.height()));
+                    QPointF(opposite.x() * result.size().width(), opposite.y() * result.size().height()));
                 QVERIFY(closePoint(anchor, after));
                 if (handle % 2 == 0)
-                    QVERIFY(qAbs(result.size.width() / result.size.height() - 2) < 1e-8);
+                    QVERIFY(qAbs(result.size().width() / result.size().height() - 2) < 1e-8);
                 else if (fraction.x() == .5)
-                    QCOMPARE(result.size.width(), 400.0);
+                    QCOMPARE(result.size().width(), 400.0);
                 else
-                    QCOMPARE(result.size.height(), 200.0);
+                    QCOMPARE(result.size().height(), 200.0);
             }
             const auto crossed = performResize(0, QPointF(10000, 10000));
-            QVERIFY(crossed.size.width() >= 1 && crossed.size.height() >= 1);
+            QVERIFY(crossed.size().width() >= 1 && crossed.size().height() >= 1);
             const auto narrow = performResize(3, QPointF(-10000, 0));
-            QCOMPARE(narrow.size.width(), 1.0);
+            QCOMPARE(narrow.size().width(), 1.0);
         }
     }
 
@@ -631,12 +631,12 @@ private slots:
             widget.setSources({{"image", image, true, start}});
             grabPreview(widget);
             const auto display = widget.canvasToWidget();
-            drag(widget, display.map(start.center), display.map(start.center + QPointF(120, -60)));
+            drag(widget, display.map(start.center()), display.map(start.center() + QPointF(120, -60)));
             const auto moved = widget.m_sources[0].transform;
-            QVERIFY(closePoint(moved.center, start.center + QPointF(120, -60)));
-            QVERIFY(moved.size == start.size);
+            QVERIFY(closePoint(moved.center(), start.center() + QPointF(120, -60)));
+            QVERIFY(moved.size() == start.size());
             widget.setSources({{"image", image, true, start}});
-            const auto point = display.map(start.center);
+            const auto point = display.map(start.center());
             mouse(widget, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
             mouse(widget, QEvent::MouseMove, point + QPointF(20, 10), Qt::NoButton, Qt::LeftButton);
             QVERIFY(widget.m_sources[0].transform != start);
@@ -657,12 +657,12 @@ private slots:
             mouse(widget, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
             mouse(widget, QEvent::MouseButtonRelease, point + QPointF(10, 0), Qt::LeftButton,
                   Qt::NoButton);
-            QVERIFY(closePoint(widget.m_sources[0].transform.center,
+            QVERIFY(closePoint(widget.m_sources[0].transform.center(),
                                display.inverted().map(point + QPointF(10, 0))));
             widget.setCurrentSourceId("image");
         }
         widget.resize(800, 500);
-        start.rotation = 37;
+        start.setRotation(37);
         widget.setSources({{"image", image, true, start}});
         grabPreview(widget);
         QTransform rotation;
@@ -672,25 +672,25 @@ private slots:
         const QPointF delta = rotation.map(QPointF(120, 60));
         drag(widget, handles[4], handles[4] + display.map(delta) - display.map(QPointF()));
         const auto resized = widget.m_sources[0].transform;
-        QVERIFY(qAbs(resized.size.width() - 720) < 1e-6);
-        QVERIFY(qAbs(resized.size.height() - 360) < 1e-6);
+        QVERIFY(qAbs(resized.size().width() - 720) < 1e-6);
+        QVERIFY(qAbs(resized.size().height() - 360) < 1e-6);
         QVERIFY(closePoint(start.sourceToCanvas().map(QPointF()),
                            resized.sourceToCanvas().map(QPointF())));
         widget.setSources({{"image", image, true, start}});
         handles = widget.selectionHandles(widget.m_sources[0]);
         const QPointF sideDelta = rotation.map(QPointF(80, 0));
         drag(widget, handles[3], handles[3] + display.map(sideDelta) - display.map(QPointF()));
-        QVERIFY(qAbs(widget.m_sources[0].transform.size.width() - 680) < 1e-6);
-        QVERIFY(qAbs(widget.m_sources[0].transform.size.height() - 300) < 1e-6);
-        start.rotation = 0;
+        QVERIFY(qAbs(widget.m_sources[0].transform.size().width() - 680) < 1e-6);
+        QVERIFY(qAbs(widget.m_sources[0].transform.size().height() - 300) < 1e-6);
+        start.setRotation(0);
         widget.setSources({{"image", image, true, start}});
         handles = widget.selectionHandles(widget.m_sources[0]);
-        const auto center = display.map(start.center);
+        const auto center = display.map(start.center());
         QTransform quarterTurn;
         quarterTurn.rotate(90);
         drag(widget, handles[8], center + quarterTurn.map(handles[8] - center));
-        QVERIFY(qAbs(widget.m_sources[0].transform.rotation - 90) < 1e-6);
-        QVERIFY(closePoint(widget.m_sources[0].transform.center, start.center));
+        QVERIFY(qAbs(widget.m_sources[0].transform.rotation() - 90) < 1e-6);
+        QVERIFY(closePoint(widget.m_sources[0].transform.center(), start.center()));
     }
 
     void rotationHandleUsesHandCursors()
@@ -757,7 +757,7 @@ private slots:
         drag(widget, center, center);
         QCOMPARE(widget.m_currentSourceId, QString("top"));
         const auto bounds = sources[0].transform.sourceToCanvas()
-                                .mapRect(QRectF(QPointF(), sources[0].transform.size));
+                                .mapRect(QRectF(QPointF(), sources[0].transform.size()));
         const auto outsideRotatedRectangle = bounds.topLeft() + QPointF(5, 5);
         QVERIFY(!sources[0].transform.contains(outsideRotatedRectangle));
         drag(widget, display.map(outsideRotatedRectangle), display.map(outsideRotatedRectangle));
@@ -852,7 +852,7 @@ private slots:
         }
         const auto display = widget.canvasToWidget();
         const auto handles = widget.selectionHandles(widget.m_sources[0]);
-        const auto center = display.map(start.center);
+        const auto center = display.map(start.center());
         const auto from = operation == 0 ? center : handles[operation == 1 ? 4 : 8];
         if (operation != 0)
             widget.setCurrentSourceId("dynamic");
@@ -887,12 +887,12 @@ private slots:
             QVERIFY(widget.m_gesture == gesture);
             const auto transform = widget.m_sources[0].transform;
             if (operation == 0)
-                QVERIFY(closePoint(transform.center, start.center + QPointF(30 * step, 15 * step)));
+                QVERIFY(closePoint(transform.center(), start.center() + QPointF(30 * step, 15 * step)));
             else if (operation == 1) {
-                QVERIFY(qAbs(transform.size.width() - (600 + 40 * step)) < 1e-6);
-                QVERIFY(qAbs(transform.size.height() - (300 + 20 * step)) < 1e-6);
+                QVERIFY(qAbs(transform.size().width() - (600 + 40 * step)) < 1e-6);
+                QVERIFY(qAbs(transform.size().height() - (300 + 20 * step)) < 1e-6);
             } else
-                QVERIFY(qAbs(transform.rotation - 20 * step) < 1e-6);
+                QVERIFY(qAbs(transform.rotation() - 20 * step) < 1e-6);
         }
         mouse(widget, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
         QVERIFY(widget.m_gesture == PreviewWidget::Gesture::None);
