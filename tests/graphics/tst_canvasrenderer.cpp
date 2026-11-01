@@ -90,8 +90,8 @@ private slots:
         const GLuint texture = renderer.m_textures.at(source.id).texture->textureId();
         const auto *canvas = renderer.canvas();
         VideoSourceFilter first{"first"}, second{"second"};
-        first.brightness = .1f;
-        second.contrast = .5f;
+        std::get<ColorCorrectionParams>(first.params).brightness = .1f;
+        std::get<ColorCorrectionParams>(second.params).contrast = .5f;
         source.filters = {first, second};
         QVERIFY(renderer.render({source}));
         QCOMPARE(renderer.m_textures.at(source.id).texture->textureId(), texture);

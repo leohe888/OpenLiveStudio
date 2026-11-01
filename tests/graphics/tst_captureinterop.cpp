@@ -191,7 +191,7 @@ private slots:
             QSKIP("GPU interop unavailable on this desktop");
         }
         const QString filter = model.addFilter(id);
-        QVERIFY(model.setFilterParameters(id, filter, .1, .8, 1.2));
+        QVERIFY(model.setFilterParameters(id, filter, ColorCorrectionParams{.1f, .8f, 1.2f}));
         QVERIFY(model.setSourceTransform(id, {{960, 540}, {1200, 700}, 17}));
         QVERIFY(!grabPreview(preview).isNull());
 
@@ -217,7 +217,7 @@ private slots:
                     ++updates;
                 }
                 if (updates % 90 == 0) {
-                    model.setFilterParameters(id, filter, .05, .9, 1.1);
+                    model.setFilterParameters(id, filter, ColorCorrectionParams{.05f, .9f, 1.1f});
                     preview.resize(updates % 180 == 0 ? QSize(480, 270) : QSize(500, 300));
                 }
 #ifdef Q_OS_WIN
@@ -441,7 +441,7 @@ private slots:
                 source.transform = {{960, 540}, {1920, 1080}, 0};
                 source.frame = gpuFrame;
                 VideoSourceFilter correction{"correction"};
-                correction.brightness = .1f;
+                std::get<ColorCorrectionParams>(correction.params).brightness = .1f;
                 source.filters = {correction};
                 preview.setSources({source});
                 const auto gpuResult = grabPreview(preview);

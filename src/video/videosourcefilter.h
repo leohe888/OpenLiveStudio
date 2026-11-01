@@ -4,32 +4,32 @@
 #include <QList>
 #include <QMetaType>
 #include <QString>
-#include <cmath>
+#include <variant>
 
 enum class VideoSourceFilterType {
     ColorCorrection
 };
 
-struct VideoSourceFilter
+struct ColorCorrectionParams
 {
-    QString id;
-    VideoSourceFilterType type = VideoSourceFilterType::ColorCorrection;
-    bool enabled = true;
     float brightness = 0;
     float contrast = 1;
     float saturation = 1;
 
-    bool isIdentity() const
-    {
-        return brightness == 0 && contrast == 1 && saturation == 1;
-    }
+    bool isIdentity() const;
+    bool isValid() const;
+    bool operator==(const ColorCorrectionParams &other) const;
+};
 
-    bool isValid() const
-    {
-        return type == VideoSourceFilterType::ColorCorrection && std::isfinite(brightness) &&
-               brightness >= -1 && brightness <= 1 && std::isfinite(contrast) && contrast >= 0 &&
-               contrast <= 2 && std::isfinite(saturation) && saturation >= 0 && saturation <= 2;
-    }
+using VideoSourceFilterParams = std::variant<ColorCorrectionParams>;
+
+struct VideoSourceFilter
+{
+    QString id;
+    bool enabled = true;
+    VideoSourceFilterParams params = ColorCorrectionParams{};
+
+    VideoSourceFilterType type() const;
 };
 Q_DECLARE_METATYPE(VideoSourceFilter)
 Q_DECLARE_METATYPE(QList<VideoSourceFilter>)

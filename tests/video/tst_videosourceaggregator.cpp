@@ -144,13 +144,13 @@ void VideoSourceAggregatorTest::usesModelPropertiesWithoutNewFrames()
     QVERIFY(model.setSourceLocked("image", true));
     const auto filter = model.addFilter("image");
     QVERIFY(!filter.isEmpty());
-    QVERIFY(model.setFilterParameters("image", filter, .2, .8, 1.1));
+    QVERIFY(model.setFilterParameters("image", filter, ColorCorrectionParams{.2f, .8f, 1.1f}));
     QTRY_COMPARE(output[0].transform, transform);
     QVERIFY(!output[0].visible);
     QVERIFY(output[0].locked);
     QCOMPARE(output[0].filters.size(), 1);
     QCOMPARE(output[0].filters[0].id, filter);
-    QCOMPARE(output[0].filters[0].brightness, .2f);
+    QCOMPARE(std::get<ColorCorrectionParams>(output[0].filters[0].params).brightness, .2f);
     QCOMPARE(output[0].image, pixels);
 
     changes.clear();

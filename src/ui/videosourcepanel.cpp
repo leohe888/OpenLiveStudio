@@ -729,20 +729,22 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
         const VideoSourceFilter *filter =
             index >= 0 && index < filters.size() ? &filters[index] : nullptr;
         remove->setEnabled(filter != nullptr);
-        reset->setEnabled(filter != nullptr);
+        const auto *correction = filter ? std::get_if<ColorCorrectionParams>(&filter->params)
+                                        : nullptr;
+        reset->setEnabled(correction != nullptr);
         up->setEnabled(index > 0);
         down->setEnabled(index >= 0 && index + 1 < filters.size());
 
         std::array<double, 3> values{0, 1, 1};
-        if (filter)
-            values = {filter->brightness, filter->contrast, filter->saturation};
+        if (correction)
+            values = {correction->brightness, correction->contrast, correction->saturation};
         for (int n = 0; n < inputs.size(); ++n) {
             QSignalBlocker inputBlocker(inputs[n]);
             QSignalBlocker sliderBlocker(sliders[n]);
             inputs[n]->setValue(values[n]);
             sliders[n]->setValue(qRound(values[n] * 100));
-            inputs[n]->setEnabled(filter != nullptr);
-            sliders[n]->setEnabled(filter != nullptr);
+            inputs[n]->setEnabled(correction != nullptr);
+            sliders[n]->setEnabled(correction != nullptr);
         }
     };
 
@@ -757,7 +759,13 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
         list->clear();
         int index = 0;
         for (const auto &entry : manager->sourceFilters(sourceId)) {
-            auto *item = new QListWidgetItem(QObject::tr("色彩校正 %1").arg(++index), list);
+            QString name;
+            switch (entry.type()) {
+            case VideoSourceFilterType::ColorCorrection:
+                name = QObject::tr("色彩校正");
+                break;
+            }
+            auto *item = new QListWidgetItem(QString("%1 %2").arg(name).arg(++index), list);
             item->setData(Qt::UserRole, entry.id);
             item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
             item->setCheckState(entry.enabled ? Qt::Checked : Qt::Unchecked);
@@ -771,8 +779,9 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
 
     const auto parameters = [=] {
         if (!selected().isEmpty())
-            manager->setFilterParameters(sourceId, selected(), inputs[0]->value(),
-                                         inputs[1]->value(), inputs[2]->value());
+            manager->setFilterParameters(sourceId, selected(),
+                ColorCorrectionParams{float(inputs[0]->value()), float(inputs[1]->value()),
+                                      float(inputs[2]->value())});
     };
     for (int n = 0; n < inputs.size(); ++n) {
         QObject::connect(inputs[n], &QDoubleSpinBox::valueChanged, dialog, parameters);
@@ -792,7 +801,7 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
                                   item->checkState() == Qt::Checked);
     });
     QObject::connect(add, &QToolButton::clicked, dialog, [=] {
-        const auto added = manager->addFilter(sourceId);
+        const auto added = manager->addFilter(sourceId, VideoSourceFilterType::ColorCorrection);
         for (int n = 0; n < list->count(); ++n)
             if (list->item(n)->data(Qt::UserRole).toString() == added)
                 list->setCurrentRow(n);
@@ -807,7 +816,7 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
         manager->moveFilter(sourceId, selected(), 1);
     });
     QObject::connect(reset, &QPushButton::clicked, dialog, [=] {
-        manager->setFilterParameters(sourceId, selected(), 0, 1, 1);
+        manager->setFilterParameters(sourceId, selected(), ColorCorrectionParams{});
     });
 
     auto *close = new QDialogButtonBox(QDialogButtonBox::Close, dialog);

@@ -255,7 +255,7 @@ void MainWindowTest::removalAndFilters()
     dialog->findChild<QToolButton *>("addFilterButton")->click();
     QCOMPARE(model->sourceFilters("one").size(), 1);
     dialog->findChild<QDoubleSpinBox *>("brightnessInput")->setValue(.45);
-    QCOMPARE(model->sourceFilters("one")[0].brightness, double(float(.45)));
+    QCOMPARE(std::get<ColorCorrectionParams>(model->sourceFilters("one")[0].params).brightness, double(.45f));
 
     auto *list = dialog->findChild<QListWidget *>("filterList");
     list->item(0)->setCheckState(Qt::Unchecked);
@@ -267,9 +267,9 @@ void MainWindowTest::removalAndFilters()
     dialog->findChild<QToolButton *>("upFilterButton")->click();
     QCOMPARE(model->sourceFilters("one")[0].id, second);
     dialog->findChild<QSlider *>("contrastSlider")->setValue(150);
-    QCOMPARE(model->sourceFilters("one")[0].contrast, 1.5);
+    QCOMPARE(std::get<ColorCorrectionParams>(model->sourceFilters("one")[0].params).contrast, 1.5);
     dialog->findChild<QPushButton *>("resetFilterButton")->click();
-    QCOMPARE(model->sourceFilters("one")[0].contrast, 1.);
+    QCOMPARE(std::get<ColorCorrectionParams>(model->sourceFilters("one")[0].params).contrast, 1.);
     dialog->close();
     QTRY_VERIFY(dialog.isNull());
     QCOMPARE(model->sourceFilters("one").size(), 2);
@@ -734,7 +734,7 @@ void MainWindowTest::cameraHardwarePreview()
                               15000);
 
     const auto filter = model->addFilter(id);
-    QVERIFY(model->setFilterParameters(id, filter, 0, 1, 0));
+    QVERIFY(model->setFilterParameters(id, filter, ColorCorrectionParams{0, 1, 0}));
     QTest::qWait(500);
     QVERIFY(preview->lastError().isEmpty());
     QVERIFY(failures.isEmpty());

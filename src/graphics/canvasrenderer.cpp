@@ -8,6 +8,7 @@
 #include <QMatrix4x4>
 #include <QScopeGuard>
 #include <algorithm>
+#include <type_traits>
 
 CanvasRenderer::CanvasRenderer(QObject *parent) : QObject(parent)
 {
@@ -257,9 +258,9 @@ GLuint CanvasRenderer::filterTexture(const PreviewSource &source, GLuint origina
     for (const auto &filter : source.filters) {
         if (!filter.enabled)
             continue;
-        if (!filter.isValid())
-            return fail(tr("色彩校正参数无效，已使用原图。"));
-        if (filter.isIdentity())
+        if (!std::visit([](const auto &params) { return params.isValid(); }, filter.params))
+            return fail(tr("滤镜参数无效，已使用原图。"));
+        if (std::visit([](const auto &params) { return params.isIdentity(); }, filter.params))
             continue;
         auto &target = m_filterFbos[pass % 2];
         if (!target || target->size() != source.pixelSize()) {
@@ -283,9 +284,13 @@ GLuint CanvasRenderer::filterTexture(const PreviewSource &source, GLuint origina
         glDisable(GL_BLEND);
         m_program->setUniformValue("vertexTransform", QMatrix4x4());
         m_program->setUniformValue("flipY", pass > 0);
-        m_program->setUniformValue("colorCorrection", true);
-        m_program->setUniformValue("correction", filter.brightness, filter.contrast,
-                                   filter.saturation);
+        std::visit([&](const auto &params) {
+            using Params = std::decay_t<decltype(params)>;
+            static_assert(std::is_same_v<Params, ColorCorrectionParams>);
+            m_program->setUniformValue("colorCorrection", true);
+            m_program->setUniformValue("correction", params.brightness, params.contrast,
+                                       params.saturation);
+        }, filter.params);
         glBindTexture(GL_TEXTURE_2D, input);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         if (glGetError() != GL_NO_ERROR)

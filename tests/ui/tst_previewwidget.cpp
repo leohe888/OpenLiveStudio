@@ -39,7 +39,7 @@ private slots:
             image.fill(mode == 0 ? Qt::green : Qt::blue);
             PreviewSource source{"image", image, true, {{960, 540}, {1920, 1080}, 0}};
             VideoSourceFilter filter{"brightness"};
-            filter.brightness = -.2f;
+            std::get<ColorCorrectionParams>(filter.params).brightness = -.2f;
             source.filters = {filter};
             widget.setSources({source});
             const auto canvas = readCanvas(widget);
@@ -72,15 +72,15 @@ private slots:
             return sample(readCanvas(widget), .5, .5);
         };
         QCOMPARE(render(), QColor(64, 128, 192));
-        source.filters[0].brightness = .2f;
+        std::get<ColorCorrectionParams>(source.filters[0].params).brightness = .2f;
         QCOMPARE(render(), QColor(115, 179, 243));
-        source.filters[0].brightness = 0;
-        source.filters[0].contrast = 0;
+        std::get<ColorCorrectionParams>(source.filters[0].params).brightness = 0;
+        std::get<ColorCorrectionParams>(source.filters[0].params).contrast = 0;
         const auto gray = render();
         QVERIFY(qAbs(gray.red() - 128) <= 1 && gray.red() == gray.green() &&
                 gray.red() == gray.blue());
-        source.filters[0].contrast = 1;
-        source.filters[0].saturation = 0;
+        std::get<ColorCorrectionParams>(source.filters[0].params).contrast = 1;
+        std::get<ColorCorrectionParams>(source.filters[0].params).saturation = 0;
         const auto desaturated = render();
         QVERIFY(qAbs(desaturated.red() - 119) <= 1);
         QCOMPARE(desaturated.red(), desaturated.green());
@@ -89,9 +89,9 @@ private slots:
         QCOMPARE(render(), QColor(64, 128, 192));
 
         source.image.fill(QColor(102, 102, 102));
-        first.brightness = .2f;
+        std::get<ColorCorrectionParams>(first.params).brightness = .2f;
         VideoSourceFilter second{"second"};
-        second.contrast = 2;
+        std::get<ColorCorrectionParams>(second.params).contrast = 2;
         source.filters = {first, second};
         const auto forward = render();
         source.filters = {second, first};
@@ -105,8 +105,8 @@ private slots:
         for (int y = source.image.height() / 2; y < source.image.height(); ++y)
             for (int x = 0; x < source.image.width(); ++x)
                 source.image.setPixelColor(x, y, QColor(0, 0, 128, 128));
-        first.brightness = .1f;
-        second.contrast = .5f;
+        std::get<ColorCorrectionParams>(first.params).brightness = .1f;
+        std::get<ColorCorrectionParams>(second.params).contrast = .5f;
         source.filters = {first, second};
         QImage background(16, 16, QImage::Format_RGBA8888);
         background.fill(Qt::green);
@@ -134,7 +134,7 @@ private slots:
         grabPreview(widget);
         QCOMPARE(sample(readCanvas(widget), .5, .5), QColor(Qt::green));
         // Invalid input from a non-model caller falls back without affecting other sources.
-        source.filters[0].brightness = 4;
+        std::get<ColorCorrectionParams>(source.filters[0].params).brightness = 4;
         source.transform.rotation = 0;
         widget.setSources({source});
         grabPreview(widget);

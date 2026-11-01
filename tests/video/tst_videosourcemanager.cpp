@@ -476,42 +476,55 @@ void VideoSourceManagerTest::filtersAreOrderedValidatedAndIndependent()
     QVERIFY(model.canFilterCurrentSource());
     QVERIFY(model.canFilterSource("camera"));
     QVERIFY(model.addFilter("missing").isEmpty());
-    const QString first = model.addFilter("a");
+    QVERIFY(model.addFilter("a", static_cast<VideoSourceFilterType>(-1)).isEmpty());
+    QVERIFY(model.sourceFilters("a").isEmpty());
+    QCOMPARE(changed.count(), 0);
+    const QString first = model.addFilter("a", VideoSourceFilterType::ColorCorrection);
     const QString second = model.addFilter("a");
     QVERIFY(!first.isEmpty() && first != second);
     QCOMPARE(changed.count(), 2);
     QCOMPARE(data.last().at(0).toString(), QString("a"));
-    QCOMPARE(model.sourceFilters("a")[0].brightness, 0.f);
-    QCOMPARE(model.sourceFilters("a")[0].contrast, 1.f);
-    QCOMPARE(model.sourceFilters("a")[0].saturation, 1.f);
+    QCOMPARE(model.sourceFilters("a")[0].type(), VideoSourceFilterType::ColorCorrection);
+    QVERIFY(std::get<ColorCorrectionParams>(model.sourceFilters("a")[0].params).isValid());
+    QVERIFY(std::get<ColorCorrectionParams>(model.sourceFilters("a")[0].params).isIdentity());
+    QCOMPARE(std::get<ColorCorrectionParams>(model.sourceFilters("a")[0].params).brightness, 0.f);
+    QCOMPARE(std::get<ColorCorrectionParams>(model.sourceFilters("a")[0].params).contrast, 1.f);
+    QCOMPARE(std::get<ColorCorrectionParams>(model.sourceFilters("a")[0].params).saturation, 1.f);
     QVERIFY(model.sourceFilters("b").isEmpty());
     QVERIFY(model.setSourceLocked("a", true));
-    QVERIFY(model.setFilterParameters("a", first, .2, 1.5, 0));
+    QVERIFY(model.setFilterParameters("a", first, ColorCorrectionParams{.2f, 1.5f, 0}));
     QVERIFY(model.setFilterEnabled("a", first, false));
     const int before = changed.count();
     QVERIFY(model.setFilterEnabled("a", first, false));
-    QVERIFY(model.setFilterParameters("a", first, .2, 1.5, 0));
+    QVERIFY(model.setFilterParameters("a", first, ColorCorrectionParams{.2f, 1.5f, 0}));
     QCOMPARE(changed.count(), before);
     for (double invalid : {-1.01, 1.01, std::numeric_limits<double>::infinity(),
                            std::numeric_limits<double>::quiet_NaN()})
-        QVERIFY(!model.setFilterParameters("a", first, invalid, 1, 1));
+        QVERIFY(!model.setFilterParameters("a", first, ColorCorrectionParams{float(invalid), 1, 1}));
     for (double invalid : {-.01, 2.01, std::numeric_limits<double>::infinity(),
                            std::numeric_limits<double>::quiet_NaN()}) {
-        QVERIFY(!model.setFilterParameters("a", first, 0, invalid, 1));
-        QVERIFY(!model.setFilterParameters("a", first, 0, 1, invalid));
+        QVERIFY(!model.setFilterParameters("a", first, ColorCorrectionParams{0, float(invalid), 1}));
+        QVERIFY(!model.setFilterParameters("a", first, ColorCorrectionParams{0, 1, float(invalid)}));
     }
+    QCOMPARE(changed.count(), before);
+    const auto unchanged = model.sourceFilters("a")[0];
+    QVERIFY(std::get<ColorCorrectionParams>(unchanged.params).isValid());
+    QVERIFY(!std::get<ColorCorrectionParams>(unchanged.params).isIdentity());
+    QVERIFY((std::get<ColorCorrectionParams>(unchanged.params) ==
+             ColorCorrectionParams{.2f, 1.5f, 0}));
+    QVERIFY(!model.setFilterParameters("a", "missing", ColorCorrectionParams{}));
     QVERIFY(!model.moveFilter("a", first, -1));
     QVERIFY(!model.moveFilter("a", second, 1));
     QVERIFY(!model.moveFilter("a", first, 2));
     QVERIFY(model.moveFilter("a", first, 1));
     QCOMPARE(model.sourceFilters("a")[1].id, first);
     QVERIFY(model.setFilterEnabled("a", first, true));
-    QCOMPARE(model.sourceFilters("a")[1].brightness, .2f);
+    QCOMPARE(std::get<ColorCorrectionParams>(model.sourceFilters("a")[1].params).brightness, .2f);
     const auto typed = model.sources().at(0).filters;
     QCOMPARE(typed[1].id, first);
-    QCOMPARE(typed[1].saturation, 0.f);
+    QCOMPARE(std::get<ColorCorrectionParams>(typed[1].params).saturation, 0.f);
     QVERIFY(!model.setFilterEnabled("b", first, false));
-    QVERIFY(!model.setFilterParameters("missing", first, 0, 1, 1));
+    QVERIFY(!model.setFilterParameters("missing", first, ColorCorrectionParams{0, 1, 1}));
     QVERIFY(!model.moveFilter("missing", first, 1));
     QVERIFY(!model.removeFilter("a", "missing"));
     QVERIFY(model.removeFilter("a", first));

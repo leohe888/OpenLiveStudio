@@ -2,6 +2,7 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
 
 find_program(OPENLIVE_FFPROBE NAMES ffprobe HINTS "${FFmpeg_RUNTIME_DIR}" REQUIRED)
 qt_add_executable(tst_streaming output/tst_streaming.cpp
+    ../src/video/videosourcefilter.cpp
     ../src/graphics/captureframe.h
     ../src/graphics/gpuframeresource.h
     ../src/graphics/gpuinterop.h
@@ -51,6 +52,7 @@ add_test(NAME output.streaming COMMAND "${CMAKE_COMMAND}" -E env
 set_tests_properties(output.streaming PROPERTIES LABELS "output;gpu;network" TIMEOUT 60)
 
 qt_add_executable(tst_recording output/tst_recording.cpp
+    ../src/video/videosourcefilter.cpp
     ../src/graphics/captureframe.h
     ../src/graphics/gpuframeresource.h
     ../src/graphics/gpuinterop.h
@@ -125,6 +127,7 @@ add_test(NAME audio.sources COMMAND "${CMAKE_COMMAND}" -E env
 set_tests_properties(audio.sources PROPERTIES LABELS "audio" TIMEOUT 30)
 
 qt_add_executable(tst_canvasrenderer graphics/tst_canvasrenderer.cpp
+    ../src/video/videosourcefilter.cpp
     ../src/graphics/captureframe.h
     ../src/graphics/gpuframeresource.h
     ../src/graphics/gpuinterop.h
@@ -152,6 +155,7 @@ add_test(NAME gpu.compositor COMMAND "${CMAKE_COMMAND}" -E env
 set_tests_properties(gpu.compositor PROPERTIES LABELS "gpu" TIMEOUT 30)
 
 qt_add_executable(tst_captureinterop graphics/tst_captureinterop.cpp
+    ../src/video/videosourcefilter.cpp
     ../src/ui/previewwidget.cpp
     ../src/ui/previewwidget.h
     ../src/video/videosource.cpp
@@ -190,6 +194,7 @@ add_test(NAME capture.interop COMMAND "${CMAKE_COMMAND}" -E env
 set_tests_properties(capture.interop PROPERTIES LABELS "capture;gpu" TIMEOUT 30)
 
 qt_add_executable(tst_videosource
+    ../src/video/videosourcefilter.cpp
     video/tst_videosource.cpp
     ../src/video/videosource.cpp
     ../src/video/videosource.h
@@ -202,6 +207,7 @@ add_test(NAME core.videosource COMMAND "${CMAKE_COMMAND}" -E env
 set_tests_properties(core.videosource PROPERTIES LABELS "core;smoke" TIMEOUT 10)
 
 qt_add_executable(tst_videosourcemanager
+    ../src/video/videosourcefilter.cpp
     video/tst_videosourcemanager.cpp
     ../src/video/videosource.cpp
     ../src/video/videosource.h
@@ -222,6 +228,7 @@ add_test(NAME core.videosourcemanager
 set_tests_properties(core.videosourcemanager PROPERTIES LABELS "core;smoke" TIMEOUT 10)
 
 qt_add_executable(tst_videosourceaggregator
+    ../src/video/videosourcefilter.cpp
     video/tst_videosourceaggregator.cpp
     ../src/video/videosource.cpp
     ../src/video/videosourcemanager.cpp
@@ -237,6 +244,7 @@ add_test(NAME video.sourceaggregator COMMAND "${CMAKE_COMMAND}" -E env
 set_tests_properties(video.sourceaggregator PROPERTIES LABELS "video;smoke" TIMEOUT 10)
 
 qt_add_executable(tst_mainwindow
+    ../src/video/videosourcefilter.cpp
     ui/tst_mainwindow.cpp
     support/recordingacceptance.h
     ../src/ui/mainwindow.cpp
@@ -337,6 +345,7 @@ set_tests_properties(ui.mainwindow PROPERTIES
 )
 
 qt_add_executable(tst_previewwidget
+    ../src/video/videosourcefilter.cpp
     ui/tst_previewwidget.cpp
     ../src/ui/previewwidget.cpp
     ../src/ui/previewwidget.h
@@ -379,6 +388,7 @@ set_tests_properties(ui.previewwidget PROPERTIES
 )
 
 qt_add_executable(tst_imagesourcecontroller
+    ../src/video/videosourcefilter.cpp
     video/tst_imagesourcecontroller.cpp
     ../src/video/videosource.cpp
     ../src/video/videosourcemanager.cpp
@@ -399,6 +409,7 @@ add_test(NAME core.imagesourcecontroller
 set_tests_properties(core.imagesourcecontroller PROPERTIES LABELS "core;smoke" TIMEOUT 30)
 
 qt_add_executable(tst_cameracapture video/tst_cameracapture.cpp
+    ../src/video/videosourcefilter.cpp
     ../src/video/videosource.cpp
     ../src/video/videosourcemanager.cpp
     ../src/video/videosourcemanager.h

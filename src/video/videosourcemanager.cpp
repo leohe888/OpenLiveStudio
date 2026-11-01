@@ -220,12 +220,19 @@ void VideoSourceManager::notifyFiltersChanged(int row)
     emit sourceFiltersChanged(id);
 }
 
-QString VideoSourceManager::addFilter(const QString &sourceId)
+QString VideoSourceManager::addFilter(const QString &sourceId, VideoSourceFilterType type)
 {
     if (!canFilterSource(sourceId))
         return {};
     const int row = sourceRow(sourceId);
     VideoSourceFilter filter;
+    switch (type) {
+    case VideoSourceFilterType::ColorCorrection:
+        filter.params = ColorCorrectionParams{};
+        break;
+    default:
+        return {};
+    }
     filter.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     m_sources[row].filters.append(filter);
     notifyFiltersChanged(row);
@@ -273,20 +280,17 @@ bool VideoSourceManager::setFilterEnabled(const QString &sourceId, const QString
 }
 
 bool VideoSourceManager::setFilterParameters(const QString &sourceId, const QString &filterId,
-                                             double brightness, double contrast, double saturation)
+                                             const VideoSourceFilterParams &params)
 {
     const int row = sourceRow(sourceId);
     const int filter = filterRow(row, filterId);
-    if (filter < 0 || !std::isfinite(brightness) || brightness < -1 || brightness > 1 ||
-        !std::isfinite(contrast) || contrast < 0 || contrast > 2 || !std::isfinite(saturation) ||
-        saturation < 0 || saturation > 2)
+    if (filter < 0 || !std::visit([](const auto &value) { return value.isValid(); }, params))
         return false;
     auto &entry = m_sources[row].filters[filter];
-    if (entry.brightness != float(brightness) || entry.contrast != float(contrast) ||
-        entry.saturation != float(saturation)) {
-        entry.brightness = float(brightness);
-        entry.contrast = float(contrast);
-        entry.saturation = float(saturation);
+    if (entry.params.index() != params.index())
+        return false;
+    if (!(entry.params == params)) {
+        entry.params = params;
         notifyFiltersChanged(row);
     }
     return true;

@@ -77,12 +77,13 @@ public:
 
     bool canFilterSource(const QString &sourceId) const;
     QList<VideoSourceFilter> sourceFilters(const QString &sourceId) const;
-    QString addFilter(const QString &sourceId);
+    QString addFilter(const QString &sourceId,
+                      VideoSourceFilterType type = VideoSourceFilterType::ColorCorrection);
     bool removeFilter(const QString &sourceId, const QString &filterId);
     bool moveFilter(const QString &sourceId, const QString &filterId, int offset);
     bool setFilterEnabled(const QString &sourceId, const QString &filterId, bool enabled);
-    bool setFilterParameters(const QString &sourceId, const QString &filterId, double brightness,
-                             double contrast, double saturation);
+    bool setFilterParameters(const QString &sourceId, const QString &filterId,
+                             const VideoSourceFilterParams &params);
 
 signals:
     // Structural changes rebuild lists; per-source changes update existing rows.

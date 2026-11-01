@@ -49,10 +49,10 @@ private slots:
         const QString first = snapshot[0].id;
         const auto key = snapshot[0].image.cacheKey();
         const auto filter = model.addFilter(first);
-        QVERIFY(model.setFilterParameters(first, filter, .3, .7, 1.2));
+        QVERIFY(model.setFilterParameters(first, filter, ColorCorrectionParams{.3f, .7f, 1.2f}));
         QCOMPARE(snapshot[0].filters.size(), 1);
         QCOMPARE(snapshot[0].filters[0].id, filter);
-        QCOMPARE(snapshot[0].filters[0].brightness, .3f);
+        QCOMPARE(std::get<ColorCorrectionParams>(snapshot[0].filters[0].params).brightness, .3f);
         QCOMPARE(snapshot[0].image.cacheKey(), key);
         controller.addImage("Second", path, &owner);
         QTRY_COMPARE(added.count(), 2);
