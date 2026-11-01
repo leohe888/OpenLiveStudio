@@ -734,7 +734,7 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
         const auto filters = manager->sourceFilters(sourceId);
         const int index = list->currentRow();
 
-        const SourceFilter *filter =
+        const VideoSourceFilter *filter =
             index >= 0 && index < filters.size() ? &filters[index] : nullptr;
         remove->setEnabled(filter != nullptr);
         reset->setEnabled(filter != nullptr);

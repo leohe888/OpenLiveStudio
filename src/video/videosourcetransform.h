@@ -1,5 +1,5 @@
-#ifndef SOURCETRANSFORM_H
-#define SOURCETRANSFORM_H
+#ifndef VIDEOSOURCETRANSFORM_H
+#define VIDEOSOURCETRANSFORM_H
 
 #include <QMetaType>
 #include <QPointF>
@@ -9,26 +9,26 @@
 #include <array>
 #include <cmath>
 
-struct SourceTransform
+struct VideoSourceTransform
 {
     QPointF center{960, 540};
     QSizeF size;
     qreal rotation = 0;
 
-    bool operator==(const SourceTransform &other) const
+    bool operator==(const VideoSourceTransform &other) const
     {
         return center == other.center && size == other.size && rotation == other.rotation;
     }
 
-    bool operator!=(const SourceTransform &other) const
+    bool operator!=(const VideoSourceTransform &other) const
     {
         return !(*this == other);
     }
 };
-Q_DECLARE_METATYPE(SourceTransform)
+Q_DECLARE_METATYPE(VideoSourceTransform)
 
-namespace SourceGeometry {
-inline bool isValid(const SourceTransform &t)
+namespace VideoSourceGeometry {
+inline bool isValid(const VideoSourceTransform &t)
 {
     return std::isfinite(t.center.x()) && std::isfinite(t.center.y()) &&
            std::isfinite(t.size.width()) && std::isfinite(t.size.height()) &&
@@ -41,9 +41,9 @@ inline qreal normalizedAngle(qreal angle)
     return value < 0 ? value + 360 : value;
 }
 
-inline SourceTransform initial(const QSizeF &imageSize)
+inline VideoSourceTransform initial(const QSizeF &imageSize)
 {
-    SourceTransform result;
+    VideoSourceTransform result;
     if (imageSize.isEmpty())
         return result;
     const qreal scale = qMin(1.0, qMin(1920.0 / imageSize.width(), 1080.0 / imageSize.height()));
@@ -51,7 +51,7 @@ inline SourceTransform initial(const QSizeF &imageSize)
     return result;
 }
 
-inline QTransform sourceToCanvas(const SourceTransform &t)
+inline QTransform sourceToCanvas(const VideoSourceTransform &t)
 {
     QTransform matrix;
     matrix.translate(t.center.x(), t.center.y());
@@ -80,7 +80,7 @@ inline QTransform canvasToWidget(const QSizeF &widgetSize)
     return matrix;
 }
 
-inline bool contains(const SourceTransform &t, const QPointF &canvasPoint)
+inline bool contains(const VideoSourceTransform &t, const QPointF &canvasPoint)
 {
     return isValid(t) &&
            QRectF(QPointF(), t.size).contains(sourceToCanvas(t).inverted().map(canvasPoint));
@@ -90,7 +90,7 @@ inline bool contains(const SourceTransform &t, const QPointF &canvasPoint)
 inline const std::array<QPointF, 8> handleFractions{
     {{0, 0}, {.5, 0}, {1, 0}, {1, .5}, {1, 1}, {.5, 1}, {0, 1}, {0, .5}}};
 
-inline SourceTransform resized(const SourceTransform &start, int handle, const QPointF &canvasDelta)
+inline VideoSourceTransform resized(const VideoSourceTransform &start, int handle, const QPointF &canvasDelta)
 {
     if (!isValid(start) || handle < 0 || handle >= 8)
         return start;
@@ -99,7 +99,7 @@ inline SourceTransform resized(const SourceTransform &start, int handle, const Q
     const QPointF delta = rotation.inverted().map(canvasDelta);
     const QPointF fraction = handleFractions[handle];
     const QPointF opposite(1 - fraction.x(), 1 - fraction.y());
-    SourceTransform result = start;
+    VideoSourceTransform result = start;
     const qreal w = start.size.width(), h = start.size.height();
     if (handle % 2 == 0) {
         const QPointF diagonal((2 * fraction.x() - 1) * w, (2 * fraction.y() - 1) * h);

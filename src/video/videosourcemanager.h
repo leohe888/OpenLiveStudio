@@ -24,7 +24,7 @@ public:
     // The pointer is only valid until the next mutation; do not retain it across signals.
     const VideoSource *source(const QString &sourceId) const;
 
-    bool setSourceTransform(const QString &sourceId, const SourceTransform &transform);
+    bool setSourceTransform(const QString &sourceId, const VideoSourceTransform &transform);
     bool addSource(const VideoSource &source);
     bool setSourcePixelSize(const QString &sourceId, const QSize &size);
     bool setSourceStatus(const QString &sourceId, const QString &state, const QString &error);
@@ -63,7 +63,7 @@ public:
     }
 
     bool canFilterSource(const QString &sourceId) const;
-    QList<SourceFilter> sourceFilters(const QString &sourceId) const;
+    QList<VideoSourceFilter> sourceFilters(const QString &sourceId) const;
     QString addFilter(const QString &sourceId);
     bool removeFilter(const QString &sourceId, const QString &filterId);
     bool moveFilter(const QString &sourceId, const QString &filterId, int offset);

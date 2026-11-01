@@ -1,8 +1,8 @@
 #ifndef VIDEOSOURCE_H
 #define VIDEOSOURCE_H
 
-#include "video/sourcetransform.h"
-#include "video/sourcefilter.h"
+#include "video/videosourcetransform.h"
+#include "video/videosourcefilter.h"
 
 #include <QSize>
 #include <QString>
@@ -88,8 +88,8 @@ struct VideoSource
     VideoSourceDetails details = DisplaySourceDetails{};
     bool visible = true;
     bool locked = false;
-    SourceTransform transform;
-    QList<SourceFilter> filters;
+    VideoSourceTransform transform;
+    QList<VideoSourceFilter> filters;
 
     VideoSourceType type() const;
     QSize pixelSize() const;

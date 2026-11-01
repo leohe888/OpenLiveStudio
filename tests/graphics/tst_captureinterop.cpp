@@ -123,7 +123,7 @@ private slots:
         QTRY_COMPARE(controller.activeWorkerCount(), 0);
         QTest::qWait(200);
         QCOMPARE(errors.count(), 1);
-        const SourceTransform transform{{400, 300}, {500, 250}, 25};
+        const VideoSourceTransform transform{{400, 300}, {500, 250}, 25};
         QVERIFY(model.setSourceTransform(id, transform));
         const QString filter = model.addFilter(id);
         QVERIFY(!filter.isEmpty());
@@ -440,7 +440,7 @@ private slots:
                 source.id = "synthetic";
                 source.transform = {{960, 540}, {1920, 1080}, 0};
                 source.frame = gpuFrame;
-                SourceFilter correction{"correction"};
+                VideoSourceFilter correction{"correction"};
                 correction.brightness = .1f;
                 source.filters = {correction};
                 preview.setSources({source});

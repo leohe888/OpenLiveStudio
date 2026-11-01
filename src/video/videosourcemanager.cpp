@@ -11,7 +11,7 @@ VideoSourceManager::VideoSourceManager(const QList<VideoSource> &sources, QObjec
 {
     for (auto &source : m_sources) {
         if (source.transform.size.isEmpty())
-            source.transform = SourceGeometry::initial(source.pixelSize());
+            source.transform = VideoSourceGeometry::initial(source.pixelSize());
     }
     connect(this, &VideoSourceManager::currentSourceIdChanged, this,
             &VideoSourceManager::sourceMoveAvailabilityChanged);
@@ -141,7 +141,7 @@ bool VideoSourceManager::addSource(const VideoSource &source)
     }
     VideoSource initialized = source;
     if (initialized.transform.size.isEmpty())
-        initialized.transform = SourceGeometry::initial(initialized.pixelSize());
+        initialized.transform = VideoSourceGeometry::initial(initialized.pixelSize());
     m_sources.prepend(initialized);
     emit sourcesChanged();
     selectSource(source.id);
@@ -162,7 +162,7 @@ bool VideoSourceManager::setSourcePixelSize(const QString &sourceId, const QSize
         const QSize previous = pixelSize;
         pixelSize = size;
         if (m_sources[row].transform.size.isEmpty() && !size.isEmpty()) {
-            m_sources[row].transform = SourceGeometry::initial(size);
+            m_sources[row].transform = VideoSourceGeometry::initial(size);
         } else if (m_sources[row].type() == VideoSourceType::Camera && !size.isEmpty() &&
                    previous != size && !m_sources[row].transform.size.isEmpty()) {
             auto &transform = m_sources[row].transform;
@@ -174,14 +174,14 @@ bool VideoSourceManager::setSourcePixelSize(const QString &sourceId, const QSize
 }
 
 bool VideoSourceManager::setSourceTransform(const QString &sourceId,
-                                            const SourceTransform &transform)
+                                            const VideoSourceTransform &transform)
 {
     const int row = sourceRow(sourceId);
-    if (row < 0 || m_sources[row].locked || !SourceGeometry::isValid(transform) ||
+    if (row < 0 || m_sources[row].locked || !VideoSourceGeometry::isValid(transform) ||
         transform.size.width() < 1 || transform.size.height() < 1)
         return false;
-    SourceTransform normalized = transform;
-    normalized.rotation = SourceGeometry::normalizedAngle(normalized.rotation);
+    VideoSourceTransform normalized = transform;
+    normalized.rotation = VideoSourceGeometry::normalizedAngle(normalized.rotation);
     if (m_sources[row].transform != normalized) {
         m_sources[row].transform = normalized;
         emit sourceChanged(sourceId);
@@ -197,10 +197,10 @@ bool VideoSourceManager::canFilterSource(const QString &sourceId) const
                         m_sources[row].type() == VideoSourceType::Camera);
 }
 
-QList<SourceFilter> VideoSourceManager::sourceFilters(const QString &sourceId) const
+QList<VideoSourceFilter> VideoSourceManager::sourceFilters(const QString &sourceId) const
 {
     const auto *entry = source(sourceId);
-    return entry ? entry->filters : QList<SourceFilter>{};
+    return entry ? entry->filters : QList<VideoSourceFilter>{};
 }
 
 int VideoSourceManager::filterRow(int row, const QString &filterId) const
@@ -226,7 +226,7 @@ QString VideoSourceManager::addFilter(const QString &sourceId)
     if (!canFilterSource(sourceId))
         return {};
     const int row = sourceRow(sourceId);
-    SourceFilter filter;
+    VideoSourceFilter filter;
     filter.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     m_sources[row].filters.append(filter);
     notifyFiltersChanged(row);

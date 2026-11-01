@@ -55,7 +55,7 @@ public:
 
 signals:
     void selectionRequested(const QString &sourceId);
-    void transformRequested(const QString &sourceId, const SourceTransform &transform);
+    void transformRequested(const QString &sourceId, const VideoSourceTransform &transform);
     void sourceFailed(const QString &sourceId, const QString &message);
     void renderingFailed(const QString &message);
     void gpuTransferFailed(const QString &sourceId, quint64 generation, const QString &message);
@@ -99,7 +99,7 @@ private:
     };
     Gesture m_gesture = Gesture::None;
     QString m_gestureSourceId;
-    SourceTransform m_gestureStart;
+    VideoSourceTransform m_gestureStart;
     QPointF m_pressCanvas;
     int m_resizeHandle = -1;
     QColor m_surroundingColor = Qt::black;

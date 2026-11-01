@@ -68,7 +68,7 @@ private slots:
         QCOMPARE(updates, beforeLock + 1);
         QVERIFY(snapshot[0].locked);
         const auto beforeTransform = snapshot[1].image.cacheKey();
-        SourceTransform transform{{800, 500}, {100, 80}, 30};
+        VideoSourceTransform transform{{800, 500}, {100, 80}, 30};
         QVERIFY(model.setSourceTransform(first, transform));
         QVERIFY(snapshot[1].transform == transform);
         QCOMPARE(snapshot[1].image.cacheKey(), beforeTransform);

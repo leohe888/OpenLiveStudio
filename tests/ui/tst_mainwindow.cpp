@@ -520,7 +520,7 @@ void MainWindowTest::previewEditsModelAndSynchronizesSelection()
     };
 
     const auto canvasPoint = [&](const QPointF &point) {
-        return SourceGeometry::canvasToWidget(preview->size()).map(point).toPoint();
+        return VideoSourceGeometry::canvasToWidget(preview->size()).map(point).toPoint();
     };
     grabPreview(*preview);
     QTest::mouseClick(preview, Qt::LeftButton, Qt::NoModifier, canvasPoint(QPointF(600, 500)));
@@ -533,11 +533,11 @@ void MainWindowTest::previewEditsModelAndSynchronizesSelection()
         QTest::mouseMove(preview, to);
         QTest::mouseRelease(preview, Qt::LeftButton, Qt::NoModifier, to);
     };
-    const SourceTransform before = currentTransform();
+    const VideoSourceTransform before = currentTransform();
     const QPoint from = canvasPoint(before.center), to = from + QPoint(30, 15);
     move(from, to);
 
-    const auto inverse = SourceGeometry::canvasToWidget(preview->size()).inverted();
+    const auto inverse = VideoSourceGeometry::canvasToWidget(preview->size()).inverted();
     const auto expectedCenter =
         before.center + inverse.map(QPointF(to)) - inverse.map(QPointF(from));
     QVERIFY(std::hypot(currentTransform().center.x() - expectedCenter.x(),
@@ -549,7 +549,7 @@ void MainWindowTest::previewEditsModelAndSynchronizesSelection()
     QVERIFY(currentTransform() == moved);
     move(canvasPoint(moved.center), canvasPoint(moved.center) + QPoint(10, 5));
     QVERIFY(currentTransform().center != moved.center);
-    SourceTransform rotated = currentTransform();
+    VideoSourceTransform rotated = currentTransform();
     rotated.rotation = 30;
     rotated.size = QSizeF(450, 250);
     QVERIFY(model->setSourceTransform(frontId, rotated));
@@ -582,7 +582,7 @@ void MainWindowTest::previewEditsModelAndSynchronizesSelection()
     QCoreApplication::processEvents();
 
     const auto overlayFrame = grabPreview(*preview);
-    const auto corner = canvasPoint(SourceGeometry::sourceToCanvas(rotated).map(QPointF()));
+    const auto corner = canvasPoint(VideoSourceGeometry::sourceToCanvas(rotated).map(QPointF()));
     QCOMPARE(overlayFrame.pixelColor(qRound(corner.x() * preview->devicePixelRatioF()),
                                      qRound(corner.y() * preview->devicePixelRatioF())),
              QColor("#245FBB"));
@@ -746,18 +746,18 @@ void MainWindowTest::cameraHardwarePreview()
     QVERIFY(qAbs(pixel.red() - pixel.green()) <= 3 && qAbs(pixel.green() - pixel.blue()) <= 3);
     // Keep the mouse pressed while real camera frames arrive between edits.
     // Check the entire model -> controller -> preview -> model path.
-    const SourceTransform start{{960, 540}, {600, 300}, 0};
+    const VideoSourceTransform start{{960, 540}, {600, 300}, 0};
     for (int operation = 0; operation < 3; ++operation) {
         QVERIFY(model->setSourceTransform(id, start));
         QTest::qWait(100);
 
-        const auto display = SourceGeometry::canvasToWidget(preview->size());
+        const auto display = VideoSourceGeometry::canvasToWidget(preview->size());
         const auto center = display.map(start.center);
         const QPointF from =
             operation == 0 ? center
             : operation == 1
-                ? display.map(SourceGeometry::sourceToCanvas(start).map(QPointF(600, 300)))
-                : display.map(SourceGeometry::sourceToCanvas(start).map(QPointF(300, 0))) -
+                ? display.map(VideoSourceGeometry::sourceToCanvas(start).map(QPointF(600, 300)))
+                : display.map(VideoSourceGeometry::sourceToCanvas(start).map(QPointF(300, 0))) -
                       QPointF(0, 24);
         QPointF to;
         if (operation == 2) {

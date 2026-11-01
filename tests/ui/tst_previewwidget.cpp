@@ -38,7 +38,7 @@ private slots:
             QVERIFY(widget.compositor()->latestFrame()->sequence >= before + 3);
             image.fill(mode == 0 ? Qt::green : Qt::blue);
             PreviewSource source{"image", image, true, {{960, 540}, {1920, 1080}, 0}};
-            SourceFilter filter{"brightness"};
+            VideoSourceFilter filter{"brightness"};
             filter.brightness = -.2f;
             source.filters = {filter};
             widget.setSources({source});
@@ -64,7 +64,7 @@ private slots:
         QImage image(32, 16, QImage::Format_RGBA8888);
         image.fill(QColor(64, 128, 192));
         PreviewSource source{"image", image, true, {{960, 540}, {1920, 1080}, 0}};
-        SourceFilter first{"first"};
+        VideoSourceFilter first{"first"};
         source.filters = {first};
         const auto render = [&] {
             widget.setSources({source});
@@ -90,7 +90,7 @@ private slots:
 
         source.image.fill(QColor(102, 102, 102));
         first.brightness = .2f;
-        SourceFilter second{"second"};
+        VideoSourceFilter second{"second"};
         second.contrast = 2;
         source.filters = {first, second};
         const auto forward = render();
@@ -397,7 +397,7 @@ private slots:
         overlay.fill(Qt::yellow);
         QImage background(1920, 1080, QImage::Format_RGBA8888);
         background.fill(Qt::blue);
-        const SourceTransform transform{{960, 540}, {200, 100}, 30};
+        const VideoSourceTransform transform{{960, 540}, {200, 100}, 30};
         widget->setSources(
             {{"overlay", overlay, true, transform}, {"background", background, true}});
         widget->setCurrentSourceId("overlay");
@@ -512,14 +512,14 @@ private slots:
                                            : (x < 40 ? Qt::blue : Qt::white));
         PreviewWidget widget;
         widget.resize(640, 480);
-        SourceTransform transform{{500, 400}, {400, 200}, 90};
+        VideoSourceTransform transform{{500, 400}, {400, 200}, 90};
         widget.setSources({{"image", image, true, transform}});
         widget.show();
         QVERIFY(QTest::qWaitForWindowExposed(&widget));
         grabPreview(widget);
         const auto verifyColors = [&] {
             const auto canvas = readCanvas(widget);
-            const auto matrix = SourceGeometry::sourceToCanvas(transform);
+            const auto matrix = VideoSourceGeometry::sourceToCanvas(transform);
             const QColor colors[]{Qt::red, Qt::green, Qt::blue, Qt::white};
             int index = 0;
             for (qreal y : {.25, .75}) {
@@ -570,7 +570,7 @@ private slots:
         wireEditor(widget);
         QImage image(200, 100, QImage::Format_RGBA8888);
         image.fill(Qt::red);
-        SourceTransform start{{960, 540}, {600, 300}, 0};
+        VideoSourceTransform start{{960, 540}, {600, 300}, 0};
         widget.resize(640, 480);
         widget.setSources({{"image", image, true, start}});
         widget.setCurrentSourceId("image");
@@ -580,7 +580,7 @@ private slots:
             widget.resize(size);
             widget.setSources({{"image", image, true, start}});
             grabPreview(widget);
-            const auto display = SourceGeometry::canvasToWidget(widget.size());
+            const auto display = VideoSourceGeometry::canvasToWidget(widget.size());
             drag(widget, display.map(start.center), display.map(start.center + QPointF(120, -60)));
             const auto moved = widget.m_sources[0].transform;
             QVERIFY(closePoint(moved.center, start.center + QPointF(120, -60)));
@@ -618,14 +618,14 @@ private slots:
         QTransform rotation;
         rotation.rotate(37);
         auto handles = widget.selectionHandles(widget.m_sources[0]);
-        const auto display = SourceGeometry::canvasToWidget(widget.size());
+        const auto display = VideoSourceGeometry::canvasToWidget(widget.size());
         const QPointF delta = rotation.map(QPointF(120, 60));
         drag(widget, handles[4], handles[4] + display.map(delta) - display.map(QPointF()));
         const auto resized = widget.m_sources[0].transform;
         QVERIFY(qAbs(resized.size.width() - 720) < 1e-6);
         QVERIFY(qAbs(resized.size.height() - 360) < 1e-6);
-        QVERIFY(closePoint(SourceGeometry::sourceToCanvas(start).map(QPointF()),
-                           SourceGeometry::sourceToCanvas(resized).map(QPointF())));
+        QVERIFY(closePoint(VideoSourceGeometry::sourceToCanvas(start).map(QPointF()),
+                           VideoSourceGeometry::sourceToCanvas(resized).map(QPointF())));
         widget.setSources({{"image", image, true, start}});
         handles = widget.selectionHandles(widget.m_sources[0]);
         const QPointF sideDelta = rotation.map(QPointF(80, 0));
@@ -698,7 +698,7 @@ private slots:
         widget.show();
         QVERIFY(QTest::qWaitForWindowActive(&widget));
         grabPreview(widget);
-        const auto display = SourceGeometry::canvasToWidget(widget.size());
+        const auto display = VideoSourceGeometry::canvasToWidget(widget.size());
         const auto center = display.map(QPointF(960, 540));
         drag(widget, center, center);
         QCOMPARE(widget.m_currentSourceId, QString("bottom"));
@@ -706,10 +706,10 @@ private slots:
         widget.setSources(sources);
         drag(widget, center, center);
         QCOMPARE(widget.m_currentSourceId, QString("top"));
-        const auto bounds = SourceGeometry::sourceToCanvas(sources[0].transform)
+        const auto bounds = VideoSourceGeometry::sourceToCanvas(sources[0].transform)
                                 .mapRect(QRectF(QPointF(), sources[0].transform.size));
         const auto outsideRotatedRectangle = bounds.topLeft() + QPointF(5, 5);
-        QVERIFY(!SourceGeometry::contains(sources[0].transform, outsideRotatedRectangle));
+        QVERIFY(!VideoSourceGeometry::contains(sources[0].transform, outsideRotatedRectangle));
         drag(widget, display.map(outsideRotatedRectangle), display.map(outsideRotatedRectangle));
         QCOMPARE(widget.m_currentSourceId, QString("bottom"));
         sources[0].locked = true;
@@ -771,7 +771,7 @@ private slots:
             QSKIP("Capture frames require Windows D3D11");
 #endif
         }
-        const SourceTransform start{{960, 540}, {600, 300}, 0};
+        const VideoSourceTransform start{{960, 540}, {600, 300}, 0};
         quint64 sequence = 0;
         const auto publish = [&] {
             auto sources = widget.m_sources;
@@ -800,7 +800,7 @@ private slots:
                      "GPU interop required");
             QSKIP("GPU interop unavailable for capture editing test");
         }
-        const auto display = SourceGeometry::canvasToWidget(widget.size());
+        const auto display = VideoSourceGeometry::canvasToWidget(widget.size());
         const auto handles = widget.selectionHandles(widget.m_sources[0]);
         const auto center = display.map(start.center);
         const auto from = operation == 0 ? center : handles[operation == 1 ? 4 : 8];
@@ -869,7 +869,7 @@ private slots:
             widget.setCurrentSourceId("image");
             grabPreview(widget);
             const QPointF center =
-                SourceGeometry::canvasToWidget(widget.size()).map(QPointF(960, 540));
+                VideoSourceGeometry::canvasToWidget(widget.size()).map(QPointF(960, 540));
             mouse(widget, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
             mouse(widget, QEvent::MouseMove, center + QPointF(10, 0), Qt::NoButton, Qt::LeftButton);
             QVERIFY(widget.m_gesture != PreviewWidget::Gesture::None);
@@ -936,7 +936,7 @@ private:
         connect(&widget, &PreviewWidget::selectionRequested, &widget,
                 &PreviewWidget::setCurrentSourceId);
         connect(&widget, &PreviewWidget::transformRequested, &widget,
-                [&widget](const QString &sourceId, const SourceTransform &transform) {
+                [&widget](const QString &sourceId, const VideoSourceTransform &transform) {
                     auto sources = widget.m_sources;
                     for (auto &source : sources)
                         if (source.id == sourceId && !source.locked)

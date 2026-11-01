@@ -112,7 +112,7 @@ void Compositor::setSources(const QList<PreviewSource> &sources)
     m_sources = sources;
     for (auto &source : m_sources)
         if (source.transform.size.isEmpty())
-            source.transform = SourceGeometry::initial(source.pixelSize());
+            source.transform = VideoSourceGeometry::initial(source.pixelSize());
     ++m_revision;
 }
 

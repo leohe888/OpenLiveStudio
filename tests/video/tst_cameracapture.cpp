@@ -55,7 +55,7 @@ void CameraCaptureTest::configurationAndLayout()
     QVERIFY(model.canEditCurrentSource());
     QVERIFY(model.canFilterCurrentSource());
     model.setCameraActualMode(id, {1280, 720}, 30000, 1001);
-    const SourceTransform transform{{440, 330}, {600, 337.5}, 35};
+    const VideoSourceTransform transform{{440, 330}, {600, 337.5}, 35};
     QVERIFY(model.setSourceTransform(id, transform));
     QVERIFY(model.setSourceLocked(id, true));
     const QString filter = model.addFilter(id);

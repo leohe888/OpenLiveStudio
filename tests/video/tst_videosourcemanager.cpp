@@ -388,7 +388,7 @@ void VideoSourceManagerTest::initializesAndValidatesTransforms()
     QVERIFY(model.setSourcePixelSize("image", QSize(4000, 2000)));
     QCOMPARE(current().center, QPointF(960, 540));
     QCOMPARE(current().size, QSizeF(1920, 960));
-    SourceTransform edited{{-20.5, 95.25}, {300.5, 100.25}, -30};
+    VideoSourceTransform edited{{-20.5, 95.25}, {300.5, 100.25}, -30};
     QSignalSpy changes(&model, &VideoSourceManager::sourceChanged);
     QVERIFY(model.setSourceTransform("image", edited));
     QCOMPARE(current().rotation, 330.0);
@@ -400,7 +400,7 @@ void VideoSourceManagerTest::initializesAndValidatesTransforms()
     QVERIFY(model.setSourcePixelSize("image", QSize(600, 200)));
     QCOMPARE(current().center, edited.center);
     QCOMPARE(current().size, edited.size);
-    const SourceTransform before = current();
+    const VideoSourceTransform before = current();
     QVERIFY(!model.setSourceTransform("missing", before));
     QVERIFY(model.setSourceLocked("image", true));
     edited.center += QPointF(20, 20);
@@ -429,33 +429,33 @@ void VideoSourceManagerTest::initializesAndValidatesTransforms()
 
 void VideoSourceManagerTest::sharesGeometryForMappingAndResizing()
 {
-    const auto thin = SourceGeometry::initial(QSizeF(1, 4000));
-    QVERIFY(SourceGeometry::isValid(thin));
+    const auto thin = VideoSourceGeometry::initial(QSizeF(1, 4000));
+    QVERIFY(VideoSourceGeometry::isValid(thin));
     QCOMPARE(thin.size.height(), 1080.0);
     QCOMPARE(thin.size.width(), .27);
     for (const QSizeF &widget : {QSizeF(1000, 700), QSizeF(300, 900), QSizeF(1600, 400)}) {
-        const auto display = SourceGeometry::canvasToWidget(widget);
+        const auto display = VideoSourceGeometry::canvasToWidget(widget);
         const QPointF point(135.25, 980.75);
         const auto roundTrip = display.inverted().map(display.map(point));
         QVERIFY(std::hypot(roundTrip.x() - point.x(), roundTrip.y() - point.y()) < 1e-8);
-        QVERIFY(SourceGeometry::canvasRect(widget).contains(display.map(point)));
+        QVERIFY(VideoSourceGeometry::canvasRect(widget).contains(display.map(point)));
     }
     for (qreal angle : {0., 37., 90., 225.}) {
-        const SourceTransform start{{960, 540}, {400, 200}, angle};
-        const auto matrix = SourceGeometry::sourceToCanvas(start);
-        QVERIFY(SourceGeometry::contains(start, matrix.map(QPointF(200, 100))));
-        QVERIFY(SourceGeometry::contains(start, matrix.map(QPointF(10, 10))));
-        QVERIFY(!SourceGeometry::contains(start, matrix.map(QPointF(-10, 100))));
+        const VideoSourceTransform start{{960, 540}, {400, 200}, angle};
+        const auto matrix = VideoSourceGeometry::sourceToCanvas(start);
+        QVERIFY(VideoSourceGeometry::contains(start, matrix.map(QPointF(200, 100))));
+        QVERIFY(VideoSourceGeometry::contains(start, matrix.map(QPointF(10, 10))));
+        QVERIFY(!VideoSourceGeometry::contains(start, matrix.map(QPointF(-10, 100))));
         QTransform rotation;
         rotation.rotate(angle);
         for (int handle = 0; handle < 8; ++handle) {
             const auto result =
-                SourceGeometry::resized(start, handle, rotation.map(QPointF(40, 30)));
-            QVERIFY(SourceGeometry::isValid(result));
-            const auto fraction = SourceGeometry::handleFractions[handle];
+                VideoSourceGeometry::resized(start, handle, rotation.map(QPointF(40, 30)));
+            QVERIFY(VideoSourceGeometry::isValid(result));
+            const auto fraction = VideoSourceGeometry::handleFractions[handle];
             const QPointF opposite(1 - fraction.x(), 1 - fraction.y());
             const auto anchor = matrix.map(QPointF(opposite.x() * 400, opposite.y() * 200));
-            const auto after = SourceGeometry::sourceToCanvas(result).map(
+            const auto after = VideoSourceGeometry::sourceToCanvas(result).map(
                 QPointF(opposite.x() * result.size.width(), opposite.y() * result.size.height()));
             QVERIFY(std::hypot(anchor.x() - after.x(), anchor.y() - after.y()) < 1e-8);
             if (handle % 2 == 0)
@@ -465,9 +465,9 @@ void VideoSourceManagerTest::sharesGeometryForMappingAndResizing()
             else
                 QCOMPARE(result.size.height(), 200.0);
         }
-        const auto crossed = SourceGeometry::resized(start, 0, rotation.map(QPointF(10000, 10000)));
+        const auto crossed = VideoSourceGeometry::resized(start, 0, rotation.map(QPointF(10000, 10000)));
         QVERIFY(crossed.size.width() >= 1 && crossed.size.height() >= 1);
-        const auto narrow = SourceGeometry::resized(start, 3, rotation.map(QPointF(-10000, 0)));
+        const auto narrow = VideoSourceGeometry::resized(start, 3, rotation.map(QPointF(-10000, 0)));
         QCOMPARE(narrow.size.width(), 1.0);
     }
 }
@@ -541,7 +541,7 @@ void VideoSourceManagerTest::displayPropertiesPreserveSourceState()
     QVERIFY(model.selectSource("screen"));
     QVERIFY(model.canEditCurrentDisplay() && model.canFilterCurrentSource());
     QVERIFY(model.setSourcePixelSize("screen", QSize(1920, 1080)));
-    const SourceTransform transform{{300, 500}, {640, 360}, 45};
+    const VideoSourceTransform transform{{300, 500}, {640, 360}, 45};
     QVERIFY(model.setSourceTransform("screen", transform));
     const auto filter = model.addFilter("screen");
     QVERIFY(model.setSourceLocked("screen", true));

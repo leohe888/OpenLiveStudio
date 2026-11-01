@@ -193,7 +193,7 @@ qt_add_executable(tst_videosourcemanager
     video/tst_videosourcemanager.cpp
     ../src/video/videosource.cpp
     ../src/video/videosource.h
-    ../src/video/sourcetransform.h
+    ../src/video/videosourcetransform.h
     ../src/video/videosourcemanager.cpp
     ../src/video/videosourcemanager.h
 )
@@ -240,7 +240,7 @@ qt_add_executable(tst_mainwindow
     ../src/graphics/previewsource.h
     ../src/video/videosource.cpp
     ../src/video/videosource.h
-    ../src/video/sourcetransform.h
+    ../src/video/videosourcetransform.h
     ../src/video/videosourcemanager.cpp
     ../src/video/videosourcemanager.h
     ../src/video/image/imagesourcecontroller.cpp
@@ -329,7 +329,7 @@ qt_add_executable(tst_previewwidget
     ../src/ui/previewwidget.cpp
     ../src/ui/previewwidget.h
     ../src/graphics/previewsource.h
-    ../src/video/sourcetransform.h
+    ../src/video/videosourcetransform.h
     ../src/graphics/captureframe.h
     ../src/graphics/gpuframeresource.h
     ../src/graphics/gpuinterop.h
@@ -373,7 +373,7 @@ qt_add_executable(tst_imagesourcecontroller
     ../src/video/image/imagesourcecontroller.cpp
     ../src/video/image/imagesourcecontroller.h
     ../src/graphics/previewsource.h
-    ../src/video/sourcetransform.h
+    ../src/video/videosourcetransform.h
 )
 target_include_directories(tst_imagesourcecontroller PRIVATE
     "${PROJECT_SOURCE_DIR}/src")

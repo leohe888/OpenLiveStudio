@@ -45,7 +45,7 @@ void PreviewWidget::setSources(const QList<PreviewSource> &sources)
     m_sources = sources;
     for (auto &source : m_sources) {
         if (source.transform.size.isEmpty())
-            source.transform = SourceGeometry::initial(source.pixelSize());
+            source.transform = VideoSourceGeometry::initial(source.pixelSize());
     }
     m_compositor.setSources(m_sources);
     if (m_gesture != Gesture::None) {
@@ -200,7 +200,7 @@ void PreviewWidget::paintGL()
 bool PreviewWidget::selectable(const PreviewSource &source) const
 {
     if (!m_presentedFrame || !source.visible || !source.hasFrame() ||
-        !SourceGeometry::isValid(source.transform))
+        !VideoSourceGeometry::isValid(source.transform))
         return false;
     const auto resource = m_presentedFrame->sources.constFind(source.id);
     return resource != m_presentedFrame->sources.cend() &&
@@ -217,15 +217,15 @@ const PreviewSource *PreviewWidget::selectedSource() const
 
 QPointF PreviewWidget::toCanvas(const QPointF &point) const
 {
-    return SourceGeometry::canvasToWidget(size()).inverted().map(point);
+    return VideoSourceGeometry::canvasToWidget(size()).inverted().map(point);
 }
 
 QPolygonF PreviewWidget::selectionHandles(const PreviewSource &source) const
 {
-    const auto local = SourceGeometry::sourceToCanvas(source.transform);
-    const auto display = SourceGeometry::canvasToWidget(size());
+    const auto local = VideoSourceGeometry::sourceToCanvas(source.transform);
+    const auto display = VideoSourceGeometry::canvasToWidget(size());
     QPolygonF handles;
-    for (const auto &fraction : SourceGeometry::handleFractions)
+    for (const auto &fraction : VideoSourceGeometry::handleFractions)
         handles.append(
             display.map(local.map(QPointF(fraction.x() * source.transform.size.width(),
                                           fraction.y() * source.transform.size.height()))));
@@ -292,7 +292,7 @@ void PreviewWidget::updateCursor(const QPointF &position)
             return;
         }
         if (handle >= 0) {
-            const auto fraction = SourceGeometry::handleFractions[handle];
+            const auto fraction = VideoSourceGeometry::handleFractions[handle];
             const qreal angle =
                 source->transform.rotation +
                 std::atan2(fraction.y() - .5, fraction.x() - .5) * 180 / std::acos(-1.0);
@@ -303,10 +303,10 @@ void PreviewWidget::updateCursor(const QPointF &position)
             return;
         }
     }
-    if (SourceGeometry::canvasRect(size()).contains(position)) {
+    if (VideoSourceGeometry::canvasRect(size()).contains(position)) {
         for (const auto &source : m_sources) {
             if (selectable(source) && !source.locked &&
-                SourceGeometry::contains(source.transform, toCanvas(position))) {
+                VideoSourceGeometry::contains(source.transform, toCanvas(position))) {
                 setCursor(Qt::SizeAllCursor);
                 return;
             }
@@ -331,10 +331,10 @@ void PreviewWidget::mousePressEvent(QMouseEvent *event)
         m_resizeHandle = handle;
     } else {
         QString hit;
-        if (SourceGeometry::canvasRect(size()).contains(position)) {
+        if (VideoSourceGeometry::canvasRect(size()).contains(position)) {
             for (const auto &candidate : m_sources) {
                 if (selectable(candidate) && !candidate.locked &&
-                    SourceGeometry::contains(candidate.transform, toCanvas(position))) {
+                    VideoSourceGeometry::contains(candidate.transform, toCanvas(position))) {
                     hit = candidate.id;
                     break;
                 }
@@ -379,13 +379,13 @@ void PreviewWidget::updateGesture(const QPointF &position)
         return;
     }
     const QPointF point = toCanvas(position);
-    SourceTransform result = m_gestureStart;
+    VideoSourceTransform result = m_gestureStart;
     switch (m_gesture) {
     case Gesture::Move:
         result.center += point - m_pressCanvas;
         break;
     case Gesture::Resize:
-        result = SourceGeometry::resized(m_gestureStart, m_resizeHandle, point - m_pressCanvas);
+        result = VideoSourceGeometry::resized(m_gestureStart, m_resizeHandle, point - m_pressCanvas);
         break;
     case Gesture::Rotate: {
         const QPointF before = m_pressCanvas - result.center;
@@ -395,7 +395,7 @@ void PreviewWidget::updateGesture(const QPointF &position)
         const qreal angle =
             (std::atan2(after.y(), after.x()) - std::atan2(before.y(), before.x())) * 180 /
             std::acos(-1.0);
-        result.rotation = SourceGeometry::normalizedAngle(result.rotation + angle);
+        result.rotation = VideoSourceGeometry::normalizedAngle(result.rotation + angle);
         break;
     }
     case Gesture::None:

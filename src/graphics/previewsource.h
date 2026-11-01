@@ -1,8 +1,8 @@
 #ifndef PREVIEWSOURCE_H
 #define PREVIEWSOURCE_H
 
-#include "video/sourcetransform.h"
-#include "video/sourcefilter.h"
+#include "video/videosourcetransform.h"
+#include "video/videosourcefilter.h"
 #include "graphics/captureframe.h"
 
 #include <QImage>
@@ -14,9 +14,9 @@ struct PreviewSource
     QString id;
     QImage image;
     bool visible = true;
-    SourceTransform transform;
+    VideoSourceTransform transform;
     bool locked = false;
-    QList<SourceFilter> filters;
+    QList<VideoSourceFilter> filters;
     std::shared_ptr<const CaptureFrame> frame;
 
     QSize pixelSize() const
