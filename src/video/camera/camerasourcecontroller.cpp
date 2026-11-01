@@ -164,7 +164,7 @@ void CameraSourceController::synchronize()
         const QString id = item.id;
         retained.insert(id);
         auto &entry = m_entries[id];
-        const auto &params = std::get<CameraSourceParams>(item.params);
+        const auto &params = std::get<CameraSourceParams>(item.config);
         if (!(entry.params == params)) {
             stop(entry);
             entry.params = params;

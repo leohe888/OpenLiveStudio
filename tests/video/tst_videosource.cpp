@@ -17,11 +17,11 @@ void VideoSourceTest::typeFollowsParameters()
 {
     VideoSource source;
     QCOMPARE(source.type(), VideoSourceType::DisplayCapture);
-    source.params = CameraSourceParams{"camera"};
+    source.config = CameraSourceParams{"camera"};
     QCOMPARE(source.type(), VideoSourceType::Camera);
-    source.params = ImageSourceParams{"image.png"};
+    source.config = ImageSourceParams{"image.png"};
     QCOMPARE(source.type(), VideoSourceType::Image);
-    source.params = DisplaySourceParams{"display", false};
+    source.config = DisplaySourceParams{"display", false};
     QCOMPARE(source.type(), VideoSourceType::DisplayCapture);
 }
 

@@ -107,7 +107,7 @@ public:
             cursor = new QCheckBox(tr("采集鼠标光标"), this);
             cursor->setObjectName("captureCursorInput");
             const DisplaySourceParams params =
-                initial ? std::get<DisplaySourceParams>(initial->params) : DisplaySourceParams{};
+                initial ? std::get<DisplaySourceParams>(initial->config) : DisplaySourceParams{};
             cursor->setChecked(params.captureCursor);
             layout->addWidget(cursor);
             layout->addWidget(
@@ -123,7 +123,7 @@ public:
             displays->refreshDisplayDevices();
         } else {
             const CameraSourceParams params =
-                initial ? std::get<CameraSourceParams>(initial->params) : CameraSourceParams{};
+                initial ? std::get<CameraSourceParams>(initial->config) : CameraSourceParams{};
             originalMode = {params.resolution.width(), params.resolution.height(),
                             params.frameRateNumerator, params.frameRateDenominator};
             mode = new QComboBox(this);

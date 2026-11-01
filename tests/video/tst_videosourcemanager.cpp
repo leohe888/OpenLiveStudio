@@ -70,7 +70,7 @@ void VideoSourceManagerTest::exposesTypedSourcesAndRejectsMissingIds()
     QCOMPARE(manager.sourceStatus("image").pixelSize, QSize(64, 32));
     QVERIFY(!source->visible);
     QVERIFY(source->locked);
-    QCOMPARE(std::get<ImageSourceParams>(source->params).filePath, QString("fixture.png"));
+    QCOMPARE(std::get<ImageSourceParams>(source->config).filePath, QString("fixture.png"));
     QVERIFY(!manager.source("missing"));
     QVERIFY(!manager.cameraSource("image"));
     QVERIFY(!manager.displaySource("image"));
@@ -97,7 +97,7 @@ void VideoSourceManagerTest::supportsAllSourceParameters()
         QVERIFY(manager.setSourceVisible(entry.id, false));
         QVERIFY(manager.setSourceLocked(entry.id, true));
     }
-    entries[0].params = ImageSourceParams{"replacement.png"};
+    entries[0].config = ImageSourceParams{"replacement.png"};
     QCOMPARE(manager.source("display")->type(), VideoSourceType::DisplayCapture);
     QVERIFY(manager.moveSource("image", -1));
     QCOMPARE(manager.sources().at(1).id, QString("image"));

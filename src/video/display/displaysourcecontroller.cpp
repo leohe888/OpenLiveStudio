@@ -115,7 +115,7 @@ void DisplaySourceController::synchronize()
         if (item.type() != VideoSourceType::DisplayCapture)
             continue;
         const QString id = item.id;
-        const auto &params = std::get<DisplaySourceParams>(item.params);
+        const auto &params = std::get<DisplaySourceParams>(item.config);
         retained.insert(id);
         auto &entry = m_entries[id];
         const QString displayId = params.displayId;

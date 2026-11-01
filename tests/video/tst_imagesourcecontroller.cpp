@@ -41,10 +41,10 @@ private slots:
         QCOMPARE(model.sources().at(0).name, QString("First"));
         QCOMPARE(model.sourceStatus(model.sources().at(0).id).state,
                  QString("ready"));
-        QVERIFY(std::holds_alternative<ImageSourceParams>(model.sources().at(0).params));
+        QVERIFY(std::holds_alternative<ImageSourceParams>(model.sources().at(0).config));
         QCOMPARE(model.sourceStatus(model.sources().at(0).id).pixelSize, image.size());
         QVERIFY(
-            QFileInfo(std::get<ImageSourceParams>(model.sources().at(0).params).filePath)
+            QFileInfo(std::get<ImageSourceParams>(model.sources().at(0).config).filePath)
                 .isAbsolute());
         const QString first = snapshot[0].id;
         const auto key = snapshot[0].image.cacheKey();
@@ -208,7 +208,7 @@ private slots:
         connect(&model, &VideoSourceManager::sourceStatusChanged, this,
                 [&](const QString &sourceId) {
                     if (const auto *source = model.source(sourceId))
-                        if (const auto *image = std::get_if<ImageSourceParams>(&source->params))
+                        if (const auto *image = std::get_if<ImageSourceParams>(&source->config))
                             loadStates.append(model.sourceStatus(sourceId).state);
                 });
         QList<PreviewSource> snapshot;

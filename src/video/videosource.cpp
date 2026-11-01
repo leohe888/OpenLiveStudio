@@ -35,5 +35,5 @@ VideoSourceType VideoSource::type() const
                 return VideoSourceType::Image;
             }
         },
-        params);
+        config);
 }

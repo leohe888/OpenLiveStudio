@@ -37,13 +37,14 @@ struct ImageSourceParams
     QString filePath;
 };
 
-using VideoSourceParams = std::variant<DisplaySourceParams, CameraSourceParams, ImageSourceParams>;
+// Parameters owned by the source kind; the active alternative decides VideoSource::type().
+using VideoSourceConfig = std::variant<DisplaySourceParams, CameraSourceParams, ImageSourceParams>;
 
 struct VideoSource
 {
     QString id;
     QString name;
-    VideoSourceParams params = DisplaySourceParams{};
+    VideoSourceConfig config = DisplaySourceParams{};
     bool visible = true;
     bool locked = false;
     VideoSourceTransform transform;

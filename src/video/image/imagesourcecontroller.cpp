@@ -117,7 +117,7 @@ void ImageSourceController::synchronize()
         if (item.type() != VideoSourceType::Image)
             continue;
         const QString id = item.id;
-        const QString path = std::get<ImageSourceParams>(item.params).filePath;
+        const QString path = std::get<ImageSourceParams>(item.config).filePath;
         retained.insert(id);
         auto it = m_images.find(id);
         if (it == m_images.end() || it->path != path) {

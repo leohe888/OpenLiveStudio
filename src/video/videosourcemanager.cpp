@@ -137,7 +137,7 @@ bool VideoSourceManager::addSource(const VideoSource &source, const VideoSourceS
 {
     if (source.id.trimmed().isEmpty() || sourceRow(source.id) >= 0)
         return false;
-    if (const auto *camera = std::get_if<CameraSourceParams>(&source.params)) {
+    if (const auto *camera = std::get_if<CameraSourceParams>(&source.config)) {
         if (!camera->isValid() || cameraDeviceInUse(camera->deviceId))
             return false;
     }
@@ -305,7 +305,7 @@ bool VideoSourceManager::canEditCurrentDisplay() const
 const DisplaySourceParams *VideoSourceManager::displaySource(const QString &sourceId) const
 {
     const auto *entry = source(sourceId);
-    return entry ? std::get_if<DisplaySourceParams>(&entry->params) : nullptr;
+    return entry ? std::get_if<DisplaySourceParams>(&entry->config) : nullptr;
 }
 
 bool VideoSourceManager::setDisplayParams(const QString &sourceId, const QString &displayId,
@@ -314,7 +314,7 @@ bool VideoSourceManager::setDisplayParams(const QString &sourceId, const QString
     const int row = sourceRow(sourceId);
     if (row < 0 || displayId.trimmed().isEmpty())
         return false;
-    auto *display = std::get_if<DisplaySourceParams>(&m_sources[row].params);
+    auto *display = std::get_if<DisplaySourceParams>(&m_sources[row].config);
     if (!display)
         return false;
     if (display->displayId != displayId || display->captureCursor != cursor) {
@@ -349,7 +349,7 @@ bool VideoSourceManager::canEditCurrentSource() const
 bool VideoSourceManager::cameraDeviceInUse(const QString &deviceId, const QString &exceptId) const
 {
     for (const auto &source : m_sources)
-        if (const auto *camera = std::get_if<CameraSourceParams>(&source.params))
+        if (const auto *camera = std::get_if<CameraSourceParams>(&source.config))
             if (source.id != exceptId && camera->deviceId == deviceId)
                 return true;
     return false;
@@ -358,7 +358,7 @@ bool VideoSourceManager::cameraDeviceInUse(const QString &deviceId, const QStrin
 const CameraSourceParams *VideoSourceManager::cameraSource(const QString &sourceId) const
 {
     const auto *entry = source(sourceId);
-    return entry ? std::get_if<CameraSourceParams>(&entry->params) : nullptr;
+    return entry ? std::get_if<CameraSourceParams>(&entry->config) : nullptr;
 }
 
 bool VideoSourceManager::setCameraParams(const QString &sourceId, const CameraSourceParams &value)
@@ -366,7 +366,7 @@ bool VideoSourceManager::setCameraParams(const QString &sourceId, const CameraSo
     const int row = sourceRow(sourceId);
     if (row < 0 || !value.isValid() || cameraDeviceInUse(value.deviceId, sourceId))
         return false;
-    auto *camera = std::get_if<CameraSourceParams>(&m_sources[row].params);
+    auto *camera = std::get_if<CameraSourceParams>(&m_sources[row].config);
     if (!camera)
         return false;
     if ((*camera) != value) {
