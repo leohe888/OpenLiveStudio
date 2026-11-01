@@ -1,4 +1,4 @@
-#include "video/videosourcedefinition.h"
+#include "video/videosource.h"
 
 #include <type_traits>
 
@@ -22,7 +22,7 @@ bool CameraSourceConfig::operator!=(const CameraSourceConfig &other) const
     return !(*this == other);
 }
 
-VideoSourceType VideoSourceDefinition::type() const
+VideoSourceType VideoSource::type() const
 {
     return std::visit(
         [](const auto &source) {

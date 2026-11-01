@@ -2,11 +2,11 @@
 #include <QUuid>
 
 VideoSourceManager::VideoSourceManager(QObject *parent)
-    : VideoSourceManager(QList<VideoSourceDefinition>{}, parent)
+    : VideoSourceManager(QList<VideoSource>{}, parent)
 {
 }
 
-VideoSourceManager::VideoSourceManager(const QList<VideoSourceDefinition> &sources, QObject *parent)
+VideoSourceManager::VideoSourceManager(const QList<VideoSource> &sources, QObject *parent)
     : QObject(parent), m_sources(sources)
 {
     connect(this, &VideoSourceManager::currentSourceIdChanged, this,
@@ -15,7 +15,7 @@ VideoSourceManager::VideoSourceManager(const QList<VideoSourceDefinition> &sourc
             &VideoSourceManager::sourceMoveAvailabilityChanged);
 }
 
-const VideoSourceDefinition *VideoSourceManager::source(const QString &sourceId) const
+const VideoSource *VideoSourceManager::source(const QString &sourceId) const
 {
     const int row = sourceRow(sourceId);
     return row >= 0 ? &m_sources.at(row) : nullptr;
@@ -133,7 +133,7 @@ bool VideoSourceManager::setSourceLocked(const QString &sourceId, bool locked)
     return true;
 }
 
-bool VideoSourceManager::addSource(const VideoSourceDefinition &source, const VideoSourceStatus &status)
+bool VideoSourceManager::addSource(const VideoSource &source, const VideoSourceStatus &status)
 {
     if (source.id.trimmed().isEmpty() || sourceRow(source.id) >= 0)
         return false;
@@ -141,7 +141,7 @@ bool VideoSourceManager::addSource(const VideoSourceDefinition &source, const Vi
         if (!camera->isValid() || cameraDeviceInUse(camera->deviceId))
             return false;
     }
-    VideoSourceDefinition initialized = source;
+    VideoSource initialized = source;
     if (initialized.transform.size.isEmpty())
         initialized.transform = VideoSourceGeometry::initial(status.pixelSize);
     m_sources.prepend(initialized);

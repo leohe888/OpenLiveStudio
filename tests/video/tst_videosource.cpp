@@ -1,8 +1,8 @@
-#include "video/videosourcedefinition.h"
+#include "video/videosource.h"
 
 #include <QtTest/QTest>
 
-class VideoSourceDefinitionTest : public QObject
+class VideoSourceTest : public QObject
 {
     Q_OBJECT
 
@@ -13,9 +13,9 @@ private slots:
     void cameraConfigurationComparison();
 };
 
-void VideoSourceDefinitionTest::typeFollowsConfiguration()
+void VideoSourceTest::typeFollowsConfiguration()
 {
-    VideoSourceDefinition source;
+    VideoSource source;
     QCOMPARE(source.type(), VideoSourceType::DisplayCapture);
     source.config = CameraSourceConfig{"camera"};
     QCOMPARE(source.type(), VideoSourceType::Camera);
@@ -25,7 +25,7 @@ void VideoSourceDefinitionTest::typeFollowsConfiguration()
     QCOMPARE(source.type(), VideoSourceType::DisplayCapture);
 }
 
-void VideoSourceDefinitionTest::cameraConfigurationValidation_data()
+void VideoSourceTest::cameraConfigurationValidation_data()
 {
     QTest::addColumn<QString>("deviceId");
     QTest::addColumn<QSize>("resolution");
@@ -51,7 +51,7 @@ void VideoSourceDefinitionTest::cameraConfigurationValidation_data()
         << QString("camera") << QSize(1280, 720) << -30 << 1 << false;
 }
 
-void VideoSourceDefinitionTest::cameraConfigurationValidation()
+void VideoSourceTest::cameraConfigurationValidation()
 {
     QFETCH(QString, deviceId);
     QFETCH(QSize, resolution);
@@ -63,7 +63,7 @@ void VideoSourceDefinitionTest::cameraConfigurationValidation()
     QCOMPARE(config.isValid(), valid);
 }
 
-void VideoSourceDefinitionTest::cameraConfigurationComparison()
+void VideoSourceTest::cameraConfigurationComparison()
 {
     const CameraSourceConfig config{"camera", {1280, 720}, 30000, 1001};
     const auto copy = config;
@@ -84,5 +84,5 @@ void VideoSourceDefinitionTest::cameraConfigurationComparison()
     }
 }
 
-QTEST_GUILESS_MAIN(VideoSourceDefinitionTest)
-#include "tst_videosourcedefinition.moc"
+QTEST_GUILESS_MAIN(VideoSourceTest)
+#include "tst_videosource.moc"

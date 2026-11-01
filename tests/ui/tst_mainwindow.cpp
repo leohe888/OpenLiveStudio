@@ -459,11 +459,11 @@ void MainWindowTest::aggregatesIndependentSourceControllers()
     const auto path = directory.filePath("image.png");
     QVERIFY(pixels.save(path));
     QVERIFY(model->addSource({"image", "Image", ImageSourceConfig{path}}));
-    VideoSourceDefinition screen{"display", "Display",
+    VideoSource screen{"display", "Display",
                        DisplaySourceConfig{"missing-display"}};
     screen.visible = false; // Exercise wiring without opening physical devices.
     QVERIFY(model->addSource(screen));
-    VideoSourceDefinition webcam{"camera", "Camera", CameraSourceConfig{"missing-camera"}};
+    VideoSource webcam{"camera", "Camera", CameraSourceConfig{"missing-camera"}};
     webcam.visible = false;
     QVERIFY(model->addSource(webcam));
     QTRY_COMPARE(output.size(), 3);

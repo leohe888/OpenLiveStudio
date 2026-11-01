@@ -32,7 +32,7 @@ private slots:
     void filtersAreOrderedValidatedAndIndependent();
 };
 
-static QList<VideoSourceDefinition> sources()
+static QList<VideoSource> sources()
 {
     return {{"a", "Image"}, {"b", "Camera"}, {"c", "Display"}};
 }
@@ -81,7 +81,7 @@ void VideoSourceManagerTest::exposesTypedSourcesAndRejectsMissingIds()
 
 void VideoSourceManagerTest::supportsAllSourceConfigurations()
 {
-    QList<VideoSourceDefinition> entries{
+    QList<VideoSource> entries{
         {"display", "Display", DisplaySourceConfig{"monitor-1", false}},
         {"camera", "Camera", CameraSourceConfig{"camera-1", QSize(1280, 720), 30}},
         {"image", "Image",
@@ -111,8 +111,8 @@ void VideoSourceManagerTest::supportsAllSourceConfigurations()
 
 void VideoSourceManagerTest::runtimeDetailsFollowSourceType()
 {
-    VideoSourceDefinition camera{"camera", "Camera", CameraSourceConfig{"device"}};
-    VideoSourceDefinition image{"image", "Image", ImageSourceConfig{"image.png"}};
+    VideoSource camera{"camera", "Camera", CameraSourceConfig{"device"}};
+    VideoSource image{"image", "Image", ImageSourceConfig{"image.png"}};
     VideoSourceManager manager({camera, image});
     QVERIFY(manager.setCameraActualMode("camera", {1280, 720}, 30000, 1001));
     QCOMPARE(manager.sourceStatus("camera").actualFrameRateNumerator, 30000);
@@ -289,7 +289,7 @@ void VideoSourceManagerTest::suggestsUnusedSourceNames()
 {
     const QString base = QString::fromUtf8("鍥惧儚");
     VideoSourceManager state(
-        QList<VideoSourceDefinition>{{"a", base}, {"b", base + " 3"}, {"c", "Camera"}, {"d", " cAmErA 2 "}});
+        QList<VideoSource>{{"a", base}, {"b", base + " 3"}, {"c", "Camera"}, {"d", " cAmErA 2 "}});
     QVERIFY(state.selectSource("a"));
     QSignalSpy selected(&state, &VideoSourceManager::currentSourceIdChanged);
     QSignalSpy inserted(&state, &VideoSourceManager::sourcesChanged);
@@ -313,7 +313,7 @@ void VideoSourceManagerTest::sameImageEntriesRemainIndependent()
     QImage image(19, 11, QImage::Format_ARGB32);
     image.fill(Qt::red);
     QVERIFY(image.save(path));
-    QList<VideoSourceDefinition> entries{
+    QList<VideoSource> entries{
         {"a", "First", ImageSourceConfig{path}},
         {"b", "Second", ImageSourceConfig{path}}};
     VideoSourceManager state(entries);
@@ -466,7 +466,7 @@ void VideoSourceManagerTest::sharesGeometryForMappingAndResizing()
 void VideoSourceManagerTest::filtersAreOrderedValidatedAndIndependent()
 {
     VideoSourceManager model(
-        QList<VideoSourceDefinition>{{"a", "A", ImageSourceConfig{"a.png"}},
+        QList<VideoSource>{{"a", "A", ImageSourceConfig{"a.png"}},
                            {"b", "B", ImageSourceConfig{"a.png"}},
                            {"camera", "Camera", CameraSourceConfig{}}});
     QSignalSpy changed(&model, &VideoSourceManager::sourceFiltersChanged);
@@ -523,7 +523,7 @@ void VideoSourceManagerTest::filtersAreOrderedValidatedAndIndependent()
 
 void VideoSourceManagerTest::displayPropertiesPreserveSourceState()
 {
-    VideoSourceManager model(QList<VideoSourceDefinition>{
+    VideoSourceManager model(QList<VideoSource>{
         {"screen", "Screen", DisplaySourceConfig{"physical-path", true}},
         {"image", "Image", ImageSourceConfig{"a.png"}},
         {"camera", "Camera", CameraSourceConfig{}}});

@@ -82,7 +82,7 @@ void ImageSourceController::addImage(const QString &name, const QString &path, Q
             }
             const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
             m_images.insert(id, {absolutePath, image, ++m_generation});
-            VideoSourceDefinition source{id, name.trimmed(),
+            VideoSource source{id, name.trimmed(),
                                ImageSourceConfig{absolutePath}};
             if (!m_sourceManager.addSource(source, {image.size(), "ready", {}})) {
                 m_images.remove(id);

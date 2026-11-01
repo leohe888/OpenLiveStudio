@@ -1,7 +1,7 @@
 #ifndef VIDEOSOURCEMANAGER_H
 #define VIDEOSOURCEMANAGER_H
 
-#include "video/videosourcedefinition.h"
+#include "video/videosource.h"
 
 #include <QHash>
 #include <QList>
@@ -25,20 +25,20 @@ class VideoSourceManager : public QObject
 public:
     explicit VideoSourceManager(QObject *parent = nullptr);
     // Initial source IDs must be nonempty and unique.
-    explicit VideoSourceManager(const QList<VideoSourceDefinition> &sources, QObject *parent = nullptr);
+    explicit VideoSourceManager(const QList<VideoSource> &sources, QObject *parent = nullptr);
 
-    const QList<VideoSourceDefinition> &sources() const
+    const QList<VideoSource> &sources() const
     {
         return m_sources;
     }
 
     // The pointer is only valid until the next mutation; do not retain it across signals.
-    const VideoSourceDefinition *source(const QString &sourceId) const;
+    const VideoSource *source(const QString &sourceId) const;
 
     VideoSourceStatus sourceStatus(const QString &sourceId) const;
 
     bool setSourceTransform(const QString &sourceId, const VideoSourceTransform &transform);
-    bool addSource(const VideoSourceDefinition &source, const VideoSourceStatus &status = {});
+    bool addSource(const VideoSource &source, const VideoSourceStatus &status = {});
     bool setSourcePixelSize(const QString &sourceId, const QSize &size);
     bool setSourceStatus(const QString &sourceId, const QString &state, const QString &error);
     bool canEditCurrentDisplay() const;
@@ -97,7 +97,7 @@ private:
     int sourceRow(const QString &sourceId) const;
     int filterRow(int sourceRow, const QString &filterId) const;
     void notifyFiltersChanged(int row);
-    QList<VideoSourceDefinition> m_sources;
+    QList<VideoSource> m_sources;
     QHash<QString, VideoSourceStatus> m_statuses;
     QString m_currentSourceId;
 };

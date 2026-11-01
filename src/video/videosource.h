@@ -1,5 +1,5 @@
-#ifndef VIDEOSOURCEDEFINITION_H
-#define VIDEOSOURCEDEFINITION_H
+#ifndef VIDEOSOURCE_H
+#define VIDEOSOURCE_H
 
 #include "video/videosourcetransform.h"
 #include "video/videosourcefilter.h"
@@ -40,7 +40,7 @@ struct ImageSourceConfig
 using VideoSourceConfig =
     std::variant<DisplaySourceConfig, CameraSourceConfig, ImageSourceConfig>;
 
-struct VideoSourceDefinition
+struct VideoSource
 {
     QString id;
     QString name;
@@ -53,4 +53,4 @@ struct VideoSourceDefinition
     VideoSourceType type() const;
 };
 
-#endif // VIDEOSOURCEDEFINITION_H
+#endif // VIDEOSOURCE_H

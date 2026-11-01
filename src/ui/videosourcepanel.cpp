@@ -85,7 +85,7 @@ public:
 
     CaptureSettings(QWidget *parent, DisplaySourceController *displays,
                     CameraSourceController *cameras, bool camera,
-                    const VideoSourceDefinition *initial = nullptr)
+                    const VideoSource *initial = nullptr)
         : QWidget(parent)
     {
         auto *layout = new QVBoxLayout(this);
