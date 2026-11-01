@@ -122,8 +122,9 @@ void MainWindowTest::styleSheetControlsCustomPainting()
     QCOMPARE(meter->property("clippingColor").value<QColor>(), QColor("#B72C3C"));
 
     auto *model = window.findChild<AudioSourceManager *>();
-    const auto first = model->addSource("First", "microphone", "missing-first");
-    const auto second = model->addSource("Second", "microphone", "missing-second");
+    const auto first = model->addSource("First", AudioSourceType::Microphone, "missing-first");
+    const auto second =
+        model->addSource("Second", AudioSourceType::Microphone, "missing-second");
     QVERIFY(!first.isEmpty() && !second.isEmpty());
 
     auto *channel = window.findChild<QFrame *>("soundChannel_" + first);
@@ -322,7 +323,7 @@ void MainWindowTest::audioControlsAndDialogs()
     window.show();
 
     auto *model = window.findChild<AudioSourceManager *>();
-    const auto id = model->addSource("Mic", "microphone", "unavailable-mic");
+    const auto id = model->addSource("Mic", AudioSourceType::Microphone, "unavailable-mic");
     QVERIFY(!id.isEmpty());
 
     auto *slider = window.findChild<QSlider *>(id + "VolumeSlider");
@@ -420,7 +421,8 @@ void MainWindowTest::scrollingAndKeyboard()
     mixer.resize(220, 160);
     mixer.show();
     for (int n = 0; n < 4; ++n)
-        QVERIFY(!audio.addSource(QString::number(n), "microphone", "missing-" + QString::number(n))
+        QVERIFY(!audio.addSource(QString::number(n), AudioSourceType::Microphone,
+                                 "missing-" + QString::number(n))
                      .isEmpty());
     QTRY_VERIFY(mixer.findChild<QScrollArea *>()->horizontalScrollBar()->maximum() > 0);
 }

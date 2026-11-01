@@ -1,6 +1,7 @@
 #ifndef AUDIOCAPTUREWORKER_H
 #define AUDIOCAPTUREWORKER_H
 #include "audio/audiobuffer.h"
+#include "audio/audiosource.h"
 #include <QThread>
 #include <QList>
 #include <atomic>
@@ -10,7 +11,7 @@ struct AudioDevice
 {
     QString id;
     QString name;
-    QString type;
+    AudioSourceType type = AudioSourceType::Microphone;
 };
 
 QList<AudioDevice> audioDevices(QString *error);
@@ -18,7 +19,8 @@ QList<AudioDevice> audioDevices(QString *error);
 class AudioCaptureWorker : public QThread
 {
 public:
-    AudioCaptureWorker(QString deviceId, QString type, std::shared_ptr<AudioPacketQueue> queue);
+    AudioCaptureWorker(QString deviceId, AudioSourceType type,
+                       std::shared_ptr<AudioPacketQueue> queue);
     ~AudioCaptureWorker() override;
     void stop();
 
@@ -41,7 +43,8 @@ protected:
 private:
     QString capture();
     void setStatus(const QString &state, const QString &error = {});
-    QString m_deviceId, m_type;
+    QString m_deviceId;
+    AudioSourceType m_type = AudioSourceType::Microphone;
     std::shared_ptr<AudioPacketQueue> m_queue;
     std::atomic_bool m_stop{false};
     mutable std::mutex m_mutex;

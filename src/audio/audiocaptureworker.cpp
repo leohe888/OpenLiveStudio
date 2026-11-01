@@ -70,7 +70,7 @@ QList<AudioDevice> audioDevices(QString *error)
             }
             result.append(
                 {QString::fromWCharArray(id), name,
-                 flow == eCapture ? QStringLiteral("microphone") : QStringLiteral("system")});
+                 flow == eCapture ? AudioSourceType::Microphone : AudioSourceType::SystemAudio});
         }
     }
 #else
@@ -79,9 +79,9 @@ QList<AudioDevice> audioDevices(QString *error)
     return result;
 }
 
-AudioCaptureWorker::AudioCaptureWorker(QString deviceId, QString type,
+AudioCaptureWorker::AudioCaptureWorker(QString deviceId, AudioSourceType type,
                                        std::shared_ptr<AudioPacketQueue> queue)
-    : m_deviceId(std::move(deviceId)), m_type(std::move(type)), m_queue(std::move(queue))
+    : m_deviceId(std::move(deviceId)), m_type(type), m_queue(std::move(queue))
 {
     setObjectName(QStringLiteral("AudioCapture"));
 }
@@ -161,7 +161,7 @@ QString AudioCaptureWorker::capture()
     ComPtr<IMMEndpoint> endpoint;
     EDataFlow flow = eAll;
     if (FAILED(device.As(&endpoint)) || FAILED(endpoint->GetDataFlow(&flow)) ||
-        flow != (m_type == "microphone" ? eCapture : eRender))
+        flow != (m_type == AudioSourceType::Microphone ? eCapture : eRender))
         return QStringLiteral("音频设备类型不匹配。");
     ComPtr<IAudioClient> client;
     hr = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr, &client);
@@ -207,8 +207,9 @@ QString AudioCaptureWorker::capture()
     if (!resampler.configure(int(format->nSamplesPerSec), format->nChannels, pcm, mask, &error))
         return error;
     hr = client->Initialize(AUDCLNT_SHAREMODE_SHARED,
-                            m_type == "system" ? AUDCLNT_STREAMFLAGS_LOOPBACK : 0, 1000000, 0,
-                            format, nullptr);
+                            m_type == AudioSourceType::SystemAudio ? AUDCLNT_STREAMFLAGS_LOOPBACK
+                                                                   : 0,
+                            1000000, 0, format, nullptr);
     if (FAILED(hr))
         return audioError(QStringLiteral("无法启动共享音频采集"), hr);
     ComPtr<IAudioCaptureClient> captureClient;

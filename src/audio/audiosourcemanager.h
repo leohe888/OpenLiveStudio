@@ -58,7 +58,7 @@ public:
     }
 
     void refreshDevices();
-    QString addSource(const QString &name, const QString &type, const QString &deviceId);
+    QString addSource(const QString &name, AudioSourceType type, const QString &deviceId);
     bool removeSource(const QString &sourceId);
     bool renameSource(const QString &sourceId, const QString &name);
     bool setVolume(const QString &sourceId, qreal volume);

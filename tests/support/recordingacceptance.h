@@ -128,16 +128,16 @@ inline void run(MainWindow &window)
     QString microphoneId, systemId;
     for (const auto &value : audio->devices()) {
         const auto &device = value;
-        if (device.type == "microphone" && microphoneId.isEmpty())
+        if (device.type == AudioSourceType::Microphone && microphoneId.isEmpty())
             microphoneId = device.id;
-        if (device.type == "system" && systemId.isEmpty())
+        if (device.type == AudioSourceType::SystemAudio && systemId.isEmpty())
             systemId = device.id;
     }
     QVERIFY(!microphoneId.isEmpty() && !systemId.isEmpty());
     const auto screen = display->addDisplay("Screen", display->displays()[0].id, true);
     const auto cam = camera->addCamera("Camera", CameraConfig{camera->devices()[0].id});
-    const auto mic = audio->addSource("Microphone", "microphone", microphoneId);
-    QString system = audio->addSource("System", "system", systemId);
+    const auto mic = audio->addSource("Microphone", AudioSourceType::Microphone, microphoneId);
+    QString system = audio->addSource("System", AudioSourceType::SystemAudio, systemId);
     QVERIFY(!screen.isEmpty() && !cam.isEmpty() && !mic.isEmpty() && !system.isEmpty());
     QTRY_COMPARE_WITH_TIMEOUT(model->displaySource(screen)->runtime.captureState,
                               QString("capturing"), 15000);
@@ -310,7 +310,8 @@ inline void run(MainWindow &window)
             done[5] = true;
             QVERIFY(audio->removeSource(system));
             QTRY_VERIFY_WITH_TIMEOUT(!audio->deviceInUse(systemId), 5000);
-            system = audio->addSource("System restored", "system", systemId);
+            system = audio->addSource("System restored", AudioSourceType::SystemAudio,
+                                      systemId);
             QVERIFY(!system.isEmpty());
             QVERIFY(audio->setVolume(system, .05));
             QTRY_COMPARE_WITH_TIMEOUT(audio->source(system)->state, QString("capturing"), 5000);

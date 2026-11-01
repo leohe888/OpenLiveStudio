@@ -54,15 +54,15 @@ private slots:
         QVERIFY(std::all_of(silent->samples.cbegin(), silent->samples.cend(), [](float value) {
             return value == 0;
         }));
-        QVERIFY(manager.addSource("", "microphone", "missing-a").isEmpty());
-        QVERIFY(manager.addSource("Bad", "camera", "missing-a").isEmpty());
-        const auto first = manager.addSource("Mic", "microphone", "missing-a");
+        QVERIFY(manager.addSource("", AudioSourceType::Microphone, "missing-a").isEmpty());
+        const auto first = manager.addSource("Mic", AudioSourceType::Microphone, "missing-a");
         QVERIFY(!first.isEmpty());
         QCOMPARE(manager.currentSourceId(), first);
-        QVERIFY(manager.addSource("Other", "microphone", "missing-a").isEmpty());
-        QVERIFY(manager.addSource("Other", "microphone", "MISSING-A").isEmpty());
-        QVERIFY(manager.addSource("mic", "system", "missing-b").isEmpty());
-        const auto second = manager.addSource("System", "system", "missing-b");
+        QVERIFY(manager.addSource("Other", AudioSourceType::Microphone, "missing-a").isEmpty());
+        QVERIFY(manager.addSource("Other", AudioSourceType::Microphone, "MISSING-A").isEmpty());
+        QVERIFY(manager.addSource("mic", AudioSourceType::SystemAudio, "missing-b").isEmpty());
+        const auto second =
+            manager.addSource("System", AudioSourceType::SystemAudio, "missing-b");
         QVERIFY(!second.isEmpty());
         QCOMPARE(manager.count(), 2);
         QVERIFY(manager.setVolume(first, .25));
@@ -95,7 +95,8 @@ private slots:
                 [&](const QString &sourceId, const QString &) {
                     manager.removeSource(sourceId);
                 });
-        QVERIFY(!manager.addSource("Missing", "microphone", "missing-notification").isEmpty());
+        QVERIFY(!manager.addSource("Missing", AudioSourceType::Microphone, "missing-notification")
+                     .isEmpty());
         QTRY_COMPARE(manager.count(), 0);
         QTRY_COMPARE(manager.activeWorkerCount(), 0);
         connect(&manager, &AudioSourceManager::sourcesChanged, &manager, [&] {
@@ -103,7 +104,8 @@ private slots:
             if (!sources.isEmpty())
                 manager.removeSource(sources.first().id);
         });
-        manager.addSource("Removed during insertion", "system", "missing-insertion");
+        manager.addSource("Removed during insertion", AudioSourceType::SystemAudio,
+                          "missing-insertion");
         QCOMPARE(manager.count(), 0);
         QTRY_COMPARE(manager.activeWorkerCount(), 0);
     }
@@ -111,8 +113,10 @@ private slots:
     void typedSnapshotsAndChangeNotifications()
     {
         AudioSourceManager manager;
-        const auto first = manager.addSource("First", "microphone", "missing-snapshot-first");
-        const auto second = manager.addSource("Second", "system", "missing-snapshot-second");
+        const auto first =
+            manager.addSource("First", AudioSourceType::Microphone, "missing-snapshot-first");
+        const auto second =
+            manager.addSource("Second", AudioSourceType::SystemAudio, "missing-snapshot-second");
         QVERIFY(!first.isEmpty() && !second.isEmpty());
         const auto snapshot = manager.sources();
         QCOMPARE(snapshot.size(), 2);
@@ -152,9 +156,11 @@ private slots:
                 return;
             replaced = true;
             QVERIFY(manager.removeSource(sourceId));
-            replacement = manager.addSource("Replacement", "system", "missing-replacement");
+            replacement = manager.addSource("Replacement", AudioSourceType::SystemAudio,
+                                            "missing-replacement");
         });
-        const auto original = manager.addSource("Original", "microphone", "missing-original");
+        const auto original =
+            manager.addSource("Original", AudioSourceType::Microphone, "missing-original");
         QVERIFY(!original.isEmpty());
         QTRY_VERIFY(replaced);
         QVERIFY(!replacement.isEmpty());
@@ -166,7 +172,7 @@ private slots:
     void sourceLevelsUseTypedDataAndKeepSourcesIntact()
     {
         AudioSourceManager manager;
-        const auto id = manager.addSource("Meter", "microphone", "missing-meter");
+        const auto id = manager.addSource("Meter", AudioSourceType::Microphone, "missing-meter");
         QVERIFY(!id.isEmpty());
         auto queue = std::make_shared<AudioPacketQueue>();
         queue->publish(constant(audioClockNs(), .5f, .75f, AudioFormat::rate / 5));
@@ -327,7 +333,8 @@ private slots:
         for (const auto &value : devices) {
             const auto &info = value;
             const auto type = info.type;
-            if ((type == "microphone" && microphone) || (type == "system" && system))
+            if ((type == AudioSourceType::Microphone && microphone) ||
+                (type == AudioSourceType::SystemAudio && system))
                 continue;
             auto queue = std::make_shared<AudioPacketQueue>();
             AudioCaptureWorker worker(info.id, type, queue);
@@ -345,12 +352,12 @@ private slots:
                 }
                 QVERIFY2(worker.status().state == "capturing", qPrintable(worker.status().error));
             }
-            if (type == "microphone") {
+            if (type == AudioSourceType::Microphone) {
                 QVERIFY(frames > 24000);
                 microphone = true;
             } else
                 system = true; // Idle loopback may legally return no packets.
-            qInfo() << type << "normalized frames:" << frames;
+            qInfo() << int(type) << "normalized frames:" << frames;
             worker.stop();
             QVERIFY(worker.wait(2000));
         }
@@ -367,14 +374,14 @@ private slots:
         QString microphone, system;
         for (const auto &value : manager.devices()) {
             const auto &device = value;
-            if (device.type == "microphone" && microphone.isEmpty())
+            if (device.type == AudioSourceType::Microphone && microphone.isEmpty())
                 microphone = device.id;
-            if (device.type == "system" && system.isEmpty())
+            if (device.type == AudioSourceType::SystemAudio && system.isEmpty())
                 system = device.id;
         }
         QVERIFY(!microphone.isEmpty() && !system.isEmpty());
-        const auto mic = manager.addSource("Mic", "microphone", microphone);
-        const auto desktop = manager.addSource("Desktop", "system", system);
+        const auto mic = manager.addSource("Mic", AudioSourceType::Microphone, microphone);
+        const auto desktop = manager.addSource("Desktop", AudioSourceType::SystemAudio, system);
         QVERIFY(!mic.isEmpty() && !desktop.isEmpty());
         QTRY_COMPARE_WITH_TIMEOUT(manager.source(mic)->state, QString("capturing"), 5000);
         QTRY_COMPARE_WITH_TIMEOUT(manager.source(desktop)->state, QString("capturing"), 5000);

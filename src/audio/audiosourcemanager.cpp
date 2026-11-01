@@ -86,11 +86,11 @@ bool AudioSourceManager::deviceInUse(const QString &deviceId) const
            });
 }
 
-QString AudioSourceManager::addSource(const QString &name, const QString &type,
+QString AudioSourceManager::addSource(const QString &name, AudioSourceType type,
                                       const QString &deviceId)
 {
-    if (!nameAvailable(name.trimmed()) || (type != "microphone" && type != "system") ||
-        deviceId.isEmpty() || deviceId.size() > 2048 || deviceInUse(deviceId))
+    if (!nameAvailable(name.trimmed()) || deviceId.isEmpty() || deviceId.size() > 2048 ||
+        deviceInUse(deviceId))
         return {};
     Entry entry;
     entry.source.id = QUuid::createUuid().toString(QUuid::WithoutBraces);

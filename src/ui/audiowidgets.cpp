@@ -330,9 +330,9 @@ QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceManager *manager,
 
     auto *type = new QComboBox(dialog);
     type->setObjectName("soundTypeInput");
-    type->addItem(QObject::tr("麦克风"), "microphone");
-    type->addItem(QObject::tr("系统声音"), "system");
-    type->setCurrentIndex(original.type == "system" ? 1 : 0);
+    type->addItem(QObject::tr("麦克风"), QVariant::fromValue(AudioSourceType::Microphone));
+    type->addItem(QObject::tr("系统声音"), QVariant::fromValue(AudioSourceType::SystemAudio));
+    type->setCurrentIndex(original.type == AudioSourceType::SystemAudio ? 1 : 0);
     type->setEnabled(!editing);
     form->addRow(QObject::tr("来源类型"), type);
 
@@ -373,7 +373,7 @@ QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceManager *manager,
             devices->addItem(original.deviceName, original.deviceId);
         else
             for (const auto &device : manager->devices()) {
-                if (device.type == type->currentData().toString() &&
+                if (device.type == type->currentData().value<AudioSourceType>() &&
                     !manager->deviceInUse(device.id))
                     devices->addItem(device.name, device.id);
             }
@@ -406,7 +406,8 @@ QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceManager *manager,
         const bool success = editing
                                  ? manager->renameSource(sourceId, name->text())
                                  : !manager
-                                        ->addSource(name->text(), type->currentData().toString(),
+                                        ->addSource(name->text(),
+                                                    type->currentData().value<AudioSourceType>(),
                                                     devices->currentData().toString())
                                         .isEmpty();
         if (success)
