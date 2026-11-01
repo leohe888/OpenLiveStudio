@@ -15,14 +15,14 @@ public:
         return m_recordingDirectory;
     }
 
-    int recordingBitrate() const
+    int recordingBitrateKbps() const
     {
-        return m_recordingBitrate;
+        return m_recordingBitrateKbps;
     }
 
-    int streamingBitrate() const
+    int streamingBitrateKbps() const
     {
-        return m_streamingBitrate;
+        return m_streamingBitrateKbps;
     }
 
     QString streamServer() const
@@ -54,8 +54,8 @@ public:
     void setStreamingLocked(bool locked);
     static QString validateStream(const QString &server, const QString &key, int bitrateKbps,
                                   bool allowEmpty = true);
-    bool apply(const QString &directory, int recordingBitrate, const QString &server,
-               const QString &key, int streamingBitrate = 6000);
+    bool apply(const QString &directory, int recordingBitrateKbps, const QString &server,
+               const QString &key, int streamingBitrateKbps = 6000);
     QString nextRecordingPath(); // Creates the selected directory only at recording start.
 
 signals:
@@ -70,8 +70,8 @@ private:
     QString m_streamKey;
     QString m_lastError;
 
-    int m_recordingBitrate = 12000;
-    int m_streamingBitrate = 6000;
+    int m_recordingBitrateKbps = 12000;
+    int m_streamingBitrateKbps = 6000;
     bool m_recordingLocked = false;
     bool m_streamingLocked = false;
 };

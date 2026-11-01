@@ -70,6 +70,7 @@ qt_add_executable(OpenLiveStudio
     src/output/outputsettings.h
     src/output/outputsettings.cpp
     src/core/mediaclock.h
+    src/core/outputtap.h
 )
 
 set(OPENLIVE_STUDIO_ICON_FILES

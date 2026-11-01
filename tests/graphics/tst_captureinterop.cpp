@@ -67,8 +67,8 @@ private slots:
         VideoSourceManager model;
         DisplaySourceController controller(model);
         connect(&controller, &DisplaySourceController::sourceError, &model,
-                [&model](const QString &id, const QString &) {
-                    model.removeSource(id);
+                [&model](const QString &sourceId, const QString &) {
+                    model.removeSource(sourceId);
                 });
         QVERIFY(!controller.addDisplay("Missing", "missing-display", true).isEmpty());
         QTRY_COMPARE(model.sources().size(), 0);
@@ -490,7 +490,7 @@ private slots:
         DisplayCaptureWorker worker("missing-display", true, 1);
         worker.start();
         QVERIFY(worker.wait(2000));
-        QVERIFY(!worker.error().isEmpty());
+        QVERIFY(!worker.lastError().isEmpty());
         QVERIFY(!worker.takeLatest());
     }
 
@@ -503,10 +503,10 @@ private slots:
         worker.start();
         std::shared_ptr<const CaptureFrame> frame;
         QTRY_VERIFY_WITH_TIMEOUT(
-            frame || (frame = worker.takeLatest()) || !worker.error().isEmpty(), 5000);
-        if (!worker.error().isEmpty() && !qEnvironmentVariableIsSet("OPENLIVE_REQUIRE_GPU_INTEROP"))
-            QSKIP(qPrintable(worker.error()));
-        QVERIFY2(worker.error().isEmpty(), qPrintable(worker.error()));
+            frame || (frame = worker.takeLatest()) || !worker.lastError().isEmpty(), 5000);
+        if (!worker.lastError().isEmpty() && !qEnvironmentVariableIsSet("OPENLIVE_REQUIRE_GPU_INTEROP"))
+            QSKIP(qPrintable(worker.lastError()));
+        QVERIFY2(worker.lastError().isEmpty(), qPrintable(worker.lastError()));
         QVERIFY(frame && frame->gpu);
         QCOMPARE(frame->generation, quint64(9));
         QCOMPARE(frame->size, targets[0].size);
@@ -521,7 +521,7 @@ private slots:
                     QVERIFY(next->sequence > last);
                     last = next->sequence;
                 }
-                QVERIFY2(worker.error().isEmpty(), qPrintable(worker.error()));
+                QVERIFY2(worker.lastError().isEmpty(), qPrintable(worker.lastError()));
                 QTest::qWait(50);
             }
             qInfo() << "Completed capture soak (seconds):" << seconds;

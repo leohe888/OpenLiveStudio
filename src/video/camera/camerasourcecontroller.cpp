@@ -65,26 +65,26 @@ void CameraSourceController::refreshDevices()
     m_queries.push_back(std::move(query));
 }
 
-void CameraSourceController::requestModes(const QString &id)
+void CameraSourceController::requestModes(const QString &deviceId)
 {
-    if (id.isEmpty() || m_querying.contains(id))
+    if (deviceId.isEmpty() || m_querying.contains(deviceId))
         return;
     // A cached catalog avoids opening a second capture session on an active device.
-    if (m_modes.contains(id)) {
-        emit modesChanged(id, {});
+    if (m_modes.contains(deviceId)) {
+        emit modesChanged(deviceId, {});
         return;
     }
-    m_querying.insert(id);
-    auto query = std::unique_ptr<QThread>(QThread::create([this, id] {
+    m_querying.insert(deviceId);
+    auto query = std::unique_ptr<QThread>(QThread::create([this, deviceId] {
         QString error;
-        const auto result = cameraModes(id, &error);
+        const auto result = cameraModes(deviceId, &error);
         QMetaObject::invokeMethod(
             this,
-            [this, id, result, error] {
-                m_querying.remove(id);
+            [this, deviceId, result, error] {
+                m_querying.remove(deviceId);
                 if (error.isEmpty())
-                    m_modes.insert(id, result);
-                emit modesChanged(id, error);
+                    m_modes.insert(deviceId, result);
+                emit modesChanged(deviceId, error);
             },
             Qt::QueuedConnection);
     }));
@@ -103,23 +103,23 @@ QString CameraSourceController::addCamera(const QString &name, const CameraConfi
     return id;
 }
 
-bool CameraSourceController::applyProperties(const QString &id, const CameraConfig &config)
+bool CameraSourceController::applyProperties(const QString &sourceId, const CameraConfig &config)
 {
-    const auto *camera = m_sourceManager.cameraSource(id);
+    const auto *camera = m_sourceManager.cameraSource(sourceId);
     if (!camera)
         return false;
     const bool unchanged = camera->config == config;
-    if (!m_sourceManager.setCameraConfig(id, config))
+    if (!m_sourceManager.setCameraConfig(sourceId, config))
         return false;
     // A changed config already restarts through the manager notification.
     if (unchanged)
-        retry(id);
+        retry(sourceId);
     return true;
 }
 
-bool CameraSourceController::retry(const QString &id)
+bool CameraSourceController::retry(const QString &sourceId)
 {
-    auto it = m_entries.find(id);
+    auto it = m_entries.find(sourceId);
     if (it == m_entries.end())
         return false;
     stop(it->second);
@@ -214,7 +214,7 @@ void CameraSourceController::poll()
     for (auto &[id, entry] : m_entries) {
         if (!entry.worker)
             continue;
-        const QString error = entry.worker->error();
+        const QString error = entry.worker->lastError();
         if (!error.isEmpty()) {
             stop(entry);
             entry.failed = true;

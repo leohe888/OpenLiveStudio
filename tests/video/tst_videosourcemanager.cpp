@@ -430,7 +430,7 @@ void VideoSourceManagerTest::initializesAndValidatesTransforms()
 void VideoSourceManagerTest::sharesGeometryForMappingAndResizing()
 {
     const auto thin = SourceGeometry::initial(QSizeF(1, 4000));
-    QVERIFY(SourceGeometry::valid(thin));
+    QVERIFY(SourceGeometry::isValid(thin));
     QCOMPARE(thin.size.height(), 1080.0);
     QCOMPARE(thin.size.width(), .27);
     for (const QSizeF &widget : {QSizeF(1000, 700), QSizeF(300, 900), QSizeF(1600, 400)}) {
@@ -451,7 +451,7 @@ void VideoSourceManagerTest::sharesGeometryForMappingAndResizing()
         for (int handle = 0; handle < 8; ++handle) {
             const auto result =
                 SourceGeometry::resized(start, handle, rotation.map(QPointF(40, 30)));
-            QVERIFY(SourceGeometry::valid(result));
+            QVERIFY(SourceGeometry::isValid(result));
             const auto fraction = SourceGeometry::handleFractions[handle];
             const QPointF opposite(1 - fraction.x(), 1 - fraction.y());
             const auto anchor = matrix.map(QPointF(opposite.x() * 400, opposite.y() * 200));
@@ -580,8 +580,8 @@ void VideoSourceManagerTest::sourceRemovalDuringGeometryNotificationIsSafe()
 {
     VideoSourceManager manager;
     QVERIFY(manager.addSource({"camera", "Camera", CameraSourceDetails{CameraConfig{"device"}}}));
-    connect(&manager, &VideoSourceManager::sourceChanged, this, [&](const QString &id) {
-        manager.removeSource(id);
+    connect(&manager, &VideoSourceManager::sourceChanged, this, [&](const QString &sourceId) {
+        manager.removeSource(sourceId);
     });
     manager.setCameraActualMode("camera", QSize(1280, 720), 30, 1);
     QVERIFY(manager.sources().isEmpty());

@@ -65,14 +65,14 @@ QString stringAttribute(IMFAttributes *attrs, REFGUID key)
     return result;
 }
 
-ComPtr<IMFMediaSource> openCamera(const QString &id)
+ComPtr<IMFMediaSource> openCamera(const QString &deviceId)
 {
     ComPtr<IMFAttributes> attrs;
     check(MFCreateAttributes(&attrs, 2));
     check(attrs->SetGUID(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
                          MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID));
     check(attrs->SetString(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK,
-                           reinterpret_cast<LPCWSTR>(id.utf16())));
+                           reinterpret_cast<LPCWSTR>(deviceId.utf16())));
     ComPtr<IMFMediaSource> source;
     check(MFCreateDeviceSource(attrs.Get(), &source));
     return source;
@@ -306,13 +306,13 @@ QList<CameraDevice> cameraDevices(QString *error)
     return result;
 }
 
-QList<CameraMode> cameraModes(const QString &id, QString *error)
+QList<CameraMode> cameraModes(const QString &deviceId, QString *error)
 {
     QList<CameraMode> result;
 #ifdef Q_OS_WIN
     try {
         Runtime runtime;
-        auto source = openCamera(id);
+        auto source = openCamera(deviceId);
         const auto shutdown = qScopeGuard([&] {
             source->Shutdown();
         });
@@ -340,7 +340,7 @@ QList<CameraMode> cameraModes(const QString &id, QString *error)
             *error = failure(hr);
     }
 #else
-    Q_UNUSED(id);
+    Q_UNUSED(deviceId);
     if (error)
         *error = QObject::tr("摄像头采集仅支持 Windows。");
 #endif
@@ -369,7 +369,7 @@ std::shared_ptr<const CameraFrame> CameraCaptureWorker::takeLatest()
     return std::exchange(m_latest, {});
 }
 
-QString CameraCaptureWorker::error() const
+QString CameraCaptureWorker::lastError() const
 {
     QMutexLocker lock(&m_mutex);
     return m_error;

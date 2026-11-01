@@ -304,15 +304,16 @@ MixerPanel::MixerPanel(AudioSourceManager *manager, QWidget *parent) : QWidget(p
     rebuild();
 }
 
-QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceManager *manager, const QString &id)
+QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceManager *manager,
+                                 const QString &sourceId)
 {
-    const bool editing = !id.isEmpty();
+    const bool editing = !sourceId.isEmpty();
 
-    const auto *originalSource = manager->source(id);
+    const auto *originalSource = manager->source(sourceId);
     const AudioSource original = originalSource ? *originalSource : AudioSource{};
     auto *dialog = new QDialog(parent);
     dialog->setObjectName("audioSourceDialog");
-    dialog->setProperty("audioSourceId", id);
+    dialog->setProperty("audioSourceId", sourceId);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->setWindowTitle(editing ? QObject::tr("声音来源属性") : QObject::tr("添加声音来源"));
     dialog->resize(540, 370);
@@ -385,7 +386,7 @@ QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceManager *manager, c
         error->setText(editing ? QString() : manager->catalogError());
         ok->setEnabled(!name->text().trimmed().isEmpty() &&
                        (editing || !devices->currentData().toString().isEmpty()));
-        if (editing && !manager->source(id))
+        if (editing && !manager->source(sourceId))
             dialog->close();
     };
 
@@ -403,7 +404,7 @@ QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceManager *manager, c
     QObject::connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
     QObject::connect(buttons, &QDialogButtonBox::accepted, dialog, [=] {
         const bool success = editing
-                                 ? manager->renameSource(id, name->text())
+                                 ? manager->renameSource(sourceId, name->text())
                                  : !manager
                                         ->addSource(name->text(), type->currentData().toString(),
                                                     devices->currentData().toString())

@@ -205,8 +205,9 @@ private slots:
         ImageSourceController controller(model);
         QSignalSpy errors(&controller, &ImageSourceController::sourceError);
         QStringList loadStates;
-        connect(&model, &VideoSourceManager::sourceStatusChanged, this, [&](const QString &id) {
-            if (const auto *source = model.source(id))
+        connect(&model, &VideoSourceManager::sourceStatusChanged, this,
+                [&](const QString &sourceId) {
+            if (const auto *source = model.source(sourceId))
                 if (const auto *image = std::get_if<ImageSourceDetails>(&source->details))
                     loadStates.append(image->runtime.loadState);
         });

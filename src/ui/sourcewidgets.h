@@ -1,4 +1,5 @@
-#pragma once
+#ifndef SOURCEWIDGETS_H
+#define SOURCEWIDGETS_H
 
 #include <QWidget>
 #include <functional>
@@ -18,17 +19,20 @@ public:
 
 signals:
     void addRequested();
-    void removalRequested(const QString &id);
-    void filtersRequested(const QString &id);
-    void propertiesRequested(const QString &id);
+    void removalRequested(const QString &sourceId);
+    void filtersRequested(const QString &sourceId);
+    void propertiesRequested(const QString &sourceId);
 };
 
 QDialog *createSourceAddDialog(QWidget *parent, VideoSourceManager *manager,
                                ImageSourceController *images, DisplaySourceController *displays,
                                CameraSourceController *cameras);
 QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceManager *manager,
-                                      const QString &id, DisplaySourceController *displays,
+                                      const QString &sourceId, DisplaySourceController *displays,
                                       CameraSourceController *cameras);
-QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager, const QString &id);
+QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
+                                   const QString &sourceId);
 QDialog *createRemovalDialog(QWidget *parent, const QString &name, const QString &hint,
                              const std::function<bool()> &remove);
+
+#endif

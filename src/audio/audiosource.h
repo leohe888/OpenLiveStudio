@@ -1,4 +1,5 @@
-#pragma once
+#ifndef AUDIOSOURCE_H
+#define AUDIOSOURCE_H
 
 #include "audio/audiobuffer.h"
 
@@ -15,3 +16,5 @@ struct AudioSource
     QString state = QStringLiteral("starting");
     QString error;
 };
+
+#endif

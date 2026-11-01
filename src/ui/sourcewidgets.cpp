@@ -154,8 +154,8 @@ public:
                     changed();
             });
             connect(cameras, &CameraSourceController::modesChanged, this,
-                    [=](const QString &id, const QString &message) {
-                        if (id != device->currentData().toString())
+                    [=](const QString &sourceId, const QString &message) {
+                        if (sourceId != device->currentData().toString())
                             return;
 
                         auto selected = mode->currentData().value<CameraMode>();
@@ -165,7 +165,7 @@ public:
                         mode->clear();
                         mode->addItem(tr("设备默认"), QVariant::fromValue(CameraMode{}));
                         int current = 0;
-                        for (const auto &entry : cameras->modes(id)) {
+                        for (const auto &entry : cameras->modes(sourceId)) {
                             mode->addItem(entry.name, QVariant::fromValue(entry));
                             if (entry.sameFormat(selected))
                                 current = mode->count() - 1;
@@ -269,13 +269,13 @@ SourcesPanel::SourcesPanel(VideoSourceManager *manager, QWidget *parent) : QWidg
         properties->setEnabled(manager->canEditCurrentSource());
     };
 
-    const auto updateRow = [=](const QString &id) {
-        const auto *source = manager->source(id);
+    const auto updateRow = [=](const QString &sourceId) {
+        const auto *source = manager->source(sourceId);
         if (!source)
             return;
         QListWidgetItem *item = nullptr;
         for (int row = 0; row < list->count(); ++row) {
-            if (list->item(row)->data(Qt::UserRole).toString() == id) {
+            if (list->item(row)->data(Qt::UserRole).toString() == sourceId) {
                 item = list->item(row);
                 break;
             }
@@ -566,18 +566,19 @@ QDialog *createSourceAddDialog(QWidget *parent, VideoSourceManager *manager,
 }
 
 QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceManager *manager,
-                                      const QString &id, DisplaySourceController *displays,
+                                      const QString &sourceId, DisplaySourceController *displays,
                                       CameraSourceController *cameras)
 {
-    const bool camera = manager->cameraSource(id) != nullptr;
+    const bool camera = manager->cameraSource(sourceId) != nullptr;
 
     auto *dialog =
         dialogShell(parent, camera ? "cameraPropertiesDialog" : "displayPropertiesDialog",
                     QObject::tr("来源属性"));
-    dialog->setProperty("displaySourceId", id);
+    dialog->setProperty("displaySourceId", sourceId);
 
     auto *layout = new QVBoxLayout(dialog);
-    auto *settings = new CaptureSettings(dialog, displays, cameras, camera, manager->source(id));
+    auto *settings =
+        new CaptureSettings(dialog, displays, cameras, camera, manager->source(sourceId));
     layout->addWidget(settings);
 
     auto *state = label(dialog, camera ? "cameraStateLabel" : "captureStateLabel");
@@ -601,8 +602,8 @@ QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceManager *manag
         ->setObjectName(camera ? "cancelCameraPropertiesButton" : "closeDisplayPropertiesButton");
 
     const auto refresh = [=] {
-        const auto *cameraSource = manager->cameraSource(id);
-        const auto *displaySource = manager->displaySource(id);
+        const auto *cameraSource = manager->cameraSource(sourceId);
+        const auto *displaySource = manager->displaySource(sourceId);
         if ((camera && !cameraSource) || (!camera && !displaySource)) {
             dialog->close();
             return;
@@ -631,17 +632,17 @@ QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceManager *manag
     settings->changed = refresh;
 
     QObject::connect(manager, &VideoSourceManager::sourceStatusChanged, dialog,
-                     [=](const QString &sourceId) {
-                         if (sourceId == id)
+                     [=](const QString &changedSourceId) {
+                         if (changedSourceId == sourceId)
                              refresh();
                      });
     QObject::connect(manager, &VideoSourceManager::sourcesChanged, dialog, refresh);
     QObject::connect(apply, &QPushButton::clicked, dialog, [=] {
         bool success =
             camera ? cameras->applyProperties(
-                         id, settings->mode->currentData().value<CameraMode>().config(
+                         sourceId, settings->mode->currentData().value<CameraMode>().config(
                                  settings->device->currentData().toString()))
-                   : displays->applyProperties(id, settings->device->currentData().toString(),
+                   : displays->applyProperties(sourceId, settings->device->currentData().toString(),
                                                settings->cursor->isChecked());
         if (success && camera)
             dialog->accept();
@@ -650,19 +651,20 @@ QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceManager *manag
     });
     QObject::connect(retry, &QPushButton::clicked, dialog, [=] {
         if (camera)
-            cameras->retry(id);
+            cameras->retry(sourceId);
         else
-            displays->retry(id);
+            displays->retry(sourceId);
     });
     QObject::connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
     refresh();
     return dialog;
 }
 
-QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager, const QString &id)
+QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
+                                   const QString &sourceId)
 {
     auto *dialog = dialogShell(parent, "sourceFiltersDialog", QObject::tr("来源滤镜"));
-    dialog->setProperty("filterSourceId", id);
+    dialog->setProperty("filterSourceId", sourceId);
     dialog->resize(680, 380);
 
     auto *layout = new QVBoxLayout(dialog);
@@ -729,7 +731,7 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
     };
 
     const auto updateSelection = [=] {
-        const auto filters = manager->sourceFilters(id);
+        const auto filters = manager->sourceFilters(sourceId);
         const int index = list->currentRow();
 
         const SourceFilter *filter =
@@ -753,7 +755,7 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
     };
 
     const auto refresh = [=] {
-        if (!manager->canFilterSource(id)) {
+        if (!manager->canFilterSource(sourceId)) {
             dialog->close();
             return;
         }
@@ -762,7 +764,7 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
         QSignalBlocker blocker(list);
         list->clear();
         int index = 0;
-        for (const auto &entry : manager->sourceFilters(id)) {
+        for (const auto &entry : manager->sourceFilters(sourceId)) {
             auto *item = new QListWidgetItem(QObject::tr("色彩校正 %1").arg(++index), list);
             item->setData(Qt::UserRole, entry.id);
             item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
@@ -777,8 +779,8 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
 
     const auto parameters = [=] {
         if (!selected().isEmpty())
-            manager->setFilterParameters(id, selected(), inputs[0]->value(), inputs[1]->value(),
-                                         inputs[2]->value());
+            manager->setFilterParameters(sourceId, selected(), inputs[0]->value(),
+                                         inputs[1]->value(), inputs[2]->value());
     };
     for (int n = 0; n < inputs.size(); ++n) {
         QObject::connect(inputs[n], &QDoubleSpinBox::valueChanged, dialog, parameters);
@@ -788,32 +790,32 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
     }
     QObject::connect(manager, &VideoSourceManager::sourceFiltersChanged, dialog,
                      [=](const QString &source) {
-                         if (source == id)
+                         if (source == sourceId)
                              refresh();
                      });
     QObject::connect(manager, &VideoSourceManager::sourcesChanged, dialog, refresh);
     QObject::connect(list, &QListWidget::currentRowChanged, dialog, updateSelection);
     QObject::connect(list, &QListWidget::itemChanged, dialog, [=](QListWidgetItem *item) {
-        manager->setFilterEnabled(id, item->data(Qt::UserRole).toString(),
+        manager->setFilterEnabled(sourceId, item->data(Qt::UserRole).toString(),
                                   item->checkState() == Qt::Checked);
     });
     QObject::connect(add, &QToolButton::clicked, dialog, [=] {
-        const auto added = manager->addColorCorrection(id);
+        const auto added = manager->addColorCorrection(sourceId);
         for (int n = 0; n < list->count(); ++n)
             if (list->item(n)->data(Qt::UserRole).toString() == added)
                 list->setCurrentRow(n);
     });
     QObject::connect(remove, &QToolButton::clicked, dialog, [=] {
-        manager->removeFilter(id, selected());
+        manager->removeFilter(sourceId, selected());
     });
     QObject::connect(up, &QToolButton::clicked, dialog, [=] {
-        manager->moveFilter(id, selected(), -1);
+        manager->moveFilter(sourceId, selected(), -1);
     });
     QObject::connect(down, &QToolButton::clicked, dialog, [=] {
-        manager->moveFilter(id, selected(), 1);
+        manager->moveFilter(sourceId, selected(), 1);
     });
     QObject::connect(reset, &QPushButton::clicked, dialog, [=] {
-        manager->setFilterParameters(id, selected(), 0, 1, 1);
+        manager->setFilterParameters(sourceId, selected(), 0, 1, 1);
     });
 
     auto *close = new QDialogButtonBox(QDialogButtonBox::Close, dialog);

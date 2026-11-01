@@ -12,7 +12,7 @@ public:
     ~DisplayCaptureWorker() override;
     void stop() { m_stop.store(true); m_wait.notify_one(); m_frames.clear(); }
     std::shared_ptr<const CaptureFrame> takeLatest() { return m_frames.take(); }
-    QString error() const;
+    QString lastError() const;
     quint64 generation() const { return m_generation; }
 protected:
     void run() override;

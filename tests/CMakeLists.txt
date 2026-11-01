@@ -226,6 +226,7 @@ set_tests_properties(video.sourceaggregator PROPERTIES LABELS "video;smoke" TIME
 
 qt_add_executable(tst_mainwindow
     ui/tst_mainwindow.cpp
+    support/recordingacceptance.h
     ../src/ui/mainwindow.cpp
     ../src/ui/outputwidgets.cpp
     ../src/ui/sourcewidgets.cpp

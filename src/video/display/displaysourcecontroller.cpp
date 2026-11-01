@@ -55,24 +55,24 @@ QString DisplaySourceController::addDisplay(const QString &name, const QString &
     return id;
 }
 
-bool DisplaySourceController::applyProperties(const QString &id, const QString &displayId,
+bool DisplaySourceController::applyProperties(const QString &sourceId, const QString &displayId,
                                               bool cursor)
 {
-    const auto *display = m_sourceManager.displaySource(id);
+    const auto *display = m_sourceManager.displaySource(sourceId);
     if (!display)
         return false;
     const bool unchanged =
         display->config.displayId == displayId && display->config.captureCursor == cursor;
-    if (!m_sourceManager.setDisplayConfig(id, displayId, cursor))
+    if (!m_sourceManager.setDisplayConfig(sourceId, displayId, cursor))
         return false;
     if (unchanged)
-        retry(id);
+        retry(sourceId);
     return true;
 }
 
-bool DisplaySourceController::retry(const QString &id)
+bool DisplaySourceController::retry(const QString &sourceId)
 {
-    auto it = m_entries.find(id);
+    auto it = m_entries.find(sourceId);
     if (it == m_entries.end())
         return false;
     stop(it->second);
@@ -153,10 +153,10 @@ void DisplaySourceController::synchronize()
     publish();
 }
 
-void DisplaySourceController::failTransfer(const QString &id, quint64 generation,
+void DisplaySourceController::failTransfer(const QString &sourceId, quint64 generation,
                                            const QString &reason)
 {
-    const auto it = m_entries.find(id);
+    const auto it = m_entries.find(sourceId);
     if (it == m_entries.end() || it->second.generation != generation || !it->second.worker ||
         it->second.failed)
         return;
@@ -164,9 +164,9 @@ void DisplaySourceController::failTransfer(const QString &id, quint64 generation
     entry.failed = true;
     stop(entry);
     const QString message = tr("GPU 画面传输失败，已停止采集。请检查显卡驱动后手动重试。");
-    m_sourceManager.setSourceCaptureStatus(id, "error", message);
-    qWarning().noquote() << "Display GPU transfer failed:" << id << reason;
-    emit sourceError(id, message);
+    m_sourceManager.setSourceCaptureStatus(sourceId, "error", message);
+    qWarning().noquote() << "Display GPU transfer failed:" << sourceId << reason;
+    emit sourceError(sourceId, message);
     publish();
 }
 
@@ -182,7 +182,7 @@ void DisplaySourceController::poll()
     for (auto &[id, entry] : m_entries) {
         if (!entry.worker)
             continue;
-        const QString error = entry.worker->error();
+        const QString error = entry.worker->lastError();
         if (!error.isEmpty()) {
             entry.failed = true;
             stop(entry);

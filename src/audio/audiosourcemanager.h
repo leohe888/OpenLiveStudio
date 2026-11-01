@@ -15,7 +15,7 @@ public:
     ~AudioSourceManager() override;
     QList<AudioSource> sources() const;
     // The pointer is only valid until the next mutation; do not retain it across signals.
-    const AudioSource *source(const QString &id) const;
+    const AudioSource *source(const QString &sourceId) const;
 
     int count() const
     {
@@ -59,11 +59,11 @@ public:
 
     void refreshDevices();
     QString addSource(const QString &name, const QString &type, const QString &deviceId);
-    bool removeSource(const QString &id);
-    bool renameSource(const QString &id, const QString &name);
-    bool setVolume(const QString &id, qreal volume);
-    bool setMuted(const QString &id, bool muted);
-    bool selectSource(const QString &id);
+    bool removeSource(const QString &sourceId);
+    bool renameSource(const QString &sourceId, const QString &name);
+    bool setVolume(const QString &sourceId, qreal volume);
+    bool setMuted(const QString &sourceId, bool muted);
+    bool selectSource(const QString &sourceId);
     bool deviceInUse(const QString &deviceId) const;
     QString suggestedSourceName(const QString &base) const;
     int activeWorkerCount() const;
@@ -75,12 +75,12 @@ public:
 
 signals:
     void sourcesChanged();
-    void sourceChanged(const QString &id);
-    void sourceLevelsChanged(const QString &id);
+    void sourceChanged(const QString &sourceId);
+    void sourceLevelsChanged(const QString &sourceId);
     void currentSourceIdChanged();
     void devicesChanged();
     void masterLevelsChanged();
-    void sourceError(const QString &id, const QString &message);
+    void sourceError(const QString &sourceId, const QString &message);
 
 private:
     struct Entry
@@ -90,7 +90,7 @@ private:
         std::unique_ptr<AudioCaptureWorker> worker;
     };
 
-    int rowFor(const QString &id) const;
+    int rowFor(const QString &sourceId) const;
     bool nameAvailable(const QString &name, const QString &except = {}) const;
     void synchronize();
     void poll();

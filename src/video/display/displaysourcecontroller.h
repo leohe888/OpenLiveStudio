@@ -27,12 +27,12 @@ public:
     QString addDisplay(const QString &name, const QString &displayId, bool cursor);
     bool applyProperties(const QString &sourceId, const QString &displayId, bool cursor);
     bool retry(const QString &sourceId);
-    void failTransfer(const QString &id, quint64 generation, const QString &reason);
+    void failTransfer(const QString &sourceId, quint64 generation, const QString &reason);
     int activeWorkerCount() const;
 signals:
     void displaysChanged();
     void sourcesChanged(const QList<PreviewSource> &sources);
-    void sourceError(const QString &id, const QString &message);
+    void sourceError(const QString &sourceId, const QString &message);
 
 private:
     struct Entry

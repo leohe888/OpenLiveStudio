@@ -1,4 +1,5 @@
-#pragma once
+#ifndef AUDIOWIDGETS_H
+#define AUDIOWIDGETS_H
 
 #include <QWidget>
 
@@ -14,8 +15,11 @@ public:
 
 signals:
     void addRequested();
-    void removalRequested(const QString &id);
-    void propertiesRequested(const QString &id);
+    void removalRequested(const QString &sourceId);
+    void propertiesRequested(const QString &sourceId);
 };
 
-QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceManager *manager, const QString &id);
+QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceManager *manager,
+                                 const QString &sourceId);
+
+#endif

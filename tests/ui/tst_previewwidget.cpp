@@ -895,10 +895,10 @@ private:
     {
         connect(&widget, &PreviewWidget::selectionRequested, &widget, &PreviewWidget::setSelectedSourceId);
         connect(&widget, &PreviewWidget::transformRequested, &widget,
-            [&widget](const QString &id, const SourceTransform &transform) {
+            [&widget](const QString &sourceId, const SourceTransform &transform) {
                 auto sources = widget.m_sources;
                 for (auto &source : sources)
-                    if (source.id == id && !source.locked) source.transform = transform;
+                    if (source.id == sourceId && !source.locked) source.transform = transform;
                 widget.setSources(sources);
             });
     }

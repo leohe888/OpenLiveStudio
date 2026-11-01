@@ -53,11 +53,11 @@ void PreviewWidget::setSources(const QList<PreviewSource> &sources)
     update();
 }
 
-void PreviewWidget::setSelectedSourceId(const QString &id)
+void PreviewWidget::setSelectedSourceId(const QString &sourceId)
 {
-    if (m_selectedSourceId == id) return;
+    if (m_selectedSourceId == sourceId) return;
     endGesture();
-    m_selectedSourceId = id;
+    m_selectedSourceId = sourceId;
     update();
 }
 
@@ -194,7 +194,7 @@ void PreviewWidget::paintGL()
 
 bool PreviewWidget::selectable(const PreviewSource &source) const
 {
-    if (!m_presentedFrame || !source.visible || !source.hasFrame() || !SourceGeometry::valid(source.transform))
+    if (!m_presentedFrame || !source.visible || !source.hasFrame() || !SourceGeometry::isValid(source.transform))
         return false;
     const auto resource = m_presentedFrame->sources.constFind(source.id);
     return resource != m_presentedFrame->sources.cend()

@@ -21,7 +21,7 @@ struct SourceTransform {
 Q_DECLARE_METATYPE(SourceTransform)
 
 namespace SourceGeometry {
-inline bool valid(const SourceTransform &t)
+inline bool isValid(const SourceTransform &t)
 {
     return std::isfinite(t.center.x()) && std::isfinite(t.center.y())
         && std::isfinite(t.size.width()) && std::isfinite(t.size.height())
@@ -66,7 +66,7 @@ inline QTransform canvasToWidget(const QSizeF &widgetSize)
 }
 inline bool contains(const SourceTransform &t, const QPointF &canvasPoint)
 {
-    return valid(t) && QRectF(QPointF(), t.size).contains(sourceToCanvas(t).inverted().map(canvasPoint));
+    return isValid(t) && QRectF(QPointF(), t.size).contains(sourceToCanvas(t).inverted().map(canvasPoint));
 }
 // Clockwise from the upper-left corner: corners alternate with edge midpoints.
 inline const std::array<QPointF, 8> handleFractions{{
@@ -74,7 +74,7 @@ inline const std::array<QPointF, 8> handleFractions{{
 }};
 inline SourceTransform resized(const SourceTransform &start, int handle, const QPointF &canvasDelta)
 {
-    if (!valid(start) || handle < 0 || handle >= 8) return start;
+    if (!isValid(start) || handle < 0 || handle >= 8) return start;
     QTransform rotation;
     rotation.rotate(start.rotation);
     const QPointF delta = rotation.inverted().map(canvasDelta);

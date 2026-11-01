@@ -234,7 +234,7 @@ GLuint CanvasRenderer::filterTexture(const PreviewSource &source, GLuint origina
     int pass = 0;
     for (const auto &filter : source.filters) {
         if (!filter.enabled) continue;
-        if (!filter.valid()) return fail(tr("色彩校正参数无效，已使用原图。"));
+        if (!filter.isValid()) return fail(tr("色彩校正参数无效，已使用原图。"));
         if (filter.isIdentity()) continue;
         auto &target = m_filterFbos[pass % 2];
         if (!target || target->size() != source.pixelSize()) {
@@ -286,7 +286,7 @@ bool CanvasRenderer::drawable(const PreviewSource &source) const
     const auto it = m_textures.find(source.id);
     if (it == m_textures.end()) return false;
     const auto &resource = it->second;
-    return source.visible && source.hasFrame() && SourceGeometry::valid(source.transform)
+    return source.visible && source.hasFrame() && SourceGeometry::isValid(source.transform)
         && resource.ready && resource.texture
         && (source.frame ? resource.generation == source.frame->generation && resource.sequence == source.frame->sequence
                          : resource.generation == 0 && resource.imageKey == source.image.cacheKey());

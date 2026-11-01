@@ -33,7 +33,7 @@ DisplayCaptureWorker::~DisplayCaptureWorker()
     wait(); // Only called after finished during normal operation; shutdown joins remaining workers.
 }
 
-QString DisplayCaptureWorker::error() const
+QString DisplayCaptureWorker::lastError() const
 {
     std::lock_guard<std::mutex> lock(m_errorMutex);
     return m_error;

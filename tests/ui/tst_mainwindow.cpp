@@ -395,7 +395,7 @@ void MainWindowTest::outputDraftsAndLocks()
     dialog->findChild<QSpinBox *>("recordingBitrateInput")->setValue(16000);
     dialog->findChild<QPushButton *>("applyOutputSettingsButton")->click();
     QTRY_VERIFY(dialog.isNull());
-    QCOMPARE(settings->recordingBitrate(), 16000);
+    QCOMPARE(settings->recordingBitrateKbps(), 16000);
     QCOMPARE(settings->streamKey(), QString("key"));
 }
 

@@ -22,22 +22,24 @@ public:
     }
 
     // The pointer is only valid until the next mutation; do not retain it across signals.
-    const VideoSource *source(const QString &id) const;
+    const VideoSource *source(const QString &sourceId) const;
 
-    bool setSourceTransform(const QString &id, const SourceTransform &transform);
+    bool setSourceTransform(const QString &sourceId, const SourceTransform &transform);
     bool addSource(const VideoSource &source);
-    bool setSourcePixelSize(const QString &id, const QSize &size);
-    bool setSourceCaptureStatus(const QString &id, const QString &state, const QString &error);
-    bool setImageLoadStatus(const QString &id, const QString &state, const QString &error);
+    bool setSourcePixelSize(const QString &sourceId, const QSize &size);
+    bool setSourceCaptureStatus(const QString &sourceId, const QString &state,
+                                const QString &error);
+    bool setImageLoadStatus(const QString &sourceId, const QString &state, const QString &error);
     bool canEditCurrentDisplay() const;
     bool canEditCurrentSource() const;
-    const CameraSourceDetails *cameraSource(const QString &id) const;
-    bool setCameraConfig(const QString &id, const CameraConfig &config);
+    const CameraSourceDetails *cameraSource(const QString &sourceId) const;
+    bool setCameraConfig(const QString &sourceId, const CameraConfig &config);
     bool cameraDeviceInUse(const QString &deviceId, const QString &exceptId = {}) const;
-    void setCameraActualMode(const QString &id, const QSize &size, int numerator, int denominator);
+    bool setCameraActualMode(const QString &sourceId, const QSize &size, int numerator,
+                             int denominator);
 
-    const DisplaySourceDetails *displaySource(const QString &id) const;
-    bool setDisplayConfig(const QString &id, const QString &displayId, bool cursor);
+    const DisplaySourceDetails *displaySource(const QString &sourceId) const;
+    bool setDisplayConfig(const QString &sourceId, const QString &displayId, bool cursor);
 
     QString currentSourceId() const
     {
@@ -45,7 +47,7 @@ public:
     }
 
     // An empty ID clears selection; other IDs must belong to the source list.
-    bool selectSource(const QString &id);
+    bool selectSource(const QString &sourceId);
     QString suggestedSourceName(const QString &baseName) const;
     // Removes the list entry only; never deletes its file.
     bool removeSource(const QString &sourceId);
@@ -74,8 +76,8 @@ public:
 signals:
     // Structural changes rebuild lists; per-source changes update existing rows.
     void sourcesChanged();
-    void sourceChanged(const QString &id);
-    void sourceStatusChanged(const QString &id);
+    void sourceChanged(const QString &sourceId);
+    void sourceStatusChanged(const QString &sourceId);
     void currentSourceIdChanged();
     void sourceMoveAvailabilityChanged();
     void sourceFiltersChanged(const QString &sourceId);

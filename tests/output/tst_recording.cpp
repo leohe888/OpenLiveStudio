@@ -50,13 +50,13 @@ private slots:
         QTemporaryDir directory;
         OutputSettings settings;
         const auto defaults=settings.recordingDirectory();
-        QCOMPARE(settings.recordingBitrate(),12000); QVERIFY(settings.streamKey().isEmpty());
+        QCOMPARE(settings.recordingBitrateKbps(),12000); QVERIFY(settings.streamKey().isEmpty());
         const auto selected=directory.filePath("new/output");
         QVERIFY(settings.apply(selected,16000,"rtmp://example.test/live","unit-test-key"));
         QVERIFY(!QFileInfo::exists(selected));
         QVERIFY(!settings.apply(selected,0,"",""));
         QVERIFY(!settings.apply(selected,16000,"https://example.test/live",""));
-        QCOMPARE(settings.recordingBitrate(),16000);
+        QCOMPARE(settings.recordingBitrateKbps(),16000);
         settings.setRecordingLocked(true);
         QVERIFY(!settings.apply(directory.path(),12000,"",""));
         QVERIFY(settings.apply(selected,16000,"rtmp://example.test/app","new-unit-key"));
@@ -66,7 +66,7 @@ private slots:
         const auto next=settings.nextRecordingPath(); QVERIFY(next!=first);
         QVERIFY(file.open(QIODevice::ReadOnly)); QCOMPARE(file.readAll(),QByteArray("keep"));
         OutputSettings fresh;
-        QCOMPARE(fresh.recordingDirectory(),defaults); QCOMPARE(fresh.recordingBitrate(),12000); QVERIFY(fresh.streamKey().isEmpty());
+        QCOMPARE(fresh.recordingDirectory(),defaults); QCOMPARE(fresh.recordingBitrateKbps(),12000); QVERIFY(fresh.streamKey().isEmpty());
     }
     void encoderUnicodeNoOverwriteAndTracks()
     {

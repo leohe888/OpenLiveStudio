@@ -48,7 +48,7 @@ signals:
     void devicesChanged();
     void modesChanged(const QString &deviceId, const QString &error);
     void sourcesChanged(const QList<PreviewSource> &sources);
-    void sourceError(const QString &id, const QString &message);
+    void sourceError(const QString &sourceId, const QString &message);
 
 private:
     struct Entry

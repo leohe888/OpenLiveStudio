@@ -118,8 +118,8 @@ QDialog *createOutputSettingsDialog(QWidget *parent, OutputSettings *settings)
         return spin;
     };
 
-    auto *liveRate = bitrate(settings->streamingBitrate(), "streamingBitrateInput", live);
-    auto *recRate = bitrate(settings->recordingBitrate(), "recordingBitrateInput", record);
+    auto *liveRate = bitrate(settings->streamingBitrateKbps(), "streamingBitrateInput", live);
+    auto *recRate = bitrate(settings->recordingBitrateKbps(), "recordingBitrateInput", record);
     liveForm->addRow(QObject::tr("服务器地址"), server);
     liveForm->addRow(QObject::tr("串流密钥"), key);
     liveForm->addRow(QObject::tr("视频码率"), liveRate);

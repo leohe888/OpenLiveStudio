@@ -63,7 +63,7 @@ public:
     ~CameraCaptureWorker() override;
     void stop();
     std::shared_ptr<const CameraFrame> takeLatest();
-    QString error() const;
+    QString lastError() const;
 
     const QString &deviceId() const
     {

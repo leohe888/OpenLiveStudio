@@ -28,7 +28,7 @@ public:
     // Call on the GUI thread. Topmost first; applied on the next composition tick.
     // An unset transform uses the initial centered, fit-without-upscaling layout.
     void setSources(const QList<PreviewSource> &sources);
-    void setSelectedSourceId(const QString &id);
+    void setSelectedSourceId(const QString &sourceId);
 
     QColor selectionColor() const
     {
@@ -54,8 +54,8 @@ public:
     }
 
 signals:
-    void selectionRequested(const QString &id);
-    void transformRequested(const QString &id, const SourceTransform &transform);
+    void selectionRequested(const QString &sourceId);
+    void transformRequested(const QString &sourceId, const SourceTransform &transform);
     void sourceError(const QString &sourceId, const QString &message);
     void renderingError(const QString &message);
     void gpuTransferFailed(const QString &sourceId, quint64 generation, const QString &message);

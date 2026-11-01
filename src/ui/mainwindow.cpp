@@ -67,15 +67,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     }
     setupStatusBar();
     connect(m_audioSourceManager, &AudioSourceManager::sourceError, this,
-            [this](const QString &id, const QString &message) {
-                const auto *source = m_audioSourceManager->source(id);
+            [this](const QString &sourceId, const QString &message) {
+                const auto *source = m_audioSourceManager->source(sourceId);
                 statusBar()->showMessage(
-                    tr("声音来源“%1”：%2").arg(source ? source->name : id, message));
+                    tr("声音来源“%1”：%2").arg(source ? source->name : sourceId, message));
             });
 
-    const auto showSourceError = [this](const QString &id, const QString &message) {
+    const auto showSourceError = [this](const QString &sourceId, const QString &message) {
         QString name = tr("图片");
-        if (const auto *source = m_videoSourceManager->source(id))
+        if (const auto *source = m_videoSourceManager->source(sourceId))
             name = source->name;
         statusBar()->showMessage(tr("来源“%1”：%2").arg(name, message));
     };
@@ -175,7 +175,7 @@ void MainWindow::toggleRecording()
         return;
     }
     statusBar()->clearMessage();
-    m_recordingController->startRecording(path, m_outputSettings->recordingBitrate());
+    m_recordingController->startRecording(path, m_outputSettings->recordingBitrateKbps());
 }
 
 void MainWindow::toggleStreaming()
@@ -189,7 +189,7 @@ void MainWindow::toggleStreaming()
     statusBar()->clearMessage();
     m_streamingController->startStreaming(m_outputSettings->streamServer(),
                                           m_outputSettings->streamKey(),
-                                          m_outputSettings->streamingBitrate());
+                                          m_outputSettings->streamingBitrateKbps());
 }
 
 void MainWindow::showOutputSettingsDialog()

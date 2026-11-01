@@ -17,7 +17,7 @@ struct SourceFilter {
     float saturation = 1;
 
     bool isIdentity() const { return brightness == 0 && contrast == 1 && saturation == 1; }
-    bool valid() const
+    bool isValid() const
     {
         return type == SourceFilterType::ColorCorrection
             && std::isfinite(brightness) && brightness >= -1 && brightness <= 1

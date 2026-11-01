@@ -26,7 +26,7 @@ class StreamingTest : public QObject {
 private slots:
     void settingsAndIndependentLocks() {
         OutputSettings settings; QTemporaryDir directory;
-        QCOMPARE(settings.recordingBitrate(),12000); QCOMPARE(settings.streamingBitrate(),6000);
+        QCOMPARE(settings.recordingBitrateKbps(),12000); QCOMPARE(settings.streamingBitrateKbps(),6000);
         QVERIFY(settings.apply(directory.path(),12000,"rtmp://127.0.0.1/live","test"));
         QVERIFY(!settings.apply(directory.path(),12000,"rtmps://example.test/live","test"));
         QVERIFY(!settings.apply(directory.path(),12000,"rtmp://example.test","test"));

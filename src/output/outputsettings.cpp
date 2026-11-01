@@ -66,15 +66,15 @@ QString OutputSettings::validateStream(const QString &server, const QString &key
     return {};
 }
 
-bool OutputSettings::apply(const QString &directory, int recordingBitrate, const QString &server,
-                           const QString &key, int streamingBitrate)
+bool OutputSettings::apply(const QString &directory, int recordingBitrateKbps,
+                           const QString &server, const QString &key, int streamingBitrateKbps)
 {
     const QString path = QDir::cleanPath(directory.trimmed());
-    if (directory.trimmed().isEmpty() || !QFileInfo(path).isAbsolute() || recordingBitrate < 500 ||
-        recordingBitrate > 50000)
+    if (directory.trimmed().isEmpty() || !QFileInfo(path).isAbsolute() ||
+        recordingBitrateKbps < 500 || recordingBitrateKbps > 50000)
         return fail(tr("请选择绝对保存路径和 500–50000 kbps 的录制码率。"));
     if (m_recordingLocked &&
-        (path != m_recordingDirectory || recordingBitrate != m_recordingBitrate))
+        (path != m_recordingDirectory || recordingBitrateKbps != m_recordingBitrateKbps))
         return fail(tr("录制停止后才能修改录屏设置。"));
 
     QFileInfo ancestor(path);
@@ -88,18 +88,18 @@ bool OutputSettings::apply(const QString &directory, int recordingBitrate, const
         return fail(tr("保存路径不是可写目录。"));
 
     const QString endpoint = server.trimmed();
-    const auto error = validateStream(endpoint, key, streamingBitrate);
+    const auto error = validateStream(endpoint, key, streamingBitrateKbps);
     if (!error.isEmpty())
         return fail(error);
     if (m_streamingLocked && (endpoint != m_streamServer || key != m_streamKey ||
-                              streamingBitrate != m_streamingBitrate))
+                              streamingBitrateKbps != m_streamingBitrateKbps))
         return fail(tr("停止直播后才能修改推流设置。"));
 
     m_recordingDirectory = path;
-    m_recordingBitrate = recordingBitrate;
+    m_recordingBitrateKbps = recordingBitrateKbps;
     m_streamServer = endpoint;
     m_streamKey = key;
-    m_streamingBitrate = streamingBitrate;
+    m_streamingBitrateKbps = streamingBitrateKbps;
     m_lastError.clear();
     return true;
 }

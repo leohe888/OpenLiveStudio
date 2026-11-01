@@ -92,8 +92,8 @@ private slots:
     {
         AudioSourceManager manager;
         connect(&manager, &AudioSourceManager::sourceError, &manager,
-                [&](const QString &id, const QString &) {
-                    manager.removeSource(id);
+                [&](const QString &sourceId, const QString &) {
+                    manager.removeSource(sourceId);
                 });
         QVERIFY(!manager.addSource("Missing", "microphone", "missing-notification").isEmpty());
         QTRY_COMPARE(manager.count(), 0);
@@ -145,12 +145,13 @@ private slots:
         AudioSourceManager manager;
         bool replaced = false;
         QString replacement;
-        connect(&manager, &AudioSourceManager::sourceChanged, &manager, [&](const QString &id) {
-            const auto *source = manager.source(id);
+        connect(&manager, &AudioSourceManager::sourceChanged, &manager,
+                [&](const QString &sourceId) {
+            const auto *source = manager.source(sourceId);
             if (replaced || !source || source->state != "error")
                 return;
             replaced = true;
-            QVERIFY(manager.removeSource(id));
+            QVERIFY(manager.removeSource(sourceId));
             replacement = manager.addSource("Replacement", "system", "missing-replacement");
         });
         const auto original = manager.addSource("Original", "microphone", "missing-original");
