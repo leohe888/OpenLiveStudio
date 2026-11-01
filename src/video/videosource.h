@@ -37,21 +37,21 @@ struct ImageConfig
     QString filePath;
 };
 
-struct DisplayRuntimeState
+struct DisplayRuntime
 {
     QSize pixelSize;
     QString captureState;
     QString captureError;
 };
 
-struct ImageRuntimeState
+struct ImageRuntime
 {
     QSize pixelSize;
     QString loadState;
     QString loadError;
 };
 
-struct CameraRuntimeState
+struct CameraRuntime
 {
     QSize pixelSize;
     QString captureState;
@@ -63,19 +63,19 @@ struct CameraRuntimeState
 struct ImageSourceDetails
 {
     ImageConfig config;
-    ImageRuntimeState runtime;
+    ImageRuntime runtime;
 };
 
 struct DisplaySourceDetails
 {
     DisplayConfig config;
-    DisplayRuntimeState runtime;
+    DisplayRuntime runtime;
 };
 
 struct CameraSourceDetails
 {
     CameraConfig config;
-    CameraRuntimeState runtime;
+    CameraRuntime runtime;
 };
 
 using VideoSourceDetails =

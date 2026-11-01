@@ -59,7 +59,7 @@ void VideoSourceManagerTest::exposesTypedSourcesAndRejectsMissingIds()
 {
     VideoSourceManager manager(
         {{"image", "Logo",
-          ImageSourceDetails{ImageConfig{"fixture.png"}, ImageRuntimeState{QSize(64, 32)}}, false,
+          ImageSourceDetails{ImageConfig{"fixture.png"}, ImageRuntime{QSize(64, 32)}}, false,
           true}});
     QCOMPARE(manager.sources().size(), 1);
     const auto *source = manager.source("image");
@@ -84,7 +84,7 @@ void VideoSourceManagerTest::supportsAllSourceConfigurations()
         {"display", "Display", DisplaySourceDetails{DisplayConfig{"monitor-1", false}}},
         {"camera", "Camera", CameraSourceDetails{CameraConfig{"camera-1", QSize(1280, 720), 30}}},
         {"image", "Image",
-         ImageSourceDetails{ImageConfig{"fixture.png"}, ImageRuntimeState{QSize(64, 32)}}}};
+         ImageSourceDetails{ImageConfig{"fixture.png"}, ImageRuntime{QSize(64, 32)}}}};
     VideoSourceManager manager(entries);
     QCOMPARE(manager.source("display")->type(), VideoSourceType::DisplayCapture);
     QCOMPARE(manager.source("camera")->type(), VideoSourceType::Camera);
@@ -112,14 +112,14 @@ void VideoSourceManagerTest::runtimeDetailsFollowSourceType()
     VideoSource camera{
         "camera", "Camera",
         CameraSourceDetails{CameraConfig{"device"},
-                            CameraRuntimeState{QSize(1280, 720), "capturing", {}, 30000, 1001}}};
+                            CameraRuntime{QSize(1280, 720), "capturing", {}, 30000, 1001}}};
     VideoSource image{"image", "Image",
                       ImageSourceDetails{ImageConfig{"image.png"},
-                                         ImageRuntimeState{QSize(64, 32), "ready", {}}}};
+                                         ImageRuntime{QSize(64, 32), "ready", {}}}};
     VideoSource display{
         "display", "Display",
         DisplaySourceDetails{DisplayConfig{"monitor"},
-                             DisplayRuntimeState{QSize(1920, 1080), "error", "Display lost"}}};
+                             DisplayRuntime{QSize(1920, 1080), "error", "Display lost"}}};
     VideoSourceManager manager({camera, image, display});
     QCOMPARE(std::get<CameraSourceDetails>(manager.source("camera")->details)
                  .runtime.actualFrameRateNumerator,
@@ -326,8 +326,8 @@ void VideoSourceManagerTest::sameImageEntriesRemainIndependent()
     image.fill(Qt::red);
     QVERIFY(image.save(path));
     QList<VideoSource> entries{
-        {"a", "First", ImageSourceDetails{ImageConfig{path}, ImageRuntimeState{image.size()}}},
-        {"b", "Second", ImageSourceDetails{ImageConfig{path}, ImageRuntimeState{image.size()}}}};
+        {"a", "First", ImageSourceDetails{ImageConfig{path}, ImageRuntime{image.size()}}},
+        {"b", "Second", ImageSourceDetails{ImageConfig{path}, ImageRuntime{image.size()}}}};
     VideoSourceManager state(entries);
     entries.clear(); // State owns its source list.
     QVERIFY(state.setSourceVisible("a", false));
@@ -423,7 +423,7 @@ void VideoSourceManagerTest::initializesAndValidatesTransforms()
     }
     VideoSourceManager ready(
         {{"ready", "Ready",
-          ImageSourceDetails{ImageConfig{"ready.png"}, ImageRuntimeState{QSize(40, 20)}}}});
+          ImageSourceDetails{ImageConfig{"ready.png"}, ImageRuntime{QSize(40, 20)}}}});
     QCOMPARE(ready.sources().at(0).transform.size, QSizeF(40, 20));
 }
 

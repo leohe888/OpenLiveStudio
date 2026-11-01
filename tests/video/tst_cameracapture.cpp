@@ -84,7 +84,7 @@ void CameraCaptureTest::unavailableDeviceAndLifecycle()
     image.fill(Qt::red);
     QVERIFY(model.addSource(
         {"image", "Image",
-         ImageSourceDetails{ImageConfig{"unused"}, ImageRuntimeState{image.size()}}}));
+         ImageSourceDetails{ImageConfig{"unused"}, ImageRuntime{image.size()}}}));
     const QString id = controller.addCamera("Camera", CameraConfig{"missing-device"});
     QVERIFY(!id.isEmpty());
     QTRY_COMPARE_WITH_TIMEOUT(model.cameraSource(id)->runtime.captureState, QString("error"),

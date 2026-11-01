@@ -127,7 +127,7 @@ void VideoSourceAggregatorTest::usesModelPropertiesWithoutNewFrames()
 {
     VideoSourceManager model(
         {{"image", "Image",
-          ImageSourceDetails{ImageConfig{"image.png"}, ImageRuntimeState{QSize(40, 20)}}}});
+          ImageSourceDetails{ImageConfig{"image.png"}, ImageRuntime{QSize(40, 20)}}}});
     VideoSourceAggregator aggregator(model);
     QList<PreviewSource> output;
     QSignalSpy changes(&aggregator, &VideoSourceAggregator::sourcesChanged);

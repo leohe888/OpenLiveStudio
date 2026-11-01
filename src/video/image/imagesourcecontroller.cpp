@@ -84,7 +84,7 @@ void ImageSourceController::addImage(const QString &name, const QString &path, Q
             m_images.insert(id, {absolutePath, image, ++m_generation});
             VideoSource source{id, name.trimmed(),
                                ImageSourceDetails{ImageConfig{absolutePath},
-                                                  ImageRuntimeState{image.size(), "ready", {}}}};
+                                                  ImageRuntime{image.size(), "ready", {}}}};
             if (!m_sourceManager.addSource(source)) {
                 m_images.remove(id);
                 emit addFailed(owner, tr("无法添加图片来源。"));
