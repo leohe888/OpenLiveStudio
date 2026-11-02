@@ -255,6 +255,18 @@ bool VideoSourceManager::removeFilter(const QString &sourceId, const QString &fi
     return setSourceFilters(sourceId, filters);
 }
 
+bool VideoSourceManager::canMoveFilterUp(const QString &sourceId, const QString &filterId) const
+{
+    return filterRow(sourceRow(sourceId), filterId) > 0;
+}
+
+bool VideoSourceManager::canMoveFilterDown(const QString &sourceId, const QString &filterId) const
+{
+    const int row = sourceRow(sourceId);
+    const int index = filterRow(row, filterId);
+    return index >= 0 && index + 1 < m_sources.at(row).filters().size();
+}
+
 bool VideoSourceManager::moveFilter(const QString &sourceId, const QString &filterId, int offset)
 {
     const int row = sourceRow(sourceId);

@@ -12,6 +12,7 @@ class VideoSourceManagerTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void filterMoveAvailability();
     void topLevelProperties();
     void insertsSourcesAtTop();
     void sourceRemovalDuringGeometryNotificationIsSafe();
@@ -474,6 +475,42 @@ void VideoSourceManagerTest::mapsSourceCoordinates()
         QVERIFY(start.contains(matrix.map(QPointF(10, 10))));
         QVERIFY(!start.contains(matrix.map(QPointF(-10, 100))));
     }
+}
+
+void VideoSourceManagerTest::filterMoveAvailability()
+{
+    VideoSourceManager manager;
+    QVERIFY(manager.addSource({"image", "Image", ImageSourceConfig{"image.png"}}));
+    QVERIFY(manager.addSource({"other", "Other", ImageSourceConfig{"other.png"}}));
+    QVERIFY(!manager.canMoveFilterUp("image", {}));
+    QVERIFY(!manager.canMoveFilterDown("image", {}));
+    const auto first = manager.addFilter("image");
+    QVERIFY(!first.isEmpty());
+    QVERIFY(!manager.canMoveFilterUp("image", first));
+    QVERIFY(!manager.canMoveFilterDown("image", first));
+    const auto middle = manager.addFilter("image");
+    const auto last = manager.addFilter("image");
+    QVERIFY(!middle.isEmpty() && !last.isEmpty());
+    QVERIFY(!manager.canMoveFilterUp("image", first));
+    QVERIFY(manager.canMoveFilterDown("image", first));
+    QVERIFY(manager.canMoveFilterUp("image", middle));
+    QVERIFY(manager.canMoveFilterDown("image", middle));
+    QVERIFY(manager.canMoveFilterUp("image", last));
+    QVERIFY(!manager.canMoveFilterDown("image", last));
+    for (const auto &id : {QString(), QString("missing"), QString("other")}) {
+        QVERIFY(!manager.canMoveFilterUp(id, first));
+        QVERIFY(!manager.canMoveFilterDown(id, first));
+    }
+    QVERIFY(!manager.canMoveFilterUp("image", "missing"));
+    QVERIFY(!manager.canMoveFilterDown("image", "missing"));
+    QVERIFY(manager.moveFilter("image", first, 1));
+    QVERIFY(manager.canMoveFilterUp("image", first));
+    QVERIFY(!manager.canMoveFilterUp("image", middle));
+    QVERIFY(manager.removeFilter("image", last));
+    QVERIFY(!manager.canMoveFilterDown("image", first));
+    QVERIFY(manager.removeSource("image"));
+    QVERIFY(!manager.canMoveFilterUp("image", first));
+    QVERIFY(!manager.canMoveFilterDown("image", first));
 }
 
 void VideoSourceManagerTest::filtersAreOrderedValidatedAndIndependent()

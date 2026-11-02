@@ -739,8 +739,8 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
         const auto *correction = filter ? std::get_if<ColorCorrectionConfig>(&filter->config())
                                         : nullptr;
         reset->setEnabled(correction != nullptr);
-        up->setEnabled(index > 0);
-        down->setEnabled(index >= 0 && index + 1 < filters.size());
+        up->setEnabled(manager->canMoveFilterUp(sourceId, selected()));
+        down->setEnabled(manager->canMoveFilterDown(sourceId, selected()));
 
         std::array<double, 3> values{0, 1, 1};
         if (correction)

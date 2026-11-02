@@ -58,6 +58,8 @@ public:
     QString addFilter(const QString &sourceId,
                       VideoSourceFilterType type = VideoSourceFilterType::ColorCorrection);
     bool removeFilter(const QString &sourceId, const QString &filterId);
+    bool canMoveFilterUp(const QString &sourceId, const QString &filterId) const;
+    bool canMoveFilterDown(const QString &sourceId, const QString &filterId) const;
     bool moveFilter(const QString &sourceId, const QString &filterId, int offset);
 
     VideoSourceRuntime sourceRuntime(const QString &sourceId) const;
