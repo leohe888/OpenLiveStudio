@@ -40,6 +40,16 @@ struct ImageSourceConfig
 // Configuration owned by the source kind; the active alternative decides VideoSource::type().
 using VideoSourceConfig = std::variant<DisplaySourceConfig, CameraSourceConfig, ImageSourceConfig>;
 
+struct VideoSourceRuntime
+{
+    QSize pixelSize;
+    QString state;
+    QString error;
+    // Only populated for camera sources.
+    int actualFrameRateNumerator = 0;
+    int actualFrameRateDenominator = 1;
+};
+
 struct VideoSource
 {
     QString id;
@@ -49,6 +59,7 @@ struct VideoSource
     bool locked = false;
     VideoSourceCanvasGeometry canvasGeometry;
     QList<VideoSourceFilter> filters;
+    VideoSourceRuntime runtime;
 
     VideoSourceType type() const;
 };

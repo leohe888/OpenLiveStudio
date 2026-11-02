@@ -3,20 +3,9 @@
 
 #include "video/videosource.h"
 
-#include <QHash>
 #include <QList>
 #include <QObject>
 #include <QString>
-
-struct VideoSourceStatus
-{
-    QSize pixelSize;
-    QString state;
-    QString error;
-    // Only populated for camera sources.
-    int actualFrameRateNumerator = 0;
-    int actualFrameRateDenominator = 1;
-};
 
 class VideoSourceManager : public QObject
 {
@@ -35,11 +24,11 @@ public:
     // The pointer is only valid until the next mutation; do not retain it across signals.
     const VideoSource *source(const QString &sourceId) const;
 
-    VideoSourceStatus sourceStatus(const QString &sourceId) const;
+    VideoSourceRuntime sourceStatus(const QString &sourceId) const;
 
     bool setSourceCanvasGeometry(const QString &sourceId,
                                 const VideoSourceCanvasGeometry &canvasGeometry);
-    bool addSource(const VideoSource &source, const VideoSourceStatus &status = {});
+    bool addSource(const VideoSource &source);
     bool setSourcePixelSize(const QString &sourceId, const QSize &size);
     bool setSourceStatus(const QString &sourceId, const QString &state, const QString &error);
     bool canEditCurrentDisplay() const;
@@ -100,7 +89,6 @@ private:
     int filterRow(int sourceRow, const QString &filterId) const;
     void notifyFiltersChanged(int row);
     QList<VideoSource> m_sources;
-    QHash<QString, VideoSourceStatus> m_statuses;
     QString m_currentSourceId;
 };
 

@@ -13,6 +13,7 @@ class VideoSourceManagerTest : public QObject
 private slots:
     void insertsSourcesAtTop();
     void sourceRemovalDuringGeometryNotificationIsSafe();
+    void sourceReorderingDuringGeometryNotificationIsSafe();
     void displayPropertiesPreserveSourceState();
     void initializesAndValidatesCanvasGeometry();
     void mapsSourceCoordinates();
@@ -68,6 +69,7 @@ void VideoSourceManagerTest::exposesTypedSourcesAndRejectsMissingIds()
     QCOMPARE(source->name, QString("Logo"));
     QVERIFY(manager.setSourcePixelSize("image", {64, 32}));
     QCOMPARE(manager.sourceStatus("image").pixelSize, QSize(64, 32));
+    QCOMPARE(manager.source("image")->runtime.pixelSize, QSize(64, 32));
     QVERIFY(!source->visible);
     QVERIFY(source->locked);
     QCOMPARE(std::get<ImageSourceConfig>(source->config).filePath, QString("fixture.png"));
@@ -131,10 +133,15 @@ void VideoSourceManagerTest::runtimeDetailsFollowSourceType()
     QVERIFY(manager.setSourceStatus("image", "ready", {}));
     QVERIFY(manager.sourceStatus("image").error.isEmpty());
     QCOMPARE(changed.count(), 0);
-    // A copied source list does not carry runtime state into another manager.
+    // Runtime travels with source snapshots and is copied independently.
     VideoSourceManager copy(manager.sources());
-    QVERIFY(copy.sourceStatus("camera").pixelSize.isEmpty());
-    QVERIFY(copy.sourceStatus("image").state.isEmpty());
+    QCOMPARE(copy.sourceStatus("camera").pixelSize, QSize(1280, 720));
+    QCOMPARE(copy.source("camera")->runtime.actualFrameRateNumerator, 30000);
+    QCOMPARE(copy.source("camera")->runtime.actualFrameRateDenominator, 1001);
+    QCOMPARE(copy.source("image")->runtime.state, QString("ready"));
+    QVERIFY(copy.setSourceStatus("image", "error", "Copy failed"));
+    QCOMPARE(manager.source("image")->runtime.state, QString("ready"));
+    QVERIFY(manager.source("image")->runtime.error.isEmpty());
     QVERIFY(manager.moveSource("camera", 1));
     QCOMPARE(manager.sourceStatus("camera").pixelSize, QSize(1280, 720));
     QVERIFY(manager.removeSource("camera"));
@@ -143,6 +150,15 @@ void VideoSourceManagerTest::runtimeDetailsFollowSourceType()
     QVERIFY(manager.sourceStatus("camera").state.isEmpty());
     QCOMPARE(manager.sourceStatus("camera").actualFrameRateNumerator, 0);
     QVERIFY(manager.sourceStatus("image").state == "ready");
+    camera.runtime = {{640, 360}, "capturing", {}, 30, 1};
+    QVERIFY(manager.removeSource("camera"));
+    QVERIFY(manager.addSource(camera));
+    QCOMPARE(manager.source("camera")->runtime.pixelSize, QSize(640, 360));
+    QCOMPARE(manager.source("camera")->runtime.actualFrameRateNumerator, 30);
+    QCOMPARE(manager.source("camera")->canvasGeometry.size(), QSizeF(640, 360));
+    VideoSourceManager initialized({camera});
+    QCOMPARE(initialized.source("camera")->runtime.state, QString("capturing"));
+    QCOMPARE(initialized.source("camera")->canvasGeometry.size(), QSizeF(640, 360));
 }
 
 void VideoSourceManagerTest::selectionNotifiesOnlyOnChange()
@@ -559,4 +575,20 @@ void VideoSourceManagerTest::sourceRemovalDuringGeometryNotificationIsSafe()
     });
     manager.setCameraActualMode("camera", QSize(1280, 720), 30, 1);
     QVERIFY(manager.sources().isEmpty());
+}
+
+void VideoSourceManagerTest::sourceReorderingDuringGeometryNotificationIsSafe()
+{
+    VideoSourceManager manager({
+        {"camera", "Camera", CameraSourceConfig{"device"}},
+        {"image", "Image", ImageSourceConfig{"image.png"}}});
+    connect(&manager, &VideoSourceManager::sourceChanged, this, [&](const QString &sourceId) {
+        QVERIFY(manager.moveSource(sourceId, 1));
+    });
+    QVERIFY(manager.setCameraActualMode("camera", QSize(1280, 720), 30000, 1001));
+    QCOMPARE(manager.sources().at(1).id, QString("camera"));
+    QCOMPARE(manager.source("camera")->runtime.pixelSize, QSize(1280, 720));
+    QCOMPARE(manager.source("camera")->runtime.actualFrameRateNumerator, 30000);
+    QCOMPARE(manager.source("camera")->runtime.actualFrameRateDenominator, 1001);
+    QCOMPARE(manager.source("image")->runtime.actualFrameRateNumerator, 0);
 }

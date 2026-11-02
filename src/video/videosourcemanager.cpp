@@ -9,6 +9,10 @@ VideoSourceManager::VideoSourceManager(QObject *parent)
 VideoSourceManager::VideoSourceManager(const QList<VideoSource> &sources, QObject *parent)
     : QObject(parent), m_sources(sources)
 {
+    for (auto &source : m_sources) {
+        if (source.canvasGeometry.size().isEmpty())
+            source.canvasGeometry = VideoSourceCanvasGeometry(source.runtime.pixelSize);
+    }
     connect(this, &VideoSourceManager::currentSourceIdChanged, this,
             &VideoSourceManager::sourceMoveAvailabilityChanged);
     connect(this, &VideoSourceManager::sourcesChanged, this,
@@ -21,9 +25,10 @@ const VideoSource *VideoSourceManager::source(const QString &sourceId) const
     return row >= 0 ? &m_sources.at(row) : nullptr;
 }
 
-VideoSourceStatus VideoSourceManager::sourceStatus(const QString &sourceId) const
+VideoSourceRuntime VideoSourceManager::sourceStatus(const QString &sourceId) const
 {
-    return m_statuses.value(sourceId);
+    const auto *entry = source(sourceId);
+    return entry ? entry->runtime : VideoSourceRuntime{};
 }
 
 bool VideoSourceManager::selectSource(const QString &sourceId)
@@ -66,7 +71,6 @@ bool VideoSourceManager::removeSource(const QString &sourceId)
     if (sourceId == m_currentSourceId)
         selectSource({});
     m_sources.removeAt(row);
-    m_statuses.remove(sourceId);
     emit sourcesChanged();
     return true;
 }
@@ -133,7 +137,7 @@ bool VideoSourceManager::setSourceLocked(const QString &sourceId, bool locked)
     return true;
 }
 
-bool VideoSourceManager::addSource(const VideoSource &source, const VideoSourceStatus &status)
+bool VideoSourceManager::addSource(const VideoSource &source)
 {
     if (source.id.trimmed().isEmpty() || sourceRow(source.id) >= 0)
         return false;
@@ -143,9 +147,8 @@ bool VideoSourceManager::addSource(const VideoSource &source, const VideoSourceS
     }
     VideoSource initialized = source;
     if (initialized.canvasGeometry.size().isEmpty())
-        initialized.canvasGeometry = VideoSourceCanvasGeometry(status.pixelSize);
+        initialized.canvasGeometry = VideoSourceCanvasGeometry(source.runtime.pixelSize);
     m_sources.prepend(initialized);
-    m_statuses.insert(source.id, status);
     emit sourcesChanged();
     selectSource(source.id);
     return true;
@@ -156,7 +159,7 @@ bool VideoSourceManager::setSourcePixelSize(const QString &sourceId, const QSize
     const int row = sourceRow(sourceId);
     if (row < 0)
         return false;
-    auto &pixelSize = m_statuses[sourceId].pixelSize;
+    auto &pixelSize = m_sources[row].runtime.pixelSize;
     if (pixelSize != size) {
         const QSize previous = pixelSize;
         pixelSize = size;
@@ -329,7 +332,7 @@ bool VideoSourceManager::setSourceStatus(const QString &sourceId, const QString 
     const int row = sourceRow(sourceId);
     if (row < 0)
         return false;
-    auto &status = m_statuses[sourceId];
+    auto &status = m_sources[row].runtime;
     if (status.state != state || status.error != error) {
         status.state = state;
         status.error = error;
@@ -383,9 +386,10 @@ bool VideoSourceManager::setCameraActualMode(const QString &sourceId, const QSiz
         return false;
     setSourcePixelSize(sourceId, size);
     // Geometry notifications may synchronously remove the source.
-    if (!source(sourceId))
+    const int updatedRow = sourceRow(sourceId);
+    if (updatedRow < 0)
         return false;
-    auto &camera = m_statuses[sourceId];
+    auto &camera = m_sources[updatedRow].runtime;
     if (camera.actualFrameRateNumerator == numerator &&
         camera.actualFrameRateDenominator == denominator)
         return true;
