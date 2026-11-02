@@ -103,11 +103,11 @@ CameraMode modeInfo(IMFMediaType *type)
 
 bool matches(const CameraSourceConfig &config, const CameraMode &mode)
 {
-    if (config.resolution.isEmpty())
+    if (config.resolution().isEmpty())
         return true;
-    const double wanted = double(config.frameRateNumerator) / config.frameRateDenominator;
+    const double wanted = double(config.frameRateNumerator()) / config.frameRateDenominator();
     const double actual = double(mode.numerator) / mode.denominator;
-    return config.resolution == QSize(mode.width, mode.height) &&
+    return config.resolution() == QSize(mode.width, mode.height) &&
            std::abs(wanted - actual) <= std::max(0.001, wanted * 0.0001);
 }
 
@@ -389,7 +389,7 @@ void CameraCaptureWorker::run()
 #ifdef Q_OS_WIN
     try {
         Runtime runtime;
-        auto source = openCamera(m_config.deviceId);
+        auto source = openCamera(m_config.deviceId());
         const auto shutdown = qScopeGuard([&] {
             source->Shutdown();
         });
@@ -430,7 +430,7 @@ void CameraCaptureWorker::run()
         check(MFCreateMediaType(&output));
         check(output->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video));
         check(output->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32));
-        if (!m_config.resolution.isEmpty()) {
+        if (!m_config.resolution().isEmpty()) {
             bool selected = false;
             for (DWORD i = 0;; ++i) {
                 ComPtr<IMFMediaType> type;

@@ -107,12 +107,12 @@ public:
             cursor = new QCheckBox(tr("采集鼠标光标"), this);
             cursor->setObjectName("captureCursorInput");
             const DisplaySourceConfig config =
-                initial ? std::get<DisplaySourceConfig>(initial->config) : DisplaySourceConfig{};
-            cursor->setChecked(config.captureCursor);
+                initial ? std::get<DisplaySourceConfig>(initial->config()) : DisplaySourceConfig{};
+            cursor->setChecked(config.captureCursor());
             layout->addWidget(cursor);
             layout->addWidget(
                 label(this, "displayCaptureHint", tr("原始分辨率 · 最高 30 FPS · SDR")));
-            fillDevices(device, displays->displayDevices(), config.displayId);
+            fillDevices(device, displays->displayDevices(), config.displayId());
             connect(displays, &DisplaySourceController::displayDevicesChanged, this, [=] {
                 fillDevices(device, displays->displayDevices(), device->currentData().toString());
                 if (changed)
@@ -123,13 +123,13 @@ public:
             displays->refreshDisplayDevices();
         } else {
             const CameraSourceConfig config =
-                initial ? std::get<CameraSourceConfig>(initial->config) : CameraSourceConfig{};
-            originalMode = {config.resolution.width(), config.resolution.height(),
-                            config.frameRateNumerator, config.frameRateDenominator};
+                initial ? std::get<CameraSourceConfig>(initial->config()) : CameraSourceConfig{};
+            originalMode = {config.resolution().width(), config.resolution().height(),
+                            config.frameRateNumerator(), config.frameRateDenominator()};
             mode = new QComboBox(this);
             mode->setObjectName("cameraModeInput");
             layout->addWidget(mode);
-            fillDevices(device, cameras->devices(), config.deviceId);
+            fillDevices(device, cameras->devices(), config.deviceId());
 
             const auto loadModes = [=] {
                 const auto id = device->currentData().toString();
@@ -283,29 +283,29 @@ VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent)
             return;
         auto *widget = list->itemWidget(item);
         const auto runtime = manager->sourceStatus(sourceId);
-        const QString state = source->type() == VideoSourceType::Image ? QString() : runtime.state;
-        const QString error = source->type() == VideoSourceType::Image ? QString() : runtime.error;
+        const QString state = source->type() == VideoSourceType::Image ? QString() : runtime.state();
+        const QString error = source->type() == VideoSourceType::Image ? QString() : runtime.error();
         auto *text = widget->findChild<QLabel *>();
-        text->setText(source->name + (state == "error" ? tr(" · 采集失败") : QString()));
-        text->setToolTip(error.isEmpty() ? source->name : error);
-        item->setData(Qt::AccessibleTextRole, source->name);
+        text->setText(source->name() + (state == "error" ? tr(" · 采集失败") : QString()));
+        text->setToolTip(error.isEmpty() ? source->name() : error);
+        item->setData(Qt::AccessibleTextRole, source->name());
         item->setData(Qt::AccessibleDescriptionRole, error);
 
         auto *visibility = widget->findChild<QToolButton *>("sourceVisibilityButton");
-        visibility->setChecked(source->visible);
+        visibility->setChecked(source->visible());
         visibility->setIcon(
-            QIcon(source->visible ? ":/assets/icons/eye.svg" : ":/assets/icons/eye-off.svg"));
+            QIcon(source->visible() ? ":/assets/icons/eye.svg" : ":/assets/icons/eye-off.svg"));
         auto *lock = widget->findChild<QToolButton *>("sourceLockButton");
-        lock->setChecked(source->locked);
+        lock->setChecked(source->locked());
         lock->setIcon(
-            QIcon(source->locked ? ":/assets/icons/lock.svg" : ":/assets/icons/lock-open.svg"));
+            QIcon(source->locked() ? ":/assets/icons/lock.svg" : ":/assets/icons/lock-open.svg"));
     };
 
     const auto rebuild = [=] {
         QSignalBlocker block(list);
         list->clear();
         for (const auto &source : manager->sources()) {
-            const auto id = source.id;
+            const auto id = source.id();
             auto *item = new QListWidgetItem(list);
             item->setData(Qt::UserRole, id);
             item->setSizeHint(QSize(180, 34));
@@ -341,7 +341,7 @@ VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent)
         }
         empty->setVisible(manager->sources().isEmpty());
         for (const auto &source : manager->sources())
-            updateRow(source.id);
+            updateRow(source.id());
         selection();
     };
 
@@ -603,21 +603,21 @@ QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceManager *manag
             return;
         }
         const auto runtime = manager->sourceStatus(sourceId);
-        const QString status = runtime.state;
+        const QString status = runtime.state();
         QString text = status == "capturing" ? QObject::tr("采集中")
                        : status == "paused"  ? QObject::tr("已暂停：来源当前隐藏")
                        : status == "error"   ? QObject::tr("采集失败")
                                              : QObject::tr("等待采集画面…");
         if (camera && status == "capturing") {
             text += QObject::tr(" · %1 × %2 · 协商帧率 %3 FPS")
-                        .arg(runtime.pixelSize.width())
-                        .arg(runtime.pixelSize.height())
-                        .arg(double(runtime.actualFrameRateNumerator) /
-                                 qMax(1, runtime.actualFrameRateDenominator),
+                        .arg(runtime.pixelSize().width())
+                        .arg(runtime.pixelSize().height())
+                        .arg(double(runtime.actualFrameRateNumerator()) /
+                                 qMax(1, runtime.actualFrameRateDenominator()),
                              0, 'f', 2);
         }
         state->setText(text);
-        error->setText(runtime.error);
+        error->setText(runtime.error());
         retry->setEnabled(!camera || status == "error");
         apply->setEnabled(settings->ready());
     };

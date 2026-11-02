@@ -65,14 +65,14 @@ void VideoSourceManagerTest::exposesTypedSourcesAndRejectsMissingIds()
     QCOMPARE(manager.sources().size(), 1);
     const auto *source = manager.source("image");
     QVERIFY(source);
-    QCOMPARE(source->id, QString("image"));
-    QCOMPARE(source->name, QString("Logo"));
+    QCOMPARE(source->id(), QString("image"));
+    QCOMPARE(source->name(), QString("Logo"));
     QVERIFY(manager.setSourcePixelSize("image", {64, 32}));
-    QCOMPARE(manager.sourceStatus("image").pixelSize, QSize(64, 32));
-    QCOMPARE(manager.source("image")->runtime.pixelSize, QSize(64, 32));
-    QVERIFY(!source->visible);
-    QVERIFY(source->locked);
-    QCOMPARE(std::get<ImageSourceConfig>(source->config).filePath, QString("fixture.png"));
+    QCOMPARE(manager.sourceStatus("image").pixelSize(), QSize(64, 32));
+    QCOMPARE(manager.source("image")->runtime().pixelSize(), QSize(64, 32));
+    QVERIFY(!source->visible());
+    QVERIFY(source->locked());
+    QCOMPARE(std::get<ImageSourceConfig>(source->config()).filePath(), QString("fixture.png"));
     QVERIFY(!manager.source("missing"));
     QVERIFY(!manager.cameraSource("image"));
     QVERIFY(!manager.displaySource("image"));
@@ -93,19 +93,19 @@ void VideoSourceManagerTest::supportsAllSourceConfigs()
     QCOMPARE(manager.source("display")->type(), VideoSourceType::DisplayCapture);
     QCOMPARE(manager.source("camera")->type(), VideoSourceType::Camera);
     QCOMPARE(manager.source("image")->type(), VideoSourceType::Image);
-    QCOMPARE(manager.sourceStatus("image").pixelSize, QSize(64, 32));
+    QCOMPARE(manager.sourceStatus("image").pixelSize(), QSize(64, 32));
     for (const auto &entry : entries) {
-        QVERIFY(manager.selectSource(entry.id));
-        QVERIFY(manager.setSourceVisible(entry.id, false));
-        QVERIFY(manager.setSourceLocked(entry.id, true));
+        QVERIFY(manager.selectSource(entry.id()));
+        QVERIFY(manager.setSourceVisible(entry.id(), false));
+        QVERIFY(manager.setSourceLocked(entry.id(), true));
     }
-    entries[0].config = ImageSourceConfig{"replacement.png"};
+    entries[0].setConfig(ImageSourceConfig{"replacement.png"});
     QCOMPARE(manager.source("display")->type(), VideoSourceType::DisplayCapture);
     QVERIFY(manager.moveSource("image", -1));
-    QCOMPARE(manager.sources().at(1).id, QString("image"));
+    QCOMPARE(manager.sources().at(1).id(), QString("image"));
     for (const auto &source : manager.sources()) {
-        QVERIFY(!source.visible);
-        QVERIFY(source.locked);
+        QVERIFY(!source.visible());
+        QVERIFY(source.locked());
     }
     QVERIFY(manager.removeSource("image"));
     QCOMPARE(manager.sources().at(1).type(), VideoSourceType::Camera);
@@ -117,8 +117,8 @@ void VideoSourceManagerTest::runtimeDetailsFollowSourceType()
     VideoSource image{"image", "Image", ImageSourceConfig{"image.png"}};
     VideoSourceManager manager({camera, image});
     QVERIFY(manager.setCameraActualMode("camera", {1280, 720}, 30000, 1001));
-    QCOMPARE(manager.sourceStatus("camera").actualFrameRateNumerator, 30000);
-    QCOMPARE(manager.sourceStatus("camera").actualFrameRateDenominator, 1001);
+    QCOMPARE(manager.sourceStatus("camera").actualFrameRateNumerator(), 30000);
+    QCOMPARE(manager.sourceStatus("camera").actualFrameRateDenominator(), 1001);
     QVERIFY(!manager.setCameraActualMode("image", {800, 600}, 30, 1));
     QVERIFY(!manager.setSourceStatus("missing", "ready", {}));
     QVERIFY(!manager.setSourcePixelSize("missing", {64, 32}));
@@ -127,38 +127,38 @@ void VideoSourceManagerTest::runtimeDetailsFollowSourceType()
     QVERIFY(manager.setSourceStatus("image", "error", "Load failed"));
     QCOMPARE(status.count(), 1);
     QCOMPARE(status.last().at(0).toString(), QString("image"));
-    QCOMPARE(manager.sourceStatus("image").error, QString("Load failed"));
+    QCOMPARE(manager.sourceStatus("image").error(), QString("Load failed"));
     QVERIFY(manager.setSourceStatus("image", "error", "Load failed"));
     QCOMPARE(status.count(), 1);
     QVERIFY(manager.setSourceStatus("image", "ready", {}));
-    QVERIFY(manager.sourceStatus("image").error.isEmpty());
+    QVERIFY(manager.sourceStatus("image").error().isEmpty());
     QCOMPARE(changed.count(), 0);
     // Runtime travels with source snapshots and is copied independently.
     VideoSourceManager copy(manager.sources());
-    QCOMPARE(copy.sourceStatus("camera").pixelSize, QSize(1280, 720));
-    QCOMPARE(copy.source("camera")->runtime.actualFrameRateNumerator, 30000);
-    QCOMPARE(copy.source("camera")->runtime.actualFrameRateDenominator, 1001);
-    QCOMPARE(copy.source("image")->runtime.state, QString("ready"));
+    QCOMPARE(copy.sourceStatus("camera").pixelSize(), QSize(1280, 720));
+    QCOMPARE(copy.source("camera")->runtime().actualFrameRateNumerator(), 30000);
+    QCOMPARE(copy.source("camera")->runtime().actualFrameRateDenominator(), 1001);
+    QCOMPARE(copy.source("image")->runtime().state(), QString("ready"));
     QVERIFY(copy.setSourceStatus("image", "error", "Copy failed"));
-    QCOMPARE(manager.source("image")->runtime.state, QString("ready"));
-    QVERIFY(manager.source("image")->runtime.error.isEmpty());
+    QCOMPARE(manager.source("image")->runtime().state(), QString("ready"));
+    QVERIFY(manager.source("image")->runtime().error().isEmpty());
     QVERIFY(manager.moveSource("camera", 1));
-    QCOMPARE(manager.sourceStatus("camera").pixelSize, QSize(1280, 720));
+    QCOMPARE(manager.sourceStatus("camera").pixelSize(), QSize(1280, 720));
     QVERIFY(manager.removeSource("camera"));
-    QVERIFY(manager.sourceStatus("camera").pixelSize.isEmpty());
+    QVERIFY(manager.sourceStatus("camera").pixelSize().isEmpty());
     QVERIFY(manager.addSource(camera));
-    QVERIFY(manager.sourceStatus("camera").state.isEmpty());
-    QCOMPARE(manager.sourceStatus("camera").actualFrameRateNumerator, 0);
-    QVERIFY(manager.sourceStatus("image").state == "ready");
-    camera.runtime = {{640, 360}, "capturing", {}, 30, 1};
+    QVERIFY(manager.sourceStatus("camera").state().isEmpty());
+    QCOMPARE(manager.sourceStatus("camera").actualFrameRateNumerator(), 0);
+    QVERIFY(manager.sourceStatus("image").state() == "ready");
+    camera.setRuntime({{640, 360}, "capturing", {}, 30, 1});
     QVERIFY(manager.removeSource("camera"));
     QVERIFY(manager.addSource(camera));
-    QCOMPARE(manager.source("camera")->runtime.pixelSize, QSize(640, 360));
-    QCOMPARE(manager.source("camera")->runtime.actualFrameRateNumerator, 30);
-    QCOMPARE(manager.source("camera")->canvasGeometry.size(), QSizeF(640, 360));
+    QCOMPARE(manager.source("camera")->runtime().pixelSize(), QSize(640, 360));
+    QCOMPARE(manager.source("camera")->runtime().actualFrameRateNumerator(), 30);
+    QCOMPARE(manager.source("camera")->canvasGeometry().size(), QSizeF(640, 360));
     VideoSourceManager initialized({camera});
-    QCOMPARE(initialized.source("camera")->runtime.state, QString("capturing"));
-    QCOMPARE(initialized.source("camera")->canvasGeometry.size(), QSizeF(640, 360));
+    QCOMPARE(initialized.source("camera")->runtime().state(), QString("capturing"));
+    QCOMPARE(initialized.source("camera")->canvasGeometry().size(), QSizeF(640, 360));
 }
 
 void VideoSourceManagerTest::selectionNotifiesOnlyOnChange()
@@ -189,8 +189,8 @@ void VideoSourceManagerTest::removesSelectedSource()
 {
     QFETCH(int, row);
     VideoSourceManager manager(sources());
-    const QString id = manager.sources().at(row).id;
-    const QString survivorId = manager.sources().at((row + 1) % 3).id;
+    const QString id = manager.sources().at(row).id();
+    const QString survivorId = manager.sources().at((row + 1) % 3).id();
     QVERIFY(manager.selectSource(id));
     QSignalSpy selected(&manager, &VideoSourceManager::currentSourceIdChanged);
     QSignalSpy changed(&manager, &VideoSourceManager::sourcesChanged);
@@ -211,7 +211,7 @@ void VideoSourceManagerTest::removalNotifiesAfterMutation()
     int notifications = 0;
     connect(&manager, &VideoSourceManager::sourcesChanged, this, [&] {
         QCOMPARE(manager.sources().size(), 2);
-        QCOMPARE(manager.sources().at(1).id, QString("c"));
+        QCOMPARE(manager.sources().at(1).id(), QString("c"));
         QVERIFY(!manager.source("b"));
         ++notifications;
     });
@@ -236,10 +236,10 @@ void VideoSourceManagerTest::movesSourcesAndPreservesIdentity()
     QCOMPARE(changed.count(), 1);
     QCOMPARE(available.count(), 1);
     QCOMPARE(selected.count(), 0);
-    QCOMPARE(manager.sources().at(1).id, QString("a"));
-    QCOMPARE(manager.source("a")->name, QString("Image"));
-    QVERIFY(!manager.source("a")->visible);
-    QVERIFY(manager.source("a")->locked);
+    QCOMPARE(manager.sources().at(1).id(), QString("a"));
+    QCOMPARE(manager.source("a")->name(), QString("Image"));
+    QVERIFY(!manager.source("a")->visible());
+    QVERIFY(manager.source("a")->locked());
     QVERIFY(manager.canMoveCurrentSourceUp());
     QVERIFY(manager.canMoveCurrentSourceDown());
     QVERIFY(manager.removeSource("c"));
@@ -266,8 +266,8 @@ void VideoSourceManagerTest::flagsNotifyOnlyChangedSource()
     QVERIFY(manager.setSourceLocked("b", true));
     QCOMPARE(changed.count(), 2);
     QCOMPARE(selected.count(), 0);
-    QVERIFY(!manager.source("b")->visible);
-    QVERIFY(manager.source("b")->locked);
+    QVERIFY(!manager.source("b")->visible());
+    QVERIFY(manager.source("b")->locked());
     QVERIFY(manager.removeSource("b"));
 }
 
@@ -340,10 +340,10 @@ void VideoSourceManagerTest::sameImageEntriesRemainIndependent()
     QVERIFY(state.setSourceLocked("a", true));
     QVERIFY(state.moveSource("a", 1));
     const auto other = *state.source("b");
-    QCOMPARE(other.id, QString("b"));
-    QCOMPARE(state.sourceStatus(other.id).pixelSize, image.size());
-    QVERIFY(other.visible);
-    QVERIFY(!other.locked);
+    QCOMPARE(other.id(), QString("b"));
+    QCOMPARE(state.sourceStatus(other.id()).pixelSize(), image.size());
+    QVERIFY(other.visible());
+    QVERIFY(!other.locked());
     QVERIFY(state.selectSource("a"));
     QVERIFY(state.removeSource("a"));
     QVERIFY(state.currentSourceId().isEmpty());
@@ -373,7 +373,7 @@ void VideoSourceManagerTest::insertsSourcesAtTop()
     QCOMPARE(model.sources().size(), 2);
     QCOMPARE(inserted.count(), 2);
     QCOMPARE(model.currentSourceId(), QString("two"));
-    QCOMPARE(model.sources().at(0).id, QString("two"));
+    QCOMPARE(model.sources().at(0).id(), QString("two"));
     QVERIFY(model.canMoveCurrentSourceDown());
     QVERIFY(!model.canMoveCurrentSourceUp());
     QVERIFY(!availability.isEmpty());
@@ -388,7 +388,7 @@ void VideoSourceManagerTest::initializesAndValidatesCanvasGeometry()
     VideoSourceManager model;
     QVERIFY(model.addSource({"image", "Image", ImageSourceConfig{"image.png"}}));
     const auto current = [&] {
-        return model.sources().at(0).canvasGeometry;
+        return model.sources().at(0).canvasGeometry();
     };
     QVERIFY(current().size().isEmpty());
     QVERIFY(model.setSourcePixelSize("image", QSize(4000, 2000)));
@@ -431,7 +431,7 @@ void VideoSourceManagerTest::initializesAndValidatesCanvasGeometry()
         {{"ready", "Ready",
           ImageSourceConfig{"ready.png"}}});
     ready.setSourcePixelSize("ready", {40, 20});
-    QCOMPARE(ready.sources().at(0).canvasGeometry.size(), QSizeF(40, 20));
+    QCOMPARE(ready.sources().at(0).canvasGeometry().size(), QSizeF(40, 20));
 }
 
 void VideoSourceManagerTest::mapsSourceCoordinates()
@@ -506,7 +506,7 @@ void VideoSourceManagerTest::filtersAreOrderedValidatedAndIndependent()
     QCOMPARE(model.sourceFilters("a")[1].id, first);
     QVERIFY(model.setFilterEnabled("a", first, true));
     QCOMPARE(std::get<ColorCorrectionConfig>(model.sourceFilters("a")[1].config).brightness, .2f);
-    const auto typed = model.sources().at(0).filters;
+    const auto typed = model.sources().at(0).filters();
     QCOMPARE(typed[1].id, first);
     QCOMPARE(std::get<ColorCorrectionConfig>(typed[1].config).saturation, 0.f);
     QVERIFY(!model.setFilterEnabled("b", first, false));
@@ -543,19 +543,19 @@ void VideoSourceManagerTest::displayPropertiesPreserveSourceState()
     QCOMPARE(changed.count(), before);
     QVERIFY(model.setDisplayConfig("screen", "another-physical-path", false));
     QCOMPARE(changed.last().at(0).toString(), QString("screen"));
-    QCOMPARE(model.sources().at(0).canvasGeometry, canvasGeometry);
+    QCOMPARE(model.sources().at(0).canvasGeometry(), canvasGeometry);
     QCOMPARE(model.sourceFilters("screen")[0].id, filter);
-    QCOMPARE(model.displaySource("screen")->displayId, QString("another-physical-path"));
-    QVERIFY(!model.displaySource("screen")->captureCursor);
+    QCOMPARE(model.displaySource("screen")->displayId(), QString("another-physical-path"));
+    QVERIFY(!model.displaySource("screen")->captureCursor());
     QVERIFY(model.setSourceStatus("screen", "error", "Disconnected"));
     QCOMPARE(status.count(), 1);
     QVERIFY(model.setSourceStatus("screen", "error", "Disconnected"));
     QCOMPARE(status.count(), 1);
-    QCOMPARE(model.sourceStatus(model.sources().at(0).id).state,
+    QCOMPARE(model.sourceStatus(model.sources().at(0).id()).state(),
              QString("error"));
-    QCOMPARE(model.sourceStatus("screen").error, QString("Disconnected"));
+    QCOMPARE(model.sourceStatus("screen").error(), QString("Disconnected"));
     QVERIFY(model.setSourceStatus("screen", "starting", {}));
-    QVERIFY(model.sourceStatus("screen").error.isEmpty());
+    QVERIFY(model.sourceStatus("screen").error().isEmpty());
     QVERIFY(model.selectSource("image"));
     QVERIFY(!model.canEditCurrentDisplay() && model.canFilterCurrentSource());
     QVERIFY(model.selectSource("camera"));
@@ -586,9 +586,9 @@ void VideoSourceManagerTest::sourceReorderingDuringGeometryNotificationIsSafe()
         QVERIFY(manager.moveSource(sourceId, 1));
     });
     QVERIFY(manager.setCameraActualMode("camera", QSize(1280, 720), 30000, 1001));
-    QCOMPARE(manager.sources().at(1).id, QString("camera"));
-    QCOMPARE(manager.source("camera")->runtime.pixelSize, QSize(1280, 720));
-    QCOMPARE(manager.source("camera")->runtime.actualFrameRateNumerator, 30000);
-    QCOMPARE(manager.source("camera")->runtime.actualFrameRateDenominator, 1001);
-    QCOMPARE(manager.source("image")->runtime.actualFrameRateNumerator, 0);
+    QCOMPARE(manager.sources().at(1).id(), QString("camera"));
+    QCOMPARE(manager.source("camera")->runtime().pixelSize(), QSize(1280, 720));
+    QCOMPARE(manager.source("camera")->runtime().actualFrameRateNumerator(), 30000);
+    QCOMPARE(manager.source("camera")->runtime().actualFrameRateDenominator(), 1001);
+    QCOMPARE(manager.source("image")->runtime().actualFrameRateNumerator(), 0);
 }

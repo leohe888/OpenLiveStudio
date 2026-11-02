@@ -57,7 +57,7 @@ void VideoSourceAggregator::publish()
     QSet<QString> retained;
     const auto sourceEntries = m_sourceManager.sources();
     for (const auto &item : sourceEntries) {
-        const auto id = item.id;
+        const auto id = item.id();
         retained.insert(id);
         const auto type = item.type();
         const Snapshot *snapshot = nullptr;
@@ -74,10 +74,10 @@ void VideoSourceAggregator::publish()
             continue;
 
         PreviewSource source = *entry;
-        source.visible = item.visible;
-        source.locked = item.locked;
-        source.canvasGeometry = item.canvasGeometry;
-        source.filters = item.filters;
+        source.visible = item.visible();
+        source.locked = item.locked();
+        source.canvasGeometry = item.canvasGeometry();
+        source.filters = item.filters();
         result.append(std::move(source));
     }
     // Release removed frames even when a controller has no further updates.

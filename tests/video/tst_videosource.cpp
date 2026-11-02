@@ -9,6 +9,7 @@ class VideoSourceTest : public QObject
 
 private slots:
     void typeFollowsConfig();
+    void configEditsAndSourceCopiesAreIndependent();
     void canvasGeometryConstructionAndAngles();
     void cameraConfigValidation_data();
     void cameraConfigValidation();
@@ -19,11 +20,11 @@ void VideoSourceTest::typeFollowsConfig()
 {
     VideoSource source;
     QCOMPARE(source.type(), VideoSourceType::DisplayCapture);
-    source.config = CameraSourceConfig{"camera"};
+    source.setConfig(CameraSourceConfig{"camera"});
     QCOMPARE(source.type(), VideoSourceType::Camera);
-    source.config = ImageSourceConfig{"image.png"};
+    source.setConfig(ImageSourceConfig{"image.png"});
     QCOMPARE(source.type(), VideoSourceType::Image);
-    source.config = DisplaySourceConfig{"display", false};
+    source.setConfig(DisplaySourceConfig{"display", false});
     QCOMPARE(source.type(), VideoSourceType::DisplayCapture);
 }
 
@@ -127,6 +128,48 @@ void VideoSourceTest::cameraConfigComparison()
         QVERIFY(config != other);
         QVERIFY(other != config);
     }
+}
+
+void VideoSourceTest::configEditsAndSourceCopiesAreIndependent()
+{
+    CameraSourceConfig camera;
+    QVERIFY(!camera.isValid());
+    camera.setDeviceId("camera");
+    QVERIFY(camera.isValid());
+    camera.setResolution(QSize(1280, 720));
+    QVERIFY(!camera.isValid());
+    camera.setFrameRateNumerator(30000);
+    camera.setFrameRateDenominator(1001);
+    QVERIFY(camera.isValid());
+    QVERIFY((camera == CameraSourceConfig{"camera", {1280, 720}, 30000, 1001}));
+
+    VideoSource original{"source", "Original", camera};
+    original.setRuntime(VideoSourceRuntime{{1280, 720}, "capturing", {}, 30000, 1001});
+    original.setFilters({VideoSourceFilter{"filter"}});
+    auto copy = original;
+    auto runtime = copy.runtime();
+    runtime.setState("error");
+    runtime.setError("Disconnected");
+    copy.setRuntime(runtime);
+    auto filters = copy.filters();
+    filters[0].enabled = false;
+    copy.setFilters(filters);
+    copy.setId("copy");
+    copy.setName("Copy");
+    copy.setConfig(ImageSourceConfig{"image.png"});
+    copy.setVisible(false);
+    copy.setLocked(true);
+    copy.setCanvasGeometry(VideoSourceCanvasGeometry(QSizeF(640, 360)));
+    QCOMPARE(copy.type(), VideoSourceType::Image);
+    QCOMPARE(original.type(), VideoSourceType::Camera);
+    QCOMPARE(original.id(), QString("source"));
+    QCOMPARE(original.name(), QString("Original"));
+    QCOMPARE(original.runtime().state(), QString("capturing"));
+    QVERIFY(original.runtime().error().isEmpty());
+    QVERIFY(original.filters()[0].enabled);
+    QVERIFY(original.visible());
+    QVERIFY(!original.locked());
+    QVERIFY(original.canvasGeometry().size().isEmpty());
 }
 
 QTEST_GUILESS_MAIN(VideoSourceTest)

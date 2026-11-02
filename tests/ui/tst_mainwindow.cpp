@@ -193,11 +193,11 @@ void MainWindowTest::sourceActionsAndSelection()
     QCOMPARE(model->currentSourceId(), id);
 
     row->findChild<QToolButton *>("sourceVisibilityButton")->click();
-    QCOMPARE(model->sources().at(0).visible, false);
+    QCOMPARE(model->sources().at(0).visible(), false);
     row->findChild<QToolButton *>("sourceLockButton")->click();
-    QCOMPARE(model->sources().at(0).locked, true);
+    QCOMPARE(model->sources().at(0).locked(), true);
     panel->findChild<QToolButton *>("moveSourceDownButton")->click();
-    QCOMPARE(model->sources().at(1).id, id);
+    QCOMPARE(model->sources().at(1).id(), id);
     QCOMPARE(list->currentRow(), 1);
     QVERIFY(model->removeSource(id));
     QCOMPARE(list->count(), 1);
@@ -307,18 +307,18 @@ void MainWindowTest::disconnectedDeviceDrafts()
     dialog->findChild<QCheckBox *>("captureCursorInput")->setChecked(true);
     dialog->reject();
     QTRY_VERIFY(dialog.isNull());
-    QVERIFY(!model->displaySource("display")->captureCursor);
+    QVERIFY(!model->displaySource("display")->captureCursor());
     CameraSourceConfig config;
-    config.deviceId = "unavailable-camera";
-    config.resolution = QSize(640, 480);
-    config.frameRateNumerator = 30;
+    config.setDeviceId("unavailable-camera");
+    config.setResolution(QSize(640, 480));
+    config.setFrameRateNumerator(30);
     QVERIFY(model->addSource({"camera", "Missing camera", config}));
     QVERIFY(model->selectSource("camera"));
     window.findChild<QToolButton *>("sourcePropertiesButton")->click();
     dialog = window.findChild<QDialog *>("cameraPropertiesDialog");
     QVERIFY(dialog);
     QCOMPARE(dialog->findChild<QComboBox *>("cameraDeviceInput")->currentData().toString(),
-             config.deviceId);
+             config.deviceId());
     QTRY_VERIFY(dialog->findChild<QComboBox *>("cameraModeInput")->isEnabled());
     QCOMPARE(
         dialog->findChild<QComboBox *>("cameraModeInput")->currentData().value<CameraMode>().width,
@@ -471,10 +471,10 @@ void MainWindowTest::aggregatesIndependentSourceControllers()
     QVERIFY(pixels.save(path));
     QVERIFY(model->addSource({"image", "Image", ImageSourceConfig{path}}));
     VideoSource screen{"display", "Display", DisplaySourceConfig{"missing-display"}};
-    screen.visible = false; // Exercise wiring without opening physical devices.
+    screen.setVisible(false); // Exercise wiring without opening physical devices.
     QVERIFY(model->addSource(screen));
     VideoSource webcam{"camera", "Camera", CameraSourceConfig{"missing-camera"}};
-    webcam.visible = false;
+    webcam.setVisible(false);
     QVERIFY(model->addSource(webcam));
     QTRY_COMPARE(output.size(), 3);
     QCOMPARE(imageOutput.size(), 1);
@@ -526,7 +526,7 @@ void MainWindowTest::previewEditsModelAndSynchronizesSelection()
     const QString frontId = model->currentSourceId();
 
     const auto currentCanvasGeometry = [&] {
-        return model->sources().at(0).canvasGeometry;
+        return model->sources().at(0).canvasGeometry();
     };
 
     const auto canvasPoint = [&](const QPointF &point) {
@@ -741,7 +741,7 @@ void MainWindowTest::cameraHardwarePreview()
     QSignalSpy failures(preview, &PreviewWidget::sourceFailed);
     const QString id = controller->addCamera("Camera", CameraSourceConfig{devices[0].id});
     QVERIFY(!id.isEmpty());
-    QTRY_COMPARE_WITH_TIMEOUT(model->sourceStatus(id).state, QString("capturing"),
+    QTRY_COMPARE_WITH_TIMEOUT(model->sourceStatus(id).state(), QString("capturing"),
                               15000);
 
     const auto filter = model->addFilter(id);
@@ -791,7 +791,7 @@ void MainWindowTest::cameraHardwarePreview()
         QTest::qWait(150);
         mouse(QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
 
-        const auto actual = model->sources().at(0).canvasGeometry;
+        const auto actual = model->sources().at(0).canvasGeometry();
         if (operation == 0)
             QVERIFY(QLineF(actual.center(), QPointF(1080, 600)).length() < 0.001);
         else if (operation == 1) {
@@ -1034,19 +1034,19 @@ void MainWindowTest::previewDisplaysImageSources()
     };
     click(lock);
     click(visibility);
-    QTRY_VERIFY(!sources->sources().at(0).visible);
+    QTRY_VERIFY(!sources->sources().at(0).visible());
     QTRY_COMPARE(sampleCanvas(.6, .6), QColor(Qt::white));
     click(visibility);
-    QTRY_VERIFY(sources->sources().at(0).visible);
+    QTRY_VERIFY(sources->sources().at(0).visible());
     QTRY_COMPARE(sampleCanvas(.6, .6), QColor(Qt::yellow));
     click(down);
-    QTRY_COMPARE(sources->sources().at(1).id, overlayId);
+    QTRY_COMPARE(sources->sources().at(1).id(), overlayId);
     QTRY_COMPARE(sampleCanvas(.6, .6), QColor(Qt::white));
     QVERIFY(sources->moveSource(overlayId, -1));
     QTRY_COMPARE(sampleCanvas(.6, .6), QColor(Qt::yellow));
     QVERIFY(sources->removeSource(overlayId));
     verifyFrame();
-    QVERIFY(sources->removeSource(sources->sources().at(0).id));
+    QVERIFY(sources->removeSource(sources->sources().at(0).id()));
     QTRY_COMPARE(sampleCanvas(.6, .6), QColor(Qt::black));
     QVERIFY(window.close());
 }

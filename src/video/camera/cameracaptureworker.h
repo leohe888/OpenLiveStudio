@@ -67,7 +67,7 @@ public:
 
     const QString &deviceId() const
     {
-        return m_config.deviceId;
+        return m_config.deviceId();
     }
 
 protected:

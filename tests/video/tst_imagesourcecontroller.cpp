@@ -38,13 +38,13 @@ private slots:
         QCOMPARE(model.sources().size(), 1);
         QCOMPARE(snapshot.size(), 1);
         QCOMPARE(snapshot[0].image.pixelColor(0, 0), QColor(255, 0, 0, 128));
-        QCOMPARE(model.sources().at(0).name, QString("First"));
-        QCOMPARE(model.sourceStatus(model.sources().at(0).id).state,
+        QCOMPARE(model.sources().at(0).name(), QString("First"));
+        QCOMPARE(model.sourceStatus(model.sources().at(0).id()).state(),
                  QString("ready"));
-        QVERIFY(std::holds_alternative<ImageSourceConfig>(model.sources().at(0).config));
-        QCOMPARE(model.sourceStatus(model.sources().at(0).id).pixelSize, image.size());
+        QVERIFY(std::holds_alternative<ImageSourceConfig>(model.sources().at(0).config()));
+        QCOMPARE(model.sourceStatus(model.sources().at(0).id()).pixelSize(), image.size());
         QVERIFY(
-            QFileInfo(std::get<ImageSourceConfig>(model.sources().at(0).config).filePath)
+            QFileInfo(std::get<ImageSourceConfig>(model.sources().at(0).config()).filePath())
                 .isAbsolute());
         const QString first = snapshot[0].id;
         const auto key = snapshot[0].image.cacheKey();
@@ -116,7 +116,7 @@ private slots:
         controller.addImage("Kept", path, &owner);
         QTRY_COMPARE(added.count(), 1);
         QCOMPARE(model.sources().size(), 1);
-        QCOMPARE(model.sources().at(0).name, QString("Kept"));
+        QCOMPARE(model.sources().at(0).name(), QString("Kept"));
         QCOMPARE(errors.count(), 4);
     }
 
@@ -143,7 +143,7 @@ private slots:
         QObject owner;
         controller.addImage("Rotated", path, &owner);
         QTRY_COMPARE(model.sources().size(), 1);
-        QCOMPARE(model.sourceStatus(model.sources().at(0).id).pixelSize, QSize(20, 40));
+        QCOMPARE(model.sourceStatus(model.sources().at(0).id()).pixelSize(), QSize(20, 40));
     }
 
     void readsOnlyFirstAnimationFrame()
@@ -208,8 +208,8 @@ private slots:
         connect(&model, &VideoSourceManager::sourceStatusChanged, this,
                 [&](const QString &sourceId) {
                     if (const auto *source = model.source(sourceId))
-                        if (const auto *image = std::get_if<ImageSourceConfig>(&source->config))
-                            loadStates.append(model.sourceStatus(sourceId).state);
+                        if (const auto *image = std::get_if<ImageSourceConfig>(&source->config()))
+                            loadStates.append(model.sourceStatus(sourceId).state());
                 });
         QList<PreviewSource> snapshot;
         connect(&controller, &ImageSourceController::sourcesChanged, this,
@@ -219,12 +219,12 @@ private slots:
         QTRY_COMPARE(errors.count(), 1);
         QTRY_VERIFY(snapshot.size() == 2 && !snapshot[0].image.isNull());
         QVERIFY(snapshot[1].image.isNull());
-        QCOMPARE(model.sourceStatus(model.sources().at(0).id).pixelSize, image.size());
-        QCOMPARE(model.sourceStatus(model.sources().at(0).id).state,
+        QCOMPARE(model.sourceStatus(model.sources().at(0).id()).pixelSize(), image.size());
+        QCOMPARE(model.sourceStatus(model.sources().at(0).id()).state(),
                  QString("ready"));
-        QCOMPARE(model.sourceStatus(model.sources().at(1).id).state,
+        QCOMPARE(model.sourceStatus(model.sources().at(1).id()).state(),
                  QString("error"));
-        QVERIFY(!model.sourceStatus(model.sources().at(1).id).error.isEmpty());
+        QVERIFY(!model.sourceStatus(model.sources().at(1).id()).error().isEmpty());
         QVERIFY(loadStates.contains("loading"));
         QVERIFY(loadStates.contains("ready"));
         QVERIFY(loadStates.contains("error"));

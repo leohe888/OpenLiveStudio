@@ -139,9 +139,9 @@ inline void run(MainWindow &window)
     const auto mic = audio->addSource("Microphone", AudioSourceType::Microphone, microphoneId);
     QString system = audio->addSource("System", AudioSourceType::SystemAudio, systemId);
     QVERIFY(!screen.isEmpty() && !cam.isEmpty() && !mic.isEmpty() && !system.isEmpty());
-    QTRY_COMPARE_WITH_TIMEOUT(model->sourceStatus(screen).state,
+    QTRY_COMPARE_WITH_TIMEOUT(model->sourceStatus(screen).state(),
                               QString("capturing"), 15000);
-    QTRY_COMPARE_WITH_TIMEOUT(model->sourceStatus(cam).state, QString("capturing"),
+    QTRY_COMPARE_WITH_TIMEOUT(model->sourceStatus(cam).state(), QString("capturing"),
                               15000);
     QTRY_COMPARE_WITH_TIMEOUT(audio->source(mic)->state, QString("capturing"), 5000);
     QTRY_COMPARE_WITH_TIMEOUT(audio->source(system)->state, QString("capturing"), 5000);
@@ -274,7 +274,7 @@ inline void run(MainWindow &window)
         if (pausedAt >= 0 && now - pausedAt > std::min(1500, seconds * 20)) {
             pausedAt = -1;
             QVERIFY(model->setSourceVisible(cam, true));
-            QTRY_COMPARE_WITH_TIMEOUT(model->sourceStatus(cam).state,
+            QTRY_COMPARE_WITH_TIMEOUT(model->sourceStatus(cam).state(),
                                       QString("capturing"), 10000);
             event("camera-restored");
         }

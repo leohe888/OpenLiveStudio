@@ -38,7 +38,7 @@ void CameraSourceController::refreshDevices()
     for (auto it = m_modes.begin(); it != m_modes.end();) {
         const bool active =
             std::any_of(m_entries.cbegin(), m_entries.cend(), [&](const auto &entry) {
-                return entry.second.worker && entry.second.config.deviceId == it.key();
+                return entry.second.worker && entry.second.config.deviceId() == it.key();
             });
         if (!active)
             it = m_modes.erase(it);
@@ -95,7 +95,7 @@ void CameraSourceController::requestModes(const QString &deviceId)
 QString CameraSourceController::addCamera(const QString &name, const CameraSourceConfig &config)
 {
     if (name.trimmed().isEmpty() || !config.isValid() ||
-        m_sourceManager.cameraDeviceInUse(config.deviceId))
+        m_sourceManager.cameraDeviceInUse(config.deviceId()))
         return {};
     const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     if (!m_sourceManager.addSource({id, name.trimmed(), config}))
@@ -161,26 +161,26 @@ void CameraSourceController::synchronize()
     for (const auto &item : sourceEntries) {
         if (item.type() != VideoSourceType::Camera)
             continue;
-        const QString id = item.id;
+        const QString id = item.id();
         retained.insert(id);
         auto &entry = m_entries[id];
-        const auto &config = std::get<CameraSourceConfig>(item.config);
+        const auto &config = std::get<CameraSourceConfig>(item.config());
         if (!(entry.config == config)) {
             stop(entry);
             entry.config = config;
             entry.failed = false;
         }
-        if (!item.visible) {
+        if (!item.visible()) {
             stop(entry);
             m_sourceManager.setSourceStatus(
                 id, "paused",
-                entry.failed ? m_sourceManager.sourceStatus(id).error
+                entry.failed ? m_sourceManager.sourceStatus(id).error()
                              : QString());
         } else if (!entry.worker && !entry.failed) {
             // Never reopen while an old session on the same device is still retiring.
             const bool retiring =
                 std::any_of(m_retired.cbegin(), m_retired.cend(), [&](const auto &worker) {
-                    return worker->deviceId() == config.deviceId && !worker->isFinished();
+                    return worker->deviceId() == config.deviceId() && !worker->isFinished();
                 });
             if (retiring) {
                 m_sourceManager.setSourceStatus(id, "starting", {});
@@ -192,7 +192,7 @@ void CameraSourceController::synchronize()
             m_sourceManager.setSourceStatus(id, "starting", {});
         } else if (entry.failed) {
             m_sourceManager.setSourceStatus(
-                id, "error", m_sourceManager.sourceStatus(id).error);
+                id, "error", m_sourceManager.sourceStatus(id).error());
         }
     }
     for (auto it = m_entries.begin(); it != m_entries.end();) {
@@ -255,7 +255,7 @@ void CameraSourceController::publish()
     QList<PreviewSource> result;
     const auto sourceEntries = m_sourceManager.sources();
     for (const auto &item : sourceEntries) {
-        const QString id = item.id;
+        const QString id = item.id();
         if (item.type() != VideoSourceType::Camera)
             continue;
         PreviewSource source;
@@ -265,10 +265,10 @@ void CameraSourceController::publish()
             continue;
         if (camera->second.frame)
             source.image = camera->second.frame->image;
-        source.visible = item.visible;
-        source.locked = item.locked;
-        source.canvasGeometry = item.canvasGeometry;
-        source.filters = item.filters;
+        source.visible = item.visible();
+        source.locked = item.locked();
+        source.canvasGeometry = item.canvasGeometry();
+        source.filters = item.filters();
         result.append(std::move(source));
     }
     emit sourcesChanged(result);

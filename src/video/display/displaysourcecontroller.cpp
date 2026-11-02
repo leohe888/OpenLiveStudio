@@ -62,7 +62,7 @@ bool DisplaySourceController::applyProperties(const QString &sourceId, const QSt
     if (!display)
         return false;
     const bool unchanged =
-        display->displayId == displayId && display->captureCursor == cursor;
+        display->displayId() == displayId && display->captureCursor() == cursor;
     if (!m_sourceManager.setDisplayConfig(sourceId, displayId, cursor))
         return false;
     if (unchanged)
@@ -114,23 +114,23 @@ void DisplaySourceController::synchronize()
     for (const auto &item : sourceEntries) {
         if (item.type() != VideoSourceType::DisplayCapture)
             continue;
-        const QString id = item.id;
-        const auto &config = std::get<DisplaySourceConfig>(item.config);
+        const QString id = item.id();
+        const auto &config = std::get<DisplaySourceConfig>(item.config());
         retained.insert(id);
         auto &entry = m_entries[id];
-        const QString displayId = config.displayId;
-        const bool cursor = config.captureCursor;
+        const QString displayId = config.displayId();
+        const bool cursor = config.captureCursor();
         if (entry.displayId != displayId || entry.cursor != cursor) {
             stop(entry);
             entry.displayId = displayId;
             entry.cursor = cursor;
             entry.failed = false;
         }
-        if (!item.visible) {
+        if (!item.visible()) {
             stop(entry);
             m_sourceManager.setSourceStatus(
                 id, "paused",
-                entry.failed ? m_sourceManager.sourceStatus(id).error
+                entry.failed ? m_sourceManager.sourceStatus(id).error()
                              : QString());
         } else if (!entry.worker && !entry.failed) {
             entry.generation = ++m_generation;
@@ -140,7 +140,7 @@ void DisplaySourceController::synchronize()
             m_sourceManager.setSourceStatus(id, "starting", {});
         } else if (entry.failed) {
             m_sourceManager.setSourceStatus(
-                id, "error", m_sourceManager.sourceStatus(id).error);
+                id, "error", m_sourceManager.sourceStatus(id).error());
         }
     }
     for (auto it = m_entries.begin(); it != m_entries.end();) {
@@ -214,17 +214,17 @@ void DisplaySourceController::publish()
     for (const auto &item : sourceEntries) {
         if (item.type() != VideoSourceType::DisplayCapture)
             continue;
-        const QString id = item.id;
+        const QString id = item.id();
         PreviewSource source;
         source.id = id;
         const auto dynamic = m_entries.find(id);
         if (dynamic == m_entries.end())
             continue;
         source.frame = dynamic->second.frame;
-        source.visible = item.visible;
-        source.locked = item.locked;
-        source.canvasGeometry = item.canvasGeometry;
-        source.filters = item.filters;
+        source.visible = item.visible();
+        source.locked = item.locked();
+        source.canvasGeometry = item.canvasGeometry();
+        source.filters = item.filters();
         result.append(std::move(source));
     }
     emit sourcesChanged(result);
