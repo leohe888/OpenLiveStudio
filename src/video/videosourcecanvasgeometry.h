@@ -11,7 +11,8 @@ class VideoSourceCanvasGeometry
 public:
     VideoSourceCanvasGeometry();
     explicit VideoSourceCanvasGeometry(const QSizeF &pixelSize);
-    VideoSourceCanvasGeometry(const QPointF &center, const QSizeF &size, qreal rotation = 0);
+    VideoSourceCanvasGeometry(const QPointF &center, const QSizeF &size);
+    VideoSourceCanvasGeometry(const QPointF &center, const QSizeF &size, qreal rotation);
 
     QPointF center() const;
     void setCenter(const QPointF &center);

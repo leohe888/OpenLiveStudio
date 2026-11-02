@@ -18,7 +18,8 @@ class DisplaySourceConfig
 {
 public:
     DisplaySourceConfig();
-    DisplaySourceConfig(const QString &displayId, bool captureCursor = true);
+    DisplaySourceConfig(const QString &displayId);
+    DisplaySourceConfig(const QString &displayId, bool captureCursor);
 
     const QString &displayId() const;
     void setDisplayId(const QString &displayId);
@@ -34,8 +35,9 @@ class CameraSourceConfig
 {
 public:
     CameraSourceConfig();
-    CameraSourceConfig(const QString &deviceId, const QSize &resolution = {},
-                       int frameRateNumerator = 0, int frameRateDenominator = 1);
+    CameraSourceConfig(const QString &deviceId);
+    CameraSourceConfig(const QString &deviceId, const QSize &resolution, int frameRateNumerator,
+                       int frameRateDenominator);
 
     const QString &deviceId() const;
     void setDeviceId(const QString &deviceId);
@@ -78,8 +80,9 @@ class VideoSourceRuntime
 {
 public:
     VideoSourceRuntime();
-    VideoSourceRuntime(const QSize &pixelSize, const QString &state = {}, const QString &error = {},
-                       int actualFrameRateNumerator = 0, int actualFrameRateDenominator = 1);
+    VideoSourceRuntime(const QSize &pixelSize, const QString &state, const QString &error);
+    VideoSourceRuntime(const QSize &pixelSize, const QString &state, const QString &error,
+                       int actualFrameRateNumerator, int actualFrameRateDenominator);
 
     const QSize &pixelSize() const;
     void setPixelSize(const QSize &pixelSize);
@@ -105,11 +108,11 @@ class VideoSource
 {
 public:
     VideoSource();
-    VideoSource(const QString &id, const QString &name = {},
-                const VideoSourceConfig &config = DisplaySourceConfig{}, bool visible = true,
-                bool locked = false, const VideoSourceCanvasGeometry &canvasGeometry = {},
-                const QList<VideoSourceFilter> &filters = {},
-                const VideoSourceRuntime &runtime = {});
+    VideoSource(const QString &id, const QString &name);
+    VideoSource(const QString &id, const QString &name, const VideoSourceConfig &config);
+    VideoSource(const QString &id, const QString &name, const VideoSourceConfig &config,
+                bool visible, bool locked, const VideoSourceCanvasGeometry &canvasGeometry,
+                const QList<VideoSourceFilter> &filters, const VideoSourceRuntime &runtime);
 
     const QString &id() const;
     void setId(const QString &id);

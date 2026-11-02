@@ -266,21 +266,21 @@ void MainWindowTest::removalAndFilters()
     dialog->findChild<QToolButton *>("addFilterButton")->click();
     QCOMPARE(model->sourceFilters("one").size(), 1);
     dialog->findChild<QDoubleSpinBox *>("brightnessInput")->setValue(.45);
-    QCOMPARE(std::get<ColorCorrectionConfig>(model->sourceFilters("one")[0].config).brightness, double(.45f));
+    QCOMPARE(std::get<ColorCorrectionConfig>(model->sourceFilters("one")[0].config()).brightness(), double(.45f));
 
     auto *list = dialog->findChild<QListWidget *>("filterList");
     list->item(0)->setCheckState(Qt::Unchecked);
-    QCOMPARE(model->sourceFilters("one")[0].enabled, false);
+    QCOMPARE(model->sourceFilters("one")[0].enabled(), false);
     dialog->findChild<QToolButton *>("addFilterButton")->click();
     QCOMPARE(model->sourceFilters("one").size(), 2);
 
-    const auto second = model->sourceFilters("one")[1].id;
+    const auto second = model->sourceFilters("one")[1].id();
     dialog->findChild<QToolButton *>("upFilterButton")->click();
-    QCOMPARE(model->sourceFilters("one")[0].id, second);
+    QCOMPARE(model->sourceFilters("one")[0].id(), second);
     dialog->findChild<QSlider *>("contrastSlider")->setValue(150);
-    QCOMPARE(std::get<ColorCorrectionConfig>(model->sourceFilters("one")[0].config).contrast, 1.5);
+    QCOMPARE(std::get<ColorCorrectionConfig>(model->sourceFilters("one")[0].config()).contrast(), 1.5);
     dialog->findChild<QPushButton *>("resetFilterButton")->click();
-    QCOMPARE(std::get<ColorCorrectionConfig>(model->sourceFilters("one")[0].config).contrast, 1.);
+    QCOMPARE(std::get<ColorCorrectionConfig>(model->sourceFilters("one")[0].config()).contrast(), 1.);
     dialog->close();
     QTRY_VERIFY(dialog.isNull());
     QCOMPARE(model->sourceFilters("one").size(), 2);

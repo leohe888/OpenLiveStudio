@@ -8,6 +8,7 @@ class VideoSourceTest : public QObject
     Q_OBJECT
 
 private slots:
+    void shortConstructorsPreserveMemberDefaults();
     void typeFollowsConfig();
     void configEditsAndSourceCopiesAreIndependent();
     void canvasGeometryConstructionAndAngles();
@@ -60,9 +61,9 @@ void VideoSourceTest::canvasGeometryConstructionAndAngles()
         QVERIFY(editable == constructed);
         QCOMPARE(editable.sourceToCanvas(), constructed.sourceToCanvas());
     }
-    for (qreal invalid : {std::numeric_limits<qreal>::infinity(),
-                          -std::numeric_limits<qreal>::infinity(),
-                          std::numeric_limits<qreal>::quiet_NaN()}) {
+    for (qreal invalid :
+         {std::numeric_limits<qreal>::infinity(), -std::numeric_limits<qreal>::infinity(),
+          std::numeric_limits<qreal>::quiet_NaN()}) {
         editable.setRotation(invalid);
         QVERIFY(!editable.isValid());
         QVERIFY(!VideoSourceCanvasGeometry(QPointF(), QSizeF(100, 50), invalid).isValid());
@@ -89,12 +90,10 @@ void VideoSourceTest::cameraConfigValidation_data()
     QTest::newRow("negative-denominator") << QString("camera") << QSize() << 0 << -1 << false;
     QTest::newRow("resolution-without-rate")
         << QString("camera") << QSize(1280, 720) << 0 << 1 << false;
-    QTest::newRow("rate-without-resolution")
-        << QString("camera") << QSize() << 30 << 1 << false;
+    QTest::newRow("rate-without-resolution") << QString("camera") << QSize() << 30 << 1 << false;
     QTest::newRow("empty-resolution-with-rate")
         << QString("camera") << QSize(0, 720) << 30 << 1 << false;
-    QTest::newRow("negative-rate")
-        << QString("camera") << QSize(1280, 720) << -30 << 1 << false;
+    QTest::newRow("negative-rate") << QString("camera") << QSize(1280, 720) << -30 << 1 << false;
 }
 
 void VideoSourceTest::cameraConfigValidation()
@@ -152,7 +151,7 @@ void VideoSourceTest::configEditsAndSourceCopiesAreIndependent()
     runtime.setError("Disconnected");
     copy.setRuntime(runtime);
     auto filters = copy.filters();
-    filters[0].enabled = false;
+    filters[0].setEnabled(false);
     copy.setFilters(filters);
     copy.setId("copy");
     copy.setName("Copy");
@@ -166,10 +165,47 @@ void VideoSourceTest::configEditsAndSourceCopiesAreIndependent()
     QCOMPARE(original.name(), QString("Original"));
     QCOMPARE(original.runtime().state(), QString("capturing"));
     QVERIFY(original.runtime().error().isEmpty());
-    QVERIFY(original.filters()[0].enabled);
+    QVERIFY(original.filters()[0].enabled());
     QVERIFY(original.visible());
     QVERIFY(!original.locked());
     QVERIFY(original.canvasGeometry().size().isEmpty());
+}
+
+void VideoSourceTest::shortConstructorsPreserveMemberDefaults()
+{
+    DisplaySourceConfig display;
+    display.setDisplayId("monitor");
+    const DisplaySourceConfig constructedDisplay{"monitor"};
+    QCOMPARE(constructedDisplay.displayId(), display.displayId());
+    QCOMPARE(constructedDisplay.captureCursor(), display.captureCursor());
+
+    CameraSourceConfig camera;
+    camera.setDeviceId("camera");
+    QVERIFY(camera == CameraSourceConfig{"camera"});
+
+    VideoSourceRuntime runtime;
+    runtime.setPixelSize(QSize(1280, 720));
+    runtime.setState("ready");
+    const VideoSourceRuntime constructedRuntime{{1280, 720}, "ready", {}};
+    QCOMPARE(constructedRuntime.pixelSize(), runtime.pixelSize());
+    QCOMPARE(constructedRuntime.state(), runtime.state());
+    QCOMPARE(constructedRuntime.error(), runtime.error());
+    QCOMPARE(constructedRuntime.actualFrameRateNumerator(), runtime.actualFrameRateNumerator());
+    QCOMPARE(constructedRuntime.actualFrameRateDenominator(), runtime.actualFrameRateDenominator());
+
+    const VideoSource source{"source", "Source"};
+    QCOMPARE(source.id(), QString("source"));
+    QCOMPARE(source.name(), QString("Source"));
+    QCOMPARE(source.type(), VideoSourceType::DisplayCapture);
+    QVERIFY(source.visible());
+    QVERIFY(!source.locked());
+    QVERIFY(source.canvasGeometry().size().isEmpty());
+    QVERIFY(source.filters().isEmpty());
+    QVERIFY(source.runtime().pixelSize().isEmpty());
+    const VideoSource image{"image", "Image", ImageSourceConfig{"image.png"}};
+    QCOMPARE(image.type(), VideoSourceType::Image);
+    QVERIFY(image.visible());
+    QVERIFY(!image.locked());
 }
 
 QTEST_GUILESS_MAIN(VideoSourceTest)

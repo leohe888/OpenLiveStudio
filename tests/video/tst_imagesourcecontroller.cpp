@@ -51,8 +51,8 @@ private slots:
         const auto filter = model.addFilter(first);
         QVERIFY(model.setFilterConfig(first, filter, ColorCorrectionConfig{.3f, .7f, 1.2f}));
         QCOMPARE(snapshot[0].filters.size(), 1);
-        QCOMPARE(snapshot[0].filters[0].id, filter);
-        QCOMPARE(std::get<ColorCorrectionConfig>(snapshot[0].filters[0].config).brightness, .3f);
+        QCOMPARE(snapshot[0].filters[0].id(), filter);
+        QCOMPARE(std::get<ColorCorrectionConfig>(snapshot[0].filters[0].config()).brightness(), .3f);
         QCOMPARE(snapshot[0].image.cacheKey(), key);
         controller.addImage("Second", path, &owner);
         QTRY_COMPARE(added.count(), 2);

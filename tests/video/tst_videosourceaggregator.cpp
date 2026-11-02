@@ -149,8 +149,8 @@ void VideoSourceAggregatorTest::usesModelPropertiesWithoutNewFrames()
     QVERIFY(!output[0].visible);
     QVERIFY(output[0].locked);
     QCOMPARE(output[0].filters.size(), 1);
-    QCOMPARE(output[0].filters[0].id, filter);
-    QCOMPARE(std::get<ColorCorrectionConfig>(output[0].filters[0].config).brightness, .2f);
+    QCOMPARE(output[0].filters[0].id(), filter);
+    QCOMPARE(std::get<ColorCorrectionConfig>(output[0].filters[0].config()).brightness(), .2f);
     QCOMPARE(output[0].image, pixels);
 
     changes.clear();

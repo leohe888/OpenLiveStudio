@@ -40,7 +40,11 @@ private slots:
             image.fill(mode == 0 ? Qt::green : Qt::blue);
             PreviewSource source{"image", image, true, {{960, 540}, {1920, 1080}, 0}};
             VideoSourceFilter filter{"brightness"};
-            std::get<ColorCorrectionConfig>(filter.config).brightness = -.2f;
+            {
+                auto config = std::get<ColorCorrectionConfig>(filter.config());
+                config.setBrightness(-.2f);
+                filter.setConfig(config);
+            }
             source.filters = {filter};
             widget.setSources({source});
             const auto canvas = readCanvas(widget);
@@ -73,26 +77,54 @@ private slots:
             return sample(readCanvas(widget), .5, .5);
         };
         QCOMPARE(render(), QColor(64, 128, 192));
-        std::get<ColorCorrectionConfig>(source.filters[0].config).brightness = .2f;
+        {
+            auto config = std::get<ColorCorrectionConfig>(source.filters[0].config());
+            config.setBrightness(.2f);
+            source.filters[0].setConfig(config);
+        }
         QCOMPARE(render(), QColor(115, 179, 243));
-        std::get<ColorCorrectionConfig>(source.filters[0].config).brightness = 0;
-        std::get<ColorCorrectionConfig>(source.filters[0].config).contrast = 0;
+        {
+            auto config = std::get<ColorCorrectionConfig>(source.filters[0].config());
+            config.setBrightness(0);
+            source.filters[0].setConfig(config);
+        }
+        {
+            auto config = std::get<ColorCorrectionConfig>(source.filters[0].config());
+            config.setContrast(0);
+            source.filters[0].setConfig(config);
+        }
         const auto gray = render();
         QVERIFY(qAbs(gray.red() - 128) <= 1 && gray.red() == gray.green() &&
                 gray.red() == gray.blue());
-        std::get<ColorCorrectionConfig>(source.filters[0].config).contrast = 1;
-        std::get<ColorCorrectionConfig>(source.filters[0].config).saturation = 0;
+        {
+            auto config = std::get<ColorCorrectionConfig>(source.filters[0].config());
+            config.setContrast(1);
+            source.filters[0].setConfig(config);
+        }
+        {
+            auto config = std::get<ColorCorrectionConfig>(source.filters[0].config());
+            config.setSaturation(0);
+            source.filters[0].setConfig(config);
+        }
         const auto desaturated = render();
         QVERIFY(qAbs(desaturated.red() - 119) <= 1);
         QCOMPARE(desaturated.red(), desaturated.green());
         QCOMPARE(desaturated.green(), desaturated.blue());
-        source.filters[0].enabled = false;
+        source.filters[0].setEnabled(false);
         QCOMPARE(render(), QColor(64, 128, 192));
 
         source.image.fill(QColor(102, 102, 102));
-        std::get<ColorCorrectionConfig>(first.config).brightness = .2f;
+        {
+            auto config = std::get<ColorCorrectionConfig>(first.config());
+            config.setBrightness(.2f);
+            first.setConfig(config);
+        }
         VideoSourceFilter second{"second"};
-        std::get<ColorCorrectionConfig>(second.config).contrast = 2;
+        {
+            auto config = std::get<ColorCorrectionConfig>(second.config());
+            config.setContrast(2);
+            second.setConfig(config);
+        }
         source.filters = {first, second};
         const auto forward = render();
         source.filters = {second, first};
@@ -106,8 +138,16 @@ private slots:
         for (int y = source.image.height() / 2; y < source.image.height(); ++y)
             for (int x = 0; x < source.image.width(); ++x)
                 source.image.setPixelColor(x, y, QColor(0, 0, 128, 128));
-        std::get<ColorCorrectionConfig>(first.config).brightness = .1f;
-        std::get<ColorCorrectionConfig>(second.config).contrast = .5f;
+        {
+            auto config = std::get<ColorCorrectionConfig>(first.config());
+            config.setBrightness(.1f);
+            first.setConfig(config);
+        }
+        {
+            auto config = std::get<ColorCorrectionConfig>(second.config());
+            config.setContrast(.5f);
+            second.setConfig(config);
+        }
         source.filters = {first, second};
         QImage background(16, 16, QImage::Format_RGBA8888);
         background.fill(Qt::green);
@@ -135,7 +175,11 @@ private slots:
         grabPreview(widget);
         QCOMPARE(sample(readCanvas(widget), .5, .5), QColor(Qt::green));
         // Invalid input from a non-model caller falls back without affecting other sources.
-        std::get<ColorCorrectionConfig>(source.filters[0].config).brightness = 4;
+        {
+            auto config = std::get<ColorCorrectionConfig>(source.filters[0].config());
+            config.setBrightness(4);
+            source.filters[0].setConfig(config);
+        }
         source.canvasGeometry.setRotation(0);
         widget.setSources({source});
         grabPreview(widget);
@@ -525,8 +569,8 @@ private slots:
             int index = 0;
             for (qreal y : {.25, .75}) {
                 for (qreal x : {.25, .75}) {
-                    const auto point = matrix.map(
-                        QPointF(x * canvasGeometry.size().width(), y * canvasGeometry.size().height()));
+                    const auto point = matrix.map(QPointF(x * canvasGeometry.size().width(),
+                                                          y * canvasGeometry.size().height()));
                     QCOMPARE(canvas.pixelColor(qRound(point.x()), qRound(point.y())),
                              colors[index++]);
                 }
@@ -574,8 +618,8 @@ private slots:
         image.fill(Qt::red);
         widget.show();
         QVERIFY(QTest::qWaitForWindowActive(&widget));
-        const QPointF fractions[] = {
-            {0, 0}, {.5, 0}, {1, 0}, {1, .5}, {1, 1}, {.5, 1}, {0, 1}, {0, .5}};
+        const QPointF fractions[] = {{0, 0}, {.5, 0}, {1, 0}, {1, .5},
+                                     {1, 1}, {.5, 1}, {0, 1}, {0, .5}};
         for (qreal angle : {0., 37., 90., 225.}) {
             const VideoSourceCanvasGeometry start{{960, 540}, {400, 200}, angle};
             QTransform rotation;
@@ -595,10 +639,10 @@ private slots:
                 QVERIFY(result != start);
                 const auto fraction = fractions[handle];
                 const QPointF opposite(1 - fraction.x(), 1 - fraction.y());
-                const auto anchor = start.sourceToCanvas().map(
-                    QPointF(opposite.x() * 400, opposite.y() * 200));
-                const auto after = result.sourceToCanvas().map(
-                    QPointF(opposite.x() * result.size().width(), opposite.y() * result.size().height()));
+                const auto anchor =
+                    start.sourceToCanvas().map(QPointF(opposite.x() * 400, opposite.y() * 200));
+                const auto after = result.sourceToCanvas().map(QPointF(
+                    opposite.x() * result.size().width(), opposite.y() * result.size().height()));
                 QVERIFY(closePoint(anchor, after));
                 if (handle % 2 == 0)
                     QVERIFY(qAbs(result.size().width() / result.size().height() - 2) < 1e-8);
@@ -631,7 +675,8 @@ private slots:
             widget.setSources({{"image", image, true, start}});
             grabPreview(widget);
             const auto display = widget.canvasToWidget();
-            drag(widget, display.map(start.center()), display.map(start.center() + QPointF(120, -60)));
+            drag(widget, display.map(start.center()),
+                 display.map(start.center() + QPointF(120, -60)));
             const auto moved = widget.m_sources[0].canvasGeometry;
             QVERIFY(closePoint(moved.center(), start.center() + QPointF(120, -60)));
             QVERIFY(moved.size() == start.size());
@@ -756,8 +801,8 @@ private slots:
         widget.setSources(sources);
         drag(widget, center, center);
         QCOMPARE(widget.m_currentSourceId, QString("top"));
-        const auto bounds = sources[0].canvasGeometry.sourceToCanvas()
-                                .mapRect(QRectF(QPointF(), sources[0].canvasGeometry.size()));
+        const auto bounds = sources[0].canvasGeometry.sourceToCanvas().mapRect(
+            QRectF(QPointF(), sources[0].canvasGeometry.size()));
         const auto outsideRotatedRectangle = bounds.topLeft() + QPointF(5, 5);
         QVERIFY(!sources[0].canvasGeometry.contains(outsideRotatedRectangle));
         drag(widget, display.map(outsideRotatedRectangle), display.map(outsideRotatedRectangle));
@@ -887,7 +932,8 @@ private slots:
             QVERIFY(widget.m_gesture == gesture);
             const auto canvasGeometry = widget.m_sources[0].canvasGeometry;
             if (operation == 0)
-                QVERIFY(closePoint(canvasGeometry.center(), start.center() + QPointF(30 * step, 15 * step)));
+                QVERIFY(closePoint(canvasGeometry.center(),
+                                   start.center() + QPointF(30 * step, 15 * step)));
             else if (operation == 1) {
                 QVERIFY(qAbs(canvasGeometry.size().width() - (600 + 40 * step)) < 1e-6);
                 QVERIFY(qAbs(canvasGeometry.size().height() - (300 + 20 * step)) < 1e-6);
@@ -918,8 +964,7 @@ private slots:
             widget.setSources({{"image", image, true, {{960, 540}, {600, 300}, 0}}});
             widget.setCurrentSourceId("image");
             grabPreview(widget);
-            const QPointF center =
-                widget.canvasToWidget().map(QPointF(960, 540));
+            const QPointF center = widget.canvasToWidget().map(QPointF(960, 540));
             mouse(widget, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
             mouse(widget, QEvent::MouseMove, center + QPointF(10, 0), Qt::NoButton, Qt::LeftButton);
             QVERIFY(widget.m_gesture != PreviewWidget::Gesture::None);
@@ -985,14 +1030,15 @@ private:
     {
         connect(&widget, &PreviewWidget::selectionRequested, &widget,
                 &PreviewWidget::setCurrentSourceId);
-        connect(&widget, &PreviewWidget::canvasGeometryRequested, &widget,
-                [&widget](const QString &sourceId, const VideoSourceCanvasGeometry &canvasGeometry) {
-                    auto sources = widget.m_sources;
-                    for (auto &source : sources)
-                        if (source.id == sourceId && !source.locked)
-                            source.canvasGeometry = canvasGeometry;
-                    widget.setSources(sources);
-                });
+        connect(
+            &widget, &PreviewWidget::canvasGeometryRequested, &widget,
+            [&widget](const QString &sourceId, const VideoSourceCanvasGeometry &canvasGeometry) {
+                auto sources = widget.m_sources;
+                for (auto &source : sources)
+                    if (source.id == sourceId && !source.locked)
+                        source.canvasGeometry = canvasGeometry;
+                widget.setSources(sources);
+            });
     }
 
     static void mouse(PreviewWidget &widget, QEvent::Type type, const QPointF &position,

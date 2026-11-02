@@ -65,7 +65,7 @@ void CameraCaptureTest::configAndLayout()
     QCOMPARE(adjusted.center(), canvasGeometry.center());
     QCOMPARE(adjusted.rotation(), canvasGeometry.rotation());
     QCOMPARE(adjusted.size(), QSizeF(600, 450));
-    QCOMPARE(model.sourceFilters(id)[0].id, filter);
+    QCOMPARE(model.sourceFilters(id)[0].id(), filter);
     QVERIFY(!model.setCameraConfig(id, CameraSourceConfig{"missing-device", {1280, 720}, 30, 0}));
     QVERIFY(model.removeSource(id));
     QTRY_COMPARE_WITH_TIMEOUT(controller.activeWorkerCount(), 0, 10000);

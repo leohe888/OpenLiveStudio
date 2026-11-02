@@ -256,11 +256,11 @@ GLuint CanvasRenderer::filterTexture(const PreviewSource &source, GLuint origina
     GLuint input = original;
     int pass = 0;
     for (const auto &filter : source.filters) {
-        if (!filter.enabled)
+        if (!filter.enabled())
             continue;
-        if (!std::visit([](const auto &config) { return config.isValid(); }, filter.config))
+        if (!std::visit([](const auto &config) { return config.isValid(); }, filter.config()))
             return fail(tr("滤镜参数无效，已使用原图。"));
-        if (std::visit([](const auto &config) { return config.isIdentity(); }, filter.config))
+        if (std::visit([](const auto &config) { return config.isIdentity(); }, filter.config()))
             continue;
         auto &target = m_filterFbos[pass % 2];
         if (!target || target->size() != source.pixelSize()) {
@@ -288,9 +288,9 @@ GLuint CanvasRenderer::filterTexture(const PreviewSource &source, GLuint origina
             using Config = std::decay_t<decltype(config)>;
             static_assert(std::is_same_v<Config, ColorCorrectionConfig>);
             m_program->setUniformValue("colorCorrection", true);
-            m_program->setUniformValue("correction", config.brightness, config.contrast,
-                                       config.saturation);
-        }, filter.config);
+            m_program->setUniformValue("correction", config.brightness(), config.contrast(),
+                                       config.saturation());
+        }, filter.config());
         glBindTexture(GL_TEXTURE_2D, input);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         if (glGetError() != GL_NO_ERROR)

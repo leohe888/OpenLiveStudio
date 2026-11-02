@@ -13,24 +13,25 @@ private slots:
     void configValidation_data();
     void configValidation();
     void identityAndComparison();
+    void configEditsAndFilterCopiesAreIndependent();
 };
 
 void VideoSourceFilterTest::defaultsAndType()
 {
     VideoSourceFilter filter;
-    QVERIFY(filter.id.isEmpty());
-    QVERIFY(filter.enabled);
-    QVERIFY(std::holds_alternative<ColorCorrectionConfig>(filter.config));
+    QVERIFY(filter.id().isEmpty());
+    QVERIFY(filter.enabled());
+    QVERIFY(std::holds_alternative<ColorCorrectionConfig>(filter.config()));
     QCOMPARE(filter.type(), VideoSourceFilterType::ColorCorrection);
-    const auto &config = std::get<ColorCorrectionConfig>(filter.config);
-    QCOMPARE(config.brightness, 0.f);
-    QCOMPARE(config.contrast, 1.f);
-    QCOMPARE(config.saturation, 1.f);
+    const auto &config = std::get<ColorCorrectionConfig>(filter.config());
+    QCOMPARE(config.brightness(), 0.f);
+    QCOMPARE(config.contrast(), 1.f);
+    QCOMPARE(config.saturation(), 1.f);
     QVERIFY(config.isValid());
     QVERIFY(config.isIdentity());
 
-    filter.config = ColorCorrectionConfig{.2f, .5f, 2};
-    filter.enabled = false;
+    filter.setConfig(ColorCorrectionConfig{.2f, .5f, 2});
+    filter.setEnabled(false);
     QCOMPARE(filter.type(), VideoSourceFilterType::ColorCorrection);
 }
 
@@ -84,6 +85,7 @@ void VideoSourceFilterTest::identityAndComparison()
     const ColorCorrectionConfig identity;
     QVERIFY(identity.isIdentity());
     QVERIFY(identity == ColorCorrectionConfig{});
+    QVERIFY(!(identity != ColorCorrectionConfig{}));
 
     const ColorCorrectionConfig changed[] = {
         {std::nextafter(0.f, 1.f), 1, 1},
@@ -94,9 +96,37 @@ void VideoSourceFilterTest::identityAndComparison()
         QVERIFY(!config.isIdentity());
         QVERIFY(!(identity == config));
         QVERIFY(!(config == identity));
+        QVERIFY(identity != config);
+        QVERIFY(config != identity);
         const auto copy = config;
         QVERIFY(config == copy);
+        QVERIFY(!(config != copy));
     }
+}
+
+void VideoSourceFilterTest::configEditsAndFilterCopiesAreIndependent()
+{
+    const VideoSourceFilter original{"original"};
+    auto copy = original;
+    auto config = std::get<ColorCorrectionConfig>(copy.config());
+    config.setBrightness(.25f);
+    config.setContrast(1.5f);
+    config.setSaturation(0);
+    QVERIFY((config == ColorCorrectionConfig{.25f, 1.5f, 0}));
+    QVERIFY(config.isValid());
+    QVERIFY(!config.isIdentity());
+    copy.setId("copy");
+    copy.setEnabled(false);
+    copy.setConfig(config);
+    QCOMPARE(copy.id(), QString("copy"));
+    QVERIFY(!copy.enabled());
+    QVERIFY(std::get<ColorCorrectionConfig>(copy.config()) == config);
+    QCOMPARE(original.id(), QString("original"));
+    QVERIFY(original.enabled());
+    QVERIFY(std::get<ColorCorrectionConfig>(original.config()).isIdentity());
+    config.setBrightness(2);
+    QVERIFY(!config.isValid());
+    QVERIFY(std::get<ColorCorrectionConfig>(copy.config()).isValid());
 }
 
 QTEST_GUILESS_MAIN(VideoSourceFilterTest)

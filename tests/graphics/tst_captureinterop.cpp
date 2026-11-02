@@ -129,7 +129,7 @@ private slots:
         QVERIFY(!filter.isEmpty());
         QVERIFY(controller.applyProperties(id, "another-missing-display", false));
         QCOMPARE(model.sources().at(0).canvasGeometry(), canvasGeometry);
-        QCOMPARE(model.sourceFilters(id)[0].id, filter);
+        QCOMPARE(model.sourceFilters(id)[0].id(), filter);
         QVERIFY(!model.displaySource(id)->captureCursor());
         QTRY_COMPARE(errors.count(), 2);
         QVERIFY(model.setSourceVisible(id, false));
@@ -176,8 +176,7 @@ private slots:
         const auto hasFrame = [&] {
             return snapshot.size() == 1 && snapshot[0].hasFrame();
         };
-        QTRY_VERIFY_WITH_TIMEOUT(
-            hasFrame() || !model.sourceStatus(id).error().isEmpty(), 5000);
+        QTRY_VERIFY_WITH_TIMEOUT(hasFrame() || !model.sourceStatus(id).error().isEmpty(), 5000);
         if (!hasFrame()) {
             QVERIFY2(!qEnvironmentVariableIsSet("OPENLIVE_REQUIRE_GPU_INTEROP"),
                      qPrintable(model.sourceStatus(id).error()));
@@ -285,13 +284,12 @@ private slots:
         QVERIFY(controller.applyProperties(id, targets[0].id, false));
         QTRY_VERIFY_WITH_TIMEOUT(hasFrame(), 5000);
         QCOMPARE(snapshot[0].canvasGeometry, canvasGeometry);
-        QCOMPARE(snapshot[0].filters[0].id, filter);
+        QCOMPARE(snapshot[0].filters[0].id(), filter);
 
         qputenv("OPENLIVE_FORCE_INTEROP_FAILURE", "1");
         const quint64 beforeFailureGeneration = snapshot[0].frame->generation;
         QVERIFY(controller.retry(id));
-        QTRY_COMPARE_WITH_TIMEOUT(model.sourceStatus(id).state(), QString("error"),
-                                  5000);
+        QTRY_COMPARE_WITH_TIMEOUT(model.sourceStatus(id).state(), QString("error"), 5000);
         qunsetenv("OPENLIVE_FORCE_INTEROP_FAILURE");
         QCOMPARE(transferFailures.count(), 1);
         QCOMPARE(errors.count(), 1);
@@ -441,7 +439,11 @@ private slots:
                 source.canvasGeometry = {{960, 540}, {1920, 1080}, 0};
                 source.frame = gpuFrame;
                 VideoSourceFilter correction{"correction"};
-                std::get<ColorCorrectionConfig>(correction.config).brightness = .1f;
+                {
+                    auto config = std::get<ColorCorrectionConfig>(correction.config());
+                    config.setBrightness(.1f);
+                    correction.setConfig(config);
+                }
                 source.filters = {correction};
                 preview.setSources({source});
                 const auto gpuResult = grabPreview(preview);

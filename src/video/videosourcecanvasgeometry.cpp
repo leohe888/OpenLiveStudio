@@ -13,7 +13,13 @@ VideoSourceCanvasGeometry::VideoSourceCanvasGeometry(const QSizeF &pixelSize)
     m_size = pixelSize * scale;
 }
 
-VideoSourceCanvasGeometry::VideoSourceCanvasGeometry(const QPointF &center, const QSizeF &size, qreal rotation)
+VideoSourceCanvasGeometry::VideoSourceCanvasGeometry(const QPointF &center, const QSizeF &size)
+    : m_center(center), m_size(size)
+{
+}
+
+VideoSourceCanvasGeometry::VideoSourceCanvasGeometry(const QPointF &center, const QSizeF &size,
+                                                     qreal rotation)
     : m_center(center), m_size(size)
 {
     setRotation(rotation);

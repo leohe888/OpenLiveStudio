@@ -214,7 +214,7 @@ int VideoSourceManager::filterRow(int row, const QString &filterId) const
         return -1;
     const auto &filters = m_sources[row].filters();
     for (int i = 0; i < filters.size(); ++i)
-        if (filters[i].id == filterId)
+        if (filters[i].id() == filterId)
             return i;
     return -1;
 }
@@ -234,17 +234,17 @@ QString VideoSourceManager::addFilter(const QString &sourceId, VideoSourceFilter
     VideoSourceFilter filter;
     switch (type) {
     case VideoSourceFilterType::ColorCorrection:
-        filter.config = ColorCorrectionConfig{};
+        filter.setConfig(ColorCorrectionConfig{});
         break;
     default:
         return {};
     }
-    filter.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    filter.setId(QUuid::createUuid().toString(QUuid::WithoutBraces));
     auto filters = m_sources[row].filters();
     filters.append(filter);
     m_sources[row].setFilters(filters);
     notifyFiltersChanged(row);
-    return filter.id;
+    return filter.id();
 }
 
 bool VideoSourceManager::removeFilter(const QString &sourceId, const QString &filterId)
@@ -285,8 +285,8 @@ bool VideoSourceManager::setFilterEnabled(const QString &sourceId, const QString
         return false;
     auto filters = m_sources[row].filters();
     auto &entry = filters[filter];
-    if (entry.enabled != enabled) {
-        entry.enabled = enabled;
+    if (entry.enabled() != enabled) {
+        entry.setEnabled(enabled);
         m_sources[row].setFilters(filters);
         notifyFiltersChanged(row);
     }
@@ -306,10 +306,10 @@ bool VideoSourceManager::setFilterConfig(const QString &sourceId, const QString 
         return false;
     auto filters = m_sources[row].filters();
     auto &entry = filters[filter];
-    if (entry.config.index() != config.index())
+    if (entry.config().index() != config.index())
         return false;
-    if (!(entry.config == config)) {
-        entry.config = config;
+    if (!(entry.config() == config)) {
+        entry.setConfig(config);
         m_sources[row].setFilters(filters);
         notifyFiltersChanged(row);
     }

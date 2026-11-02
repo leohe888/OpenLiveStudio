@@ -4,6 +4,10 @@
 
 DisplaySourceConfig::DisplaySourceConfig() = default;
 
+DisplaySourceConfig::DisplaySourceConfig(const QString &displayId) : m_displayId(displayId)
+{
+}
+
 DisplaySourceConfig::DisplaySourceConfig(const QString &displayId, bool captureCursor)
     : m_displayId(displayId), m_captureCursor(captureCursor)
 {
@@ -30,6 +34,10 @@ void DisplaySourceConfig::setCaptureCursor(bool captureCursor)
 }
 
 CameraSourceConfig::CameraSourceConfig() = default;
+
+CameraSourceConfig::CameraSourceConfig(const QString &deviceId) : m_deviceId(deviceId)
+{
+}
 
 CameraSourceConfig::CameraSourceConfig(const QString &deviceId, const QSize &resolution,
                                        int frameRateNumerator, int frameRateDenominator)
@@ -97,6 +105,12 @@ void ImageSourceConfig::setFilePath(const QString &filePath)
 VideoSourceRuntime::VideoSourceRuntime() = default;
 
 VideoSourceRuntime::VideoSourceRuntime(const QSize &pixelSize, const QString &state,
+                                       const QString &error)
+    : m_pixelSize(pixelSize), m_state(state), m_error(error)
+{
+}
+
+VideoSourceRuntime::VideoSourceRuntime(const QSize &pixelSize, const QString &state,
                                        const QString &error, int actualFrameRateNumerator,
                                        int actualFrameRateDenominator)
     : m_pixelSize(pixelSize), m_state(state), m_error(error),
@@ -156,6 +170,15 @@ void VideoSourceRuntime::setActualFrameRateDenominator(int actualFrameRateDenomi
 }
 
 VideoSource::VideoSource() = default;
+
+VideoSource::VideoSource(const QString &id, const QString &name) : m_id(id), m_name(name)
+{
+}
+
+VideoSource::VideoSource(const QString &id, const QString &name, const VideoSourceConfig &config)
+    : m_id(id), m_name(name), m_config(config)
+{
+}
 
 VideoSource::VideoSource(const QString &id, const QString &name, const VideoSourceConfig &config,
                          bool visible, bool locked, const VideoSourceCanvasGeometry &canvasGeometry,

@@ -729,7 +729,7 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
         const VideoSourceFilter *filter =
             index >= 0 && index < filters.size() ? &filters[index] : nullptr;
         remove->setEnabled(filter != nullptr);
-        const auto *correction = filter ? std::get_if<ColorCorrectionConfig>(&filter->config)
+        const auto *correction = filter ? std::get_if<ColorCorrectionConfig>(&filter->config())
                                         : nullptr;
         reset->setEnabled(correction != nullptr);
         up->setEnabled(index > 0);
@@ -737,7 +737,7 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
 
         std::array<double, 3> values{0, 1, 1};
         if (correction)
-            values = {correction->brightness, correction->contrast, correction->saturation};
+            values = {correction->brightness(), correction->contrast(), correction->saturation()};
         for (int n = 0; n < inputs.size(); ++n) {
             QSignalBlocker inputBlocker(inputs[n]);
             QSignalBlocker sliderBlocker(sliders[n]);
@@ -766,10 +766,10 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
                 break;
             }
             auto *item = new QListWidgetItem(QString("%1 %2").arg(name).arg(++index), list);
-            item->setData(Qt::UserRole, entry.id);
+            item->setData(Qt::UserRole, entry.id());
             item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
-            item->setCheckState(entry.enabled ? Qt::Checked : Qt::Unchecked);
-            if (entry.id == current)
+            item->setCheckState(entry.enabled() ? Qt::Checked : Qt::Unchecked);
+            if (entry.id() == current)
                 list->setCurrentItem(item);
         }
         if (!list->currentItem() && list->count())

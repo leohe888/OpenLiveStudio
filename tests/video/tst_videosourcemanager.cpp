@@ -61,7 +61,7 @@ void VideoSourceManagerTest::exposesTypedSourcesAndRejectsMissingIds()
     VideoSourceManager manager(
         {{"image", "Logo",
           ImageSourceConfig{"fixture.png"}, false,
-          true}});
+          true, {}, {}, {}}});
     QCOMPARE(manager.sources().size(), 1);
     const auto *source = manager.source("image");
     QVERIFY(source);
@@ -85,7 +85,7 @@ void VideoSourceManagerTest::supportsAllSourceConfigs()
 {
     QList<VideoSource> entries{
         {"display", "Display", DisplaySourceConfig{"monitor-1", false}},
-        {"camera", "Camera", CameraSourceConfig{"camera-1", QSize(1280, 720), 30}},
+        {"camera", "Camera", CameraSourceConfig{"camera-1", QSize(1280, 720), 30, 1}},
         {"image", "Image",
          ImageSourceConfig{"fixture.png"}}};
     VideoSourceManager manager(entries);
@@ -471,11 +471,11 @@ void VideoSourceManagerTest::filtersAreOrderedValidatedAndIndependent()
     QCOMPARE(changed.count(), 2);
     QCOMPARE(data.last().at(0).toString(), QString("a"));
     QCOMPARE(model.sourceFilters("a")[0].type(), VideoSourceFilterType::ColorCorrection);
-    QVERIFY(std::get<ColorCorrectionConfig>(model.sourceFilters("a")[0].config).isValid());
-    QVERIFY(std::get<ColorCorrectionConfig>(model.sourceFilters("a")[0].config).isIdentity());
-    QCOMPARE(std::get<ColorCorrectionConfig>(model.sourceFilters("a")[0].config).brightness, 0.f);
-    QCOMPARE(std::get<ColorCorrectionConfig>(model.sourceFilters("a")[0].config).contrast, 1.f);
-    QCOMPARE(std::get<ColorCorrectionConfig>(model.sourceFilters("a")[0].config).saturation, 1.f);
+    QVERIFY(std::get<ColorCorrectionConfig>(model.sourceFilters("a")[0].config()).isValid());
+    QVERIFY(std::get<ColorCorrectionConfig>(model.sourceFilters("a")[0].config()).isIdentity());
+    QCOMPARE(std::get<ColorCorrectionConfig>(model.sourceFilters("a")[0].config()).brightness(), 0.f);
+    QCOMPARE(std::get<ColorCorrectionConfig>(model.sourceFilters("a")[0].config()).contrast(), 1.f);
+    QCOMPARE(std::get<ColorCorrectionConfig>(model.sourceFilters("a")[0].config()).saturation(), 1.f);
     QVERIFY(model.sourceFilters("b").isEmpty());
     QVERIFY(model.setSourceLocked("a", true));
     QVERIFY(model.setFilterConfig("a", first, ColorCorrectionConfig{.2f, 1.5f, 0}));
@@ -494,21 +494,21 @@ void VideoSourceManagerTest::filtersAreOrderedValidatedAndIndependent()
     }
     QCOMPARE(changed.count(), before);
     const auto unchanged = model.sourceFilters("a")[0];
-    QVERIFY(std::get<ColorCorrectionConfig>(unchanged.config).isValid());
-    QVERIFY(!std::get<ColorCorrectionConfig>(unchanged.config).isIdentity());
-    QVERIFY((std::get<ColorCorrectionConfig>(unchanged.config) ==
+    QVERIFY(std::get<ColorCorrectionConfig>(unchanged.config()).isValid());
+    QVERIFY(!std::get<ColorCorrectionConfig>(unchanged.config()).isIdentity());
+    QVERIFY((std::get<ColorCorrectionConfig>(unchanged.config()) ==
              ColorCorrectionConfig{.2f, 1.5f, 0}));
     QVERIFY(!model.setFilterConfig("a", "missing", ColorCorrectionConfig{}));
     QVERIFY(!model.moveFilter("a", first, -1));
     QVERIFY(!model.moveFilter("a", second, 1));
     QVERIFY(!model.moveFilter("a", first, 2));
     QVERIFY(model.moveFilter("a", first, 1));
-    QCOMPARE(model.sourceFilters("a")[1].id, first);
+    QCOMPARE(model.sourceFilters("a")[1].id(), first);
     QVERIFY(model.setFilterEnabled("a", first, true));
-    QCOMPARE(std::get<ColorCorrectionConfig>(model.sourceFilters("a")[1].config).brightness, .2f);
+    QCOMPARE(std::get<ColorCorrectionConfig>(model.sourceFilters("a")[1].config()).brightness(), .2f);
     const auto typed = model.sources().at(0).filters();
-    QCOMPARE(typed[1].id, first);
-    QCOMPARE(std::get<ColorCorrectionConfig>(typed[1].config).saturation, 0.f);
+    QCOMPARE(typed[1].id(), first);
+    QCOMPARE(std::get<ColorCorrectionConfig>(typed[1].config()).saturation(), 0.f);
     QVERIFY(!model.setFilterEnabled("b", first, false));
     QVERIFY(!model.setFilterConfig("missing", first, ColorCorrectionConfig{0, 1, 1}));
     QVERIFY(!model.moveFilter("missing", first, 1));
@@ -544,7 +544,7 @@ void VideoSourceManagerTest::displayPropertiesPreserveSourceState()
     QVERIFY(model.setDisplayConfig("screen", "another-physical-path", false));
     QCOMPARE(changed.last().at(0).toString(), QString("screen"));
     QCOMPARE(model.sources().at(0).canvasGeometry(), canvasGeometry);
-    QCOMPARE(model.sourceFilters("screen")[0].id, filter);
+    QCOMPARE(model.sourceFilters("screen")[0].id(), filter);
     QCOMPARE(model.displaySource("screen")->displayId(), QString("another-physical-path"));
     QVERIFY(!model.displaySource("screen")->captureCursor());
     QVERIFY(model.setSourceStatus("screen", "error", "Disconnected"));
