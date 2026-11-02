@@ -12,6 +12,7 @@ class VideoSourceManagerTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void filterSelectionFollowsSourceAndFilterLifetime();
     void filterMoveAvailability();
     void topLevelProperties();
     void insertsSourcesAtTop();
@@ -475,6 +476,54 @@ void VideoSourceManagerTest::mapsSourceCoordinates()
         QVERIFY(start.contains(matrix.map(QPointF(10, 10))));
         QVERIFY(!start.contains(matrix.map(QPointF(-10, 100))));
     }
+}
+
+void VideoSourceManagerTest::filterSelectionFollowsSourceAndFilterLifetime()
+{
+    VideoSourceManager manager;
+    QVERIFY(manager.addSource({"a", "A", ImageSourceConfig{"a.png"}}));
+    QVERIFY(manager.addSource({"b", "B", ImageSourceConfig{"b.png"}}));
+    const auto first = manager.addFilter("a");
+    const auto second = manager.addFilter("a");
+    const auto other = manager.addFilter("b");
+    QVERIFY(!first.isEmpty() && !second.isEmpty() && !other.isEmpty());
+    QSignalSpy selected(&manager, &VideoSourceManager::currentFilterIdChanged);
+    QVERIFY(manager.currentFilterId("a").isEmpty());
+    QVERIFY(manager.selectFilter("a", {}));
+    QVERIFY(!manager.selectFilter("missing", {}));
+    QVERIFY(!manager.selectFilter({}, first));
+    QVERIFY(!manager.selectFilter("a", "missing"));
+    QVERIFY(!manager.selectFilter("a", other));
+    QCOMPARE(selected.count(), 0);
+    QVERIFY(manager.selectFilter("a", second));
+    QCOMPARE(selected.count(), 1);
+    QCOMPARE(selected.last().at(0).toString(), QString("a"));
+    QVERIFY(manager.selectFilter("a", second));
+    QCOMPARE(selected.count(), 1);
+    QVERIFY(manager.selectFilter("b", other));
+    QCOMPARE(manager.currentFilterId("a"), second);
+    QCOMPARE(manager.currentFilterId("b"), other);
+    QVERIFY(manager.moveFilter("a", second, -1));
+    QVERIFY(manager.moveSource("a", -1));
+    QVERIFY(manager.removeFilter("a", first));
+    QCOMPARE(manager.currentFilterId("a"), second);
+    QCOMPARE(selected.count(), 2);
+    QVERIFY(!manager.setSourceFilters("a", {VideoSourceFilter{}}));
+    QCOMPARE(manager.currentFilterId("a"), second);
+    QVERIFY(manager.setSourceFilters("a", {VideoSourceFilter{"replacement"}}));
+    QVERIFY(manager.currentFilterId("a").isEmpty());
+    QCOMPARE(selected.count(), 3);
+    QVERIFY(manager.selectFilter("a", "replacement"));
+    QVERIFY(manager.removeFilter("a", "replacement"));
+    QVERIFY(manager.currentFilterId("a").isEmpty());
+    QVERIFY(manager.selectFilter("b", {}));
+    QVERIFY(manager.currentFilterId("b").isEmpty());
+    QVERIFY(manager.selectFilter("b", other));
+    QVERIFY(manager.removeSource("b"));
+    QVERIFY(manager.currentFilterId("b").isEmpty());
+    QVERIFY(manager.addSource({"b", "B", ImageSourceConfig{"b.png"}}));
+    QVERIFY(manager.setSourceFilters("b", {VideoSourceFilter{other}}));
+    QVERIFY(manager.currentFilterId("b").isEmpty());
 }
 
 void VideoSourceManagerTest::filterMoveAvailability()

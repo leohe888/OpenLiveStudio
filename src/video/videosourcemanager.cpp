@@ -56,8 +56,12 @@ bool VideoSourceManager::removeSource(const QString &sourceId)
         return false;
     if (sourceId == m_currentSourceId)
         selectSource({});
+    const QString id = sourceId;
     m_sources.removeAt(row);
+    const bool filterSelectionCleared = m_currentFilterIds.remove(id) > 0;
     emit sourcesChanged();
+    if (filterSelectionCleared)
+        emit currentFilterIdChanged(id);
     return true;
 }
 
@@ -209,8 +213,35 @@ bool VideoSourceManager::setSourceFilters(const QString &sourceId,
                     previous[i].config() == filters[i].config();
     }
     if (!unchanged) {
+        const QString id = sourceId;
         m_sources[row].setFilters(filters);
+        const bool selectionCleared = m_currentFilterIds.contains(id) &&
+                                      !ids.contains(m_currentFilterIds.value(id));
+        if (selectionCleared)
+            m_currentFilterIds.remove(id);
         notifyFiltersChanged(row);
+        if (selectionCleared)
+            emit currentFilterIdChanged(id);
+    }
+    return true;
+}
+
+QString VideoSourceManager::currentFilterId(const QString &sourceId) const
+{
+    return m_currentFilterIds.value(sourceId);
+}
+
+bool VideoSourceManager::selectFilter(const QString &sourceId, const QString &filterId)
+{
+    const int row = sourceRow(sourceId);
+    if (row < 0 || (!filterId.isEmpty() && filterRow(row, filterId) < 0))
+        return false;
+    if (currentFilterId(sourceId) != filterId) {
+        if (filterId.isEmpty())
+            m_currentFilterIds.remove(sourceId);
+        else
+            m_currentFilterIds.insert(sourceId, filterId);
+        emit currentFilterIdChanged(sourceId);
     }
     return true;
 }

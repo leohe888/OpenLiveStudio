@@ -4,6 +4,7 @@
 #include "video/videosource.h"
 
 #include <QList>
+#include <QHash>
 #include <QObject>
 #include <QString>
 
@@ -50,6 +51,9 @@ public:
 
     QList<VideoSourceFilter> sourceFilters(const QString &sourceId) const;
     bool setSourceFilters(const QString &sourceId, const QList<VideoSourceFilter> &filters);
+    QString currentFilterId(const QString &sourceId) const;
+    // An empty filter ID clears selection; other IDs must belong to this source.
+    bool selectFilter(const QString &sourceId, const QString &filterId);
     bool canFilterCurrentSource() const
     {
         return canFilterSource(m_currentSourceId);
@@ -78,6 +82,7 @@ signals:
     void currentSourceIdChanged();
     void currentSourceMoveAvailabilityChanged();
     void sourceFiltersChanged(const QString &sourceId);
+    void currentFilterIdChanged(const QString &sourceId);
 
 private:
     int sourceRow(const QString &sourceId) const;
@@ -87,6 +92,7 @@ private:
 
     QList<VideoSource> m_sources;
     QString m_currentSourceId;
+    QHash<QString, QString> m_currentFilterIds;
 };
 
 #endif // VIDEOSOURCEMANAGER_H

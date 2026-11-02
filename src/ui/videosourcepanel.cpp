@@ -725,10 +725,6 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
     reset->setObjectName("resetFilterButton");
     form->addRow(reset);
 
-    const auto selected = [=] {
-        return list->currentItem() ? list->currentItem()->data(Qt::UserRole).toString() : QString();
-    };
-
     const auto updateSelection = [=] {
         const auto filters = manager->sourceFilters(sourceId);
         const int index = list->currentRow();
@@ -739,8 +735,8 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
         const auto *correction = filter ? std::get_if<ColorCorrectionConfig>(&filter->config())
                                         : nullptr;
         reset->setEnabled(correction != nullptr);
-        up->setEnabled(manager->canMoveFilterUp(sourceId, selected()));
-        down->setEnabled(manager->canMoveFilterDown(sourceId, selected()));
+        up->setEnabled(manager->canMoveFilterUp(sourceId, manager->currentFilterId(sourceId)));
+        down->setEnabled(manager->canMoveFilterDown(sourceId, manager->currentFilterId(sourceId)));
 
         std::array<double, 3> values{0, 1, 1};
         if (correction)
@@ -755,13 +751,25 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
         }
     };
 
+    const auto syncSelection = [=] {
+        QSignalBlocker blocker(list);
+        int selectedRow = -1;
+        for (int row = 0; row < list->count(); ++row) {
+            if (list->item(row)->data(Qt::UserRole).toString() == manager->currentFilterId(sourceId)) {
+                selectedRow = row;
+                break;
+            }
+        }
+        list->setCurrentRow(selectedRow);
+        updateSelection();
+    };
+
     const auto refresh = [=] {
         if (!manager->canFilterSource(sourceId)) {
             dialog->close();
             return;
         }
 
-        const auto current = selected();
         QSignalBlocker blocker(list);
         list->clear();
         int index = 0;
@@ -776,12 +784,8 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
             item->setData(Qt::UserRole, entry.id());
             item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
             item->setCheckState(entry.enabled() ? Qt::Checked : Qt::Unchecked);
-            if (entry.id() == current)
-                list->setCurrentItem(item);
         }
-        if (!list->currentItem() && list->count())
-            list->setCurrentRow(0);
-        updateSelection();
+        syncSelection();
     };
 
     const auto updateFilter = [=](const QString &filterId,
@@ -796,8 +800,8 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
         }
     };
     const auto applyConfig = [=] {
-        if (!selected().isEmpty())
-            updateFilter(selected(), [=](VideoSourceFilter &filter) {
+        if (!manager->currentFilterId(sourceId).isEmpty())
+            updateFilter(manager->currentFilterId(sourceId), [=](VideoSourceFilter &filter) {
                 filter.setConfig(ColorCorrectionConfig{float(inputs[0]->value()),
                                                        float(inputs[1]->value()),
                                                        float(inputs[2]->value())});
@@ -815,7 +819,16 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
                              refresh();
                      });
     QObject::connect(manager, &VideoSourceManager::sourcesChanged, dialog, refresh);
-    QObject::connect(list, &QListWidget::currentRowChanged, dialog, updateSelection);
+    QObject::connect(manager, &VideoSourceManager::currentFilterIdChanged, dialog,
+                     [=](const QString &source) {
+                         if (source == sourceId)
+                             syncSelection();
+                     });
+    QObject::connect(list, &QListWidget::currentRowChanged, dialog, [=] {
+        const auto *item = list->currentItem();
+        manager->selectFilter(sourceId, item ? item->data(Qt::UserRole).toString() : QString());
+        updateSelection();
+    });
     QObject::connect(list, &QListWidget::itemChanged, dialog, [=](QListWidgetItem *item) {
         updateFilter(item->data(Qt::UserRole).toString(), [=](VideoSourceFilter &filter) {
             filter.setEnabled(item->checkState() == Qt::Checked);
@@ -828,16 +841,16 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
                 list->setCurrentRow(n);
     });
     QObject::connect(remove, &QToolButton::clicked, dialog, [=] {
-        manager->removeFilter(sourceId, selected());
+        manager->removeFilter(sourceId, manager->currentFilterId(sourceId));
     });
     QObject::connect(up, &QToolButton::clicked, dialog, [=] {
-        manager->moveFilter(sourceId, selected(), -1);
+        manager->moveFilter(sourceId, manager->currentFilterId(sourceId), -1);
     });
     QObject::connect(down, &QToolButton::clicked, dialog, [=] {
-        manager->moveFilter(sourceId, selected(), 1);
+        manager->moveFilter(sourceId, manager->currentFilterId(sourceId), 1);
     });
     QObject::connect(reset, &QPushButton::clicked, dialog, [=] {
-        updateFilter(selected(), [](VideoSourceFilter &filter) {
+        updateFilter(manager->currentFilterId(sourceId), [](VideoSourceFilter &filter) {
             filter.setConfig(ColorCorrectionConfig{});
         });
     });

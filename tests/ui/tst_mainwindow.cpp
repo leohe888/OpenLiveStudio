@@ -276,6 +276,7 @@ void MainWindowTest::removalAndFilters()
     QCOMPARE(model->sourceFilters("one").size(), 2);
 
     const auto second = model->sourceFilters("one")[1].id();
+    QCOMPARE(model->currentFilterId("one"), second);
     dialog->findChild<QToolButton *>("upFilterButton")->click();
     QCOMPARE(model->sourceFilters("one")[0].id(), second);
     dialog->findChild<QSlider *>("contrastSlider")->setValue(150);
@@ -287,6 +288,22 @@ void MainWindowTest::removalAndFilters()
     QCOMPARE(model->sourceFilters("one").size(), 2);
     window.findChild<QToolButton *>("sourceFiltersButton")->click();
     dialog = window.findChild<QDialog *>("sourceFiltersDialog");
+    QVERIFY(dialog);
+    list = dialog->findChild<QListWidget *>("filterList");
+    QCOMPARE(list->currentItem()->data(Qt::UserRole).toString(), second);
+    const auto first = model->sourceFilters("one")[1].id();
+    QVERIFY(model->selectFilter("one", first));
+    QCOMPARE(list->currentItem()->data(Qt::UserRole).toString(), first);
+    list->setCurrentRow(0);
+    QCOMPARE(model->currentFilterId("one"), second);
+    QVERIFY(model->selectFilter("one", {}));
+    QVERIFY(!list->currentItem());
+    QVERIFY(!dialog->findChild<QToolButton *>("upFilterButton")->isEnabled());
+    QVERIFY(!dialog->findChild<QDoubleSpinBox *>("brightnessInput")->isEnabled());
+    QVERIFY(model->selectFilter("one", second));
+    QVERIFY(model->removeFilter("one", second));
+    QVERIFY(!list->currentItem());
+    QVERIFY(model->currentFilterId("one").isEmpty());
     QVERIFY(model->removeSource("one"));
     QTRY_VERIFY(dialog.isNull());
 }
