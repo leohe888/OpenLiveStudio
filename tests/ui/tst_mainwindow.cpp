@@ -1,3 +1,4 @@
+#include "../video/videosourcetesthelpers.h"
 #include "ui/mainwindow.h"
 #include "ui/videosourcepanel.h"
 #include "ui/audiosourcepanel.h"
@@ -186,7 +187,7 @@ void MainWindowTest::sourceActionsAndSelection()
     auto *row = list->itemWidget(item);
     QPointer<QWidget> retainedRow(row);
     QPointer<QWidget> otherRow(list->itemWidget(list->item(1)));
-    QVERIFY(model->setSourceStatus(id, "error", "Device disconnected"));
+    QVERIFY(setSourceStatus(*model, id, VideoSourceState::Error, "Device disconnected"));
     QCOMPARE(list->itemWidget(item), retainedRow.data());
     QCOMPARE(list->itemWidget(list->item(1)), otherRow.data());
     QCOMPARE(row->findChild<QLabel *>()->toolTip(), QString("Device disconnected"));
@@ -307,7 +308,7 @@ void MainWindowTest::disconnectedDeviceDrafts()
     dialog->findChild<QCheckBox *>("captureCursorInput")->setChecked(true);
     dialog->reject();
     QTRY_VERIFY(dialog.isNull());
-    QVERIFY(!model->displaySource("display")->captureCursor());
+    QVERIFY(!displaySource(*model, "display")->captureCursor());
     CameraSourceConfig config;
     config.setDeviceId("unavailable-camera");
     config.setResolution(QSize(640, 480));
@@ -741,11 +742,11 @@ void MainWindowTest::cameraHardwarePreview()
     QSignalSpy failures(preview, &PreviewWidget::sourceFailed);
     const QString id = controller->addCamera("Camera", CameraSourceConfig{devices[0].id});
     QVERIFY(!id.isEmpty());
-    QTRY_COMPARE_WITH_TIMEOUT(model->sourceStatus(id).state(), QString("capturing"),
+    QTRY_COMPARE_WITH_TIMEOUT(model->sourceRuntime(id).state(), VideoSourceState::Capturing,
                               15000);
 
     const auto filter = model->addFilter(id);
-    QVERIFY(model->setFilterConfig(id, filter, ColorCorrectionConfig{0, 1, 0}));
+    QVERIFY(setFilterConfig(*model, id, filter, ColorCorrectionConfig{0, 1, 0}));
     QTest::qWait(500);
     QVERIFY(preview->lastError().isEmpty());
     QVERIFY(failures.isEmpty());

@@ -1,45 +1,14 @@
 #include "video/videosourcemanager.h"
 #include <QUuid>
+#include <QSet>
 
 VideoSourceManager::VideoSourceManager(QObject *parent)
-    : VideoSourceManager(QList<VideoSource>{}, parent)
+    : QObject(parent)
 {
-}
-
-VideoSourceManager::VideoSourceManager(const QList<VideoSource> &sources, QObject *parent)
-    : QObject(parent), m_sources(sources)
-{
-    for (auto &source : m_sources) {
-        if (source.canvasGeometry().size().isEmpty())
-            source.setCanvasGeometry(VideoSourceCanvasGeometry(source.runtime().pixelSize()));
-    }
     connect(this, &VideoSourceManager::currentSourceIdChanged, this,
-            &VideoSourceManager::sourceMoveAvailabilityChanged);
+            &VideoSourceManager::currentSourceMoveAvailabilityChanged);
     connect(this, &VideoSourceManager::sourcesChanged, this,
-            &VideoSourceManager::sourceMoveAvailabilityChanged);
-}
-
-const VideoSource *VideoSourceManager::source(const QString &sourceId) const
-{
-    const int row = sourceRow(sourceId);
-    return row >= 0 ? &m_sources.at(row) : nullptr;
-}
-
-VideoSourceRuntime VideoSourceManager::sourceStatus(const QString &sourceId) const
-{
-    const auto *entry = source(sourceId);
-    return entry ? entry->runtime() : VideoSourceRuntime{};
-}
-
-bool VideoSourceManager::selectSource(const QString &sourceId)
-{
-    if (!sourceId.isEmpty() && !source(sourceId))
-        return false;
-    if (m_currentSourceId != sourceId) {
-        m_currentSourceId = sourceId;
-        emit currentSourceIdChanged();
-    }
-    return true;
+            &VideoSourceManager::currentSourceMoveAvailabilityChanged);
 }
 
 QString VideoSourceManager::suggestedSourceName(const QString &baseName) const
@@ -63,6 +32,23 @@ QString VideoSourceManager::suggestedSourceName(const QString &baseName) const
     }
 }
 
+bool VideoSourceManager::addSource(const VideoSource &source)
+{
+    if (source.id().trimmed().isEmpty() || sourceRow(source.id()) >= 0)
+        return false;
+    if (const auto *camera = std::get_if<CameraSourceConfig>(&source.config())) {
+        if (!camera->isValid() || cameraDeviceInUse(camera->deviceId()))
+            return false;
+    }
+    VideoSource initialized = source;
+    if (initialized.canvasGeometry().size().isEmpty())
+        initialized.setCanvasGeometry(VideoSourceCanvasGeometry(source.runtime().pixelSize()));
+    m_sources.prepend(initialized);
+    emit sourcesChanged();
+    selectSource(source.id());
+    return true;
+}
+
 bool VideoSourceManager::removeSource(const QString &sourceId)
 {
     const int row = sourceRow(sourceId);
@@ -75,15 +61,15 @@ bool VideoSourceManager::removeSource(const QString &sourceId)
     return true;
 }
 
-int VideoSourceManager::sourceRow(const QString &sourceId) const
+bool VideoSourceManager::selectSource(const QString &sourceId)
 {
-    if (sourceId.isEmpty())
-        return -1;
-    for (int row = 0; row < m_sources.size(); ++row) {
-        if (m_sources.at(row).id() == sourceId)
-            return row;
+    if (!sourceId.isEmpty() && sourceRow(sourceId) < 0)
+        return false;
+    if (m_currentSourceId != sourceId) {
+        m_currentSourceId = sourceId;
+        emit currentSourceIdChanged();
     }
-    return -1;
+    return true;
 }
 
 bool VideoSourceManager::canMoveCurrentSourceUp() const
@@ -113,6 +99,39 @@ bool VideoSourceManager::moveSource(const QString &sourceId, int offset)
     return true;
 }
 
+QString VideoSourceManager::sourceName(const QString &sourceId) const
+{
+    const int row = sourceRow(sourceId);
+    if (row < 0)
+        return {};
+    const auto &name = m_sources.at(row).name();
+    return name.isNull() ? QStringLiteral("") : name;
+}
+
+bool VideoSourceManager::setSourceName(const QString &sourceId, const QString &name)
+{
+    const int row = sourceRow(sourceId);
+    const auto trimmed = name.trimmed();
+    if (row < 0 || trimmed.isEmpty())
+        return false;
+    for (const auto &source : m_sources) {
+        if (source.id() != sourceId &&
+            source.name().trimmed().compare(trimmed, Qt::CaseInsensitive) == 0)
+            return false;
+    }
+    if (m_sources[row].name() != trimmed) {
+        m_sources[row].setName(trimmed);
+        emit sourceChanged(sourceId);
+    }
+    return true;
+}
+
+bool VideoSourceManager::sourceVisible(const QString &sourceId) const
+{
+    const int row = sourceRow(sourceId);
+    return row >= 0 && m_sources.at(row).visible();
+}
+
 bool VideoSourceManager::setSourceVisible(const QString &sourceId, bool visible)
 {
     const int row = sourceRow(sourceId);
@@ -123,6 +142,12 @@ bool VideoSourceManager::setSourceVisible(const QString &sourceId, bool visible)
         emit sourceChanged(sourceId);
     }
     return true;
+}
+
+bool VideoSourceManager::sourceLocked(const QString &sourceId) const
+{
+    const int row = sourceRow(sourceId);
+    return row >= 0 && m_sources.at(row).locked();
 }
 
 bool VideoSourceManager::setSourceLocked(const QString &sourceId, bool locked)
@@ -137,47 +162,10 @@ bool VideoSourceManager::setSourceLocked(const QString &sourceId, bool locked)
     return true;
 }
 
-bool VideoSourceManager::addSource(const VideoSource &source)
-{
-    if (source.id().trimmed().isEmpty() || sourceRow(source.id()) >= 0)
-        return false;
-    if (const auto *camera = std::get_if<CameraSourceConfig>(&source.config())) {
-        if (!camera->isValid() || cameraDeviceInUse(camera->deviceId()))
-            return false;
-    }
-    VideoSource initialized = source;
-    if (initialized.canvasGeometry().size().isEmpty())
-        initialized.setCanvasGeometry(VideoSourceCanvasGeometry(source.runtime().pixelSize()));
-    m_sources.prepend(initialized);
-    emit sourcesChanged();
-    selectSource(source.id());
-    return true;
-}
-
-bool VideoSourceManager::setSourcePixelSize(const QString &sourceId, const QSize &size)
+VideoSourceCanvasGeometry VideoSourceManager::sourceCanvasGeometry(const QString &sourceId) const
 {
     const int row = sourceRow(sourceId);
-    if (row < 0)
-        return false;
-    auto runtime = m_sources[row].runtime();
-    const auto pixelSize = runtime.pixelSize();
-    if (pixelSize != size) {
-        const QSize previous = pixelSize;
-        runtime.setPixelSize(size);
-        m_sources[row].setRuntime(runtime);
-        if (m_sources[row].canvasGeometry().size().isEmpty() && !size.isEmpty()) {
-            m_sources[row].setCanvasGeometry(VideoSourceCanvasGeometry(size));
-        } else if (m_sources[row].type() == VideoSourceType::Camera && !size.isEmpty() &&
-                   previous != size && !m_sources[row].canvasGeometry().size().isEmpty()) {
-            auto canvasGeometry = m_sources[row].canvasGeometry();
-            canvasGeometry.setSize(
-                QSizeF(canvasGeometry.size().width(),
-                       canvasGeometry.size().width() * size.height() / size.width()));
-            m_sources[row].setCanvasGeometry(canvasGeometry);
-        }
-        emit sourceChanged(sourceId);
-    }
-    return true;
+    return row >= 0 ? m_sources.at(row).canvasGeometry() : VideoSourceCanvasGeometry{};
 }
 
 bool VideoSourceManager::setSourceCanvasGeometry(const QString &sourceId,
@@ -194,36 +182,45 @@ bool VideoSourceManager::setSourceCanvasGeometry(const QString &sourceId,
     return true;
 }
 
+QList<VideoSourceFilter> VideoSourceManager::sourceFilters(const QString &sourceId) const
+{
+    const int row = sourceRow(sourceId);
+    return row >= 0 ? m_sources.at(row).filters() : QList<VideoSourceFilter>{};
+}
+
+bool VideoSourceManager::setSourceFilters(const QString &sourceId,
+                                          const QList<VideoSourceFilter> &filters)
+{
+    const int row = sourceRow(sourceId);
+    if (row < 0 || !canFilterSource(sourceId))
+        return false;
+    QSet<QString> ids;
+    for (const auto &filter : filters) {
+        if (filter.id().trimmed().isEmpty() || ids.contains(filter.id()) ||
+            !std::visit([](const auto &config) { return config.isValid(); }, filter.config()))
+            return false;
+        ids.insert(filter.id());
+    }
+    const auto &previous = m_sources.at(row).filters();
+    bool unchanged = previous.size() == filters.size();
+    for (int i = 0; unchanged && i < filters.size(); ++i) {
+        unchanged = previous[i].id() == filters[i].id() &&
+                    previous[i].enabled() == filters[i].enabled() &&
+                    previous[i].config() == filters[i].config();
+    }
+    if (!unchanged) {
+        m_sources[row].setFilters(filters);
+        notifyFiltersChanged(row);
+    }
+    return true;
+}
+
 bool VideoSourceManager::canFilterSource(const QString &sourceId) const
 {
     const int row = sourceRow(sourceId);
     return row >= 0 && (m_sources[row].type() == VideoSourceType::Image ||
                         m_sources[row].type() == VideoSourceType::DisplayCapture ||
                         m_sources[row].type() == VideoSourceType::Camera);
-}
-
-QList<VideoSourceFilter> VideoSourceManager::sourceFilters(const QString &sourceId) const
-{
-    const auto *entry = source(sourceId);
-    return entry ? entry->filters() : QList<VideoSourceFilter>{};
-}
-
-int VideoSourceManager::filterRow(int row, const QString &filterId) const
-{
-    if (row < 0 || filterId.isEmpty())
-        return -1;
-    const auto &filters = m_sources[row].filters();
-    for (int i = 0; i < filters.size(); ++i)
-        if (filters[i].id() == filterId)
-            return i;
-    return -1;
-}
-
-void VideoSourceManager::notifyFiltersChanged(int row)
-{
-    const QString id = m_sources[row].id();
-    emit sourceChanged(id);
-    emit sourceFiltersChanged(id);
 }
 
 QString VideoSourceManager::addFilter(const QString &sourceId, VideoSourceFilterType type)
@@ -242,22 +239,20 @@ QString VideoSourceManager::addFilter(const QString &sourceId, VideoSourceFilter
     filter.setId(QUuid::createUuid().toString(QUuid::WithoutBraces));
     auto filters = m_sources[row].filters();
     filters.append(filter);
-    m_sources[row].setFilters(filters);
-    notifyFiltersChanged(row);
+    if (!setSourceFilters(sourceId, filters))
+        return {};
     return filter.id();
 }
 
 bool VideoSourceManager::removeFilter(const QString &sourceId, const QString &filterId)
 {
     const int row = sourceRow(sourceId);
-    const int filter = filterRow(row, filterId);
-    if (filter < 0)
+    const int filterIndex = filterRow(row, filterId);
+    if (filterIndex < 0)
         return false;
     auto filters = m_sources[row].filters();
-    filters.removeAt(filter);
-    m_sources[row].setFilters(filters);
-    notifyFiltersChanged(row);
-    return true;
+    filters.removeAt(filterIndex);
+    return setSourceFilters(sourceId, filters);
 }
 
 bool VideoSourceManager::moveFilter(const QString &sourceId, const QString &filterId, int offset)
@@ -271,100 +266,100 @@ bool VideoSourceManager::moveFilter(const QString &sourceId, const QString &filt
         return false;
     auto filters = m_sources[row].filters();
     filters.move(from, to);
-    m_sources[row].setFilters(filters);
-    notifyFiltersChanged(row);
-    return true;
+    return setSourceFilters(sourceId, filters);
 }
 
-bool VideoSourceManager::setFilterEnabled(const QString &sourceId, const QString &filterId,
-                                          bool enabled)
+VideoSourceRuntime VideoSourceManager::sourceRuntime(const QString &sourceId) const
 {
     const int row = sourceRow(sourceId);
-    const int filter = filterRow(row, filterId);
-    if (filter < 0)
+    return row >= 0 ? m_sources.at(row).runtime() : VideoSourceRuntime{};
+}
+
+bool VideoSourceManager::setSourceRuntime(const QString &sourceId, const VideoSourceRuntime &runtime)
+{
+    const int row = sourceRow(sourceId);
+    if (row < 0)
         return false;
-    auto filters = m_sources[row].filters();
-    auto &entry = filters[filter];
-    if (entry.enabled() != enabled) {
-        entry.setEnabled(enabled);
-        m_sources[row].setFilters(filters);
-        notifyFiltersChanged(row);
+    const auto previous = m_sources.at(row).runtime();
+    const bool sizeChanged = previous.pixelSize() != runtime.pixelSize();
+    const bool changed = sizeChanged || previous.state() != runtime.state() ||
+                         previous.error() != runtime.error() ||
+                         previous.actualFrameRateNumerator() != runtime.actualFrameRateNumerator() ||
+                         previous.actualFrameRateDenominator() != runtime.actualFrameRateDenominator();
+    if (!changed)
+        return true;
+    m_sources[row].setRuntime(runtime);
+    if (sizeChanged) {
+        const auto size = runtime.pixelSize();
+        auto geometry = m_sources.at(row).canvasGeometry();
+        if (geometry.size().isEmpty() && !size.isEmpty()) {
+            m_sources[row].setCanvasGeometry(VideoSourceCanvasGeometry(size));
+        } else if (m_sources.at(row).type() == VideoSourceType::Camera && !size.isEmpty() &&
+                   !geometry.size().isEmpty()) {
+            geometry.setSize(QSizeF(geometry.size().width(),
+                                    geometry.size().width() * size.height() / size.width()));
+            m_sources[row].setCanvasGeometry(geometry);
+        }
+        emit sourceChanged(sourceId);
     }
+    // Geometry notifications may synchronously remove or reorder the source.
+    if (sourceRow(sourceId) >= 0)
+        emit sourceRuntimeChanged(sourceId);
     return true;
 }
 
-bool VideoSourceManager::setFilterConfig(const QString &sourceId, const QString &filterId,
-                                         const VideoSourceFilterConfig &config)
+const VideoSourceConfig *VideoSourceManager::sourceConfig(const QString &sourceId) const
 {
     const int row = sourceRow(sourceId);
-    const int filter = filterRow(row, filterId);
-    if (filter < 0 || !std::visit(
-                          [](const auto &value) {
-                              return value.isValid();
-                          },
-                          config))
+    return row >= 0 ? &m_sources.at(row).config() : nullptr;
+}
+
+bool VideoSourceManager::setSourceConfig(const QString &sourceId, const VideoSourceConfig &config)
+{
+    const int row = sourceRow(sourceId);
+    if (row < 0 || m_sources.at(row).config().index() != config.index())
         return false;
-    auto filters = m_sources[row].filters();
-    auto &entry = filters[filter];
-    if (entry.config().index() != config.index())
-        return false;
-    if (!(entry.config() == config)) {
-        entry.setConfig(config);
-        m_sources[row].setFilters(filters);
-        notifyFiltersChanged(row);
+    const auto &previous = m_sources.at(row).config();
+    bool unchanged = false;
+    if (const auto *camera = std::get_if<CameraSourceConfig>(&config)) {
+        if (!camera->isValid() || cameraDeviceInUse(camera->deviceId(), sourceId))
+            return false;
+        unchanged = std::get<CameraSourceConfig>(previous) == *camera;
+    } else if (const auto *display = std::get_if<DisplaySourceConfig>(&config)) {
+        if (display->displayId().trimmed().isEmpty())
+            return false;
+        const auto &old = std::get<DisplaySourceConfig>(previous);
+        unchanged = old.displayId() == display->displayId() &&
+                    old.captureCursor() == display->captureCursor();
+    } else {
+        const auto &image = std::get<ImageSourceConfig>(config);
+        if (image.filePath().trimmed().isEmpty())
+            return false;
+        unchanged = std::get<ImageSourceConfig>(previous).filePath() == image.filePath();
     }
-    return true;
-}
-
-bool VideoSourceManager::canEditCurrentDisplay() const
-{
-    const int row = sourceRow(m_currentSourceId);
-    return row >= 0 && m_sources[row].type() == VideoSourceType::DisplayCapture;
-}
-
-const DisplaySourceConfig *VideoSourceManager::displaySource(const QString &sourceId) const
-{
-    const auto *entry = source(sourceId);
-    return entry ? std::get_if<DisplaySourceConfig>(&entry->config()) : nullptr;
-}
-
-bool VideoSourceManager::setDisplayConfig(const QString &sourceId, const QString &displayId,
-                                          bool cursor)
-{
-    const int row = sourceRow(sourceId);
-    if (row < 0 || displayId.trimmed().isEmpty())
-        return false;
-    auto *display = std::get_if<DisplaySourceConfig>(&m_sources[row].config());
-    if (!display)
-        return false;
-    if (display->displayId() != displayId || display->captureCursor() != cursor) {
-        m_sources[row].setConfig(DisplaySourceConfig{displayId, cursor});
+    if (!unchanged) {
+        m_sources[row].setConfig(config);
         emit sourceChanged(sourceId);
     }
     return true;
 }
 
-bool VideoSourceManager::setSourceStatus(const QString &sourceId, const QString &state,
-                                         const QString &error)
-{
-    const int row = sourceRow(sourceId);
-    if (row < 0)
-        return false;
-    auto runtime = m_sources[row].runtime();
-    if (runtime.state() != state || runtime.error() != error) {
-        runtime.setState(state);
-        runtime.setError(error);
-        m_sources[row].setRuntime(runtime);
-        emit sourceStatusChanged(sourceId);
-    }
-    return true;
-}
-
-bool VideoSourceManager::canEditCurrentSource() const
+bool VideoSourceManager::canEditCurrentSourceProperties() const
 {
     const int row = sourceRow(m_currentSourceId);
     return row >= 0 && (m_sources[row].type() == VideoSourceType::DisplayCapture ||
                         m_sources[row].type() == VideoSourceType::Camera);
+}
+
+int VideoSourceManager::sourceRow(const QString &sourceId) const
+{
+    if (sourceId.isEmpty())
+        return -1;
+    for (int row = 0; row < m_sources.size(); ++row) {
+        if (m_sources.at(row).id() == sourceId)
+            return row;
+    }
+    return -1;
 }
 
 bool VideoSourceManager::cameraDeviceInUse(const QString &deviceId, const QString &exceptId) const
@@ -376,45 +371,20 @@ bool VideoSourceManager::cameraDeviceInUse(const QString &deviceId, const QStrin
     return false;
 }
 
-const CameraSourceConfig *VideoSourceManager::cameraSource(const QString &sourceId) const
+int VideoSourceManager::filterRow(int row, const QString &filterId) const
 {
-    const auto *entry = source(sourceId);
-    return entry ? std::get_if<CameraSourceConfig>(&entry->config()) : nullptr;
+    if (row < 0 || filterId.isEmpty())
+        return -1;
+    const auto &filters = m_sources[row].filters();
+    for (int i = 0; i < filters.size(); ++i)
+        if (filters[i].id() == filterId)
+            return i;
+    return -1;
 }
 
-bool VideoSourceManager::setCameraConfig(const QString &sourceId, const CameraSourceConfig &config)
+void VideoSourceManager::notifyFiltersChanged(int row)
 {
-    const int row = sourceRow(sourceId);
-    if (row < 0 || !config.isValid() || cameraDeviceInUse(config.deviceId(), sourceId))
-        return false;
-    auto *camera = std::get_if<CameraSourceConfig>(&m_sources[row].config());
-    if (!camera)
-        return false;
-    if ((*camera) != config) {
-        m_sources[row].setConfig(config);
-        emit sourceChanged(sourceId);
-    }
-    return true;
-}
-
-bool VideoSourceManager::setCameraActualMode(const QString &sourceId, const QSize &size,
-                                             int numerator, int denominator)
-{
-    const int row = sourceRow(sourceId);
-    if (row < 0 || m_sources[row].type() != VideoSourceType::Camera)
-        return false;
-    setSourcePixelSize(sourceId, size);
-    // Geometry notifications may synchronously remove the source.
-    const int updatedRow = sourceRow(sourceId);
-    if (updatedRow < 0)
-        return false;
-    auto runtime = m_sources[updatedRow].runtime();
-    if (runtime.actualFrameRateNumerator() == numerator &&
-        runtime.actualFrameRateDenominator() == denominator)
-        return true;
-    runtime.setActualFrameRateNumerator(numerator);
-    runtime.setActualFrameRateDenominator(denominator);
-    m_sources[updatedRow].setRuntime(runtime);
-    emit sourceStatusChanged(sourceId);
-    return true;
+    const QString id = m_sources[row].id();
+    emit sourceChanged(id);
+    emit sourceFiltersChanged(id);
 }

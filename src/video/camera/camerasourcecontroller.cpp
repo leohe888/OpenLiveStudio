@@ -4,6 +4,17 @@
 #include <QUuid>
 #include <algorithm>
 
+namespace {
+void setRuntimeStatus(VideoSourceManager &manager, const QString &sourceId,
+                      VideoSourceState state, const QString &error)
+{
+    auto runtime = manager.sourceRuntime(sourceId);
+    runtime.setState(state);
+    runtime.setError(error);
+    manager.setSourceRuntime(sourceId, runtime);
+}
+}
+
 CameraSourceController::CameraSourceController(VideoSourceManager &manager, QObject *parent)
     : QObject(parent), m_sourceManager(manager)
 {
@@ -94,8 +105,7 @@ void CameraSourceController::requestModes(const QString &deviceId)
 
 QString CameraSourceController::addCamera(const QString &name, const CameraSourceConfig &config)
 {
-    if (name.trimmed().isEmpty() || !config.isValid() ||
-        m_sourceManager.cameraDeviceInUse(config.deviceId()))
+    if (name.trimmed().isEmpty() || !config.isValid())
         return {};
     const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     if (!m_sourceManager.addSource({id, name.trimmed(), config}))
@@ -105,11 +115,12 @@ QString CameraSourceController::addCamera(const QString &name, const CameraSourc
 
 bool CameraSourceController::applyProperties(const QString &sourceId, const CameraSourceConfig &config)
 {
-    const auto *camera = m_sourceManager.cameraSource(sourceId);
+    const auto *sourceConfig = m_sourceManager.sourceConfig(sourceId);
+    const auto *camera = sourceConfig ? std::get_if<CameraSourceConfig>(sourceConfig) : nullptr;
     if (!camera)
         return false;
     const bool unchanged = (*camera) == config;
-    if (!m_sourceManager.setCameraConfig(sourceId, config))
+    if (!m_sourceManager.setSourceConfig(sourceId, config))
         return false;
     // Changed configuration already restarts through the manager notification.
     if (unchanged)
@@ -172,10 +183,8 @@ void CameraSourceController::synchronize()
         }
         if (!item.visible()) {
             stop(entry);
-            m_sourceManager.setSourceStatus(
-                id, "paused",
-                entry.failed ? m_sourceManager.sourceStatus(id).error()
-                             : QString());
+            setRuntimeStatus(m_sourceManager, id, VideoSourceState::Paused,
+                             entry.failed ? m_sourceManager.sourceRuntime(id).error() : QString());
         } else if (!entry.worker && !entry.failed) {
             // Never reopen while an old session on the same device is still retiring.
             const bool retiring =
@@ -183,16 +192,16 @@ void CameraSourceController::synchronize()
                     return worker->deviceId() == config.deviceId() && !worker->isFinished();
                 });
             if (retiring) {
-                m_sourceManager.setSourceStatus(id, "starting", {});
+                setRuntimeStatus(m_sourceManager, id, VideoSourceState::Starting, {});
                 continue;
             }
             entry.generation = ++m_generation;
             entry.worker = std::make_unique<CameraCaptureWorker>(config, entry.generation);
             entry.worker->start();
-            m_sourceManager.setSourceStatus(id, "starting", {});
+            setRuntimeStatus(m_sourceManager, id, VideoSourceState::Starting, {});
         } else if (entry.failed) {
-            m_sourceManager.setSourceStatus(
-                id, "error", m_sourceManager.sourceStatus(id).error());
+            setRuntimeStatus(m_sourceManager, id, VideoSourceState::Error,
+                             m_sourceManager.sourceRuntime(id).error());
         }
     }
     for (auto it = m_entries.begin(); it != m_entries.end();) {
@@ -218,17 +227,20 @@ void CameraSourceController::poll()
         if (!error.isEmpty()) {
             stop(entry);
             entry.failed = true;
-            m_sourceManager.setSourceStatus(id, "error", error);
+            setRuntimeStatus(m_sourceManager, id, VideoSourceState::Error, error);
             emit sourceFailed(id, error);
             changed = true;
         } else if (auto frame = entry.worker->takeLatest()) {
             if (frame->generation != entry.generation)
                 continue;
             entry.frame = std::move(frame);
-            m_sourceManager.setCameraActualMode(id, entry.frame->image.size(),
-                                                entry.frame->rateNumerator,
-                                                entry.frame->rateDenominator);
-            m_sourceManager.setSourceStatus(id, "capturing", {});
+            auto runtime = m_sourceManager.sourceRuntime(id);
+            runtime.setPixelSize(entry.frame->image.size());
+            runtime.setActualFrameRateNumerator(entry.frame->rateNumerator);
+            runtime.setActualFrameRateDenominator(entry.frame->rateDenominator);
+            runtime.setState(VideoSourceState::Capturing);
+            runtime.setError({});
+            m_sourceManager.setSourceRuntime(id, runtime);
             changed = true;
         }
     }

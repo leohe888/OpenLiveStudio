@@ -1,3 +1,4 @@
+#include "../video/videosourcetesthelpers.h"
 #ifndef RECORDINGACCEPTANCE_H
 #define RECORDINGACCEPTANCE_H
 
@@ -139,9 +140,9 @@ inline void run(MainWindow &window)
     const auto mic = audio->addSource("Microphone", AudioSourceType::Microphone, microphoneId);
     QString system = audio->addSource("System", AudioSourceType::SystemAudio, systemId);
     QVERIFY(!screen.isEmpty() && !cam.isEmpty() && !mic.isEmpty() && !system.isEmpty());
-    QTRY_COMPARE_WITH_TIMEOUT(model->sourceStatus(screen).state(),
-                              QString("capturing"), 15000);
-    QTRY_COMPARE_WITH_TIMEOUT(model->sourceStatus(cam).state(), QString("capturing"),
+    QTRY_COMPARE_WITH_TIMEOUT(model->sourceRuntime(screen).state(),
+                              VideoSourceState::Capturing, 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(model->sourceRuntime(cam).state(), VideoSourceState::Capturing,
                               15000);
     QTRY_COMPARE_WITH_TIMEOUT(audio->source(mic)->state, QString("capturing"), 5000);
     QTRY_COMPARE_WITH_TIMEOUT(audio->source(system)->state, QString("capturing"), 5000);
@@ -261,7 +262,7 @@ inline void run(MainWindow &window)
             QVERIFY(model->setSourceCanvasGeometry(imageId, {{700, 500}, {350, 200}, 35}));
             const auto filter = model->addFilter(imageId);
             QVERIFY(!filter.isEmpty());
-            QVERIFY(model->setFilterConfig(imageId, filter, ColorCorrectionConfig{.1f, .8f, .3f}));
+            QVERIFY(setFilterConfig(*model, imageId, filter, ColorCorrectionConfig{.1f, .8f, .3f}));
             event("transform-and-filter");
         }
         if (percent >= 20 && !done[1]) {
@@ -274,8 +275,8 @@ inline void run(MainWindow &window)
         if (pausedAt >= 0 && now - pausedAt > std::min(1500, seconds * 20)) {
             pausedAt = -1;
             QVERIFY(model->setSourceVisible(cam, true));
-            QTRY_COMPARE_WITH_TIMEOUT(model->sourceStatus(cam).state(),
-                                      QString("capturing"), 10000);
+            QTRY_COMPARE_WITH_TIMEOUT(model->sourceRuntime(cam).state(),
+                                      VideoSourceState::Capturing, 10000);
             event("camera-restored");
         }
         if (percent >= 35 && !done[2]) {

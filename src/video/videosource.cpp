@@ -104,13 +104,13 @@ void ImageSourceConfig::setFilePath(const QString &filePath)
 
 VideoSourceRuntime::VideoSourceRuntime() = default;
 
-VideoSourceRuntime::VideoSourceRuntime(const QSize &pixelSize, const QString &state,
+VideoSourceRuntime::VideoSourceRuntime(const QSize &pixelSize, VideoSourceState state,
                                        const QString &error)
     : m_pixelSize(pixelSize), m_state(state), m_error(error)
 {
 }
 
-VideoSourceRuntime::VideoSourceRuntime(const QSize &pixelSize, const QString &state,
+VideoSourceRuntime::VideoSourceRuntime(const QSize &pixelSize, VideoSourceState state,
                                        const QString &error, int actualFrameRateNumerator,
                                        int actualFrameRateDenominator)
     : m_pixelSize(pixelSize), m_state(state), m_error(error),
@@ -129,12 +129,12 @@ void VideoSourceRuntime::setPixelSize(const QSize &pixelSize)
     m_pixelSize = pixelSize;
 }
 
-const QString &VideoSourceRuntime::state() const
+VideoSourceState VideoSourceRuntime::state() const
 {
     return m_state;
 }
 
-void VideoSourceRuntime::setState(const QString &state)
+void VideoSourceRuntime::setState(VideoSourceState state)
 {
     m_state = state;
 }
@@ -180,11 +180,12 @@ VideoSource::VideoSource(const QString &id, const QString &name, const VideoSour
 {
 }
 
-VideoSource::VideoSource(const QString &id, const QString &name, const VideoSourceConfig &config,
-                         bool visible, bool locked, const VideoSourceCanvasGeometry &canvasGeometry,
-                         const QList<VideoSourceFilter> &filters, const VideoSourceRuntime &runtime)
-    : m_id(id), m_name(name), m_config(config), m_visible(visible), m_locked(locked),
-      m_canvasGeometry(canvasGeometry), m_filters(filters), m_runtime(runtime)
+VideoSource::VideoSource(const QString &id, const QString &name, bool visible, bool locked,
+                         const VideoSourceCanvasGeometry &canvasGeometry,
+                         const QList<VideoSourceFilter> &filters, const VideoSourceRuntime &runtime,
+                         const VideoSourceConfig &config)
+    : m_id(id), m_name(name), m_visible(visible), m_locked(locked),
+      m_canvasGeometry(canvasGeometry), m_filters(filters), m_runtime(runtime), m_config(config)
 {
 }
 
@@ -206,16 +207,6 @@ const QString &VideoSource::name() const
 void VideoSource::setName(const QString &name)
 {
     m_name = name;
-}
-
-const VideoSourceConfig &VideoSource::config() const
-{
-    return m_config;
-}
-
-void VideoSource::setConfig(const VideoSourceConfig &config)
-{
-    m_config = config;
 }
 
 bool VideoSource::visible() const
@@ -266,6 +257,16 @@ const VideoSourceRuntime &VideoSource::runtime() const
 void VideoSource::setRuntime(const VideoSourceRuntime &runtime)
 {
     m_runtime = runtime;
+}
+
+const VideoSourceConfig &VideoSource::config() const
+{
+    return m_config;
+}
+
+void VideoSource::setConfig(const VideoSourceConfig &config)
+{
+    m_config = config;
 }
 
 bool CameraSourceConfig::isValid() const

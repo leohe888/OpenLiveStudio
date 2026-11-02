@@ -1,3 +1,4 @@
+#include "videosourcetesthelpers.h"
 #include "video/camera/camerasourcecontroller.h"
 #include "video/videosourcemanager.h"
 #include <QSignalSpy>
@@ -51,22 +52,22 @@ void CameraCaptureTest::configAndLayout()
     const QString id = controller.addCamera("Camera", mode.config("missing-device"));
     QVERIFY(!id.isEmpty());
     QVERIFY(controller.addCamera("Duplicate", CameraSourceConfig{"missing-device"}).isEmpty());
-    QCOMPARE(model.cameraSource(id)->frameRateDenominator(), 1001);
-    QVERIFY(model.canEditCurrentSource());
+    QCOMPARE(cameraSource(model, id)->frameRateDenominator(), 1001);
+    QVERIFY(model.canEditCurrentSourceProperties());
     QVERIFY(model.canFilterCurrentSource());
-    model.setCameraActualMode(id, {1280, 720}, 30000, 1001);
+    setCameraActualMode(model, id, {1280, 720}, 30000, 1001);
     const VideoSourceCanvasGeometry canvasGeometry{{440, 330}, {600, 337.5}, 35};
     QVERIFY(model.setSourceCanvasGeometry(id, canvasGeometry));
     QVERIFY(model.setSourceLocked(id, true));
     const QString filter = model.addFilter(id);
     QVERIFY(!filter.isEmpty());
-    model.setCameraActualMode(id, {640, 480}, 30, 1);
+    setCameraActualMode(model, id, {640, 480}, 30, 1);
     const auto adjusted = model.sources().at(0).canvasGeometry();
     QCOMPARE(adjusted.center(), canvasGeometry.center());
     QCOMPARE(adjusted.rotation(), canvasGeometry.rotation());
     QCOMPARE(adjusted.size(), QSizeF(600, 450));
     QCOMPARE(model.sourceFilters(id)[0].id(), filter);
-    QVERIFY(!model.setCameraConfig(id, CameraSourceConfig{"missing-device", {1280, 720}, 30, 0}));
+    QVERIFY(!setCameraConfig(model, id, CameraSourceConfig{"missing-device", {1280, 720}, 30, 0}));
     QVERIFY(model.removeSource(id));
     QTRY_COMPARE_WITH_TIMEOUT(controller.activeWorkerCount(), 0, 10000);
 }
@@ -85,19 +86,19 @@ void CameraCaptureTest::unavailableDeviceAndLifecycle()
     QVERIFY(model.addSource({"image", "Image", ImageSourceConfig{"unused"}}));
     const QString id = controller.addCamera("Camera", CameraSourceConfig{"missing-device"});
     QVERIFY(!id.isEmpty());
-    QTRY_COMPARE_WITH_TIMEOUT(model.sourceStatus(id).state(), QString("error"),
+    QTRY_COMPARE_WITH_TIMEOUT(model.sourceRuntime(id).state(), VideoSourceState::Error,
                               10000);
-    QVERIFY(!model.sourceStatus(id).error().isEmpty());
+    QVERIFY(!model.sourceRuntime(id).error().isEmpty());
     QVERIFY(!errors.isEmpty());
     QCOMPARE(output.size(), 1);
     QCOMPARE(output[0].id, id);
     QVERIFY(output[0].image.isNull());
     QVERIFY(model.setSourceVisible(id, false));
-    QCOMPARE(model.sourceStatus(id).state(), QString("paused"));
+    QCOMPARE(model.sourceRuntime(id).state(), VideoSourceState::Paused);
     QTRY_COMPARE_WITH_TIMEOUT(controller.activeWorkerCount(), 0, 10000);
     const int before = errors.count();
     QVERIFY(model.setSourceVisible(id, true));
-    QCOMPARE(model.sourceStatus(id).state(), QString("error"));
+    QCOMPARE(model.sourceRuntime(id).state(), VideoSourceState::Error);
     QCOMPARE(errors.count(), before);
     QCOMPARE(controller.activeWorkerCount(), 0);
     QVERIFY(controller.retry(id));
@@ -133,12 +134,12 @@ void CameraCaptureTest::hardware()
         ids.append(id);
     }
     for (const auto &id : ids) {
-        QTRY_VERIFY_WITH_TIMEOUT(model.sourceStatus(id).state() == "capturing" ||
-                                     model.sourceStatus(id).state() == "error",
+        QTRY_VERIFY_WITH_TIMEOUT(model.sourceRuntime(id).state() == VideoSourceState::Capturing ||
+                                     model.sourceRuntime(id).state() == VideoSourceState::Error,
                                  15000);
-        QVERIFY2(model.sourceStatus(id).state() == "capturing",
-                 qPrintable(model.sourceStatus(id).error()));
-        qInfo() << "Actual mode:" << model.sourceStatus(id).pixelSize();
+        QVERIFY2(model.sourceRuntime(id).state() == VideoSourceState::Capturing,
+                 qPrintable(model.sourceRuntime(id).error()));
+        qInfo() << "Actual mode:" << model.sourceRuntime(id).pixelSize();
     }
     QTest::qWait(2000);
     QElapsedTimer interval;
@@ -182,26 +183,26 @@ void CameraCaptureTest::hardware()
     for (const auto &id : ids)
         QVERIFY(model.setSourceVisible(id, true));
     for (const auto &id : ids)
-        QTRY_COMPARE_WITH_TIMEOUT(model.sourceStatus(id).state(),
-                                  QString("capturing"), 15000);
+        QTRY_COMPARE_WITH_TIMEOUT(model.sourceRuntime(id).state(),
+                                  VideoSourceState::Capturing, 15000);
     // Apply an explicit native mode after both devices have been opened and released.
     const auto deviceId = devices[0].id;
     const auto modes = catalogs.value(deviceId);
     const auto mode = modes.last();
     QVERIFY(controller.applyProperties(ids[0], mode.config(deviceId)));
-    QTRY_COMPARE_WITH_TIMEOUT(model.sourceStatus(ids[0]).state(),
-                              QString("capturing"), 15000);
-    QCOMPARE(model.sourceStatus(ids[0]).pixelSize().width(), mode.width);
-    QCOMPARE(model.sourceStatus(ids[0]).pixelSize().height(), mode.height);
+    QTRY_COMPARE_WITH_TIMEOUT(model.sourceRuntime(ids[0]).state(),
+                              VideoSourceState::Capturing, 15000);
+    QCOMPARE(model.sourceRuntime(ids[0]).pixelSize().width(), mode.width);
+    QCOMPARE(model.sourceRuntime(ids[0]).pixelSize().height(), mode.height);
     // Unsupported explicit modes must fail while preserving the requested configuration.
     const CameraMode unsupported{9999, 9999, 30, 1};
     QVERIFY(controller.applyProperties(ids[0], unsupported.config(deviceId)));
-    QTRY_COMPARE_WITH_TIMEOUT(model.sourceStatus(ids[0]).state(), QString("error"),
+    QTRY_COMPARE_WITH_TIMEOUT(model.sourceRuntime(ids[0]).state(), VideoSourceState::Error,
                               15000);
-    QCOMPARE(model.cameraSource(ids[0])->resolution().width(), 9999);
+    QCOMPARE(cameraSource(model, ids[0])->resolution().width(), 9999);
     QVERIFY(controller.applyProperties(ids[0], mode.config(deviceId)));
-    QTRY_COMPARE_WITH_TIMEOUT(model.sourceStatus(ids[0]).state(),
-                              QString("capturing"), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(model.sourceRuntime(ids[0]).state(),
+                              VideoSourceState::Capturing, 15000);
     for (const auto &id : ids)
         QVERIFY(model.removeSource(id));
     QTRY_COMPARE_WITH_TIMEOUT(controller.activeWorkerCount(), 0, 10000);

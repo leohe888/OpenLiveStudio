@@ -75,8 +75,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
 
     const auto showSourceError = [this](const QString &sourceId, const QString &message) {
         QString name = tr("图片");
-        if (const auto *source = m_videoSourceManager->source(sourceId))
-            name = source->name();
+        const auto sourceName = m_videoSourceManager->sourceName(sourceId);
+        if (!sourceName.isNull())
+            name = sourceName;
         statusBar()->showMessage(tr("来源“%1”：%2").arg(name, message));
     };
 
@@ -243,10 +244,10 @@ void MainWindow::showAudioSourceRemovalDialog(const QString &sourceId)
 
 void MainWindow::showSourceRemovalDialog(const QString &sourceId)
 {
-    const auto *source = m_videoSourceManager->source(sourceId);
-    if (!source)
+    const auto name = m_videoSourceManager->sourceName(sourceId);
+    if (name.isNull())
         return;
-    createRemovalDialog(this, source->name(), tr("仅从来源列表移除，不会删除磁盘上的文件。"),
+    createRemovalDialog(this, name, tr("仅从来源列表移除，不会删除磁盘上的文件。"),
                         [this, sourceId] {
                             return m_videoSourceManager->removeSource(sourceId);
                         })
@@ -270,8 +271,8 @@ void MainWindow::showSourceFiltersDialog(const QString &sourceId)
 
 void MainWindow::showSourcePropertiesDialog(const QString &sourceId)
 {
-    if (!m_videoSourceManager->cameraSource(sourceId) &&
-        !m_videoSourceManager->displaySource(sourceId))
+    const auto *config = m_videoSourceManager->sourceConfig(sourceId);
+    if (!config || std::holds_alternative<ImageSourceConfig>(*config))
         return;
     for (auto *dialog : findChildren<QDialog *>()) {
         if (dialog->property("displaySourceId").toString() == sourceId) {

@@ -10,6 +10,17 @@
 #include <QUuid>
 #include <QWidget>
 
+namespace {
+void setRuntimeStatus(VideoSourceManager &manager, const QString &sourceId,
+                      VideoSourceState state, const QString &error)
+{
+    auto runtime = manager.sourceRuntime(sourceId);
+    runtime.setState(state);
+    runtime.setError(error);
+    manager.setSourceRuntime(sourceId, runtime);
+}
+}
+
 ImageSourceController::ImageSourceController(VideoSourceManager &manager, QObject *parent)
     : QObject(parent), m_sourceManager(manager)
 {
@@ -84,7 +95,7 @@ void ImageSourceController::addImage(const QString &name, const QString &path, Q
             m_images.insert(id, {absolutePath, image, ++m_generation});
             VideoSource source{id, name.trimmed(),
                                ImageSourceConfig{absolutePath}};
-            source.setRuntime({image.size(), "ready", {}});
+            source.setRuntime({image.size(), VideoSourceState::Ready, {}});
             if (!m_sourceManager.addSource(source)) {
                 m_images.remove(id);
                 emit addFailed(owner, tr("无法添加图片来源。"));
@@ -124,14 +135,17 @@ void ImageSourceController::synchronize()
         if (it == m_images.end() || it->path != path) {
             const quint64 generation = ++m_generation;
             it = m_images.insert(id, {path, {}, generation});
-            m_sourceManager.setSourceStatus(id, "loading", {});
+            setRuntimeStatus(m_sourceManager, id, VideoSourceState::Loading, {});
             loadImage(path, [this, id, generation](QImage image, QString error) {
                 auto entry = m_images.find(id);
                 if (entry == m_images.end() || entry->generation != generation)
                     return;
                 entry->image = image;
-                m_sourceManager.setSourcePixelSize(id, image.size());
-                m_sourceManager.setSourceStatus(id, error.isEmpty() ? "ready" : "error", error);
+                auto runtime = m_sourceManager.sourceRuntime(id);
+                runtime.setPixelSize(image.size());
+                runtime.setState(error.isEmpty() ? VideoSourceState::Ready : VideoSourceState::Error);
+                runtime.setError(error);
+                m_sourceManager.setSourceRuntime(id, runtime);
                 if (!error.isEmpty())
                     emit sourceFailed(id, error);
                 synchronize();

@@ -1,5 +1,6 @@
 #include "video/videosourceaggregator.h"
 #include "video/videosourcemanager.h"
+#include "videosourcetesthelpers.h"
 
 #include <QSignalSpy>
 #include <QtTest/QTest>
@@ -58,7 +59,8 @@ void VideoSourceAggregatorTest::publishesInitialAndPendingSnapshots()
     QTRY_COMPARE(output.size(), 1);
     QVERIFY(!output[0].hasFrame()); // Loading/failed sources are not silently dropped.
 
-    VideoSourceManager existing(mixedSources());
+    VideoSourceManager existing;
+    QVERIFY(addSources(existing, mixedSources()));
     VideoSourceAggregator initial(existing);
     QList<PreviewSource> initialOutput;
     connect(&initial, &VideoSourceAggregator::sourcesChanged, this, [&](const auto &sources) {
@@ -70,7 +72,8 @@ void VideoSourceAggregatorTest::publishesInitialAndPendingSnapshots()
 
 void VideoSourceAggregatorTest::mergesInModelOrderAndPreservesFrames()
 {
-    VideoSourceManager model(mixedSources());
+    VideoSourceManager model;
+    QVERIFY(addSources(model, mixedSources()));
     VideoSourceAggregator aggregator(model);
     QList<PreviewSource> output;
     connect(&aggregator, &VideoSourceAggregator::sourcesChanged, this, [&](const auto &sources) {
@@ -100,7 +103,8 @@ void VideoSourceAggregatorTest::mergesInModelOrderAndPreservesFrames()
 
 void VideoSourceAggregatorTest::replacesOnlyTheUpdatedType()
 {
-    VideoSourceManager model(mixedSources());
+    VideoSourceManager model;
+    QVERIFY(addSources(model, mixedSources()));
     VideoSourceAggregator aggregator(model);
     QList<PreviewSource> output;
     connect(&aggregator, &VideoSourceAggregator::sourcesChanged, this, [&](const auto &sources) {
@@ -125,10 +129,10 @@ void VideoSourceAggregatorTest::replacesOnlyTheUpdatedType()
 
 void VideoSourceAggregatorTest::usesModelPropertiesWithoutNewFrames()
 {
-    VideoSourceManager model(
-        {{"image", "Image",
-          ImageSourceConfig{"image.png"}}});
-    model.setSourcePixelSize("image", {40, 20});
+    VideoSourceManager model;
+    QVERIFY(addSources(model, {{"image", "Image",
+          ImageSourceConfig{"image.png"}}}));
+    setSourcePixelSize(model, "image", {40, 20});
     VideoSourceAggregator aggregator(model);
     QList<PreviewSource> output;
     QSignalSpy changes(&aggregator, &VideoSourceAggregator::sourcesChanged);
@@ -144,7 +148,7 @@ void VideoSourceAggregatorTest::usesModelPropertiesWithoutNewFrames()
     QVERIFY(model.setSourceLocked("image", true));
     const auto filter = model.addFilter("image");
     QVERIFY(!filter.isEmpty());
-    QVERIFY(model.setFilterConfig("image", filter, ColorCorrectionConfig{.2f, .8f, 1.1f}));
+    QVERIFY(setFilterConfig(model, "image", filter, ColorCorrectionConfig{.2f, .8f, 1.1f}));
     QTRY_COMPARE(output[0].canvasGeometry, canvasGeometry);
     QVERIFY(!output[0].visible);
     QVERIFY(output[0].locked);
@@ -154,7 +158,7 @@ void VideoSourceAggregatorTest::usesModelPropertiesWithoutNewFrames()
     QCOMPARE(output[0].image, pixels);
 
     changes.clear();
-    QVERIFY(model.setSourceStatus("image", "error", "failed"));
+    QVERIFY(setSourceStatus(model, "image", VideoSourceState::Error, "failed"));
     QCoreApplication::processEvents();
     QCOMPARE(changes.count(), 0); // Status text alone does not change the render snapshot.
 }
@@ -162,7 +166,8 @@ void VideoSourceAggregatorTest::usesModelPropertiesWithoutNewFrames()
 void VideoSourceAggregatorTest::rejectsForeignAndMismatchedSources()
 {
     auto sources = mixedSources();
-    VideoSourceManager model(sources);
+    VideoSourceManager model;
+    QVERIFY(addSources(model, sources));
     VideoSourceAggregator aggregator(model);
     QList<PreviewSource> output;
     QSignalSpy changes(&aggregator, &VideoSourceAggregator::sourcesChanged);
@@ -181,7 +186,8 @@ void VideoSourceAggregatorTest::rejectsForeignAndMismatchedSources()
 
 void VideoSourceAggregatorTest::removesSourcesAndReleasesFrames()
 {
-    VideoSourceManager model(mixedSources());
+    VideoSourceManager model;
+    QVERIFY(addSources(model, mixedSources()));
     VideoSourceAggregator aggregator(model);
     QList<PreviewSource> output;
     QSignalSpy changes(&aggregator, &VideoSourceAggregator::sourcesChanged);
@@ -209,7 +215,8 @@ void VideoSourceAggregatorTest::removesSourcesAndReleasesFrames()
 
 void VideoSourceAggregatorTest::coalescesUpdatesAndCancelsOnDestruction()
 {
-    VideoSourceManager model(mixedSources());
+    VideoSourceManager model;
+    QVERIFY(addSources(model, mixedSources()));
     VideoSourceAggregator aggregator(model);
     QSignalSpy changes(&aggregator, &VideoSourceAggregator::sourcesChanged);
     QList<PreviewSource> output;

@@ -85,7 +85,7 @@ public:
 
     CaptureSettings(QWidget *parent, DisplaySourceController *displays,
                     CameraSourceController *cameras, bool camera,
-                    const VideoSource *initial = nullptr)
+                    const VideoSourceConfig *initialConfig = nullptr)
         : QWidget(parent)
     {
         auto *layout = new QVBoxLayout(this);
@@ -106,8 +106,8 @@ public:
         if (!camera) {
             cursor = new QCheckBox(tr("采集鼠标光标"), this);
             cursor->setObjectName("captureCursorInput");
-            const DisplaySourceConfig config =
-                initial ? std::get<DisplaySourceConfig>(initial->config()) : DisplaySourceConfig{};
+            const auto *display = initialConfig ? std::get_if<DisplaySourceConfig>(initialConfig) : nullptr;
+            const DisplaySourceConfig config = display ? *display : DisplaySourceConfig{};
             cursor->setChecked(config.captureCursor());
             layout->addWidget(cursor);
             layout->addWidget(
@@ -122,8 +122,8 @@ public:
                     &DisplaySourceController::refreshDisplayDevices);
             displays->refreshDisplayDevices();
         } else {
-            const CameraSourceConfig config =
-                initial ? std::get<CameraSourceConfig>(initial->config()) : CameraSourceConfig{};
+            const auto *cameraConfig = initialConfig ? std::get_if<CameraSourceConfig>(initialConfig) : nullptr;
+            const CameraSourceConfig config = cameraConfig ? *cameraConfig : CameraSourceConfig{};
             originalMode = {config.resolution().width(), config.resolution().height(),
                             config.frameRateNumerator(), config.frameRateDenominator()};
             mode = new QComboBox(this);
@@ -265,13 +265,15 @@ VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent)
         up->setEnabled(manager->canMoveCurrentSourceUp());
         down->setEnabled(manager->canMoveCurrentSourceDown());
         filters->setEnabled(manager->canFilterCurrentSource());
-        properties->setEnabled(manager->canEditCurrentSource());
+        properties->setEnabled(manager->canEditCurrentSourceProperties());
     };
 
     const auto updateRow = [=](const QString &sourceId) {
-        const auto *source = manager->source(sourceId);
-        if (!source)
+        const auto name = manager->sourceName(sourceId);
+        if (name.isNull())
             return;
+        const auto *config = manager->sourceConfig(sourceId);
+        const bool image = config && std::holds_alternative<ImageSourceConfig>(*config);
         QListWidgetItem *item = nullptr;
         for (int row = 0; row < list->count(); ++row) {
             if (list->item(row)->data(Qt::UserRole).toString() == sourceId) {
@@ -282,23 +284,26 @@ VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent)
         if (!item)
             return;
         auto *widget = list->itemWidget(item);
-        const auto runtime = manager->sourceStatus(sourceId);
-        const QString state = source->type() == VideoSourceType::Image ? QString() : runtime.state();
-        const QString error = source->type() == VideoSourceType::Image ? QString() : runtime.error();
+        const auto runtime = manager->sourceRuntime(sourceId);
+        const auto state = image
+                               ? VideoSourceState::Idle
+                               : runtime.state();
+        const QString error = image ? QString() : runtime.error();
         auto *text = widget->findChild<QLabel *>();
-        text->setText(source->name() + (state == "error" ? tr(" · 采集失败") : QString()));
-        text->setToolTip(error.isEmpty() ? source->name() : error);
-        item->setData(Qt::AccessibleTextRole, source->name());
+        text->setText(name +
+                      (state == VideoSourceState::Error ? tr(" · 采集失败") : QString()));
+        text->setToolTip(error.isEmpty() ? name : error);
+        item->setData(Qt::AccessibleTextRole, name);
         item->setData(Qt::AccessibleDescriptionRole, error);
 
         auto *visibility = widget->findChild<QToolButton *>("sourceVisibilityButton");
-        visibility->setChecked(source->visible());
+        visibility->setChecked(manager->sourceVisible(sourceId));
         visibility->setIcon(
-            QIcon(source->visible() ? ":/assets/icons/eye.svg" : ":/assets/icons/eye-off.svg"));
+            QIcon(manager->sourceVisible(sourceId) ? ":/assets/icons/eye.svg" : ":/assets/icons/eye-off.svg"));
         auto *lock = widget->findChild<QToolButton *>("sourceLockButton");
-        lock->setChecked(source->locked());
+        lock->setChecked(manager->sourceLocked(sourceId));
         lock->setIcon(
-            QIcon(source->locked() ? ":/assets/icons/lock.svg" : ":/assets/icons/lock-open.svg"));
+            QIcon(manager->sourceLocked(sourceId) ? ":/assets/icons/lock.svg" : ":/assets/icons/lock-open.svg"));
     };
 
     const auto rebuild = [=] {
@@ -347,9 +352,9 @@ VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent)
 
     connect(manager, &VideoSourceManager::sourcesChanged, this, rebuild);
     connect(manager, &VideoSourceManager::sourceChanged, this, updateRow);
-    connect(manager, &VideoSourceManager::sourceStatusChanged, this, updateRow);
+    connect(manager, &VideoSourceManager::sourceRuntimeChanged, this, updateRow);
     connect(manager, &VideoSourceManager::currentSourceIdChanged, this, selection);
-    connect(manager, &VideoSourceManager::sourceMoveAvailabilityChanged, this, selection);
+    connect(manager, &VideoSourceManager::currentSourceMoveAvailabilityChanged, this, selection);
     connect(list, &QListWidget::currentRowChanged, this, [=](int row) {
         manager->selectSource(row < 0 ? QString() : list->item(row)->data(Qt::UserRole).toString());
     });
@@ -563,7 +568,8 @@ QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceManager *manag
                                       const QString &sourceId, DisplaySourceController *displays,
                                       CameraSourceController *cameras)
 {
-    const bool camera = manager->cameraSource(sourceId) != nullptr;
+    const auto *config = manager->sourceConfig(sourceId);
+    const bool camera = config && std::holds_alternative<CameraSourceConfig>(*config);
 
     auto *dialog =
         dialogShell(parent, camera ? "cameraPropertiesDialog" : "displayPropertiesDialog",
@@ -572,7 +578,8 @@ QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceManager *manag
 
     auto *layout = new QVBoxLayout(dialog);
     auto *settings =
-        new CaptureSettings(dialog, displays, cameras, camera, manager->source(sourceId));
+        new CaptureSettings(dialog, displays, cameras, camera,
+                            manager->sourceConfig(sourceId));
     layout->addWidget(settings);
 
     auto *state = label(dialog, camera ? "cameraStateLabel" : "captureStateLabel");
@@ -596,19 +603,19 @@ QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceManager *manag
         ->setObjectName(camera ? "cancelCameraPropertiesButton" : "closeDisplayPropertiesButton");
 
     const auto refresh = [=] {
-        const auto *cameraSource = manager->cameraSource(sourceId);
-        const auto *displaySource = manager->displaySource(sourceId);
-        if ((camera && !cameraSource) || (!camera && !displaySource)) {
+        const auto *config = manager->sourceConfig(sourceId);
+        if (!config || (camera && !std::holds_alternative<CameraSourceConfig>(*config)) ||
+            (!camera && !std::holds_alternative<DisplaySourceConfig>(*config))) {
             dialog->close();
             return;
         }
-        const auto runtime = manager->sourceStatus(sourceId);
-        const QString status = runtime.state();
-        QString text = status == "capturing" ? QObject::tr("采集中")
-                       : status == "paused"  ? QObject::tr("已暂停：来源当前隐藏")
-                       : status == "error"   ? QObject::tr("采集失败")
-                                             : QObject::tr("等待采集画面…");
-        if (camera && status == "capturing") {
+        const auto runtime = manager->sourceRuntime(sourceId);
+        const auto status = runtime.state();
+        QString text = status == VideoSourceState::Capturing ? QObject::tr("采集中")
+                       : status == VideoSourceState::Paused ? QObject::tr("已暂停：来源当前隐藏")
+                       : status == VideoSourceState::Error  ? QObject::tr("采集失败")
+                                                            : QObject::tr("等待采集画面…");
+        if (camera && status == VideoSourceState::Capturing) {
             text += QObject::tr(" · %1 × %2 · 协商帧率 %3 FPS")
                         .arg(runtime.pixelSize().width())
                         .arg(runtime.pixelSize().height())
@@ -618,12 +625,12 @@ QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceManager *manag
         }
         state->setText(text);
         error->setText(runtime.error());
-        retry->setEnabled(!camera || status == "error");
+        retry->setEnabled(!camera || status == VideoSourceState::Error);
         apply->setEnabled(settings->ready());
     };
     settings->changed = refresh;
 
-    QObject::connect(manager, &VideoSourceManager::sourceStatusChanged, dialog,
+    QObject::connect(manager, &VideoSourceManager::sourceRuntimeChanged, dialog,
                      [=](const QString &changedSourceId) {
                          if (changedSourceId == sourceId)
                              refresh();
@@ -777,12 +784,24 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
         updateSelection();
     };
 
+    const auto updateFilter = [=](const QString &filterId,
+                                  const std::function<void(VideoSourceFilter &)> &update) {
+        auto filters = manager->sourceFilters(sourceId);
+        for (auto &filter : filters) {
+            if (filter.id() == filterId) {
+                update(filter);
+                manager->setSourceFilters(sourceId, filters);
+                return;
+            }
+        }
+    };
     const auto applyConfig = [=] {
         if (!selected().isEmpty())
-            manager->setFilterConfig(sourceId, selected(),
-                                 ColorCorrectionConfig{float(inputs[0]->value()),
+            updateFilter(selected(), [=](VideoSourceFilter &filter) {
+                filter.setConfig(ColorCorrectionConfig{float(inputs[0]->value()),
                                                        float(inputs[1]->value()),
                                                        float(inputs[2]->value())});
+            });
     };
     for (int n = 0; n < inputs.size(); ++n) {
         QObject::connect(inputs[n], &QDoubleSpinBox::valueChanged, dialog, applyConfig);
@@ -798,8 +817,9 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
     QObject::connect(manager, &VideoSourceManager::sourcesChanged, dialog, refresh);
     QObject::connect(list, &QListWidget::currentRowChanged, dialog, updateSelection);
     QObject::connect(list, &QListWidget::itemChanged, dialog, [=](QListWidgetItem *item) {
-        manager->setFilterEnabled(sourceId, item->data(Qt::UserRole).toString(),
-                                  item->checkState() == Qt::Checked);
+        updateFilter(item->data(Qt::UserRole).toString(), [=](VideoSourceFilter &filter) {
+            filter.setEnabled(item->checkState() == Qt::Checked);
+        });
     });
     QObject::connect(add, &QToolButton::clicked, dialog, [=] {
         const auto added = manager->addFilter(sourceId, VideoSourceFilterType::ColorCorrection);
@@ -817,7 +837,9 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
         manager->moveFilter(sourceId, selected(), 1);
     });
     QObject::connect(reset, &QPushButton::clicked, dialog, [=] {
-        manager->setFilterConfig(sourceId, selected(), ColorCorrectionConfig{});
+        updateFilter(selected(), [](VideoSourceFilter &filter) {
+            filter.setConfig(ColorCorrectionConfig{});
+        });
     });
 
     auto *close = new QDialogButtonBox(QDialogButtonBox::Close, dialog);

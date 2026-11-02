@@ -143,11 +143,11 @@ void VideoSourceTest::configEditsAndSourceCopiesAreIndependent()
     QVERIFY((camera == CameraSourceConfig{"camera", {1280, 720}, 30000, 1001}));
 
     VideoSource original{"source", "Original", camera};
-    original.setRuntime(VideoSourceRuntime{{1280, 720}, "capturing", {}, 30000, 1001});
+    original.setRuntime(VideoSourceRuntime{{1280, 720}, VideoSourceState::Capturing, {}, 30000, 1001});
     original.setFilters({VideoSourceFilter{"filter"}});
     auto copy = original;
     auto runtime = copy.runtime();
-    runtime.setState("error");
+    runtime.setState(VideoSourceState::Error);
     runtime.setError("Disconnected");
     copy.setRuntime(runtime);
     auto filters = copy.filters();
@@ -163,7 +163,7 @@ void VideoSourceTest::configEditsAndSourceCopiesAreIndependent()
     QCOMPARE(original.type(), VideoSourceType::Camera);
     QCOMPARE(original.id(), QString("source"));
     QCOMPARE(original.name(), QString("Original"));
-    QCOMPARE(original.runtime().state(), QString("capturing"));
+    QCOMPARE(original.runtime().state(), VideoSourceState::Capturing);
     QVERIFY(original.runtime().error().isEmpty());
     QVERIFY(original.filters()[0].enabled());
     QVERIFY(original.visible());
@@ -184,9 +184,10 @@ void VideoSourceTest::shortConstructorsPreserveMemberDefaults()
     QVERIFY(camera == CameraSourceConfig{"camera"});
 
     VideoSourceRuntime runtime;
+    QCOMPARE(runtime.state(), VideoSourceState::Idle);
     runtime.setPixelSize(QSize(1280, 720));
-    runtime.setState("ready");
-    const VideoSourceRuntime constructedRuntime{{1280, 720}, "ready", {}};
+    runtime.setState(VideoSourceState::Ready);
+    const VideoSourceRuntime constructedRuntime{{1280, 720}, VideoSourceState::Ready, {}};
     QCOMPARE(constructedRuntime.pixelSize(), runtime.pixelSize());
     QCOMPARE(constructedRuntime.state(), runtime.state());
     QCOMPARE(constructedRuntime.error(), runtime.error());

@@ -7,6 +7,17 @@
 #include <QUuid>
 #include <algorithm>
 
+namespace {
+void setRuntimeStatus(VideoSourceManager &manager, const QString &sourceId,
+                      VideoSourceState state, const QString &error)
+{
+    auto runtime = manager.sourceRuntime(sourceId);
+    runtime.setState(state);
+    runtime.setError(error);
+    manager.setSourceRuntime(sourceId, runtime);
+}
+}
+
 DisplaySourceController::DisplaySourceController(VideoSourceManager &manager, QObject *parent)
     : QObject(parent), m_sourceManager(manager)
 {
@@ -58,12 +69,13 @@ QString DisplaySourceController::addDisplay(const QString &name, const QString &
 bool DisplaySourceController::applyProperties(const QString &sourceId, const QString &displayId,
                                               bool cursor)
 {
-    const auto *display = m_sourceManager.displaySource(sourceId);
+    const auto *sourceConfig = m_sourceManager.sourceConfig(sourceId);
+    const auto *display = sourceConfig ? std::get_if<DisplaySourceConfig>(sourceConfig) : nullptr;
     if (!display)
         return false;
     const bool unchanged =
         display->displayId() == displayId && display->captureCursor() == cursor;
-    if (!m_sourceManager.setDisplayConfig(sourceId, displayId, cursor))
+    if (!m_sourceManager.setSourceConfig(sourceId, DisplaySourceConfig{displayId, cursor}))
         return false;
     if (unchanged)
         retry(sourceId);
@@ -128,19 +140,17 @@ void DisplaySourceController::synchronize()
         }
         if (!item.visible()) {
             stop(entry);
-            m_sourceManager.setSourceStatus(
-                id, "paused",
-                entry.failed ? m_sourceManager.sourceStatus(id).error()
-                             : QString());
+            setRuntimeStatus(m_sourceManager, id, VideoSourceState::Paused,
+                             entry.failed ? m_sourceManager.sourceRuntime(id).error() : QString());
         } else if (!entry.worker && !entry.failed) {
             entry.generation = ++m_generation;
             entry.worker =
                 std::make_unique<DisplayCaptureWorker>(displayId, cursor, entry.generation);
             entry.worker->start();
-            m_sourceManager.setSourceStatus(id, "starting", {});
+            setRuntimeStatus(m_sourceManager, id, VideoSourceState::Starting, {});
         } else if (entry.failed) {
-            m_sourceManager.setSourceStatus(
-                id, "error", m_sourceManager.sourceStatus(id).error());
+            setRuntimeStatus(m_sourceManager, id, VideoSourceState::Error,
+                             m_sourceManager.sourceRuntime(id).error());
         }
     }
     for (auto it = m_entries.begin(); it != m_entries.end();) {
@@ -164,7 +174,7 @@ void DisplaySourceController::failTransfer(const QString &sourceId, quint64 gene
     entry.failed = true;
     stop(entry);
     const QString message = tr("GPU 画面传输失败，已停止采集。请检查显卡驱动后手动重试。");
-    m_sourceManager.setSourceStatus(sourceId, "error", message);
+    setRuntimeStatus(m_sourceManager, sourceId, VideoSourceState::Error, message);
     qWarning().noquote() << "Display GPU transfer failed:" << sourceId << reason;
     emit sourceFailed(sourceId, message);
     publish();
@@ -186,15 +196,18 @@ void DisplaySourceController::poll()
         if (!error.isEmpty()) {
             entry.failed = true;
             stop(entry);
-            m_sourceManager.setSourceStatus(id, "error", error);
+            setRuntimeStatus(m_sourceManager, id, VideoSourceState::Error, error);
             emit sourceFailed(id, error);
             changed = true;
         } else if (auto frame = entry.worker->takeLatest()) {
             if (frame->generation != entry.generation)
                 continue;
             entry.frame = std::move(frame);
-            m_sourceManager.setSourcePixelSize(id, entry.frame->size);
-            m_sourceManager.setSourceStatus(id, "capturing", {});
+            auto runtime = m_sourceManager.sourceRuntime(id);
+            runtime.setPixelSize(entry.frame->size);
+            runtime.setState(VideoSourceState::Capturing);
+            runtime.setError({});
+            m_sourceManager.setSourceRuntime(id, runtime);
             changed = true;
         }
     }

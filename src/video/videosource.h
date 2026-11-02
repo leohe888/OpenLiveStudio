@@ -14,6 +14,16 @@ enum class VideoSourceType {
     Image
 };
 
+enum class VideoSourceState {
+    Idle,
+    Loading,
+    Ready,
+    Starting,
+    Capturing,
+    Paused,
+    Error
+};
+
 class DisplaySourceConfig
 {
 public:
@@ -80,14 +90,14 @@ class VideoSourceRuntime
 {
 public:
     VideoSourceRuntime();
-    VideoSourceRuntime(const QSize &pixelSize, const QString &state, const QString &error);
-    VideoSourceRuntime(const QSize &pixelSize, const QString &state, const QString &error,
+    VideoSourceRuntime(const QSize &pixelSize, VideoSourceState state, const QString &error);
+    VideoSourceRuntime(const QSize &pixelSize, VideoSourceState state, const QString &error,
                        int actualFrameRateNumerator, int actualFrameRateDenominator);
 
     const QSize &pixelSize() const;
     void setPixelSize(const QSize &pixelSize);
-    const QString &state() const;
-    void setState(const QString &state);
+    VideoSourceState state() const;
+    void setState(VideoSourceState state);
     const QString &error() const;
     void setError(const QString &error);
     // Only populated for camera sources.
@@ -98,7 +108,7 @@ public:
 
 private:
     QSize m_pixelSize;
-    QString m_state;
+    VideoSourceState m_state = VideoSourceState::Idle;
     QString m_error;
     int m_actualFrameRateNumerator = 0;
     int m_actualFrameRateDenominator = 1;
@@ -110,16 +120,15 @@ public:
     VideoSource();
     VideoSource(const QString &id, const QString &name);
     VideoSource(const QString &id, const QString &name, const VideoSourceConfig &config);
-    VideoSource(const QString &id, const QString &name, const VideoSourceConfig &config,
-                bool visible, bool locked, const VideoSourceCanvasGeometry &canvasGeometry,
-                const QList<VideoSourceFilter> &filters, const VideoSourceRuntime &runtime);
+    VideoSource(const QString &id, const QString &name, bool visible, bool locked,
+                const VideoSourceCanvasGeometry &canvasGeometry,
+                const QList<VideoSourceFilter> &filters, const VideoSourceRuntime &runtime,
+                const VideoSourceConfig &config);
 
     const QString &id() const;
     void setId(const QString &id);
     const QString &name() const;
     void setName(const QString &name);
-    const VideoSourceConfig &config() const;
-    void setConfig(const VideoSourceConfig &config);
     bool visible() const;
     void setVisible(bool visible);
     bool locked() const;
@@ -130,18 +139,20 @@ public:
     void setFilters(const QList<VideoSourceFilter> &filters);
     const VideoSourceRuntime &runtime() const;
     void setRuntime(const VideoSourceRuntime &runtime);
+    const VideoSourceConfig &config() const;
+    void setConfig(const VideoSourceConfig &config);
 
     VideoSourceType type() const;
 
 private:
     QString m_id;
     QString m_name;
-    VideoSourceConfig m_config = DisplaySourceConfig{};
     bool m_visible = true;
     bool m_locked = false;
     VideoSourceCanvasGeometry m_canvasGeometry;
     QList<VideoSourceFilter> m_filters;
     VideoSourceRuntime m_runtime;
+    VideoSourceConfig m_config = DisplaySourceConfig{};
 };
 
 #endif // VIDEOSOURCE_H
