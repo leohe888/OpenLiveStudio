@@ -137,7 +137,7 @@ bool VideoSourceManager::addSource(const VideoSource &source, const VideoSourceS
 {
     if (source.id.trimmed().isEmpty() || sourceRow(source.id) >= 0)
         return false;
-    if (const auto *camera = std::get_if<CameraSourceParams>(&source.config)) {
+    if (const auto *camera = std::get_if<CameraSourceConfig>(&source.config)) {
         if (!camera->isValid() || cameraDeviceInUse(camera->deviceId))
             return false;
     }
@@ -227,7 +227,7 @@ QString VideoSourceManager::addFilter(const QString &sourceId, VideoSourceFilter
     VideoSourceFilter filter;
     switch (type) {
     case VideoSourceFilterType::ColorCorrection:
-        filter.params = ColorCorrectionParams{};
+        filter.config = ColorCorrectionConfig{};
         break;
     default:
         return {};
@@ -278,18 +278,18 @@ bool VideoSourceManager::setFilterEnabled(const QString &sourceId, const QString
     return true;
 }
 
-bool VideoSourceManager::setFilterParameters(const QString &sourceId, const QString &filterId,
-                                             const VideoSourceFilterParams &params)
+bool VideoSourceManager::setFilterConfig(const QString &sourceId, const QString &filterId,
+                                             const VideoSourceFilterConfig &config)
 {
     const int row = sourceRow(sourceId);
     const int filter = filterRow(row, filterId);
-    if (filter < 0 || !std::visit([](const auto &value) { return value.isValid(); }, params))
+    if (filter < 0 || !std::visit([](const auto &value) { return value.isValid(); }, config))
         return false;
     auto &entry = m_sources[row].filters[filter];
-    if (entry.params.index() != params.index())
+    if (entry.config.index() != config.index())
         return false;
-    if (!(entry.params == params)) {
-        entry.params = params;
+    if (!(entry.config == config)) {
+        entry.config = config;
         notifyFiltersChanged(row);
     }
     return true;
@@ -301,19 +301,19 @@ bool VideoSourceManager::canEditCurrentDisplay() const
     return row >= 0 && m_sources[row].type() == VideoSourceType::DisplayCapture;
 }
 
-const DisplaySourceParams *VideoSourceManager::displaySource(const QString &sourceId) const
+const DisplaySourceConfig *VideoSourceManager::displaySource(const QString &sourceId) const
 {
     const auto *entry = source(sourceId);
-    return entry ? std::get_if<DisplaySourceParams>(&entry->config) : nullptr;
+    return entry ? std::get_if<DisplaySourceConfig>(&entry->config) : nullptr;
 }
 
-bool VideoSourceManager::setDisplayParams(const QString &sourceId, const QString &displayId,
+bool VideoSourceManager::setDisplayConfig(const QString &sourceId, const QString &displayId,
                                           bool cursor)
 {
     const int row = sourceRow(sourceId);
     if (row < 0 || displayId.trimmed().isEmpty())
         return false;
-    auto *display = std::get_if<DisplaySourceParams>(&m_sources[row].config);
+    auto *display = std::get_if<DisplaySourceConfig>(&m_sources[row].config);
     if (!display)
         return false;
     if (display->displayId != displayId || display->captureCursor != cursor) {
@@ -348,28 +348,28 @@ bool VideoSourceManager::canEditCurrentSource() const
 bool VideoSourceManager::cameraDeviceInUse(const QString &deviceId, const QString &exceptId) const
 {
     for (const auto &source : m_sources)
-        if (const auto *camera = std::get_if<CameraSourceParams>(&source.config))
+        if (const auto *camera = std::get_if<CameraSourceConfig>(&source.config))
             if (source.id != exceptId && camera->deviceId == deviceId)
                 return true;
     return false;
 }
 
-const CameraSourceParams *VideoSourceManager::cameraSource(const QString &sourceId) const
+const CameraSourceConfig *VideoSourceManager::cameraSource(const QString &sourceId) const
 {
     const auto *entry = source(sourceId);
-    return entry ? std::get_if<CameraSourceParams>(&entry->config) : nullptr;
+    return entry ? std::get_if<CameraSourceConfig>(&entry->config) : nullptr;
 }
 
-bool VideoSourceManager::setCameraParams(const QString &sourceId, const CameraSourceParams &value)
+bool VideoSourceManager::setCameraConfig(const QString &sourceId, const CameraSourceConfig &config)
 {
     const int row = sourceRow(sourceId);
-    if (row < 0 || !value.isValid() || cameraDeviceInUse(value.deviceId, sourceId))
+    if (row < 0 || !config.isValid() || cameraDeviceInUse(config.deviceId, sourceId))
         return false;
-    auto *camera = std::get_if<CameraSourceParams>(&m_sources[row].config);
+    auto *camera = std::get_if<CameraSourceConfig>(&m_sources[row].config);
     if (!camera)
         return false;
-    if ((*camera) != value) {
-        (*camera) = value;
+    if ((*camera) != config) {
+        (*camera) = config;
         emit sourceChanged(sourceId);
     }
     return true;

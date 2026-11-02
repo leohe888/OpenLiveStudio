@@ -10,7 +10,7 @@ enum class VideoSourceFilterType {
     ColorCorrection
 };
 
-struct ColorCorrectionParams
+struct ColorCorrectionConfig
 {
     float brightness = 0;
     float contrast = 1;
@@ -18,16 +18,16 @@ struct ColorCorrectionParams
 
     bool isIdentity() const;
     bool isValid() const;
-    bool operator==(const ColorCorrectionParams &other) const;
+    bool operator==(const ColorCorrectionConfig &other) const;
 };
 
-using VideoSourceFilterParams = std::variant<ColorCorrectionParams>;
+using VideoSourceFilterConfig = std::variant<ColorCorrectionConfig>;
 
 struct VideoSourceFilter
 {
     QString id;
     bool enabled = true;
-    VideoSourceFilterParams params = ColorCorrectionParams{};
+    VideoSourceFilterConfig config = ColorCorrectionConfig{};
 
     VideoSourceFilterType type() const;
 };

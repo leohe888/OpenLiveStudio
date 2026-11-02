@@ -135,7 +135,7 @@ inline void run(MainWindow &window)
     }
     QVERIFY(!microphoneId.isEmpty() && !systemId.isEmpty());
     const auto screen = display->addDisplay("Screen", display->displayDevices()[0].id, true);
-    const auto cam = camera->addCamera("Camera", CameraSourceParams{camera->devices()[0].id});
+    const auto cam = camera->addCamera("Camera", CameraSourceConfig{camera->devices()[0].id});
     const auto mic = audio->addSource("Microphone", AudioSourceType::Microphone, microphoneId);
     QString system = audio->addSource("System", AudioSourceType::SystemAudio, systemId);
     QVERIFY(!screen.isEmpty() && !cam.isEmpty() && !mic.isEmpty() && !system.isEmpty());
@@ -261,7 +261,7 @@ inline void run(MainWindow &window)
             QVERIFY(model->setSourceCanvasGeometry(imageId, {{700, 500}, {350, 200}, 35}));
             const auto filter = model->addFilter(imageId);
             QVERIFY(!filter.isEmpty());
-            QVERIFY(model->setFilterParameters(imageId, filter, ColorCorrectionParams{.1f, .8f, .3f}));
+            QVERIFY(model->setFilterConfig(imageId, filter, ColorCorrectionConfig{.1f, .8f, .3f}));
             event("transform-and-filter");
         }
         if (percent >= 20 && !done[1]) {

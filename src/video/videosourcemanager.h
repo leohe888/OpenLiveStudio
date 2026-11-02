@@ -44,14 +44,14 @@ public:
     bool setSourceStatus(const QString &sourceId, const QString &state, const QString &error);
     bool canEditCurrentDisplay() const;
     bool canEditCurrentSource() const;
-    const CameraSourceParams *cameraSource(const QString &sourceId) const;
-    bool setCameraParams(const QString &sourceId, const CameraSourceParams &params);
+    const CameraSourceConfig *cameraSource(const QString &sourceId) const;
+    bool setCameraConfig(const QString &sourceId, const CameraSourceConfig &config);
     bool cameraDeviceInUse(const QString &deviceId, const QString &exceptId = {}) const;
     bool setCameraActualMode(const QString &sourceId, const QSize &size, int numerator,
                              int denominator);
 
-    const DisplaySourceParams *displaySource(const QString &sourceId) const;
-    bool setDisplayParams(const QString &sourceId, const QString &displayId, bool cursor);
+    const DisplaySourceConfig *displaySource(const QString &sourceId) const;
+    bool setDisplayConfig(const QString &sourceId, const QString &displayId, bool cursor);
 
     QString currentSourceId() const
     {
@@ -83,8 +83,8 @@ public:
     bool removeFilter(const QString &sourceId, const QString &filterId);
     bool moveFilter(const QString &sourceId, const QString &filterId, int offset);
     bool setFilterEnabled(const QString &sourceId, const QString &filterId, bool enabled);
-    bool setFilterParameters(const QString &sourceId, const QString &filterId,
-                             const VideoSourceFilterParams &params);
+    bool setFilterConfig(const QString &sourceId, const QString &filterId,
+                         const VideoSourceFilterConfig &config);
 
 signals:
     // Structural changes rebuild lists; per-source changes update existing rows.

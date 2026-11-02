@@ -2,21 +2,21 @@
 
 #include <type_traits>
 
-bool CameraSourceParams::isValid() const
+bool CameraSourceConfig::isValid() const
 {
     return !deviceId.trimmed().isEmpty() && frameRateDenominator > 0 &&
            ((resolution.isEmpty() && frameRateNumerator == 0) ||
             (resolution.isValid() && !resolution.isEmpty() && frameRateNumerator > 0));
 }
 
-bool CameraSourceParams::operator==(const CameraSourceParams &other) const
+bool CameraSourceConfig::operator==(const CameraSourceConfig &other) const
 {
     return deviceId == other.deviceId && resolution == other.resolution &&
            frameRateNumerator == other.frameRateNumerator &&
            frameRateDenominator == other.frameRateDenominator;
 }
 
-bool CameraSourceParams::operator!=(const CameraSourceParams &other) const
+bool CameraSourceConfig::operator!=(const CameraSourceConfig &other) const
 {
     return !(*this == other);
 }
@@ -26,12 +26,12 @@ VideoSourceType VideoSource::type() const
     return std::visit(
         [](const auto &source) {
             using Source = std::decay_t<decltype(source)>;
-            if constexpr (std::is_same_v<Source, DisplaySourceParams>)
+            if constexpr (std::is_same_v<Source, DisplaySourceConfig>)
                 return VideoSourceType::DisplayCapture;
-            else if constexpr (std::is_same_v<Source, CameraSourceParams>)
+            else if constexpr (std::is_same_v<Source, CameraSourceConfig>)
                 return VideoSourceType::Camera;
             else {
-                static_assert(std::is_same_v<Source, ImageSourceParams>);
+                static_assert(std::is_same_v<Source, ImageSourceConfig>);
                 return VideoSourceType::Image;
             }
         },

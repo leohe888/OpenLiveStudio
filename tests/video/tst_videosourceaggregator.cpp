@@ -7,9 +7,9 @@
 namespace {
 QList<VideoSource> mixedSources()
 {
-    return {{"camera", "Camera", CameraSourceParams{"device"}},
-            {"image", "Image", ImageSourceParams{"image.png"}},
-            {"display", "Display", DisplaySourceParams{"monitor"}}};
+    return {{"camera", "Camera", CameraSourceConfig{"device"}},
+            {"image", "Image", ImageSourceConfig{"image.png"}},
+            {"display", "Display", DisplaySourceConfig{"monitor"}}};
 }
 
 QImage image(Qt::GlobalColor color)
@@ -53,7 +53,7 @@ void VideoSourceAggregatorTest::publishesInitialAndPendingSnapshots()
     QTRY_COMPARE(changes.count(), 1);
     QVERIFY(output.isEmpty());
 
-    QVERIFY(model.addSource({"image", "Image", ImageSourceParams{"pending.png"}}));
+    QVERIFY(model.addSource({"image", "Image", ImageSourceConfig{"pending.png"}}));
     aggregator.setImageSources({PreviewSource{"image", {}}});
     QTRY_COMPARE(output.size(), 1);
     QVERIFY(!output[0].hasFrame()); // Loading/failed sources are not silently dropped.
@@ -127,7 +127,7 @@ void VideoSourceAggregatorTest::usesModelPropertiesWithoutNewFrames()
 {
     VideoSourceManager model(
         {{"image", "Image",
-          ImageSourceParams{"image.png"}}});
+          ImageSourceConfig{"image.png"}}});
     model.setSourcePixelSize("image", {40, 20});
     VideoSourceAggregator aggregator(model);
     QList<PreviewSource> output;
@@ -144,13 +144,13 @@ void VideoSourceAggregatorTest::usesModelPropertiesWithoutNewFrames()
     QVERIFY(model.setSourceLocked("image", true));
     const auto filter = model.addFilter("image");
     QVERIFY(!filter.isEmpty());
-    QVERIFY(model.setFilterParameters("image", filter, ColorCorrectionParams{.2f, .8f, 1.1f}));
+    QVERIFY(model.setFilterConfig("image", filter, ColorCorrectionConfig{.2f, .8f, 1.1f}));
     QTRY_COMPARE(output[0].canvasGeometry, canvasGeometry);
     QVERIFY(!output[0].visible);
     QVERIFY(output[0].locked);
     QCOMPARE(output[0].filters.size(), 1);
     QCOMPARE(output[0].filters[0].id, filter);
-    QCOMPARE(std::get<ColorCorrectionParams>(output[0].filters[0].params).brightness, .2f);
+    QCOMPARE(std::get<ColorCorrectionConfig>(output[0].filters[0].config).brightness, .2f);
     QCOMPARE(output[0].image, pixels);
 
     changes.clear();

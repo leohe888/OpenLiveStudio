@@ -101,13 +101,13 @@ CameraMode modeInfo(IMFMediaType *type)
                 .arg(double(numerator) / denominator, 0, 'f', denominator == 1 ? 0 : 2)};
 }
 
-bool matches(const CameraSourceParams &params, const CameraMode &mode)
+bool matches(const CameraSourceConfig &config, const CameraMode &mode)
 {
-    if (params.resolution.isEmpty())
+    if (config.resolution.isEmpty())
         return true;
-    const double wanted = double(params.frameRateNumerator) / params.frameRateDenominator;
+    const double wanted = double(config.frameRateNumerator) / config.frameRateDenominator;
     const double actual = double(mode.numerator) / mode.denominator;
-    return params.resolution == QSize(mode.width, mode.height) &&
+    return config.resolution == QSize(mode.width, mode.height) &&
            std::abs(wanted - actual) <= std::max(0.001, wanted * 0.0001);
 }
 
@@ -346,8 +346,8 @@ QList<CameraMode> cameraModes(const QString &deviceId, QString *error)
     return result;
 }
 
-CameraCaptureWorker::CameraCaptureWorker(CameraSourceParams params, quint64 generation)
-    : m_params(std::move(params)), m_generation(generation)
+CameraCaptureWorker::CameraCaptureWorker(CameraSourceConfig config, quint64 generation)
+    : m_config(std::move(config)), m_generation(generation)
 {
 }
 
@@ -389,7 +389,7 @@ void CameraCaptureWorker::run()
 #ifdef Q_OS_WIN
     try {
         Runtime runtime;
-        auto source = openCamera(m_params.deviceId);
+        auto source = openCamera(m_config.deviceId);
         const auto shutdown = qScopeGuard([&] {
             source->Shutdown();
         });
@@ -430,7 +430,7 @@ void CameraCaptureWorker::run()
         check(MFCreateMediaType(&output));
         check(output->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video));
         check(output->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32));
-        if (!m_params.resolution.isEmpty()) {
+        if (!m_config.resolution.isEmpty()) {
             bool selected = false;
             for (DWORD i = 0;; ++i) {
                 ComPtr<IMFMediaType> type;
@@ -439,7 +439,7 @@ void CameraCaptureWorker::run()
                 if (hr == MF_E_NO_MORE_TYPES)
                     break;
                 check(hr);
-                if (!matches(m_params, modeInfo(type.Get())))
+                if (!matches(m_config, modeInfo(type.Get())))
                     continue;
                 if (SUCCEEDED(reader->SetCurrentMediaType(MF_SOURCE_READER_FIRST_VIDEO_STREAM,
                                                           nullptr, type.Get())) &&
@@ -458,7 +458,7 @@ void CameraCaptureWorker::run()
                                               output.Get()));
         check(reader->GetCurrentMediaType(MF_SOURCE_READER_FIRST_VIDEO_STREAM, &output));
         const auto actual = modeInfo(output.Get());
-        if (!actual.isValid() || !matches(m_params, actual)) {
+        if (!actual.isValid() || !matches(m_config, actual)) {
             error = tr("设备实际采用的采集模式与所选模式不符。");
             throw MF_E_INVALIDMEDIATYPE;
         }

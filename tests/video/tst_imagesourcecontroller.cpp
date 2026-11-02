@@ -41,18 +41,18 @@ private slots:
         QCOMPARE(model.sources().at(0).name, QString("First"));
         QCOMPARE(model.sourceStatus(model.sources().at(0).id).state,
                  QString("ready"));
-        QVERIFY(std::holds_alternative<ImageSourceParams>(model.sources().at(0).config));
+        QVERIFY(std::holds_alternative<ImageSourceConfig>(model.sources().at(0).config));
         QCOMPARE(model.sourceStatus(model.sources().at(0).id).pixelSize, image.size());
         QVERIFY(
-            QFileInfo(std::get<ImageSourceParams>(model.sources().at(0).config).filePath)
+            QFileInfo(std::get<ImageSourceConfig>(model.sources().at(0).config).filePath)
                 .isAbsolute());
         const QString first = snapshot[0].id;
         const auto key = snapshot[0].image.cacheKey();
         const auto filter = model.addFilter(first);
-        QVERIFY(model.setFilterParameters(first, filter, ColorCorrectionParams{.3f, .7f, 1.2f}));
+        QVERIFY(model.setFilterConfig(first, filter, ColorCorrectionConfig{.3f, .7f, 1.2f}));
         QCOMPARE(snapshot[0].filters.size(), 1);
         QCOMPARE(snapshot[0].filters[0].id, filter);
-        QCOMPARE(std::get<ColorCorrectionParams>(snapshot[0].filters[0].params).brightness, .3f);
+        QCOMPARE(std::get<ColorCorrectionConfig>(snapshot[0].filters[0].config).brightness, .3f);
         QCOMPARE(snapshot[0].image.cacheKey(), key);
         controller.addImage("Second", path, &owner);
         QTRY_COMPARE(added.count(), 2);
@@ -200,15 +200,15 @@ private slots:
         const QString path = dir.filePath("valid.png");
         QVERIFY(image.save(path));
         VideoSourceManager model(
-            {{"valid", "Valid", ImageSourceParams{path}},
-             {"bad", "Bad", ImageSourceParams{dir.filePath("missing.png")}}});
+            {{"valid", "Valid", ImageSourceConfig{path}},
+             {"bad", "Bad", ImageSourceConfig{dir.filePath("missing.png")}}});
         ImageSourceController controller(model);
         QSignalSpy errors(&controller, &ImageSourceController::sourceFailed);
         QStringList loadStates;
         connect(&model, &VideoSourceManager::sourceStatusChanged, this,
                 [&](const QString &sourceId) {
                     if (const auto *source = model.source(sourceId))
-                        if (const auto *image = std::get_if<ImageSourceParams>(&source->config))
+                        if (const auto *image = std::get_if<ImageSourceConfig>(&source->config))
                             loadStates.append(model.sourceStatus(sourceId).state);
                 });
         QList<PreviewSource> snapshot;

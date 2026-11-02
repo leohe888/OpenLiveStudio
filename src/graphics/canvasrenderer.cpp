@@ -258,9 +258,9 @@ GLuint CanvasRenderer::filterTexture(const PreviewSource &source, GLuint origina
     for (const auto &filter : source.filters) {
         if (!filter.enabled)
             continue;
-        if (!std::visit([](const auto &params) { return params.isValid(); }, filter.params))
+        if (!std::visit([](const auto &config) { return config.isValid(); }, filter.config))
             return fail(tr("滤镜参数无效，已使用原图。"));
-        if (std::visit([](const auto &params) { return params.isIdentity(); }, filter.params))
+        if (std::visit([](const auto &config) { return config.isIdentity(); }, filter.config))
             continue;
         auto &target = m_filterFbos[pass % 2];
         if (!target || target->size() != source.pixelSize()) {
@@ -284,13 +284,13 @@ GLuint CanvasRenderer::filterTexture(const PreviewSource &source, GLuint origina
         glDisable(GL_BLEND);
         m_program->setUniformValue("vertexTransform", QMatrix4x4());
         m_program->setUniformValue("flipY", pass > 0);
-        std::visit([&](const auto &params) {
-            using Params = std::decay_t<decltype(params)>;
-            static_assert(std::is_same_v<Params, ColorCorrectionParams>);
+        std::visit([&](const auto &config) {
+            using Config = std::decay_t<decltype(config)>;
+            static_assert(std::is_same_v<Config, ColorCorrectionConfig>);
             m_program->setUniformValue("colorCorrection", true);
-            m_program->setUniformValue("correction", params.brightness, params.contrast,
-                                       params.saturation);
-        }, filter.params);
+            m_program->setUniformValue("correction", config.brightness, config.contrast,
+                                       config.saturation);
+        }, filter.config);
         glBindTexture(GL_TEXTURE_2D, input);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         if (glGetError() != GL_NO_ERROR)

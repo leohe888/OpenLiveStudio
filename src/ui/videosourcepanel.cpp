@@ -106,13 +106,13 @@ public:
         if (!camera) {
             cursor = new QCheckBox(tr("采集鼠标光标"), this);
             cursor->setObjectName("captureCursorInput");
-            const DisplaySourceParams params =
-                initial ? std::get<DisplaySourceParams>(initial->config) : DisplaySourceParams{};
-            cursor->setChecked(params.captureCursor);
+            const DisplaySourceConfig config =
+                initial ? std::get<DisplaySourceConfig>(initial->config) : DisplaySourceConfig{};
+            cursor->setChecked(config.captureCursor);
             layout->addWidget(cursor);
             layout->addWidget(
                 label(this, "displayCaptureHint", tr("原始分辨率 · 最高 30 FPS · SDR")));
-            fillDevices(device, displays->displayDevices(), params.displayId);
+            fillDevices(device, displays->displayDevices(), config.displayId);
             connect(displays, &DisplaySourceController::displayDevicesChanged, this, [=] {
                 fillDevices(device, displays->displayDevices(), device->currentData().toString());
                 if (changed)
@@ -122,14 +122,14 @@ public:
                     &DisplaySourceController::refreshDisplayDevices);
             displays->refreshDisplayDevices();
         } else {
-            const CameraSourceParams params =
-                initial ? std::get<CameraSourceParams>(initial->config) : CameraSourceParams{};
-            originalMode = {params.resolution.width(), params.resolution.height(),
-                            params.frameRateNumerator, params.frameRateDenominator};
+            const CameraSourceConfig config =
+                initial ? std::get<CameraSourceConfig>(initial->config) : CameraSourceConfig{};
+            originalMode = {config.resolution.width(), config.resolution.height(),
+                            config.frameRateNumerator, config.frameRateDenominator};
             mode = new QComboBox(this);
             mode->setObjectName("cameraModeInput");
             layout->addWidget(mode);
-            fillDevices(device, cameras->devices(), params.deviceId);
+            fillDevices(device, cameras->devices(), config.deviceId);
 
             const auto loadModes = [=] {
                 const auto id = device->currentData().toString();
@@ -545,7 +545,7 @@ QDialog *createSourceAddDialog(QWidget *parent, VideoSourceManager *manager,
                 name->text(), cameraPage->findChild<QComboBox *>("cameraModeInput")
                                   ->currentData()
                                   .value<CameraMode>()
-                                  .params(cameraPage->findChild<QComboBox *>("cameraDeviceInput")
+                                  .config(cameraPage->findChild<QComboBox *>("cameraDeviceInput")
                                               ->currentData()
                                               .toString()));
         if (!id.isEmpty())
@@ -632,7 +632,7 @@ QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceManager *manag
     QObject::connect(apply, &QPushButton::clicked, dialog, [=] {
         bool success =
             camera ? cameras->applyProperties(
-                         sourceId, settings->mode->currentData().value<CameraMode>().params(
+                         sourceId, settings->mode->currentData().value<CameraMode>().config(
                                        settings->device->currentData().toString()))
                    : displays->applyProperties(sourceId, settings->device->currentData().toString(),
                                                settings->cursor->isChecked());
@@ -729,7 +729,7 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
         const VideoSourceFilter *filter =
             index >= 0 && index < filters.size() ? &filters[index] : nullptr;
         remove->setEnabled(filter != nullptr);
-        const auto *correction = filter ? std::get_if<ColorCorrectionParams>(&filter->params)
+        const auto *correction = filter ? std::get_if<ColorCorrectionConfig>(&filter->config)
                                         : nullptr;
         reset->setEnabled(correction != nullptr);
         up->setEnabled(index > 0);
@@ -777,14 +777,15 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
         updateSelection();
     };
 
-    const auto parameters = [=] {
+    const auto applyConfig = [=] {
         if (!selected().isEmpty())
-            manager->setFilterParameters(sourceId, selected(),
-                ColorCorrectionParams{float(inputs[0]->value()), float(inputs[1]->value()),
-                                      float(inputs[2]->value())});
+            manager->setFilterConfig(sourceId, selected(),
+                                 ColorCorrectionConfig{float(inputs[0]->value()),
+                                                       float(inputs[1]->value()),
+                                                       float(inputs[2]->value())});
     };
     for (int n = 0; n < inputs.size(); ++n) {
-        QObject::connect(inputs[n], &QDoubleSpinBox::valueChanged, dialog, parameters);
+        QObject::connect(inputs[n], &QDoubleSpinBox::valueChanged, dialog, applyConfig);
         QObject::connect(sliders[n], &QSlider::valueChanged, dialog, [=](int value) {
             inputs[n]->setValue(value / 100.);
         });
@@ -816,7 +817,7 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
         manager->moveFilter(sourceId, selected(), 1);
     });
     QObject::connect(reset, &QPushButton::clicked, dialog, [=] {
-        manager->setFilterParameters(sourceId, selected(), ColorCorrectionParams{});
+        manager->setFilterConfig(sourceId, selected(), ColorCorrectionConfig{});
     });
 
     auto *close = new QDialogButtonBox(QDialogButtonBox::Close, dialog);

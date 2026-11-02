@@ -10,8 +10,8 @@ class VideoSourceFilterTest : public QObject
 
 private slots:
     void defaultsAndType();
-    void parametersValidation_data();
-    void parametersValidation();
+    void configValidation_data();
+    void configValidation();
     void identityAndComparison();
 };
 
@@ -20,21 +20,21 @@ void VideoSourceFilterTest::defaultsAndType()
     VideoSourceFilter filter;
     QVERIFY(filter.id.isEmpty());
     QVERIFY(filter.enabled);
-    QVERIFY(std::holds_alternative<ColorCorrectionParams>(filter.params));
+    QVERIFY(std::holds_alternative<ColorCorrectionConfig>(filter.config));
     QCOMPARE(filter.type(), VideoSourceFilterType::ColorCorrection);
-    const auto &params = std::get<ColorCorrectionParams>(filter.params);
-    QCOMPARE(params.brightness, 0.f);
-    QCOMPARE(params.contrast, 1.f);
-    QCOMPARE(params.saturation, 1.f);
-    QVERIFY(params.isValid());
-    QVERIFY(params.isIdentity());
+    const auto &config = std::get<ColorCorrectionConfig>(filter.config);
+    QCOMPARE(config.brightness, 0.f);
+    QCOMPARE(config.contrast, 1.f);
+    QCOMPARE(config.saturation, 1.f);
+    QVERIFY(config.isValid());
+    QVERIFY(config.isIdentity());
 
-    filter.params = ColorCorrectionParams{.2f, .5f, 2};
+    filter.config = ColorCorrectionConfig{.2f, .5f, 2};
     filter.enabled = false;
     QCOMPARE(filter.type(), VideoSourceFilterType::ColorCorrection);
 }
 
-void VideoSourceFilterTest::parametersValidation_data()
+void VideoSourceFilterTest::configValidation_data()
 {
     QTest::addColumn<float>("brightness");
     QTest::addColumn<float>("contrast");
@@ -68,34 +68,34 @@ void VideoSourceFilterTest::parametersValidation_data()
     }
 }
 
-void VideoSourceFilterTest::parametersValidation()
+void VideoSourceFilterTest::configValidation()
 {
     QFETCH(float, brightness);
     QFETCH(float, contrast);
     QFETCH(float, saturation);
     QFETCH(bool, valid);
 
-    const ColorCorrectionParams params{brightness, contrast, saturation};
-    QCOMPARE(params.isValid(), valid);
+    const ColorCorrectionConfig config{brightness, contrast, saturation};
+    QCOMPARE(config.isValid(), valid);
 }
 
 void VideoSourceFilterTest::identityAndComparison()
 {
-    const ColorCorrectionParams identity;
+    const ColorCorrectionConfig identity;
     QVERIFY(identity.isIdentity());
-    QVERIFY(identity == ColorCorrectionParams{});
+    QVERIFY(identity == ColorCorrectionConfig{});
 
-    const ColorCorrectionParams changed[] = {
+    const ColorCorrectionConfig changed[] = {
         {std::nextafter(0.f, 1.f), 1, 1},
         {0, std::nextafter(1.f, 2.f), 1},
         {0, 1, std::nextafter(1.f, 2.f)},
     };
-    for (const auto &params : changed) {
-        QVERIFY(!params.isIdentity());
-        QVERIFY(!(identity == params));
-        QVERIFY(!(params == identity));
-        const auto copy = params;
-        QVERIFY(params == copy);
+    for (const auto &config : changed) {
+        QVERIFY(!config.isIdentity());
+        QVERIFY(!(identity == config));
+        QVERIFY(!(config == identity));
+        const auto copy = config;
+        QVERIFY(config == copy);
     }
 }
 

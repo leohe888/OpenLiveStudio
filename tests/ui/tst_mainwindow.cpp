@@ -266,7 +266,7 @@ void MainWindowTest::removalAndFilters()
     dialog->findChild<QToolButton *>("addFilterButton")->click();
     QCOMPARE(model->sourceFilters("one").size(), 1);
     dialog->findChild<QDoubleSpinBox *>("brightnessInput")->setValue(.45);
-    QCOMPARE(std::get<ColorCorrectionParams>(model->sourceFilters("one")[0].params).brightness, double(.45f));
+    QCOMPARE(std::get<ColorCorrectionConfig>(model->sourceFilters("one")[0].config).brightness, double(.45f));
 
     auto *list = dialog->findChild<QListWidget *>("filterList");
     list->item(0)->setCheckState(Qt::Unchecked);
@@ -278,9 +278,9 @@ void MainWindowTest::removalAndFilters()
     dialog->findChild<QToolButton *>("upFilterButton")->click();
     QCOMPARE(model->sourceFilters("one")[0].id, second);
     dialog->findChild<QSlider *>("contrastSlider")->setValue(150);
-    QCOMPARE(std::get<ColorCorrectionParams>(model->sourceFilters("one")[0].params).contrast, 1.5);
+    QCOMPARE(std::get<ColorCorrectionConfig>(model->sourceFilters("one")[0].config).contrast, 1.5);
     dialog->findChild<QPushButton *>("resetFilterButton")->click();
-    QCOMPARE(std::get<ColorCorrectionParams>(model->sourceFilters("one")[0].params).contrast, 1.);
+    QCOMPARE(std::get<ColorCorrectionConfig>(model->sourceFilters("one")[0].config).contrast, 1.);
     dialog->close();
     QTRY_VERIFY(dialog.isNull());
     QCOMPARE(model->sourceFilters("one").size(), 2);
@@ -296,7 +296,7 @@ void MainWindowTest::disconnectedDeviceDrafts()
 
     auto *model = window.findChild<VideoSourceManager *>();
     QVERIFY(model->addSource(
-        {"display", "Missing", DisplaySourceParams{"unavailable-display", false}}));
+        {"display", "Missing", DisplaySourceConfig{"unavailable-display", false}}));
     QVERIFY(model->selectSource("display"));
     window.findChild<QToolButton *>("sourcePropertiesButton")->click();
     QPointer<QDialog> dialog = window.findChild<QDialog *>("displayPropertiesDialog");
@@ -308,17 +308,17 @@ void MainWindowTest::disconnectedDeviceDrafts()
     dialog->reject();
     QTRY_VERIFY(dialog.isNull());
     QVERIFY(!model->displaySource("display")->captureCursor);
-    CameraSourceParams params;
-    params.deviceId = "unavailable-camera";
-    params.resolution = QSize(640, 480);
-    params.frameRateNumerator = 30;
-    QVERIFY(model->addSource({"camera", "Missing camera", params}));
+    CameraSourceConfig config;
+    config.deviceId = "unavailable-camera";
+    config.resolution = QSize(640, 480);
+    config.frameRateNumerator = 30;
+    QVERIFY(model->addSource({"camera", "Missing camera", config}));
     QVERIFY(model->selectSource("camera"));
     window.findChild<QToolButton *>("sourcePropertiesButton")->click();
     dialog = window.findChild<QDialog *>("cameraPropertiesDialog");
     QVERIFY(dialog);
     QCOMPARE(dialog->findChild<QComboBox *>("cameraDeviceInput")->currentData().toString(),
-             params.deviceId);
+             config.deviceId);
     QTRY_VERIFY(dialog->findChild<QComboBox *>("cameraModeInput")->isEnabled());
     QCOMPARE(
         dialog->findChild<QComboBox *>("cameraModeInput")->currentData().value<CameraMode>().width,
@@ -469,11 +469,11 @@ void MainWindowTest::aggregatesIndependentSourceControllers()
 
     const auto path = directory.filePath("image.png");
     QVERIFY(pixels.save(path));
-    QVERIFY(model->addSource({"image", "Image", ImageSourceParams{path}}));
-    VideoSource screen{"display", "Display", DisplaySourceParams{"missing-display"}};
+    QVERIFY(model->addSource({"image", "Image", ImageSourceConfig{path}}));
+    VideoSource screen{"display", "Display", DisplaySourceConfig{"missing-display"}};
     screen.visible = false; // Exercise wiring without opening physical devices.
     QVERIFY(model->addSource(screen));
-    VideoSource webcam{"camera", "Camera", CameraSourceParams{"missing-camera"}};
+    VideoSource webcam{"camera", "Camera", CameraSourceConfig{"missing-camera"}};
     webcam.visible = false;
     QVERIFY(model->addSource(webcam));
     QTRY_COMPARE(output.size(), 3);
@@ -739,13 +739,13 @@ void MainWindowTest::cameraHardwarePreview()
     const auto devices = controller->devices();
     QVERIFY(!devices.isEmpty());
     QSignalSpy failures(preview, &PreviewWidget::sourceFailed);
-    const QString id = controller->addCamera("Camera", CameraSourceParams{devices[0].id});
+    const QString id = controller->addCamera("Camera", CameraSourceConfig{devices[0].id});
     QVERIFY(!id.isEmpty());
     QTRY_COMPARE_WITH_TIMEOUT(model->sourceStatus(id).state, QString("capturing"),
                               15000);
 
     const auto filter = model->addFilter(id);
-    QVERIFY(model->setFilterParameters(id, filter, ColorCorrectionParams{0, 1, 0}));
+    QVERIFY(model->setFilterConfig(id, filter, ColorCorrectionConfig{0, 1, 0}));
     QTest::qWait(500);
     QVERIFY(preview->lastError().isEmpty());
     QVERIFY(failures.isEmpty());
