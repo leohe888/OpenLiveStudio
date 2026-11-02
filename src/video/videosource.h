@@ -1,7 +1,7 @@
 #ifndef VIDEOSOURCE_H
 #define VIDEOSOURCE_H
 
-#include "video/videosourcetransform.h"
+#include "video/videosourcecanvasgeometry.h"
 #include "video/videosourcefilter.h"
 
 #include <QSize>
@@ -47,7 +47,7 @@ struct VideoSource
     VideoSourceConfig config = DisplaySourceParams{};
     bool visible = true;
     bool locked = false;
-    VideoSourceTransform transform;
+    VideoSourceCanvasGeometry canvasGeometry;
     QList<VideoSourceFilter> filters;
 
     VideoSourceType type() const;

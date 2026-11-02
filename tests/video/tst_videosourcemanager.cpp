@@ -14,7 +14,7 @@ private slots:
     void insertsSourcesAtTop();
     void sourceRemovalDuringGeometryNotificationIsSafe();
     void displayPropertiesPreserveSourceState();
-    void initializesAndValidatesTransforms();
+    void initializesAndValidatesCanvasGeometry();
     void mapsSourceCoordinates();
     void startsWithEmptySourceList();
     void exposesTypedSourcesAndRejectsMissingIds();
@@ -367,34 +367,34 @@ void VideoSourceManagerTest::insertsSourcesAtTop()
     QVERIFY(!model.setSourcePixelSize("missing", QSize(40, 20)));
 }
 
-void VideoSourceManagerTest::initializesAndValidatesTransforms()
+void VideoSourceManagerTest::initializesAndValidatesCanvasGeometry()
 {
     VideoSourceManager model;
     QVERIFY(model.addSource({"image", "Image", ImageSourceParams{"image.png"}}));
     const auto current = [&] {
-        return model.sources().at(0).transform;
+        return model.sources().at(0).canvasGeometry;
     };
     QVERIFY(current().size().isEmpty());
     QVERIFY(model.setSourcePixelSize("image", QSize(4000, 2000)));
     QCOMPARE(current().center(), QPointF(960, 540));
     QCOMPARE(current().size(), QSizeF(1920, 960));
-    VideoSourceTransform edited{{-20.5, 95.25}, {300.5, 100.25}, -30};
+    VideoSourceCanvasGeometry edited{{-20.5, 95.25}, {300.5, 100.25}, -30};
     QSignalSpy changes(&model, &VideoSourceManager::sourceChanged);
-    QVERIFY(model.setSourceTransform("image", edited));
+    QVERIFY(model.setSourceCanvasGeometry("image", edited));
     QCOMPARE(current().rotation(), 330.0);
     QCOMPARE(changes.size(), 1);
     QCOMPARE(changes.last().at(0).toString(), QString("image"));
     edited.setRotation(690);
-    QVERIFY(model.setSourceTransform("image", edited));
+    QVERIFY(model.setSourceCanvasGeometry("image", edited));
     QCOMPARE(changes.size(), 1);
     QVERIFY(model.setSourcePixelSize("image", QSize(600, 200)));
     QCOMPARE(current().center(), edited.center());
     QCOMPARE(current().size(), edited.size());
-    const VideoSourceTransform before = current();
-    QVERIFY(!model.setSourceTransform("missing", before));
+    const VideoSourceCanvasGeometry before = current();
+    QVERIFY(!model.setSourceCanvasGeometry("missing", before));
     QVERIFY(model.setSourceLocked("image", true));
     edited.setCenter(edited.center() + QPointF(20, 20));
-    QVERIFY(!model.setSourceTransform("image", edited));
+    QVERIFY(!model.setSourceCanvasGeometry("image", edited));
     QVERIFY(model.setSourceLocked("image", false));
     for (int part = 0; part < 5; ++part) {
         auto invalid = before;
@@ -408,24 +408,24 @@ void VideoSourceManagerTest::initializesAndValidatesTransforms()
             invalid.setSize(QSizeF(before.size().width(), -1));
         if (part == 4)
             invalid.setRotation(std::numeric_limits<qreal>::quiet_NaN());
-        QVERIFY(!model.setSourceTransform("image", invalid));
+        QVERIFY(!model.setSourceCanvasGeometry("image", invalid));
         QVERIFY(current() == before);
     }
     VideoSourceManager ready(
         {{"ready", "Ready",
           ImageSourceParams{"ready.png"}}});
     ready.setSourcePixelSize("ready", {40, 20});
-    QCOMPARE(ready.sources().at(0).transform.size(), QSizeF(40, 20));
+    QCOMPARE(ready.sources().at(0).canvasGeometry.size(), QSizeF(40, 20));
 }
 
 void VideoSourceManagerTest::mapsSourceCoordinates()
 {
-    const auto thin = VideoSourceTransform(QSizeF(1, 4000));
+    const auto thin = VideoSourceCanvasGeometry(QSizeF(1, 4000));
     QVERIFY(thin.isValid());
     QCOMPARE(thin.size().height(), 1080.0);
     QCOMPARE(thin.size().width(), .27);
     for (qreal angle : {0., 37., 90., 225.}) {
-        const VideoSourceTransform start{{960, 540}, {400, 200}, angle};
+        const VideoSourceCanvasGeometry start{{960, 540}, {400, 200}, angle};
         const auto matrix = start.sourceToCanvas();
         QVERIFY(start.contains(matrix.map(QPointF(200, 100))));
         QVERIFY(start.contains(matrix.map(QPointF(10, 10))));
@@ -515,8 +515,8 @@ void VideoSourceManagerTest::displayPropertiesPreserveSourceState()
     QVERIFY(model.selectSource("screen"));
     QVERIFY(model.canEditCurrentDisplay() && model.canFilterCurrentSource());
     QVERIFY(model.setSourcePixelSize("screen", QSize(1920, 1080)));
-    const VideoSourceTransform transform{{300, 500}, {640, 360}, 45};
-    QVERIFY(model.setSourceTransform("screen", transform));
+    const VideoSourceCanvasGeometry canvasGeometry{{300, 500}, {640, 360}, 45};
+    QVERIFY(model.setSourceCanvasGeometry("screen", canvasGeometry));
     const auto filter = model.addFilter("screen");
     QVERIFY(model.setSourceLocked("screen", true));
     const int before = changed.count();
@@ -527,7 +527,7 @@ void VideoSourceManagerTest::displayPropertiesPreserveSourceState()
     QCOMPARE(changed.count(), before);
     QVERIFY(model.setDisplayParams("screen", "another-physical-path", false));
     QCOMPARE(changed.last().at(0).toString(), QString("screen"));
-    QCOMPARE(model.sources().at(0).transform, transform);
+    QCOMPARE(model.sources().at(0).canvasGeometry, canvasGeometry);
     QCOMPARE(model.sourceFilters("screen")[0].id, filter);
     QCOMPARE(model.displaySource("screen")->displayId, QString("another-physical-path"));
     QVERIFY(!model.displaySource("screen")->captureCursor);

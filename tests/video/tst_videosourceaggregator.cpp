@@ -138,14 +138,14 @@ void VideoSourceAggregatorTest::usesModelPropertiesWithoutNewFrames()
     const auto pixels = image(Qt::red);
     aggregator.setImageSources({PreviewSource{"image", pixels}});
     QTRY_COMPARE(output.size(), 1);
-    const VideoSourceTransform transform{{150, 100}, {80, 40}, 30};
-    QVERIFY(model.setSourceTransform("image", transform));
+    const VideoSourceCanvasGeometry canvasGeometry{{150, 100}, {80, 40}, 30};
+    QVERIFY(model.setSourceCanvasGeometry("image", canvasGeometry));
     QVERIFY(model.setSourceVisible("image", false));
     QVERIFY(model.setSourceLocked("image", true));
     const auto filter = model.addFilter("image");
     QVERIFY(!filter.isEmpty());
     QVERIFY(model.setFilterParameters("image", filter, ColorCorrectionParams{.2f, .8f, 1.1f}));
-    QTRY_COMPARE(output[0].transform, transform);
+    QTRY_COMPARE(output[0].canvasGeometry, canvasGeometry);
     QVERIFY(!output[0].visible);
     QVERIFY(output[0].locked);
     QCOMPARE(output[0].filters.size(), 1);

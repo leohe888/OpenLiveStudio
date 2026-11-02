@@ -229,11 +229,11 @@ bool CanvasRenderer::render(const QList<PreviewSource> &sources)
             glViewport(0, 0, canvasSize.width(), canvasSize.height());
             glEnable(GL_BLEND);
             m_program->setUniformValue("colorCorrection", false);
-            QMatrix4x4 model(it->transform.sourceToCanvas());
-            model.translate(float(it->transform.size().width() / 2),
-                            float(it->transform.size().height() / 2));
-            model.scale(float(it->transform.size().width() / 2),
-                        float(-it->transform.size().height() / 2));
+            QMatrix4x4 model(it->canvasGeometry.sourceToCanvas());
+            model.translate(float(it->canvasGeometry.size().width() / 2),
+                            float(it->canvasGeometry.size().height() / 2));
+            model.scale(float(it->canvasGeometry.size().width() / 2),
+                        float(-it->canvasGeometry.size().height() / 2));
             drawTexture(texture, projection * model, flipY);
         }
     }
@@ -321,7 +321,7 @@ bool CanvasRenderer::drawable(const PreviewSource &source) const
     if (it == m_textures.end())
         return false;
     const auto &resource = it->second;
-    return source.visible && source.hasFrame() && source.transform.isValid() &&
+    return source.visible && source.hasFrame() && source.canvasGeometry.isValid() &&
            resource.ready && resource.texture &&
            (source.frame
                 ? resource.generation == source.frame->generation &&

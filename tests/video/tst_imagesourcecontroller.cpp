@@ -67,11 +67,11 @@ private slots:
         model.selectSource(first);
         QCOMPARE(updates, beforeLock + 1);
         QVERIFY(snapshot[0].locked);
-        const auto beforeTransform = snapshot[1].image.cacheKey();
-        VideoSourceTransform transform{{800, 500}, {100, 80}, 30};
-        QVERIFY(model.setSourceTransform(first, transform));
-        QVERIFY(snapshot[1].transform == transform);
-        QCOMPARE(snapshot[1].image.cacheKey(), beforeTransform);
+        const auto beforeGeometryChange = snapshot[1].image.cacheKey();
+        VideoSourceCanvasGeometry canvasGeometry{{800, 500}, {100, 80}, 30};
+        QVERIFY(model.setSourceCanvasGeometry(first, canvasGeometry));
+        QVERIFY(snapshot[1].canvasGeometry == canvasGeometry);
+        QCOMPARE(snapshot[1].image.cacheKey(), beforeGeometryChange);
         QVERIFY(model.moveSource(second, 1));
         QCOMPARE(snapshot[0].id, first);
         QCOMPARE(snapshot[0].image.cacheKey(), key);

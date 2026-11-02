@@ -223,7 +223,7 @@ void DisplaySourceController::publish()
         source.frame = dynamic->second.frame;
         source.visible = item.visible;
         source.locked = item.locked;
-        source.transform = item.transform;
+        source.canvasGeometry = item.canvasGeometry;
         source.filters = item.filters;
         result.append(std::move(source));
     }

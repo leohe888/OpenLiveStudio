@@ -258,7 +258,7 @@ inline void run(MainWindow &window)
         const int percent = int(now * 100 / (seconds * 1000LL));
         if (percent >= 10 && !done[0]) {
             done[0] = true;
-            QVERIFY(model->setSourceTransform(imageId, {{700, 500}, {350, 200}, 35}));
+            QVERIFY(model->setSourceCanvasGeometry(imageId, {{700, 500}, {350, 200}, 35}));
             const auto filter = model->addFilter(imageId);
             QVERIFY(!filter.isEmpty());
             QVERIFY(model->setFilterParameters(imageId, filter, ColorCorrectionParams{.1f, .8f, .3f}));
@@ -331,7 +331,7 @@ inline void run(MainWindow &window)
         if (percent >= 95 && !done[8]) {
             done[8] = true;
             QVERIFY(model->setSourceLocked(imageId, true));
-            QVERIFY(!model->setSourceTransform(imageId, {{1, 1}, {10, 10}, 0}));
+            QVERIFY(!model->setSourceCanvasGeometry(imageId, {{1, 1}, {10, 10}, 0}));
             event("locked-source-protected");
         }
         if (now - lastReport >= 10000) {

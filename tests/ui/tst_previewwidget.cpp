@@ -111,7 +111,7 @@ private slots:
         source.filters = {first, second};
         QImage background(16, 16, QImage::Format_RGBA8888);
         background.fill(Qt::green);
-        PreviewSource other{"background", background, true, source.transform};
+        PreviewSource other{"background", background, true, source.canvasGeometry};
         widget.setSources({source, other});
         grabPreview(widget);
         const auto frame = readCanvas(widget);
@@ -125,7 +125,7 @@ private slots:
         grabPreview(widget);
         QCOMPARE(sample(readCanvas(widget), .5, .5), QColor(Qt::green));
         source.visible = true;
-        source.transform.setRotation(180);
+        source.canvasGeometry.setRotation(180);
         widget.resize(300, 300);
         widget.setSources({source, other});
         grabPreview(widget);
@@ -136,7 +136,7 @@ private slots:
         QCOMPARE(sample(readCanvas(widget), .5, .5), QColor(Qt::green));
         // Invalid input from a non-model caller falls back without affecting other sources.
         std::get<ColorCorrectionParams>(source.filters[0].params).brightness = 4;
-        source.transform.setRotation(0);
+        source.canvasGeometry.setRotation(0);
         widget.setSources({source});
         grabPreview(widget);
         QVERIFY(errors.count() > 0);
@@ -398,9 +398,9 @@ private slots:
         overlay.fill(Qt::yellow);
         QImage background(1920, 1080, QImage::Format_RGBA8888);
         background.fill(Qt::blue);
-        const VideoSourceTransform transform{{960, 540}, {200, 100}, 30};
+        const VideoSourceCanvasGeometry canvasGeometry{{960, 540}, {200, 100}, 30};
         widget->setSources(
-            {{"overlay", overlay, true, transform}, {"background", background, true}});
+            {{"overlay", overlay, true, canvasGeometry}, {"background", background, true}});
         widget->setCurrentSourceId("overlay");
         firstWindow.show();
         QVERIFY(QTest::qWaitForWindowExposed(&firstWindow));
@@ -419,7 +419,7 @@ private slots:
         QVERIFY(canvasWasReleased);
         QCOMPARE(sample(grabPreview(*widget), .5, .5), QColor(Qt::yellow));
         QCOMPARE(sample(readCanvas(*widget), .5, .5), QColor(Qt::yellow));
-        QVERIFY(widget->m_sources[0].transform == transform);
+        QVERIFY(widget->m_sources[0].canvasGeometry == canvasGeometry);
         QCOMPARE(widget->m_currentSourceId, QString("overlay"));
         QCOMPARE(sample(readCanvas(*widget), .1, .5), QColor(Qt::blue));
         widget->makeCurrent();
@@ -503,7 +503,7 @@ private slots:
         QCOMPARE(sample(grabPreview(widget), .5, .5), QColor(Qt::black));
     }
 
-    void transformsRenderAndSelectionStaysOutOfCanvas()
+    void canvasGeometryRendersAndSelectionStaysOutOfCanvas()
     {
         QImage image(80, 40, QImage::Format_RGBA8888);
         for (int y = 0; y < 40; ++y)
@@ -513,20 +513,20 @@ private slots:
                                            : (x < 40 ? Qt::blue : Qt::white));
         PreviewWidget widget;
         widget.resize(640, 480);
-        VideoSourceTransform transform{{500, 400}, {400, 200}, 90};
-        widget.setSources({{"image", image, true, transform}});
+        VideoSourceCanvasGeometry canvasGeometry{{500, 400}, {400, 200}, 90};
+        widget.setSources({{"image", image, true, canvasGeometry}});
         widget.show();
         QVERIFY(QTest::qWaitForWindowExposed(&widget));
         grabPreview(widget);
         const auto verifyColors = [&] {
             const auto canvas = readCanvas(widget);
-            const auto matrix = transform.sourceToCanvas();
+            const auto matrix = canvasGeometry.sourceToCanvas();
             const QColor colors[]{Qt::red, Qt::green, Qt::blue, Qt::white};
             int index = 0;
             for (qreal y : {.25, .75}) {
                 for (qreal x : {.25, .75}) {
                     const auto point = matrix.map(
-                        QPointF(x * transform.size().width(), y * transform.size().height()));
+                        QPointF(x * canvasGeometry.size().width(), y * canvasGeometry.size().height()));
                     QCOMPARE(canvas.pixelColor(qRound(point.x()), qRound(point.y())),
                              colors[index++]);
                 }
@@ -535,8 +535,8 @@ private slots:
         };
         verifyColors();
         const auto *program = widget.m_program.get();
-        transform = {{900, 600}, {600, 300}, 37};
-        widget.setSources({{"image", image, true, transform}});
+        canvasGeometry = {{900, 600}, {600, 300}, 37};
+        widget.setSources({{"image", image, true, canvasGeometry}});
         const auto unselected = grabPreview(widget);
         verifyColors();
         const auto canvas = readCanvas(widget);
@@ -551,7 +551,7 @@ private slots:
         widget.setSources({{"image", image, true, {{-1000, 400}, {400, 200}, 0}}});
         grabPreview(widget);
         QCOMPARE(sample(readCanvas(widget), .5, .5), QColor(Qt::black));
-        widget.setSources({{"image", image, true, transform}});
+        widget.setSources({{"image", image, true, canvasGeometry}});
         widget.makeCurrent();
         widget.paintGL();
         GLint binding = 0, viewport[4]{};
@@ -577,7 +577,7 @@ private slots:
         const QPointF fractions[] = {
             {0, 0}, {.5, 0}, {1, 0}, {1, .5}, {1, 1}, {.5, 1}, {0, 1}, {0, .5}};
         for (qreal angle : {0., 37., 90., 225.}) {
-            const VideoSourceTransform start{{960, 540}, {400, 200}, angle};
+            const VideoSourceCanvasGeometry start{{960, 540}, {400, 200}, angle};
             QTransform rotation;
             rotation.rotate(angle);
             const auto performResize = [&](int handle, const QPointF &delta) {
@@ -587,7 +587,7 @@ private slots:
                 const auto handles = widget.selectionHandles(widget.m_sources[0]);
                 const QPointF widgetDelta = rotation.map(delta) * .5;
                 drag(widget, handles[handle], handles[handle] + widgetDelta);
-                return widget.m_sources[0].transform;
+                return widget.m_sources[0].canvasGeometry;
             };
             for (int handle = 0; handle < 8; ++handle) {
                 const auto result = performResize(handle, QPointF(40, 30));
@@ -620,7 +620,7 @@ private slots:
         wireEditor(widget);
         QImage image(200, 100, QImage::Format_RGBA8888);
         image.fill(Qt::red);
-        VideoSourceTransform start{{960, 540}, {600, 300}, 0};
+        VideoSourceCanvasGeometry start{{960, 540}, {600, 300}, 0};
         widget.resize(640, 480);
         widget.setSources({{"image", image, true, start}});
         widget.setCurrentSourceId("image");
@@ -632,17 +632,17 @@ private slots:
             grabPreview(widget);
             const auto display = widget.canvasToWidget();
             drag(widget, display.map(start.center()), display.map(start.center() + QPointF(120, -60)));
-            const auto moved = widget.m_sources[0].transform;
+            const auto moved = widget.m_sources[0].canvasGeometry;
             QVERIFY(closePoint(moved.center(), start.center() + QPointF(120, -60)));
             QVERIFY(moved.size() == start.size());
             widget.setSources({{"image", image, true, start}});
             const auto point = display.map(start.center());
             mouse(widget, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
             mouse(widget, QEvent::MouseMove, point + QPointF(20, 10), Qt::NoButton, Qt::LeftButton);
-            QVERIFY(widget.m_sources[0].transform != start);
+            QVERIFY(widget.m_sources[0].canvasGeometry != start);
             QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
             QApplication::sendEvent(&widget, &escape);
-            QVERIFY(widget.m_sources[0].transform == start);
+            QVERIFY(widget.m_sources[0].canvasGeometry == start);
             mouse(widget, QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton);
             const auto handles = widget.selectionHandles(widget.m_sources[0]);
             QVERIFY(qAbs(std::hypot((handles[8] - handles[1]).x(), (handles[8] - handles[1]).y()) -
@@ -657,7 +657,7 @@ private slots:
             mouse(widget, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
             mouse(widget, QEvent::MouseButtonRelease, point + QPointF(10, 0), Qt::LeftButton,
                   Qt::NoButton);
-            QVERIFY(closePoint(widget.m_sources[0].transform.center(),
+            QVERIFY(closePoint(widget.m_sources[0].canvasGeometry.center(),
                                display.inverted().map(point + QPointF(10, 0))));
             widget.setCurrentSourceId("image");
         }
@@ -671,7 +671,7 @@ private slots:
         const auto display = widget.canvasToWidget();
         const QPointF delta = rotation.map(QPointF(120, 60));
         drag(widget, handles[4], handles[4] + display.map(delta) - display.map(QPointF()));
-        const auto resized = widget.m_sources[0].transform;
+        const auto resized = widget.m_sources[0].canvasGeometry;
         QVERIFY(qAbs(resized.size().width() - 720) < 1e-6);
         QVERIFY(qAbs(resized.size().height() - 360) < 1e-6);
         QVERIFY(closePoint(start.sourceToCanvas().map(QPointF()),
@@ -680,8 +680,8 @@ private slots:
         handles = widget.selectionHandles(widget.m_sources[0]);
         const QPointF sideDelta = rotation.map(QPointF(80, 0));
         drag(widget, handles[3], handles[3] + display.map(sideDelta) - display.map(QPointF()));
-        QVERIFY(qAbs(widget.m_sources[0].transform.size().width() - 680) < 1e-6);
-        QVERIFY(qAbs(widget.m_sources[0].transform.size().height() - 300) < 1e-6);
+        QVERIFY(qAbs(widget.m_sources[0].canvasGeometry.size().width() - 680) < 1e-6);
+        QVERIFY(qAbs(widget.m_sources[0].canvasGeometry.size().height() - 300) < 1e-6);
         start.setRotation(0);
         widget.setSources({{"image", image, true, start}});
         handles = widget.selectionHandles(widget.m_sources[0]);
@@ -689,8 +689,8 @@ private slots:
         QTransform quarterTurn;
         quarterTurn.rotate(90);
         drag(widget, handles[8], center + quarterTurn.map(handles[8] - center));
-        QVERIFY(qAbs(widget.m_sources[0].transform.rotation() - 90) < 1e-6);
-        QVERIFY(closePoint(widget.m_sources[0].transform.center(), start.center()));
+        QVERIFY(qAbs(widget.m_sources[0].canvasGeometry.rotation() - 90) < 1e-6);
+        QVERIFY(closePoint(widget.m_sources[0].canvasGeometry.center(), start.center()));
     }
 
     void rotationHandleUsesHandCursors()
@@ -756,10 +756,10 @@ private slots:
         widget.setSources(sources);
         drag(widget, center, center);
         QCOMPARE(widget.m_currentSourceId, QString("top"));
-        const auto bounds = sources[0].transform.sourceToCanvas()
-                                .mapRect(QRectF(QPointF(), sources[0].transform.size()));
+        const auto bounds = sources[0].canvasGeometry.sourceToCanvas()
+                                .mapRect(QRectF(QPointF(), sources[0].canvasGeometry.size()));
         const auto outsideRotatedRectangle = bounds.topLeft() + QPointF(5, 5);
-        QVERIFY(!sources[0].transform.contains(outsideRotatedRectangle));
+        QVERIFY(!sources[0].canvasGeometry.contains(outsideRotatedRectangle));
         drag(widget, display.map(outsideRotatedRectangle), display.map(outsideRotatedRectangle));
         QCOMPARE(widget.m_currentSourceId, QString("bottom"));
         sources[0].locked = true;
@@ -821,7 +821,7 @@ private slots:
             QSKIP("Capture frames require Windows D3D11");
 #endif
         }
-        const VideoSourceTransform start{{960, 540}, {600, 300}, 0};
+        const VideoSourceCanvasGeometry start{{960, 540}, {600, 300}, 0};
         quint64 sequence = 0;
         const auto publish = [&] {
             auto sources = widget.m_sources;
@@ -885,14 +885,14 @@ private slots:
             }
             mouse(widget, QEvent::MouseMove, to, Qt::NoButton, Qt::LeftButton);
             QVERIFY(widget.m_gesture == gesture);
-            const auto transform = widget.m_sources[0].transform;
+            const auto canvasGeometry = widget.m_sources[0].canvasGeometry;
             if (operation == 0)
-                QVERIFY(closePoint(transform.center(), start.center() + QPointF(30 * step, 15 * step)));
+                QVERIFY(closePoint(canvasGeometry.center(), start.center() + QPointF(30 * step, 15 * step)));
             else if (operation == 1) {
-                QVERIFY(qAbs(transform.size().width() - (600 + 40 * step)) < 1e-6);
-                QVERIFY(qAbs(transform.size().height() - (300 + 20 * step)) < 1e-6);
+                QVERIFY(qAbs(canvasGeometry.size().width() - (600 + 40 * step)) < 1e-6);
+                QVERIFY(qAbs(canvasGeometry.size().height() - (300 + 20 * step)) < 1e-6);
             } else
-                QVERIFY(qAbs(transform.rotation() - 20 * step) < 1e-6);
+                QVERIFY(qAbs(canvasGeometry.rotation() - 20 * step) < 1e-6);
         }
         mouse(widget, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
         QVERIFY(widget.m_gesture == PreviewWidget::Gesture::None);
@@ -911,7 +911,7 @@ private slots:
         // is not a prerequisite and Windows may retain focus in another app.
         widget.show();
         QVERIFY(QTest::qWaitForWindowExposed(&widget));
-        QSignalSpy transforms(&widget, &PreviewWidget::transformRequested);
+        QSignalSpy geometries(&widget, &PreviewWidget::canvasGeometryRequested);
         for (int reason = 0; reason < 9; ++reason) {
             widget.show();
             QVERIFY(QTest::qWaitForWindowExposed(&widget));
@@ -958,10 +958,10 @@ private slots:
                 QApplication::sendEvent(&widget, &event);
             }
             QVERIFY(widget.m_gesture == PreviewWidget::Gesture::None);
-            const int count = transforms.count();
+            const int count = geometries.count();
             mouse(widget, QEvent::MouseMove, center + QPointF(100, 0), Qt::NoButton,
                   Qt::LeftButton);
-            QCOMPARE(transforms.count(), count);
+            QCOMPARE(geometries.count(), count);
             mouse(widget, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
         }
     }
@@ -985,12 +985,12 @@ private:
     {
         connect(&widget, &PreviewWidget::selectionRequested, &widget,
                 &PreviewWidget::setCurrentSourceId);
-        connect(&widget, &PreviewWidget::transformRequested, &widget,
-                [&widget](const QString &sourceId, const VideoSourceTransform &transform) {
+        connect(&widget, &PreviewWidget::canvasGeometryRequested, &widget,
+                [&widget](const QString &sourceId, const VideoSourceCanvasGeometry &canvasGeometry) {
                     auto sources = widget.m_sources;
                     for (auto &source : sources)
                         if (source.id == sourceId && !source.locked)
-                            source.transform = transform;
+                            source.canvasGeometry = canvasGeometry;
                     widget.setSources(sources);
                 });
     }

@@ -267,7 +267,7 @@ void CameraSourceController::publish()
             source.image = camera->second.frame->image;
         source.visible = item.visible;
         source.locked = item.locked;
-        source.transform = item.transform;
+        source.canvasGeometry = item.canvasGeometry;
         source.filters = item.filters;
         result.append(std::move(source));
     }

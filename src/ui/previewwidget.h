@@ -26,7 +26,7 @@ public:
     ~PreviewWidget() override;
 
     // Call on the GUI thread. Topmost first; applied on the next composition tick.
-    // An unset transform uses the initial centered, fit-without-upscaling layout.
+    // An unset canvas geometry uses the initial centered, fit-without-upscaling layout.
     void setSources(const QList<PreviewSource> &sources);
     void setCurrentSourceId(const QString &sourceId);
 
@@ -55,7 +55,8 @@ public:
 
 signals:
     void selectionRequested(const QString &sourceId);
-    void transformRequested(const QString &sourceId, const VideoSourceTransform &transform);
+    void canvasGeometryRequested(const QString &sourceId,
+                                 const VideoSourceCanvasGeometry &canvasGeometry);
     void sourceFailed(const QString &sourceId, const QString &message);
     void renderingFailed(const QString &message);
     void gpuTransferFailed(const QString &sourceId, quint64 generation, const QString &message);
@@ -80,7 +81,7 @@ private:
     bool selectable(const PreviewSource &source) const;
     QRectF canvasRect() const;
     QTransform canvasToWidget() const;
-    static VideoSourceTransform resized(const VideoSourceTransform &start, int handle,
+    static VideoSourceCanvasGeometry resized(const VideoSourceCanvasGeometry &start, int handle,
                                         const QPointF &canvasDelta);
     QPointF toCanvas(const QPointF &point) const;
     QPolygonF selectionHandles(const PreviewSource &source) const;
@@ -103,7 +104,7 @@ private:
     };
     Gesture m_gesture = Gesture::None;
     QString m_gestureSourceId;
-    VideoSourceTransform m_gestureStart;
+    VideoSourceCanvasGeometry m_gestureStart;
     QPointF m_pressCanvas;
     int m_resizeHandle = -1;
     QColor m_surroundingColor = Qt::black;

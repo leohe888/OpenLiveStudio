@@ -37,7 +37,8 @@ public:
 
     VideoSourceStatus sourceStatus(const QString &sourceId) const;
 
-    bool setSourceTransform(const QString &sourceId, const VideoSourceTransform &transform);
+    bool setSourceCanvasGeometry(const QString &sourceId,
+                                const VideoSourceCanvasGeometry &canvasGeometry);
     bool addSource(const VideoSource &source, const VideoSourceStatus &status = {});
     bool setSourcePixelSize(const QString &sourceId, const QSize &size);
     bool setSourceStatus(const QString &sourceId, const QString &state, const QString &error);
@@ -65,7 +66,7 @@ public:
     bool canMoveCurrentSourceUp() const;
     bool canMoveCurrentSourceDown() const;
     // List order is topmost first; offset must be -1 or 1.
-    // Locking only restricts future transform edits.
+    // Locking only restricts future canvas geometry edits.
     bool moveSource(const QString &sourceId, int offset);
     bool setSourceVisible(const QString &sourceId, bool visible);
     bool setSourceLocked(const QString &sourceId, bool locked);

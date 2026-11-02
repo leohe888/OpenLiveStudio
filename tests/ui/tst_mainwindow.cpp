@@ -525,8 +525,8 @@ void MainWindowTest::previewEditsModelAndSynchronizesSelection()
     QTRY_COMPARE(model->sources().size(), 2);
     const QString frontId = model->currentSourceId();
 
-    const auto currentTransform = [&] {
-        return model->sources().at(0).transform;
+    const auto currentCanvasGeometry = [&] {
+        return model->sources().at(0).canvasGeometry;
     };
 
     const auto canvasPoint = [&](const QPointF &point) {
@@ -543,26 +543,26 @@ void MainWindowTest::previewEditsModelAndSynchronizesSelection()
         QTest::mouseMove(preview, to);
         QTest::mouseRelease(preview, Qt::LeftButton, Qt::NoModifier, to);
     };
-    const VideoSourceTransform before = currentTransform();
+    const VideoSourceCanvasGeometry before = currentCanvasGeometry();
     const QPoint from = canvasPoint(before.center()), to = from + QPoint(30, 15);
     move(from, to);
 
     const auto inverse = canvasToWidget(preview->size()).inverted();
     const auto expectedCenter =
         before.center() + inverse.map(QPointF(to)) - inverse.map(QPointF(from));
-    QVERIFY(std::hypot(currentTransform().center().x() - expectedCenter.x(),
-                       currentTransform().center().y() - expectedCenter.y()) < 1e-6);
+    QVERIFY(std::hypot(currentCanvasGeometry().center().x() - expectedCenter.x(),
+                       currentCanvasGeometry().center().y() - expectedCenter.y()) < 1e-6);
 
-    const auto moved = currentTransform();
+    const auto moved = currentCanvasGeometry();
     window.resize(qMax(window.minimumWidth(), window.width() - 40), window.height());
     QCoreApplication::processEvents();
-    QVERIFY(currentTransform() == moved);
+    QVERIFY(currentCanvasGeometry() == moved);
     move(canvasPoint(moved.center()), canvasPoint(moved.center()) + QPoint(10, 5));
-    QVERIFY(currentTransform().center() != moved.center());
-    VideoSourceTransform rotated = currentTransform();
+    QVERIFY(currentCanvasGeometry().center() != moved.center());
+    VideoSourceCanvasGeometry rotated = currentCanvasGeometry();
     rotated.setRotation(30);
     rotated.setSize(QSizeF(450, 250));
-    QVERIFY(model->setSourceTransform(frontId, rotated));
+    QVERIFY(model->setSourceCanvasGeometry(frontId, rotated));
 
     const auto frame = grabPreview(*preview);
     const auto center = canvasPoint(rotated.center());
@@ -570,7 +570,7 @@ void MainWindowTest::previewEditsModelAndSynchronizesSelection()
                               qRound(center.y() * preview->devicePixelRatioF())),
              QColor(Qt::blue));
     QVERIFY(model->setSourceLocked(frontId, true));
-    QVERIFY(!model->setSourceTransform(frontId, before));
+    QVERIFY(!model->setSourceCanvasGeometry(frontId, before));
     QCoreApplication::processEvents(); // Aggregator publishes model changes through a queued
                                        // connection.
     QTest::mouseClick(preview, Qt::LeftButton, Qt::NoModifier, center);
@@ -756,9 +756,9 @@ void MainWindowTest::cameraHardwarePreview()
     QVERIFY(qAbs(pixel.red() - pixel.green()) <= 3 && qAbs(pixel.green() - pixel.blue()) <= 3);
     // Keep the mouse pressed while real camera frames arrive between edits.
     // Check the entire model -> controller -> preview -> model path.
-    const VideoSourceTransform start{{960, 540}, {600, 300}, 0};
+    const VideoSourceCanvasGeometry start{{960, 540}, {600, 300}, 0};
     for (int operation = 0; operation < 3; ++operation) {
-        QVERIFY(model->setSourceTransform(id, start));
+        QVERIFY(model->setSourceCanvasGeometry(id, start));
         QTest::qWait(100);
 
         const auto display = canvasToWidget(preview->size());
@@ -791,7 +791,7 @@ void MainWindowTest::cameraHardwarePreview()
         QTest::qWait(150);
         mouse(QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
 
-        const auto actual = model->sources().at(0).transform;
+        const auto actual = model->sources().at(0).canvasGeometry;
         if (operation == 0)
             QVERIFY(QLineF(actual.center(), QPointF(1080, 600)).length() < 0.001);
         else if (operation == 1) {
