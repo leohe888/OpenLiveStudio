@@ -502,8 +502,8 @@ void CameraCaptureWorker::run()
                 }
                 if (!sample) {
                     if (lastFrame.elapsed() > std::max(received ? 5000.0 : 10000.0, 3000.0 / fps)) {
-                        error = received ? tr("摄像头停止出帧，请检查连接后重试。")
-                                         : tr("等待摄像头首帧超时，请重试。");
+                        error = received ? tr("摄像头停止出帧，请检查连接后重新添加来源。")
+                                         : tr("等待摄像头首帧超时，请重新添加来源。");
                         break;
                     }
                     continue;
@@ -531,14 +531,14 @@ void CameraCaptureWorker::run()
             fail(failure(hr));
             throw;
         } catch (...) {
-            fail(tr("摄像头帧处理失败，请重试。"));
+            fail(tr("摄像头帧处理失败，请重新添加来源。"));
             throw;
         }
     } catch (HRESULT hr) {
         if (error.isEmpty())
             error = failure(hr);
     } catch (...) {
-        error = tr("摄像头帧处理失败，请重试。");
+        error = tr("摄像头帧处理失败，请重新添加来源。");
     }
 #else
     error = tr("摄像头采集仅支持 Windows。");

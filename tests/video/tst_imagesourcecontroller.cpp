@@ -14,7 +14,6 @@ class ImageSourceControllerTest : public QObject
 {
     Q_OBJECT
 private slots:
-
     void loadsAddsAndSynchronizes()
     {
         QTemporaryDir dir;

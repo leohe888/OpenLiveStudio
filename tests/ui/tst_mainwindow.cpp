@@ -77,7 +77,6 @@ private slots:
     void sourceActionsAndSelection();
     void imageDialogAndCancellation();
     void removalAndFilters();
-    void disconnectedDeviceDrafts();
     void audioControlsAndDialogs();
     void outputDraftsAndLocks();
     void scrollingAndKeyboard();
@@ -308,43 +307,6 @@ void MainWindowTest::removalAndFilters()
     QTRY_VERIFY(dialog.isNull());
 }
 
-void MainWindowTest::disconnectedDeviceDrafts()
-{
-    MainWindow window;
-
-    auto *model = window.findChild<VideoSourceManager *>();
-    QVERIFY(model->addSource(
-        {"display", "Missing", DisplaySourceConfig{"unavailable-display", false}}));
-    QVERIFY(model->selectSource("display"));
-    window.findChild<QToolButton *>("sourcePropertiesButton")->click();
-    QPointer<QDialog> dialog = window.findChild<QDialog *>("displayPropertiesDialog");
-    QVERIFY(dialog);
-    QCOMPARE(dialog->findChild<QComboBox *>("displayTargetInput")->currentData().toString(),
-             QString("unavailable-display"));
-    QVERIFY(!dialog->findChild<QCheckBox *>("captureCursorInput")->isChecked());
-    dialog->findChild<QCheckBox *>("captureCursorInput")->setChecked(true);
-    dialog->reject();
-    QTRY_VERIFY(dialog.isNull());
-    QVERIFY(!displaySource(*model, "display")->captureCursor());
-    CameraSourceConfig config;
-    config.setDeviceId("unavailable-camera");
-    config.setResolution(QSize(640, 480));
-    config.setFrameRateNumerator(30);
-    QVERIFY(model->addSource({"camera", "Missing camera", config}));
-    QVERIFY(model->selectSource("camera"));
-    window.findChild<QToolButton *>("sourcePropertiesButton")->click();
-    dialog = window.findChild<QDialog *>("cameraPropertiesDialog");
-    QVERIFY(dialog);
-    QCOMPARE(dialog->findChild<QComboBox *>("cameraDeviceInput")->currentData().toString(),
-             config.deviceId());
-    QTRY_VERIFY(dialog->findChild<QComboBox *>("cameraModeInput")->isEnabled());
-    QCOMPARE(
-        dialog->findChild<QComboBox *>("cameraModeInput")->currentData().value<CameraMode>().width,
-        640);
-    QVERIFY(model->removeSource("camera"));
-    QTRY_VERIFY(dialog.isNull());
-}
-
 void MainWindowTest::audioControlsAndDialogs()
 {
     MainWindow window;
@@ -370,14 +332,15 @@ void MainWindowTest::audioControlsAndDialogs()
     model->sourceLevelsChanged(id);
     QCOMPARE(window.findChild<QWidget *>("soundChannel_" + id), retainedChannel.data());
     QCOMPARE(model->currentSourceId(), id);
-    window.findChild<QToolButton *>("soundSourcePropertiesButton")->click();
-    QPointer<QDialog> dialog = window.findChild<QDialog *>("audioSourceDialog");
+    window.findChild<QToolButton *>("addSoundSourceButton")->click();
+    QPointer<QDialog> dialog = window.findChild<QDialog *>("audioSourceAddDialog");
     QVERIFY(dialog);
-    QVERIFY(!dialog->findChild<QComboBox *>("soundDeviceInput")->isEnabled());
-    dialog->findChild<QLineEdit *>("soundNameInput")->setText("Renamed");
-    dialog->findChild<QPushButton *>("confirmSoundSourceButton")->click();
+    QCOMPARE(dialog->windowTitle(), QString::fromUtf8("添加声音来源"));
+    QVERIFY(dialog->findChild<QComboBox *>("soundTypeInput")->isEnabled());
+    QVERIFY(dialog->findChild<QPushButton *>("refreshSoundDevicesButton"));
+    dialog->findChild<QPushButton *>("cancelSoundSourceButton")->click();
     QTRY_VERIFY(dialog.isNull());
-    QCOMPARE(model->source(id)->name, QString("Renamed"));
+    QCOMPARE(model->source(id)->name, QString("Mic"));
     window.findChild<QToolButton *>("removeSoundSourceButton")->click();
     dialog = window.findChild<QDialog *>("sourceRemovalDialog");
     QVERIFY(dialog);

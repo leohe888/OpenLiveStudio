@@ -31,9 +31,7 @@ private slots:
     void showSourceAddDialog();
     void showSourceRemovalDialog(const QString &sourceId);
     void showSourceFiltersDialog(const QString &sourceId);
-    void showSourcePropertiesDialog(const QString &sourceId);
     void showAudioSourceAddDialog();
-    void showAudioSourcePropertiesDialog(const QString &sourceId);
     void showAudioSourceRemovalDialog(const QString &sourceId);
     void showOutputSettingsDialog();
     void toggleRecording();

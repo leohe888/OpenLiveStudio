@@ -213,23 +213,13 @@ void MainWindow::showSourceAddDialog()
 
 void MainWindow::showAudioSourceAddDialog()
 {
-    showAudioSourcePropertiesDialog({});
-}
-
-void MainWindow::showAudioSourcePropertiesDialog(const QString &sourceId)
-{
-    if (!sourceId.isEmpty() && !m_audioSourceManager->source(sourceId))
+    if (auto *dialog = findChild<QDialog *>("audioSourceAddDialog")) {
+        dialog->show();
+        dialog->raise();
+        dialog->activateWindow();
         return;
-    for (auto *dialog : findChildren<QDialog *>()) {
-        if (dialog->objectName() == "audioSourceDialog" &&
-            dialog->property("audioSourceId").toString() == sourceId) {
-            dialog->show();
-            dialog->raise();
-            dialog->activateWindow();
-            return;
-        }
     }
-    createAudioSourceDialog(this, m_audioSourceManager, sourceId)->open();
+    createAudioSourceAddDialog(this, m_audioSourceManager)->open();
 }
 
 void MainWindow::showAudioSourceRemovalDialog(const QString &sourceId)
@@ -267,24 +257,6 @@ void MainWindow::showSourceFiltersDialog(const QString &sourceId)
         }
     }
     createSourceFiltersDialog(this, m_videoSourceManager, sourceId)->open();
-}
-
-void MainWindow::showSourcePropertiesDialog(const QString &sourceId)
-{
-    const auto *config = m_videoSourceManager->sourceConfig(sourceId);
-    if (!config || std::holds_alternative<ImageSourceConfig>(*config))
-        return;
-    for (auto *dialog : findChildren<QDialog *>()) {
-        if (dialog->property("displaySourceId").toString() == sourceId) {
-            dialog->show();
-            dialog->raise();
-            dialog->activateWindow();
-            return;
-        }
-    }
-    createSourcePropertiesDialog(this, m_videoSourceManager, sourceId, m_displaySourceController,
-                                 m_cameraSourceController)
-        ->open();
 }
 
 void MainWindow::setupPreview()
@@ -362,8 +334,6 @@ void MainWindow::setupSourcesDock()
     connect(panel, &VideoSourcePanel::addRequested, this, &MainWindow::showSourceAddDialog);
     connect(panel, &VideoSourcePanel::removalRequested, this, &MainWindow::showSourceRemovalDialog);
     connect(panel, &VideoSourcePanel::filtersRequested, this, &MainWindow::showSourceFiltersDialog);
-    connect(panel, &VideoSourcePanel::propertiesRequested, this,
-            &MainWindow::showSourcePropertiesDialog);
 }
 
 void MainWindow::setupMixerDock()
@@ -378,8 +348,6 @@ void MainWindow::setupMixerDock()
     m_audioSourceDock->setWidget(panel);
     connect(panel, &AudioSourcePanel::addRequested, this, &MainWindow::showAudioSourceAddDialog);
     connect(panel, &AudioSourcePanel::removalRequested, this, &MainWindow::showAudioSourceRemovalDialog);
-    connect(panel, &AudioSourcePanel::propertiesRequested, this,
-            &MainWindow::showAudioSourcePropertiesDialog);
 }
 
 void MainWindow::setupControlsDock()

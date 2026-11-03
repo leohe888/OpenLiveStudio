@@ -113,21 +113,6 @@ QString CameraSourceController::addCamera(const QString &name, const CameraSourc
     return id;
 }
 
-bool CameraSourceController::applyProperties(const QString &sourceId, const CameraSourceConfig &config)
-{
-    const auto *sourceConfig = m_sourceManager.sourceConfig(sourceId);
-    const auto *camera = sourceConfig ? std::get_if<CameraSourceConfig>(sourceConfig) : nullptr;
-    if (!camera)
-        return false;
-    const bool unchanged = (*camera) == config;
-    if (!m_sourceManager.setSourceConfig(sourceId, config))
-        return false;
-    // Changed configuration already restarts through the manager notification.
-    if (unchanged)
-        retry(sourceId);
-    return true;
-}
-
 bool CameraSourceController::retry(const QString &sourceId)
 {
     auto it = m_entries.find(sourceId);

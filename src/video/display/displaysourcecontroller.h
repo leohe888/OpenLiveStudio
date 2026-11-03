@@ -25,7 +25,6 @@ public:
 
     void refreshDisplayDevices();
     QString addDisplay(const QString &name, const QString &displayId, bool cursor);
-    bool applyProperties(const QString &sourceId, const QString &displayId, bool cursor);
     bool retry(const QString &sourceId);
     void failTransfer(const QString &sourceId, quint64 generation, const QString &reason);
     int activeWorkerCount() const;

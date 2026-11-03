@@ -72,7 +72,6 @@ public:
     // The pointer is only valid until the next mutation.
     const VideoSourceConfig *sourceConfig(const QString &sourceId) const;
     bool setSourceConfig(const QString &sourceId, const VideoSourceConfig &config);
-    bool canEditCurrentSourceProperties() const;
 
 signals:
     // Structural changes rebuild lists; per-source changes update existing rows.

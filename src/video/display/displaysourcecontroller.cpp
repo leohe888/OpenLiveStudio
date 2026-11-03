@@ -66,22 +66,6 @@ QString DisplaySourceController::addDisplay(const QString &name, const QString &
     return id;
 }
 
-bool DisplaySourceController::applyProperties(const QString &sourceId, const QString &displayId,
-                                              bool cursor)
-{
-    const auto *sourceConfig = m_sourceManager.sourceConfig(sourceId);
-    const auto *display = sourceConfig ? std::get_if<DisplaySourceConfig>(sourceConfig) : nullptr;
-    if (!display)
-        return false;
-    const bool unchanged =
-        display->displayId() == displayId && display->captureCursor() == cursor;
-    if (!m_sourceManager.setSourceConfig(sourceId, DisplaySourceConfig{displayId, cursor}))
-        return false;
-    if (unchanged)
-        retry(sourceId);
-    return true;
-}
-
 bool DisplaySourceController::retry(const QString &sourceId)
 {
     auto it = m_entries.find(sourceId);
@@ -173,7 +157,7 @@ void DisplaySourceController::failTransfer(const QString &sourceId, quint64 gene
     auto &entry = it->second;
     entry.failed = true;
     stop(entry);
-    const QString message = tr("GPU 画面传输失败，已停止采集。请检查显卡驱动后手动重试。");
+    const QString message = tr("GPU 画面传输失败，已停止采集。请检查显卡驱动后重新添加来源。");
     setRuntimeStatus(m_sourceManager, sourceId, VideoSourceState::Error, message);
     qWarning().noquote() << "Display GPU transfer failed:" << sourceId << reason;
     emit sourceFailed(sourceId, message);

@@ -86,7 +86,6 @@ set(OPENLIVE_STUDIO_ICON_FILES
     "${PROJECT_SOURCE_DIR}/assets/icons/lock.svg"
     "${PROJECT_SOURCE_DIR}/assets/icons/lock-open.svg"
     "${PROJECT_SOURCE_DIR}/assets/icons/sliders-horizontal.svg"
-    "${PROJECT_SOURCE_DIR}/assets/icons/settings.svg"
     "${PROJECT_SOURCE_DIR}/assets/icons/volume-2.svg"
     "${PROJECT_SOURCE_DIR}/assets/icons/volume-x.svg"
     "${PROJECT_SOURCE_DIR}/assets/icons/arrow-right.svg"

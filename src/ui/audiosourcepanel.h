@@ -16,10 +16,8 @@ public:
 signals:
     void addRequested();
     void removalRequested(const QString &sourceId);
-    void propertiesRequested(const QString &sourceId);
 };
 
-QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceManager *manager,
-                                 const QString &sourceId);
+QDialog *createAudioSourceAddDialog(QWidget *parent, AudioSourceManager *manager);
 
 #endif

@@ -53,7 +53,6 @@ void CameraCaptureTest::configAndLayout()
     QVERIFY(!id.isEmpty());
     QVERIFY(controller.addCamera("Duplicate", CameraSourceConfig{"missing-device"}).isEmpty());
     QCOMPARE(cameraSource(model, id)->frameRateDenominator(), 1001);
-    QVERIFY(model.canEditCurrentSourceProperties());
     QVERIFY(model.canFilterCurrentSource());
     setCameraActualMode(model, id, {1280, 720}, 30000, 1001);
     const VideoSourceCanvasGeometry canvasGeometry{{440, 330}, {600, 337.5}, 35};
@@ -189,18 +188,18 @@ void CameraCaptureTest::hardware()
     const auto deviceId = devices[0].id;
     const auto modes = catalogs.value(deviceId);
     const auto mode = modes.last();
-    QVERIFY(controller.applyProperties(ids[0], mode.config(deviceId)));
+    QVERIFY(model.setSourceConfig(ids[0], mode.config(deviceId)));
     QTRY_COMPARE_WITH_TIMEOUT(model.sourceRuntime(ids[0]).state(),
                               VideoSourceState::Capturing, 15000);
     QCOMPARE(model.sourceRuntime(ids[0]).pixelSize().width(), mode.width);
     QCOMPARE(model.sourceRuntime(ids[0]).pixelSize().height(), mode.height);
     // Unsupported explicit modes must fail while preserving the requested configuration.
     const CameraMode unsupported{9999, 9999, 30, 1};
-    QVERIFY(controller.applyProperties(ids[0], unsupported.config(deviceId)));
+    QVERIFY(model.setSourceConfig(ids[0], unsupported.config(deviceId)));
     QTRY_COMPARE_WITH_TIMEOUT(model.sourceRuntime(ids[0]).state(), VideoSourceState::Error,
                               15000);
     QCOMPARE(cameraSource(model, ids[0])->resolution().width(), 9999);
-    QVERIFY(controller.applyProperties(ids[0], mode.config(deviceId)));
+    QVERIFY(model.setSourceConfig(ids[0], mode.config(deviceId)));
     QTRY_COMPARE_WITH_TIMEOUT(model.sourceRuntime(ids[0]).state(),
                               VideoSourceState::Capturing, 15000);
     for (const auto &id : ids)

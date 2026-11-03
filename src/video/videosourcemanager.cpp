@@ -387,13 +387,6 @@ bool VideoSourceManager::setSourceConfig(const QString &sourceId, const VideoSou
     return true;
 }
 
-bool VideoSourceManager::canEditCurrentSourceProperties() const
-{
-    const int row = sourceRow(m_currentSourceId);
-    return row >= 0 && (m_sources[row].type() == VideoSourceType::DisplayCapture ||
-                        m_sources[row].type() == VideoSourceType::Camera);
-}
-
 int VideoSourceManager::sourceRow(const QString &sourceId) const
 {
     if (sourceId.isEmpty())

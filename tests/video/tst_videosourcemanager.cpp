@@ -18,7 +18,7 @@ private slots:
     void insertsSourcesAtTop();
     void sourceRemovalDuringGeometryNotificationIsSafe();
     void sourceReorderingDuringGeometryNotificationIsSafe();
-    void displayPropertiesPreserveSourceState();
+    void configUpdatesPreserveSourceState();
     void initializesAndValidatesCanvasGeometry();
     void mapsSourceCoordinates();
     void startsWithEmptySourceList();
@@ -633,7 +633,7 @@ void VideoSourceManagerTest::filtersAreOrderedValidatedAndIndependent()
     QVERIFY(!model.removeFilter("a", second));
 }
 
-void VideoSourceManagerTest::displayPropertiesPreserveSourceState()
+void VideoSourceManagerTest::configUpdatesPreserveSourceState()
 {
     VideoSourceManager model;
     QVERIFY(addSources(model, QList<VideoSource>{
@@ -643,7 +643,7 @@ void VideoSourceManagerTest::displayPropertiesPreserveSourceState()
     QSignalSpy changed(&model, &VideoSourceManager::sourceChanged);
     QSignalSpy status(&model, &VideoSourceManager::sourceRuntimeChanged);
     QVERIFY(model.selectSource("screen"));
-    QVERIFY(model.canEditCurrentSourceProperties() && model.canFilterCurrentSource());
+    QVERIFY(model.canFilterCurrentSource());
     QVERIFY(setSourcePixelSize(model, "screen", QSize(1920, 1080)));
     QCOMPARE(status.count(), 1);
     status.clear();
@@ -673,9 +673,9 @@ void VideoSourceManagerTest::displayPropertiesPreserveSourceState()
     QVERIFY(setSourceStatus(model, "screen", VideoSourceState::Starting, {}));
     QVERIFY(model.sourceRuntime("screen").error().isEmpty());
     QVERIFY(model.selectSource("image"));
-    QVERIFY(!model.canEditCurrentSourceProperties() && model.canFilterCurrentSource());
+    QVERIFY(model.canFilterCurrentSource());
     QVERIFY(model.selectSource("camera"));
-    QVERIFY(model.canEditCurrentSourceProperties() && model.canFilterCurrentSource());
+    QVERIFY(model.canFilterCurrentSource());
     QVERIFY(model.removeSource("screen"));
     QVERIFY(!displaySource(model, "screen"));
     QVERIFY(!setSourceStatus(model, "screen", VideoSourceState::Error, "Removed"));

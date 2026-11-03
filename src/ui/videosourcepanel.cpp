@@ -80,12 +80,10 @@ public:
     QPushButton *refresh;
     QLabel *error;
     bool loading = false;
-    CameraMode originalMode;
     std::function<void()> changed;
 
     CaptureSettings(QWidget *parent, DisplaySourceController *displays,
-                    CameraSourceController *cameras, bool camera,
-                    const VideoSourceConfig *initialConfig = nullptr)
+                    CameraSourceController *cameras, bool camera)
         : QWidget(parent)
     {
         auto *layout = new QVBoxLayout(this);
@@ -106,13 +104,11 @@ public:
         if (!camera) {
             cursor = new QCheckBox(tr("采集鼠标光标"), this);
             cursor->setObjectName("captureCursorInput");
-            const auto *display = initialConfig ? std::get_if<DisplaySourceConfig>(initialConfig) : nullptr;
-            const DisplaySourceConfig config = display ? *display : DisplaySourceConfig{};
-            cursor->setChecked(config.captureCursor());
+            cursor->setChecked(true);
             layout->addWidget(cursor);
             layout->addWidget(
                 label(this, "displayCaptureHint", tr("原始分辨率 · 最高 30 FPS · SDR")));
-            fillDevices(device, displays->displayDevices(), config.displayId());
+            fillDevices(device, displays->displayDevices(), {});
             connect(displays, &DisplaySourceController::displayDevicesChanged, this, [=] {
                 fillDevices(device, displays->displayDevices(), device->currentData().toString());
                 if (changed)
@@ -122,14 +118,10 @@ public:
                     &DisplaySourceController::refreshDisplayDevices);
             displays->refreshDisplayDevices();
         } else {
-            const auto *cameraConfig = initialConfig ? std::get_if<CameraSourceConfig>(initialConfig) : nullptr;
-            const CameraSourceConfig config = cameraConfig ? *cameraConfig : CameraSourceConfig{};
-            originalMode = {config.resolution().width(), config.resolution().height(),
-                            config.frameRateNumerator(), config.frameRateDenominator()};
             mode = new QComboBox(this);
             mode->setObjectName("cameraModeInput");
             layout->addWidget(mode);
-            fillDevices(device, cameras->devices(), config.deviceId());
+            fillDevices(device, cameras->devices(), {});
 
             const auto loadModes = [=] {
                 const auto id = device->currentData().toString();
@@ -158,8 +150,6 @@ public:
                             return;
 
                         auto selected = mode->currentData().value<CameraMode>();
-                        if (!selected.isValid())
-                            selected = originalMode;
                         QSignalBlocker blocker(mode);
                         mode->clear();
                         mode->addItem(tr("设备默认"), QVariant::fromValue(CameraMode{}));
@@ -169,11 +159,6 @@ public:
                             if (entry.sameFormat(selected))
                                 current = mode->count() - 1;
                         }
-                        if (!current && selected.isValid()) {
-                            mode->addItem(tr("原采集模式（当前未列出）"),
-                                          QVariant::fromValue(selected));
-                            current = mode->count() - 1;
-                        }
                         mode->setCurrentIndex(current);
                         loading = false;
                         mode->setEnabled(true);
@@ -182,7 +167,6 @@ public:
                             changed();
                     });
             connect(device, &QComboBox::activated, this, [=] {
-                originalMode = {};
                 mode->clear();
                 loadModes();
             });
@@ -251,9 +235,6 @@ VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent)
     buttons->addWidget(filters);
     buttons->addStretch();
 
-    auto *properties = action(this, "sourcePropertiesButton", tr("来源属性"), "settings");
-    buttons->addWidget(properties);
-
     const auto selection = [=] {
         QSignalBlocker block(list);
         int selected = -1;
@@ -265,7 +246,6 @@ VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent)
         up->setEnabled(manager->canMoveCurrentSourceUp());
         down->setEnabled(manager->canMoveCurrentSourceDown());
         filters->setEnabled(manager->canFilterCurrentSource());
-        properties->setEnabled(manager->canEditCurrentSourceProperties());
     };
 
     const auto updateRow = [=](const QString &sourceId) {
@@ -370,9 +350,6 @@ VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent)
     });
     connect(filters, &QToolButton::clicked, this, [=] {
         emit filtersRequested(manager->currentSourceId());
-    });
-    connect(properties, &QToolButton::clicked, this, [=] {
-        emit propertiesRequested(manager->currentSourceId());
     });
     rebuild();
 }
@@ -561,101 +538,6 @@ QDialog *createSourceAddDialog(QWidget *parent, VideoSourceManager *manager,
     refresh();
     name->setFocus();
     name->selectAll();
-    return dialog;
-}
-
-QDialog *createSourcePropertiesDialog(QWidget *parent, VideoSourceManager *manager,
-                                      const QString &sourceId, DisplaySourceController *displays,
-                                      CameraSourceController *cameras)
-{
-    const auto *config = manager->sourceConfig(sourceId);
-    const bool camera = config && std::holds_alternative<CameraSourceConfig>(*config);
-
-    auto *dialog =
-        dialogShell(parent, camera ? "cameraPropertiesDialog" : "displayPropertiesDialog",
-                    QObject::tr("来源属性"));
-    dialog->setProperty("displaySourceId", sourceId);
-
-    auto *layout = new QVBoxLayout(dialog);
-    auto *settings =
-        new CaptureSettings(dialog, displays, cameras, camera,
-                            manager->sourceConfig(sourceId));
-    layout->addWidget(settings);
-
-    auto *state = label(dialog, camera ? "cameraStateLabel" : "captureStateLabel");
-    layout->addWidget(state);
-
-    auto *error = label(dialog, camera ? "cameraErrorLabel" : "captureErrorLabel");
-    error->setProperty("uiError", true);
-    layout->addWidget(error);
-
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Apply | QDialogButtonBox::Close, dialog);
-    layout->addWidget(buttons);
-
-    auto *apply = buttons->button(QDialogButtonBox::Apply);
-    apply->setObjectName(camera ? "confirmCameraPropertiesButton" : "applyDisplayPropertiesButton");
-    apply->setText(camera ? QObject::tr("确定") : QObject::tr("应用"));
-    buttons->button(QDialogButtonBox::Close)->setText(QObject::tr("关闭"));
-
-    auto *retry = buttons->addButton(QObject::tr("重试"), QDialogButtonBox::ActionRole);
-    retry->setObjectName(camera ? "retryCameraButton" : "retryDisplayButton");
-    buttons->button(QDialogButtonBox::Close)
-        ->setObjectName(camera ? "cancelCameraPropertiesButton" : "closeDisplayPropertiesButton");
-
-    const auto refresh = [=] {
-        const auto *config = manager->sourceConfig(sourceId);
-        if (!config || (camera && !std::holds_alternative<CameraSourceConfig>(*config)) ||
-            (!camera && !std::holds_alternative<DisplaySourceConfig>(*config))) {
-            dialog->close();
-            return;
-        }
-        const auto runtime = manager->sourceRuntime(sourceId);
-        const auto status = runtime.state();
-        QString text = status == VideoSourceState::Capturing ? QObject::tr("采集中")
-                       : status == VideoSourceState::Paused ? QObject::tr("已暂停：来源当前隐藏")
-                       : status == VideoSourceState::Error  ? QObject::tr("采集失败")
-                                                            : QObject::tr("等待采集画面…");
-        if (camera && status == VideoSourceState::Capturing) {
-            text += QObject::tr(" · %1 × %2 · 协商帧率 %3 FPS")
-                        .arg(runtime.pixelSize().width())
-                        .arg(runtime.pixelSize().height())
-                        .arg(double(runtime.actualFrameRateNumerator()) /
-                                 qMax(1, runtime.actualFrameRateDenominator()),
-                             0, 'f', 2);
-        }
-        state->setText(text);
-        error->setText(runtime.error());
-        retry->setEnabled(!camera || status == VideoSourceState::Error);
-        apply->setEnabled(settings->ready());
-    };
-    settings->changed = refresh;
-
-    QObject::connect(manager, &VideoSourceManager::sourceRuntimeChanged, dialog,
-                     [=](const QString &changedSourceId) {
-                         if (changedSourceId == sourceId)
-                             refresh();
-                     });
-    QObject::connect(manager, &VideoSourceManager::sourcesChanged, dialog, refresh);
-    QObject::connect(apply, &QPushButton::clicked, dialog, [=] {
-        bool success =
-            camera ? cameras->applyProperties(
-                         sourceId, settings->mode->currentData().value<CameraMode>().config(
-                                       settings->device->currentData().toString()))
-                   : displays->applyProperties(sourceId, settings->device->currentData().toString(),
-                                               settings->cursor->isChecked());
-        if (success && camera)
-            dialog->accept();
-        else if (!success)
-            error->setText(QObject::tr("无法应用配置：设备已被使用或配置无效。"));
-    });
-    QObject::connect(retry, &QPushButton::clicked, dialog, [=] {
-        if (camera)
-            cameras->retry(sourceId);
-        else
-            displays->retry(sourceId);
-    });
-    QObject::connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
-    refresh();
     return dialog;
 }
 

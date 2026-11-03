@@ -128,7 +128,7 @@ private slots:
         QVERIFY(model.setSourceCanvasGeometry(id, canvasGeometry));
         const QString filter = model.addFilter(id);
         QVERIFY(!filter.isEmpty());
-        QVERIFY(controller.applyProperties(id, "another-missing-display", false));
+        QVERIFY(model.setSourceConfig(id, DisplaySourceConfig{"another-missing-display", false}));
         QCOMPARE(model.sources().at(0).canvasGeometry(), canvasGeometry);
         QCOMPARE(model.sourceFilters(id)[0].id(), filter);
         QVERIFY(!displaySource(model, id)->captureCursor());
@@ -282,7 +282,7 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(hasFrame(), 5000);
         QVERIFY(snapshot[0].frame->generation > oldGeneration);
         const auto canvasGeometry = snapshot[0].canvasGeometry;
-        QVERIFY(controller.applyProperties(id, targets[0].id, false));
+        QVERIFY(model.setSourceConfig(id, DisplaySourceConfig{targets[0].id, false}));
         QTRY_VERIFY_WITH_TIMEOUT(hasFrame(), 5000);
         QCOMPARE(snapshot[0].canvasGeometry, canvasGeometry);
         QCOMPARE(snapshot[0].filters[0].id(), filter);

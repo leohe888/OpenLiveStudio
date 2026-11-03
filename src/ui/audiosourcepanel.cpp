@@ -160,13 +160,9 @@ AudioSourcePanel::AudioSourcePanel(AudioSourceManager *manager, QWidget *parent)
     actions->addWidget(remove);
     actions->addStretch();
 
-    auto *properties = action(this, "soundSourcePropertiesButton", tr("声音来源属性"), "settings");
-    actions->addWidget(properties);
-
     const auto select = [=] {
         const bool selected = !manager->currentSourceId().isEmpty();
         remove->setEnabled(selected);
-        properties->setEnabled(selected);
     };
 
     connect(manager, &AudioSourceManager::currentSourceIdChanged, this, select);
@@ -174,9 +170,6 @@ AudioSourcePanel::AudioSourcePanel(AudioSourceManager *manager, QWidget *parent)
     connect(add, &QToolButton::clicked, this, &AudioSourcePanel::addRequested);
     connect(remove, &QToolButton::clicked, this, [=] {
         emit removalRequested(manager->currentSourceId());
-    });
-    connect(properties, &QToolButton::clicked, this, [=] {
-        emit propertiesRequested(manager->currentSourceId());
     });
 
     const auto rebuild = [=] {
@@ -304,18 +297,12 @@ AudioSourcePanel::AudioSourcePanel(AudioSourceManager *manager, QWidget *parent)
     rebuild();
 }
 
-QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceManager *manager,
-                                 const QString &sourceId)
+QDialog *createAudioSourceAddDialog(QWidget *parent, AudioSourceManager *manager)
 {
-    const bool editing = !sourceId.isEmpty();
-
-    const auto *originalSource = manager->source(sourceId);
-    const AudioSource original = originalSource ? *originalSource : AudioSource{};
     auto *dialog = new QDialog(parent);
-    dialog->setObjectName("audioSourceDialog");
-    dialog->setProperty("audioSourceId", sourceId);
+    dialog->setObjectName("audioSourceAddDialog");
     dialog->setAttribute(Qt::WA_DeleteOnClose);
-    dialog->setWindowTitle(editing ? QObject::tr("声音来源属性") : QObject::tr("添加声音来源"));
+    dialog->setWindowTitle(QObject::tr("添加声音来源"));
     dialog->resize(540, 370);
 
     auto *layout = new QVBoxLayout(dialog);
@@ -323,7 +310,7 @@ QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceManager *manager,
     layout->addLayout(form);
 
     auto *name = new QLineEdit(
-        editing ? original.name : manager->suggestedSourceName(QObject::tr("麦克风")), dialog);
+        manager->suggestedSourceName(QObject::tr("麦克风")), dialog);
     name->setObjectName("soundNameInput");
     name->setMaxLength(80);
     form->addRow(QObject::tr("来源名称"), name);
@@ -332,8 +319,6 @@ QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceManager *manager,
     type->setObjectName("soundTypeInput");
     type->addItem(QObject::tr("麦克风"), QVariant::fromValue(AudioSourceType::Microphone));
     type->addItem(QObject::tr("系统声音"), QVariant::fromValue(AudioSourceType::SystemAudio));
-    type->setCurrentIndex(original.type == AudioSourceType::SystemAudio ? 1 : 0);
-    type->setEnabled(!editing);
     form->addRow(QObject::tr("来源类型"), type);
 
     auto *devices = new QComboBox(dialog);
@@ -346,7 +331,6 @@ QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceManager *manager,
 
     auto *refresh = new QPushButton(QObject::tr("刷新"), dialog);
     refresh->setObjectName("refreshSoundDevicesButton");
-    refresh->setVisible(!editing);
     deviceRow->addWidget(refresh);
     form->addRow(QObject::tr("设备"), deviceRow);
 
@@ -361,7 +345,7 @@ QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceManager *manager,
 
     auto *ok = buttons->button(QDialogButtonBox::Ok);
     ok->setObjectName("confirmSoundSourceButton");
-    ok->setText(editing ? QObject::tr("确定") : QObject::tr("添加"));
+    ok->setText(QObject::tr("添加"));
     buttons->button(QDialogButtonBox::Cancel)->setText(QObject::tr("取消"));
     buttons->button(QDialogButtonBox::Cancel)->setObjectName("cancelSoundSourceButton");
 
@@ -369,25 +353,20 @@ QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceManager *manager,
         const auto previous = devices->currentData().toString();
         QSignalBlocker block(devices);
         devices->clear();
-        if (editing)
-            devices->addItem(original.deviceName, original.deviceId);
-        else
-            for (const auto &device : manager->devices()) {
-                if (device.type == type->currentData().value<AudioSourceType>() &&
-                    !manager->deviceInUse(device.id))
-                    devices->addItem(device.name, device.id);
-            }
+        for (const auto &device : manager->devices()) {
+            if (device.type == type->currentData().value<AudioSourceType>() &&
+                !manager->deviceInUse(device.id))
+                devices->addItem(device.name, device.id);
+        }
         const int index = devices->findData(previous);
         if (index >= 0)
             devices->setCurrentIndex(index);
         devices->setPlaceholderText(QObject::tr("暂无未使用的设备"));
-        devices->setEnabled(!editing && !manager->refreshing());
+        devices->setEnabled(!manager->refreshing());
         refresh->setEnabled(!manager->refreshing());
-        error->setText(editing ? QString() : manager->catalogError());
+        error->setText(manager->catalogError());
         ok->setEnabled(!name->text().trimmed().isEmpty() &&
-                       (editing || !devices->currentData().toString().isEmpty()));
-        if (editing && !manager->source(sourceId))
-            dialog->close();
+                       !devices->currentData().toString().isEmpty());
     };
 
     QObject::connect(manager, &AudioSourceManager::devicesChanged, dialog, update);
@@ -398,25 +377,21 @@ QDialog *createAudioSourceDialog(QWidget *parent, AudioSourceManager *manager,
     });
     QObject::connect(name, &QLineEdit::textChanged, dialog, [=] {
         ok->setEnabled(!name->text().trimmed().isEmpty() &&
-                       (editing || !devices->currentData().toString().isEmpty()));
+                       !devices->currentData().toString().isEmpty());
     });
     QObject::connect(refresh, &QPushButton::clicked, manager, &AudioSourceManager::refreshDevices);
     QObject::connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
     QObject::connect(buttons, &QDialogButtonBox::accepted, dialog, [=] {
         const bool success =
-            editing ? manager->renameSource(sourceId, name->text())
-                    : !manager
-                           ->addSource(name->text(), type->currentData().value<AudioSourceType>(),
-                                       devices->currentData().toString())
-                           .isEmpty();
+            !manager->addSource(name->text(), type->currentData().value<AudioSourceType>(),
+                                devices->currentData().toString()).isEmpty();
         if (success)
             dialog->accept();
         else
             error->setText(QObject::tr("名称为空或重复，或设备已被其他声音来源使用。"));
     });
     update();
-    if (!editing)
-        manager->refreshDevices();
+    manager->refreshDevices();
     name->setFocus();
     name->selectAll();
     return dialog;

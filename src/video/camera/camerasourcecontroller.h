@@ -41,7 +41,6 @@ public:
     }
 
     QString addCamera(const QString &name, const CameraSourceConfig &config);
-    bool applyProperties(const QString &sourceId, const CameraSourceConfig &config);
     bool retry(const QString &sourceId);
     int activeWorkerCount() const;
 signals:

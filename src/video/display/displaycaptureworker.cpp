@@ -55,7 +55,7 @@ void DisplayCaptureWorker::run()
             if (target.id == m_displayId)
                 monitor = reinterpret_cast<HMONITOR>(target.monitor);
         if (!monitor) {
-            fail(tr("所选显示器已断开，请在来源属性中重新选择或重试。"));
+            fail(tr("所选显示器已断开，请检查连接并重新添加来源。"));
             return;
         }
         winrt::init_apartment(winrt::apartment_type::multi_threaded);
@@ -127,7 +127,7 @@ void DisplayCaptureWorker::run()
             // Polling coalesces frame notifications and bounds application processing to 30 Hz.
             const auto next = std::chrono::steady_clock::now() + std::chrono::microseconds(33334);
             if (closed->load()) {
-                fail(tr("显示器采集已关闭，请手动重试。"));
+                fail(tr("显示器采集已关闭，请重新添加来源。"));
                 break;
             }
             if (std::chrono::steady_clock::now() >= nextTargetCheck) {
@@ -135,7 +135,7 @@ void DisplayCaptureWorker::run()
                 if (std::none_of(available.cbegin(), available.cend(), [&](const auto &target) {
                         return target.id == m_displayId;
                     })) {
-                    fail(tr("所选显示器已断开，请在来源属性中重新选择或重试。"));
+                    fail(tr("所选显示器已断开，请检查连接并重新添加来源。"));
                     break;
                 }
                 nextTargetCheck = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
@@ -213,7 +213,7 @@ void DisplayCaptureWorker::run()
             });
         }
     } catch (const winrt::hresult_error &error) {
-        fail(tr("显示器采集失败：%1（0x%2）。请手动重试。")
+        fail(tr("显示器采集失败：%1（0x%2）。请重新添加来源。")
                  .arg(QString::fromWCharArray(error.message().c_str()))
                  .arg(quint32(error.code().value), 8, 16, QLatin1Char('0')));
     } catch (const std::exception &error) {
