@@ -3,7 +3,7 @@
 #include "output/outputsettings.h"
 #include "graphics/compositor.h"
 #include "audio/audiomixer.h"
-#include "core/mediaclock.h"
+#include "util/mediaclock.h"
 #include <QGuiApplication>
 #include <QTcpServer>
 #include <QTcpSocket>

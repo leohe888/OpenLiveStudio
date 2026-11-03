@@ -1,5 +1,5 @@
 #include "graphics/compositor.h"
-#include "core/mediaclock.h"
+#include "util/mediaclock.h"
 
 #include <QOffscreenSurface>
 #include <QOpenGLContext>

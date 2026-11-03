@@ -32,7 +32,7 @@ qt_add_executable(tst_streaming output/tst_streaming.cpp
     ../src/output/recordingcontroller.cpp
     ../src/output/outputsettings.h
     ../src/output/outputsettings.cpp
-    ../src/core/mediaclock.h
+    ../src/util/mediaclock.h
 )
 target_include_directories(tst_streaming PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_streaming PRIVATE
@@ -83,7 +83,7 @@ qt_add_executable(tst_recording output/tst_recording.cpp
     ../src/output/recordingcontroller.cpp
     ../src/output/outputsettings.h
     ../src/output/outputsettings.cpp
-    ../src/core/mediaclock.h
+    ../src/util/mediaclock.h
 )
 target_include_directories(tst_recording PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_recording PRIVATE
@@ -325,7 +325,7 @@ qt_add_executable(tst_mainwindow
     ../src/output/recordingcontroller.cpp
     ../src/output/outputsettings.h
     ../src/output/outputsettings.cpp
-    ../src/core/mediaclock.h
+    ../src/util/mediaclock.h
 )
 target_include_directories(tst_mainwindow PRIVATE "${PROJECT_SOURCE_DIR}/src" "${PROJECT_SOURCE_DIR}/tests")
 target_link_libraries(tst_mainwindow PRIVATE

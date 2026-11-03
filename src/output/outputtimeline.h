@@ -2,8 +2,8 @@
 #define OUTPUTTIMELINE_H
 #include "graphics/compositor.h"
 #include "audio/audiomixer.h"
-#include "core/mediaclock.h"
-#include "core/outputtap.h"
+#include "util/mediaclock.h"
+#include "util/outputtap.h"
 #include <functional>
 
 // 将带时间戳的音视频对齐到编码器的固定输出节奏。

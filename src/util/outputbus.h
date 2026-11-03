@@ -1,6 +1,6 @@
 #ifndef OUTPUTBUS_H
 #define OUTPUTBUS_H
-#include "core/outputtap.h"
+#include "util/outputtap.h"
 #include <memory>
 #include <vector>
 #include <algorithm>

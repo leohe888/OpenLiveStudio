@@ -71,9 +71,9 @@ qt_add_executable(OpenLiveStudio
     src/output/recordingcontroller.cpp
     src/output/outputsettings.h
     src/output/outputsettings.cpp
-    src/core/mediaclock.h
-    src/core/outputtap.h
-    src/core/outputbus.h
+    src/util/mediaclock.h
+    src/util/outputtap.h
+    src/util/outputbus.h
 )
 
 set(OPENLIVE_STUDIO_ICON_FILES

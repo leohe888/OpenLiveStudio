@@ -3,7 +3,7 @@
 #include "output/outputtimeline.h"
 #include "graphics/compositor.h"
 #include "audio/audiomixer.h"
-#include "core/mediaclock.h"
+#include "util/mediaclock.h"
 #include <QFileInfo>
 #include <atomic>
 

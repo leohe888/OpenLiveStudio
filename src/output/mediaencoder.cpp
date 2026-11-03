@@ -1,7 +1,7 @@
 #include "output/mediaencoder.h"
 #include <QScopeGuard>
 #include <cerrno>
-#include "core/mediaclock.h"
+#include "util/mediaclock.h"
 #include <mutex>
 #include <QDebug>
 #include <cstdarg>

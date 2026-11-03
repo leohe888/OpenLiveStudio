@@ -6,7 +6,7 @@
 #include "video/camera/camerasourcecontroller.h"
 #include "video/videosourceaggregator.h"
 #include "audio/audiosourcemanager.h"
-#include "core/mediaclock.h"
+#include "util/mediaclock.h"
 #include "output/recordingcontroller.h"
 #include "output/outputsettings.h"
 #include <QDateTime>

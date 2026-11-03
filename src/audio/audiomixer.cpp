@@ -1,5 +1,5 @@
 #include "audio/audiomixer.h"
-#include "core/mediaclock.h"
+#include "util/mediaclock.h"
 #include <chrono>
 #ifdef Q_OS_WIN
 #include <windows.h>
