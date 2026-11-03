@@ -14,7 +14,7 @@
 namespace AudioFormat {
 inline constexpr int rate = 48000;
 inline constexpr int channels = 2;
-inline constexpr int blockFrames = 480; // 10 ms
+inline constexpr int blockFrames = 480; // 每块覆盖 10 ms，作为混音的处理步长。
 
 inline qint64 framesToNs(qint64 frames)
 {
@@ -27,7 +27,7 @@ inline qint64 nsToFrames(qint64 ns)
 }
 }
 
-qint64 audioClockNs(); // Windows QPC time, nanoseconds; independent of wall clock.
+qint64 audioClockNs(); // 与视频共用单调媒体时钟，不受系统校时影响。
 
 struct AudioPeak
 {
@@ -42,8 +42,8 @@ struct AudioPeak
 
 struct AudioBlock
 {
-    qint64 timestampNs = 0; // First stereo sample, QPC domain.
-    QVector<float> samples; // Interleaved stereo, 48 kHz, normalized float.
+    qint64 timestampNs = 0; // 首个音频帧的单调媒体时钟时间，用于跨设备对齐。
+    QVector<float> samples; // 48 kHz 归一化浮点数，按左、右声道交错排列；两个值构成一个音频帧。
 
     int frames() const
     {
@@ -58,7 +58,7 @@ public:
 
     struct Batch
     {
-        quint64 generation;
+        quint64 generation; // clear 后代次变化，混音器据此丢弃旧会话的本地缓存。
         std::deque<AudioBlock> packets;
     };
 
@@ -117,7 +117,7 @@ struct AudioInput
 struct MixedAudioBlock : AudioBlock
 {
     quint64 sequence = 0;
-    AudioPeak peak; // Before final hard clipping.
+    AudioPeak peak; // 保留限幅前的峰值，使电平表能显示过载。
     bool clipped = false;
 };
 

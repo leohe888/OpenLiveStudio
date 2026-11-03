@@ -81,7 +81,7 @@ void VideoSourceAggregator::publishRenderSources()
         source.filters = item.filters();
         result.append(std::move(source));
     }
-    // Release removed frames even when a controller has no further updates.
+    // 控制器可能不再发出更新，这里也要释放已移除来源的帧，归还其纹理槽。
     for (auto *snapshot : {&m_imageSources, &m_displaySources, &m_cameraSources}) {
         for (auto it = snapshot->begin(); it != snapshot->end();) {
             if (!retainedSourceIds.contains(it.key()))

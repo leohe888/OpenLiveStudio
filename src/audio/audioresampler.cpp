@@ -54,7 +54,7 @@ bool AudioResampler::configure(int inputSampleRate, int inputChannels, PcmFormat
     if (result >= 0)
         result = av_opt_set_int(m_context, "flags", SWR_FLAG_RESAMPLE, 0);
     if (result >= 0 && inputChannels == 1) {
-        const double matrix[]{1, 1}; // Mono feeds both channels at unity gain.
+        const double matrix[]{1, 1}; // 单声道等幅复制到左右声道，避免默认混音矩阵降低音量。
         result = swr_set_matrix(m_context, matrix, 1);
     }
     if (result >= 0)

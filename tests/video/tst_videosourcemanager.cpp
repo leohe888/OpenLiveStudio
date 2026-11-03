@@ -153,7 +153,7 @@ void VideoSourceManagerTest::runtimeDetailsFollowSourceType()
     QVERIFY(setSourceStatus(manager, "image", VideoSourceState::Ready, {}));
     QVERIFY(manager.sourceRuntime("image").error().isEmpty());
     QCOMPARE(changed.count(), 0);
-    // Runtime travels with source snapshots and is copied independently.
+    // 验证运行状态随来源快照复制，且修改副本不影响原数据。
     VideoSourceManager copy;
     QVERIFY(addSources(copy, manager.sources()));
     QCOMPARE(copy.sourceRuntime("camera").pixelSize(), QSize(1280, 720));
@@ -364,7 +364,7 @@ void VideoSourceManagerTest::sameImageEntriesRemainIndependent()
     QVERIFY(addSources(state, entries));
     setSourcePixelSize(state, "a", image.size());
     setSourcePixelSize(state, "b", image.size());
-    entries.clear(); // State owns its source list.
+    entries.clear(); // 清空输入容器后仍应保留来源，验证管理器持有独立副本。
     QVERIFY(state.setSourceVisible("a", false));
     QVERIFY(state.setSourceLocked("a", true));
     QVERIFY(state.moveSource("a", 1));

@@ -261,7 +261,7 @@ QString AudioCaptureWorker::capture()
                 pcmBytes = flags & AUDCLNT_BUFFERFLAGS_SILENT
                           ? QByteArray(bytes, 0)
                           : QByteArray(reinterpret_cast<const char *>(data), bytes);
-                // Unsigned PCM silence is its midpoint, not zero.
+                // 无符号 PCM 的静音值是中点；填零会产生直流偏移。
                 if ((flags & AUDCLNT_BUFFERFLAGS_SILENT) && pcmFormat == PcmFormat::Unsigned8)
                     pcmBytes.fill(char(128));
             }

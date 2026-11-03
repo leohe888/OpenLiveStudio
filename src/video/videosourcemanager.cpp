@@ -345,7 +345,7 @@ bool VideoSourceManager::setSourceRuntime(const QString &sourceId, const VideoSo
         }
         emit sourceChanged(sourceId);
     }
-    // Geometry notifications may synchronously remove or reorder the source.
+    // 变换通知可能同步移除或重排来源，后续通知前必须重新确认它仍然存在。
     if (sourceRow(sourceId) >= 0)
         emit sourceRuntimeChanged(sourceId);
     return true;

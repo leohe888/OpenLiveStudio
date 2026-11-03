@@ -22,9 +22,9 @@ public:
     void setRotationDegrees(qreal rotationDegrees);
 
     bool isValid() const;
-    // Maps source-local coordinates to canvas coordinates.
+    // 将来源局部坐标映射到画布坐标。
     QTransform sourceToCanvas() const;
-    // True when a canvas point falls inside the source rectangle.
+
     bool contains(const QPointF &canvasPoint) const;
     bool operator==(const VideoSourceTransform &other) const;
     bool operator!=(const VideoSourceTransform &other) const;

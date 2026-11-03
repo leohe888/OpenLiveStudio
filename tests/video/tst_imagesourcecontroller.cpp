@@ -112,7 +112,7 @@ private slots:
         auto *temporaryOwner = new QObject;
         controller.addImage("Destroyed", path, temporaryOwner);
         delete temporaryOwner;
-        // A subsequent completed request proves earlier queued completions were processed.
+        // 后续请求完成可证明先前排队的回调已得到处理，避免过早断言取消成功。
         controller.addImage("Kept", path, &owner);
         QTRY_COMPARE(added.count(), 1);
         QCOMPARE(model.sources().size(), 1);
@@ -129,7 +129,7 @@ private slots:
         QBuffer buffer(&jpeg);
         QVERIFY(buffer.open(QIODevice::WriteOnly));
         QVERIFY(image.save(&buffer, "JPEG"));
-        // EXIF orientation 6: rotate 90 degrees clockwise.
+        // EXIF 方向值 6 表示顺时针旋转 90 度，用于验证解码器应用方向信息。
         const QByteArray exif = QByteArray::fromHex(
             "ffe1002245786966000049492a0008000000010012010300010000000600000000000000");
         jpeg.insert(2, exif);
@@ -152,7 +152,7 @@ private slots:
         const QString path = dir.filePath("animated.gif");
         QFile file(path);
         QVERIFY(file.open(QIODevice::WriteOnly));
-        // Two frames: red, then blue.
+        // 测试资源含红、蓝两帧，用于确认只加载首帧。
         const auto gif = QByteArray::fromBase64(
             "R0lGODlhAgABAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQAAQAAACwAAAAAAgABAAAIBQABAAgIACH5BAEBAAEALAAAAAACAAEAgQAA/wAAAAAAAAAAAAgFAAEACAgAOw==");
         QCOMPARE(file.write(gif), gif.size());

@@ -175,8 +175,7 @@ inline void run(MainWindow &window)
             audio->mixer()->setInputs(inputs);
         }
         QImage marker(8, 8, QImage::Format_RGBA8888);
-        // Publish both cues at the actual GUI update, rather than comparing a
-        // scheduled sound against a flash delayed by GUI/device operations.
+        // 以实际界面更新时刻同时发布声光标记，避免把界面或设备延迟误算为音画偏移。
         const auto period = (now - epoch) / 1000000000LL;
         if (period != cuePeriod) {
             cuePeriod = period;

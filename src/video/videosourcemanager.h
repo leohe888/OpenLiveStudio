@@ -21,19 +21,19 @@ public:
     }
     QString suggestedSourceName(const QString &baseName) const;
     bool addSource(const VideoSource &source);
-    // Removes the list entry only; never deletes its file.
+    // 仅移除来源，不删除其引用的本地文件。
     bool removeSource(const QString &sourceId);
 
     QString currentSourceId() const
     {
         return m_currentSourceId;
     }
-    // An empty ID clears selection; other IDs must belong to the source list.
+    // 空 ID 表示清除选择；非空 ID 必须属于当前来源列表。
     bool selectSource(const QString &sourceId);
     bool canMoveCurrentSourceUp() const;
     bool canMoveCurrentSourceDown() const;
-    // List order is topmost first; offset must be -1 or 1.
-    // Locking only restricts future canvas geometry edits.
+    // 列表首项位于画面最上层，offset 仅允许 -1 或 1。
+    // 锁定只限制画布变换编辑，仍允许调整层级。
     bool moveSource(const QString &sourceId, int offset);
 
     QString sourceName(const QString &sourceId) const;
@@ -52,7 +52,7 @@ public:
     QList<VideoSourceFilter> sourceFilters(const QString &sourceId) const;
     bool setSourceFilters(const QString &sourceId, const QList<VideoSourceFilter> &filters);
     QString currentFilterId(const QString &sourceId) const;
-    // An empty filter ID clears selection; other IDs must belong to this source.
+    // 空滤镜 ID 表示清除选择；非空 ID 必须属于指定来源。
     bool selectFilter(const QString &sourceId, const QString &filterId);
     bool canFilterCurrentSource() const
     {
@@ -69,12 +69,12 @@ public:
     VideoSourceRuntime sourceRuntime(const QString &sourceId) const;
     bool setSourceRuntime(const QString &sourceId, const VideoSourceRuntime &runtime);
 
-    // The pointer is only valid until the next mutation.
+    // 指针仅在下一次修改前有效，修改来源后必须重新查询。
     const VideoSourceConfig *sourceConfig(const QString &sourceId) const;
     bool setSourceConfig(const QString &sourceId, const VideoSourceConfig &config);
 
 signals:
-    // Structural changes rebuild lists; per-source changes update existing rows.
+    // 结构变化通知用于重建列表；单个来源的变化通知用于更新已有行。
     void sourcesChanged();
     void sourceChanged(const QString &sourceId);
     void sourceRuntimeChanged(const QString &sourceId);
@@ -94,4 +94,4 @@ private:
     QHash<QString, QString> m_currentFilterIds;
 };
 
-#endif // VIDEOSOURCEMANAGER_H
+#endif

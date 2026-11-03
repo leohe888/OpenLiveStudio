@@ -16,6 +16,7 @@ class QOpenGLBuffer;
 class QOpenGLVertexArrayObject;
 class QOpenGLFramebufferObject;
 
+// 代次区分采集会话，序号区分会话内的帧，避免重启后误复用旧纹理。
 struct RenderedSource
 {
     qint64 imageKey = 0;
@@ -23,8 +24,8 @@ struct RenderedSource
     quint64 sequence = 0;
 };
 
-// All methods, including destruction, require the owning GL context current.
-// No widget or item model is accessed by the renderer.
+// 所有方法及析构都要求所属 GL 上下文处于当前状态，否则资源创建和释放可能落在错误上下文。
+// 渲染器只读取来源快照，不访问界面控件或来源管理器。
 class CanvasRenderer : public QObject, protected QOpenGLFunctions
 {
     Q_OBJECT

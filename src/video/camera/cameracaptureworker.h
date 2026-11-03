@@ -29,6 +29,7 @@ struct CameraMode
         return width > 0 && height > 0 && frameRateNumerator > 0 && frameRateDenominator > 0;
     }
 
+    // 配置只指定分辨率和帧率，设备子类型统一转为 RGB32，因此不参与模式去重。
     bool sameFormat(const CameraMode &other) const
     {
         return width == other.width && height == other.height &&
@@ -54,7 +55,7 @@ struct CameraFrame
     int frameRateNumerator = 0, frameRateDenominator = 1;
 };
 
-// Each function initializes and shuts down COM/MF on its calling background thread.
+// 查询函数在调用它的后台线程内成对初始化和关闭 COM/MF，不复用其他线程的运行环境。
 QList<CameraDevice> cameraDevices(QString *error = nullptr);
 QList<CameraMode> cameraModes(const QString &deviceId, QString *error = nullptr);
 

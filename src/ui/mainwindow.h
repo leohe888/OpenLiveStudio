@@ -66,4 +66,4 @@ private:
     bool m_closePending = false;
     QString m_previousRecordingError, m_previousStreamingError;
 };
-#endif // MAINWINDOW_H
+#endif

@@ -2,7 +2,7 @@
 
 #include "video/videosourcemanager.h"
 
-// Preserve fixture order and start without a selection.
+// 测试夹具保持传入顺序并清除初始选择，避免用例依赖添加顺序的副作用。
 inline bool addSources(VideoSourceManager &manager, const QList<VideoSource> &sources)
 {
     for (auto it = sources.crbegin(); it != sources.crend(); ++it) {

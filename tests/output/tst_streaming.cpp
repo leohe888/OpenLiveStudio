@@ -181,7 +181,7 @@ private slots:
                 QTRY_VERIFY_WITH_TIMEOUT(!recording.busy(), 5000);
                 QVERIFY(recording.fileComplete());
                 QCOMPARE(streaming.state(), QString("live"));
-                // A local file error must not interrupt the live output.
+                // 本地录制失败不应中断独立的直播输出。
                 QVERIFY(recording.startRecording(directory.filePath("first.mp4")));
                 QTRY_COMPARE_WITH_TIMEOUT(recording.state(), QString("error"), 3000);
                 QCOMPARE(streaming.state(), QString("live"));
@@ -200,8 +200,7 @@ private slots:
                 QTRY_VERIFY_WITH_TIMEOUT(!streaming.busy(), 3000);
             }
         }
-        // This SRS version closes a duplicate publisher without a typed rejection.
-        // Treat the ambiguous disconnect as transient, while preserving the original.
+        // 此 SRS 版本未明确区分重复发布拒绝与断线；按可重试故障处理，同时验证原直播不受影响。
         StreamingController duplicate(video, audio);
         QVERIFY(streaming.startStreaming(server, key));
         QTRY_COMPARE_WITH_TIMEOUT(streaming.state(), QString("live"), 6000);
@@ -290,8 +289,7 @@ private slots:
             previous[track] = dts;
             ++count;
         }
-        // SRS full time-jitter correction can compress the timestamp jump.
-        // The encoder checks the forced packet's KEY flag before sending it.
+        // SRS 时间戳校正可能压缩跳跃间隔，不能仅靠接收时间戳推断是否跳帧；编码器会在发送前检查强制关键帧标记。
         QVERIFY(count > 100);
         QVERIFY(keyframes >= 2);
         qInfo() << "Recovered live maximum DTS gap / keyframes:" << maximumVideoGap << keyframes;
@@ -371,8 +369,7 @@ private slots:
         QTRY_COMPARE_WITH_TIMEOUT(streaming.state(), QString("live"), 15000);
         QCOMPARE(recording.state(), QString("recording"));
         const auto reconnects = streaming.status().reconnects;
-        // Stop draining a live TCP connection, exercising bounded network writes
-        // and fresh-session recovery rather than only connection refusal.
+        // 暂停读取已连接的 TCP 流，验证写入超时和新会话恢复，覆盖连接建立后的网络阻塞。
         paused = true;
         QTest::qWait(8000);
         paused = false;
@@ -589,9 +586,7 @@ private slots:
         QVERIFY(latencySamples > 100);
         QVERIFY2(maxLatency <= 3000, "HTTP-FLV playback latency exceeded 3 seconds");
         QCOMPARE(recording.status().missingAudioFrames, qint64(0));
-        // This standalone harness also performs synchronous artifact writes and
-        // pipe sampling on its main thread. Its heartbeat is diagnostic, not a
-        // product-UI deadline; UI cancellation/close have separate native tests.
+        // 此验收程序在主线程同步写入产物并读取管道，心跳仅用于诊断；界面取消和关闭的响应由独立原生测试验证。
         qInfo() << "Endurance harness maximum heartbeat gap (ms):" << maxUiGap;
     }
 };

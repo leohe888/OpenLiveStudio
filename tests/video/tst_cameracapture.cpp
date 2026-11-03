@@ -105,7 +105,7 @@ void CameraCaptureTest::unavailableDeviceAndLifecycle()
     QTRY_COMPARE_WITH_TIMEOUT(controller.activeWorkerCount(), 0, 10000);
     QVERIFY(output.isEmpty());
     QCOMPARE(model.sources().size(),
-             1); // The image remains in the model, not in this controller's output.
+             1); // 图片仍属于管理器，但不应混入摄像头控制器的输出。
 }
 
 void CameraCaptureTest::capturesHardwareCameraAndSupportedModes()
@@ -184,7 +184,7 @@ void CameraCaptureTest::capturesHardwareCameraAndSupportedModes()
     for (const auto &id : ids)
         QTRY_COMPARE_WITH_TIMEOUT(model.sourceRuntime(id).state(),
                                   VideoSourceState::Capturing, 15000);
-    // Apply an explicit native mode after both devices have been opened and released.
+    // 先打开并释放两个设备，再指定原生模式，验证模式切换不受旧会话影响。
     const auto deviceId = devices[0].id;
     const auto modes = catalogs.value(deviceId);
     const auto mode = modes.last();
@@ -193,7 +193,7 @@ void CameraCaptureTest::capturesHardwareCameraAndSupportedModes()
                               VideoSourceState::Capturing, 15000);
     QCOMPARE(model.sourceRuntime(ids[0]).pixelSize().width(), mode.width);
     QCOMPARE(model.sourceRuntime(ids[0]).pixelSize().height(), mode.height);
-    // Unsupported explicit modes must fail while preserving the requested configuration.
+    // 不支持的模式应报告失败并保留请求配置，便于用户修正。
     const CameraMode unsupported{9999, 9999, 30, 1};
     QVERIFY(model.setSourceConfig(ids[0], unsupported.config(deviceId)));
     QTRY_COMPARE_WITH_TIMEOUT(model.sourceRuntime(ids[0]).state(), VideoSourceState::Error,

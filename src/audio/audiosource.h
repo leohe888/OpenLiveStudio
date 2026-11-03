@@ -9,7 +9,6 @@ enum class AudioSourceType {
     SystemAudio
 };
 
-// The only place that spells the type; UI labels are translated separately.
 inline const char *toString(AudioSourceType type)
 {
     return type == AudioSourceType::Microphone ? "microphone" : "system";

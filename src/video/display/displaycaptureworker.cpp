@@ -31,7 +31,7 @@ DisplayCaptureWorker::DisplayCaptureWorker(QString displayId, bool captureCursor
 DisplayCaptureWorker::~DisplayCaptureWorker()
 {
     stop();
-    wait(); // Only called after finished during normal operation; shutdown joins remaining workers.
+    wait(); // 正常移除来源时，控制器等线程结束后才析构；应用退出时才在此等待剩余线程。
 }
 
 QString DisplayCaptureWorker::lastError() const
@@ -61,8 +61,7 @@ void DisplayCaptureWorker::run()
         }
         winrt::init_apartment(winrt::apartment_type::multi_threaded);
         const auto apartment = qScopeGuard([] {
-            // The last worker MTA must not leave cached factories pointing into unloaded COM
-            // servers.
+            // 退出 COM 多线程单元前清空 WinRT 工厂缓存，避免缓存指向已卸载的 COM 服务。
             winrt::clear_factory_cache();
             winrt::uninit_apartment();
         });
@@ -127,7 +126,7 @@ void DisplayCaptureWorker::run()
         auto nextTargetCheckTime =
             std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
         while (!m_stop.load()) {
-            // Polling coalesces frame notifications and bounds application processing to 30 Hz.
+            // 轮询时只取最新帧，将应用侧处理限制在 30 Hz，避免逐帧通知堆积。
             const auto nextPollTime =
                 std::chrono::steady_clock::now() + std::chrono::microseconds(33334);
             if (closed->load()) {
@@ -200,7 +199,7 @@ void DisplayCaptureWorker::run()
                     if (frame->gpu) {
                         BOOL ready = FALSE;
                         HRESULT result = S_FALSE;
-                        // The worker waits for GPU completion; the GUI never waits on this query.
+                        // 仅由采集线程等待 GPU 完成，避免阻塞界面线程。
                         while (!m_stop.load() &&
                                (result = context->GetData(query.Get(), &ready, sizeof(ready), 0)) ==
                                    S_FALSE)

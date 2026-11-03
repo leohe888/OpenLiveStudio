@@ -98,7 +98,7 @@ bool GpuInterop::copy(const CaptureFrame &frame, GLuint destination, QString *er
     }
     if (interop.d3dDevice != frame.gpu->device.Get())
         return fail(QStringLiteral("D3D11 capture device changed"));
-    // A resize replaces the pool. Unregister retired resources before importing more.
+    // 分辨率变化会替换纹理池，先注销仅由导入缓存持有的旧资源，避免长期占用显存。
     for (auto it = interop.registeredTextures.begin(); it != interop.registeredTextures.end();) {
         if (it->resource.use_count() == 1) {
             interop.unregisterObject(interop.interopDevice, it->interopObject);
@@ -116,7 +116,7 @@ bool GpuInterop::copy(const CaptureFrame &frame, GLuint destination, QString *er
         gl->glGenTextures(1, &texture);
         HANDLE interopObject =
             interop.registerObject(interop.interopDevice, frame.gpu->texture.Get(), texture,
-                                   GL_TEXTURE_2D, 0x0000 /* READ_ONLY_NV */);
+                                   GL_TEXTURE_2D, 0x0000 /* 只读访问：GL 不修改采集纹理。 */);
         if (!interopObject) {
             gl->glDeleteTextures(1, &texture);
             return fail(QStringLiteral("D3D11 texture registration failed"));

@@ -35,8 +35,7 @@ MixedAudioBlock AudioMixerCore::mix(const QList<AudioInput> &inputs, qint64 time
         track.queue = input.queue;
         track.generation = batch.generation;
         for (auto &packet : batch.packets) {
-            // Reject wildly future timestamps and discard stale audio, never
-            // extend the timeline or allocate according to a device timestamp.
+            // 设备时间戳可能异常，不能据此扩展时间线或分配缓冲；过远的未来数据和过期数据都丢弃。
             if (packet.timestampNs > timestampNs + 500000000LL ||
                 packet.timestampNs + AudioFormat::framesToNs(packet.frames()) <= timestampNs)
                 continue;
@@ -167,7 +166,7 @@ void AudioMixer::run()
     using Clock = std::chrono::steady_clock;
     const auto period = std::chrono::milliseconds(10);
     auto deadline = Clock::now();
-    const qint64 originNs = audioClockNs() - 60000000LL; // 60 ms input jitter allowance.
+    const qint64 originNs = audioClockNs() - 60000000LL; // 为不同设备的采集抖动预留 60 ms 对齐窗口。
     qint64 audioFramePosition = 0;
     quint64 sequence = 0;
     const int pauseOnce =
@@ -183,9 +182,7 @@ void AudioMixer::run()
                 break;
             inputs = m_inputs;
         }
-        // A short scheduling hitch fits within the output's 200 ms playout
-        // allowance (60 ms capture jitter + at most 100 ms catch-up). Preserve
-        // captured samples instead of turning a 40 ms hitch into an audio hole.
+        // 短暂调度延迟仍在输出同步窗口内时保留采样并追赶，避免把短暂停顿变成静音缺口。
         if (Clock::now() > deadline + period * 10) {
             const auto skippedBlocks = (Clock::now() - deadline) / period;
             audioFramePosition += skippedBlocks * AudioFormat::blockFrames;

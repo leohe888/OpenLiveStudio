@@ -51,7 +51,7 @@ QList<DisplayDevice> displayDevices()
             continue;
         const QString id = QString::fromWCharArray(target.monitorDevicePath);
         if (id.isEmpty())
-            continue; // Never identify a screen by its transient list index.
+            continue; // 列表下标会随设备变化，不能作为显示器的稳定标识。
         for (const auto &entry : monitors.entries) {
             if (entry.first != QString::fromWCharArray(source.viewGdiDeviceName))
                 continue;

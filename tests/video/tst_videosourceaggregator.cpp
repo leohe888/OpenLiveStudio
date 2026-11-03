@@ -57,7 +57,7 @@ void VideoSourceAggregatorTest::publishesInitialAndPendingSnapshots()
     QVERIFY(model.addSource({"image", "Image", ImageSourceConfig{"pending.png"}}));
     aggregator.setImageSources({RenderSourceSnapshot{"image", {}}});
     QTRY_COMPARE(output.size(), 1);
-    QVERIFY(!output[0].hasFrame()); // Loading/failed sources are not silently dropped.
+    QVERIFY(!output[0].hasFrame()); // 尚未出帧或加载失败的来源也应保留在快照中。
 
     VideoSourceManager existing;
     QVERIFY(addSources(existing, mixedSources()));
@@ -160,7 +160,7 @@ void VideoSourceAggregatorTest::usesModelPropertiesWithoutNewFrames()
     changes.clear();
     QVERIFY(setSourceStatus(model, "image", VideoSourceState::Error, "failed"));
     QCoreApplication::processEvents();
-    QCOMPARE(changes.count(), 0); // Status text alone does not change the render snapshot.
+    QCOMPARE(changes.count(), 0); // 仅状态文字变化时无需重新发布渲染快照。
 }
 
 void VideoSourceAggregatorTest::rejectsForeignAndMismatchedSources()
@@ -203,14 +203,14 @@ void VideoSourceAggregatorTest::removesSourcesAndReleasesFrames()
     display.frame.reset();
     frame.reset();
     QTRY_COMPARE(output.size(), 1);
-    changes.clear(); // QSignalSpy also retains the frame snapshot.
+    changes.clear(); // 信号监听器也持有帧快照，先释放它才能验证资源回收。
     QVERIFY(model.removeSource("display"));
     QTRY_VERIFY(output.isEmpty());
     QVERIFY(lease.expired());
     changes.clear();
     aggregator.setDisplaySources({RenderSourceSnapshot{"display", image(Qt::red)}});
     QTRY_COMPARE(changes.count(), 1);
-    QVERIFY(output.isEmpty()); // A late update cannot resurrect a removed source.
+    QVERIFY(output.isEmpty()); // 迟到的控制器更新不能让已移除的来源重新出现。
 }
 
 void VideoSourceAggregatorTest::coalescesUpdatesAndCancelsOnDestruction()

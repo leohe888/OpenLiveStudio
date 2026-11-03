@@ -8,14 +8,14 @@
 
 class VideoSourceManager;
 
-// GUI-thread snapshots from each controller are combined in manager order.
+// 在界面线程按来源管理器的层级顺序合并快照，渲染端无需查询各个控制器。
 class VideoSourceAggregator : public QObject
 {
     Q_OBJECT
 public:
     explicit VideoSourceAggregator(VideoSourceManager &manager, QObject *parent = nullptr);
 
-    // Each update replaces the complete snapshot for that source type.
+    // 每次更新替换该类型的完整快照，缺席的来源不会沿用旧数据。
     void setImageSources(const QList<RenderSourceSnapshot> &sources);
     void setDisplaySources(const QList<RenderSourceSnapshot> &sources);
     void setCameraSources(const QList<RenderSourceSnapshot> &sources);
@@ -36,4 +36,4 @@ private:
     bool m_publishPending = false;
 };
 
-#endif // VIDEOSOURCEAGGREGATOR_H
+#endif

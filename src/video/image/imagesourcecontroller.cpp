@@ -30,14 +30,14 @@ ImageSourceController::ImageSourceController(VideoSourceManager &manager, QObjec
     };
     connect(&manager, &VideoSourceManager::sourcesChanged, this, synchronizeSourcesFromManager);
     connect(&manager, &VideoSourceManager::sourceChanged, this, synchronizeSourcesFromManager);
-    // Allow the caller to connect the preview before publishing initial entries.
+    // 延后首次发布，让调用方先连接快照消费者，避免遗漏初始来源。
     QMetaObject::invokeMethod(this, synchronizeSourcesFromManager, Qt::QueuedConnection);
 }
 
 ImageSourceController::~ImageSourceController()
 {
     m_imageLoadPool.clear();
-    // Workers only enqueue results; they never wait for the GUI thread.
+    // 任务只投递结果，不等待界面线程，因此析构时等待任务结束不会形成循环等待。
     m_imageLoadPool.waitForDone();
 }
 
@@ -84,6 +84,7 @@ void ImageSourceController::addImage(const QString &name, const QString &path, Q
     QPointer<QObject> owner(requester);
     loadImage(absolutePath,
               [this, owner, requestGeneration, name, absolutePath](QImage image, QString error) {
+                  // 对话框关闭或请求取消后，迟到的加载结果不能再添加来源。
                   if (!owner || m_pendingAddRequests.value(owner) != requestGeneration)
                       return;
                   m_pendingAddRequests.remove(owner);
@@ -137,6 +138,7 @@ void ImageSourceController::synchronizeSources()
             setRuntimeStatus(m_sourceManager, id, VideoSourceState::Loading, {});
             loadImage(path, [this, id, generation](QImage image, QString error) {
                 auto entry = m_images.find(id);
+                // 来源删除或配置已变更时，不能用旧任务的结果覆盖当前图像。
                 if (entry == m_images.end() || entry->generation != generation)
                     return;
                 entry->image = image;

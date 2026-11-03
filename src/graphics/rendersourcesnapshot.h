@@ -9,6 +9,7 @@
 #include <QList>
 #include <QString>
 
+// 图片和摄像头使用 CPU 图像，显示器采集使用 GPU 帧；frame 非空时优先采用它。
 struct RenderSourceSnapshot
 {
     QString id;

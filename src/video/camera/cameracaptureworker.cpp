@@ -199,7 +199,7 @@ public:
             }
         }
         m_readerState->sampleReady.notify_one();
-        // Serialize submission with stop/Flush: no request may slip in after cancellation.
+        // 提交读取请求与停止操作共用互斥锁，保证取消后不会再向读取器提交新请求。
         std::lock_guard request(m_readerState->requestMutex);
         ComPtr<IMFSourceReader> reader;
         {
@@ -414,8 +414,7 @@ void CameraCaptureWorker::run()
                 std::lock_guard lock(samples->mutex);
                 samples->stopRequested = true;
             }
-            // Flush is asynchronous with this reader. Keep COM/MF and the source alive
-            // until OnFlush and all in-flight sample callbacks have drained.
+            // Flush 异步完成；收到 OnFlush 且所有在途回调退出前，必须保留 COM/MF 和媒体源。
             if (readStarted && SUCCEEDED(reader->Flush(MF_SOURCE_READER_ALL_STREAMS))) {
                 std::unique_lock lock(samples->mutex);
                 samples->sampleReady.wait(lock, [&] {
@@ -488,8 +487,7 @@ void CameraCaptureWorker::run()
             double(actualMode.frameRateNumerator) / double(actualMode.frameRateDenominator);
         bool receivedFirstFrame = false;
         quint64 sequence = 0;
-        // MF provides device timestamps; publish a steady-clock timestamp too for future
-        // common-timeline mapping.
+        // 设备时间戳与到达时间属于不同钟域，分别保存，不能直接相减。
         try {
             while (!m_stop.load()) {
                 ComPtr<IMFSample> sample;
@@ -532,8 +530,7 @@ void CameraCaptureWorker::run()
             if (!error.isEmpty())
                 fail(error);
         } catch (HRESULT hr) {
-            // Publish the fault before potentially slow driver teardown, so the GUI
-            // clears stale video while this worker is being retired in the background.
+            // 驱动销毁可能很慢，先发布故障，让界面及时清除旧画面，再在后台等待线程退出。
             fail(failure(hr));
             throw;
         } catch (...) {

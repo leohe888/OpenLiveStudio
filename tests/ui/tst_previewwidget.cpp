@@ -133,7 +133,7 @@ private slots:
         QVERIFY(qAbs(reverse.red() - 128) <= 2);
         QVERIFY(forward.red() > reverse.red() + 40);
 
-        // Both intermediate passes must preserve image orientation and alpha.
+        // 验证多次滤镜处理仍保持图像方向与透明度。
         source.image.fill(QColor(128, 0, 0, 128));
         for (int y = source.image.height() / 2; y < source.image.height(); ++y)
             for (int x = 0; x < source.image.width(); ++x)
@@ -174,7 +174,7 @@ private slots:
         widget.setSources({other, source});
         grabPreview(widget);
         QCOMPARE(sample(readCanvas(widget), .5, .5), QColor(Qt::green));
-        // Invalid input from a non-model caller falls back without affecting other sources.
+        // 绕过管理器传入无效参数，验证渲染回退不会影响其他来源。
         {
             auto config = std::get<ColorCorrectionConfig>(source.filters[0].config());
             config.setBrightness(4);
@@ -195,8 +195,7 @@ private slots:
         PreviewWidget widget;
         widget.resize(240, 200);
         widget.show();
-        // Windows launchers may pass SW_HIDE for the first native ShowWindow.
-        // Show again so this GPU suite does not silently skip a usable desktop.
+        // Windows 启动器可能让首次 ShowWindow 隐藏窗口；再次显示，避免把可用桌面误判为不可测试。
         widget.hide();
         widget.show();
         if (!QTest::qWaitForWindowExposed(&widget) || !widget.isValid())
@@ -880,7 +879,7 @@ private slots:
                 frame->sequence = ++sequence;
                 sources[0].frame = frame;
             } else {
-                // Camera frames are independent images with a fresh cache key.
+                // 每个摄像头帧都使用新图像，模拟真实采集时不断变化的缓存键。
                 sources[0].image = image.copy();
             }
             widget.setSources(sources);
@@ -901,7 +900,7 @@ private slots:
         const auto from = operation == 0 ? center : handles[operation == 1 ? 4 : 8];
         if (operation != 0)
             widget.setCurrentSourceId("dynamic");
-        // Receive a new frame before mouse input, without uploading it yet.
+        // 先接收新帧但暂不上传，验证编辑行为不依赖新纹理已呈现。
         const auto pixelsPresented = [&] {
             const auto &ready = widget.m_presentedFrame->sources[QStringLiteral("dynamic")];
             return gpu ? ready.sequence == sequence
@@ -953,8 +952,7 @@ private slots:
         wireEditor(widget);
         QImage image(100, 100, QImage::Format_RGBA8888);
         image.fill(Qt::green);
-        // Gestures and deactivation are injected below; foreground ownership
-        // is not a prerequisite and Windows may retain focus in another app.
+        // 后续直接注入手势和失活事件，无需争取前台焦点，避免依赖 Windows 的焦点分配。
         widget.show();
         QVERIFY(QTest::qWaitForWindowExposed(&widget));
         QSignalSpy geometries(&widget, &PreviewWidget::transformRequested);

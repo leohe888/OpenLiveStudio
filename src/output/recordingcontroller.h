@@ -25,8 +25,6 @@ public:
     RecordingController(Compositor &video, AudioMixer &audio, QObject *parent = nullptr);
     ~RecordingController() override;
 
-    // State name only ("idle", "starting", "recording", "stopping", "error");
-    // status() returns the whole snapshot including duration and counters.
     QString state() const
     {
         return m_status.state;

@@ -78,7 +78,7 @@ QString AudioSourceManager::suggestedSourceName(const QString &baseName) const
 
 bool AudioSourceManager::deviceInUse(const QString &deviceId) const
 {
-    // Includes retiring workers: do not reopen an endpoint before its old client closes.
+    // 正在退出的线程仍可能占用设备，旧客户端关闭前不能重新打开同一设备。
     return std::any_of(m_entries.cbegin(), m_entries.cend(),
                        [&](const auto &entry) {
                            return entry.source.deviceId.compare(deviceId, Qt::CaseInsensitive) == 0;
@@ -244,7 +244,7 @@ void AudioSourceManager::refreshSourceStatusAndLevels()
             peak.left != entry.source.peak.left || peak.right != entry.source.peak.right;
         entry.source.peak = peak;
 
-        // Notifications may synchronously remove sources or reallocate the entries.
+        // 信号回调可能同步移除来源或使容器重新分配，发出信号后必须重新查找来源。
         if (statusChanged)
             emit sourceChanged(id);
         if (levelsChanged && sourceRow(id) >= 0)

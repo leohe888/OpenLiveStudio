@@ -8,7 +8,7 @@
 template <class T> class OutputBus
 {
 public:
-    // Caller holds the producer's mutex for subscribe/publish/active.
+    // 订阅、发布和查询订阅者时，调用方必须持有生产者的互斥锁；总线本身不加锁。
     std::shared_ptr<OutputTap<T>> subscribe(size_t capacity)
     {
         auto tap = std::make_shared<OutputTap<T>>(capacity);

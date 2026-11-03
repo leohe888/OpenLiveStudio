@@ -5,7 +5,7 @@
 #include <QOpenGLFunctions>
 #include <memory>
 
-// Create, copy, and destroy only with the owning GL context current.
+// 创建、复制和析构都要求所属 GL 上下文处于当前状态。
 class GpuInterop
 {
 public:

@@ -40,7 +40,7 @@ bool CanvasRenderer::initialize()
         return false;
     }
 
-    // Position (x, y), then top-left-origin image coordinates (u, v).
+    // 顶点依次保存位置 (x, y) 和纹理坐标 (u, v)；纹理坐标以图像左上角为原点。
     static constexpr GLfloat vertices[] = {
         -1, -1, 0, 1, 1, -1, 1, 1, -1, 1, 0, 0, 1, 1, 1, 0,
     };

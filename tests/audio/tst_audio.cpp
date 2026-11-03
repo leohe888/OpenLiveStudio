@@ -77,7 +77,7 @@ private slots:
         QVERIFY(!manager.selectSource("missing"));
         QTRY_COMPARE_WITH_TIMEOUT(manager.source(first)->state, QString("error"), 3000);
         const auto sequence = manager.mixer()->latestBlock()->sequence;
-        QTest::qWait(1200); // A failed endpoint retries without stopping the mixer.
+        QTest::qWait(1200); // 验证设备故障后的重试不会停止混音。
         QVERIFY(manager.mixer()->latestBlock()->sequence > sequence + 30);
         QCOMPARE(manager.count(), 2);
         QVERIFY(manager.removeSource(first));
@@ -204,7 +204,7 @@ private slots:
         QVERIFY(!output.clipped);
         QVERIFY(std::abs(output.samples[0] - .35f) < .00001f);
         QVERIFY(std::abs(output.samples[1] - .45f) < .00001f);
-        QCOMPARE(peaks["a"].right, .8f); // Muted input still meters its signal.
+        QCOMPARE(peaks["a"].right, .8f); // 静音只影响混音输出，输入电平仍应可见。
         output = mixer.mix({}, timestampNs + 20000000);
         QVERIFY(std::all_of(output.samples.cbegin(), output.samples.cend(), [](float value) {
             return value == 0;
@@ -226,7 +226,7 @@ private slots:
         QCOMPARE(second.samples[480], 0.f);
         queue->publish(constant(timestampNs + 20000000, .8f, .8f, 960));
         QCOMPARE(mixer.mix(inputs, timestampNs + 20000000).samples[0], .8f);
-        queue->clear(); // Device disconnect discards the remainder of its old session.
+        queue->clear(); // 断开设备时必须丢弃旧会话残留，避免重连后播放旧声音。
         QCOMPARE(mixer.mix(inputs, timestampNs + 30000000).samples[0], 0.f);
         queue->publish(constant(timestampNs + 40000000, .2f, .3f));
         QCOMPARE(mixer.mix(inputs, timestampNs + 40000000).samples[0], .2f);
@@ -249,7 +249,7 @@ private slots:
         AudioMixer mixer;
         mixer.setOutputEnabled(true);
         mixer.start();
-        QThread::msleep(1250); // No GUI event processing and no output consumer.
+        QThread::msleep(1250); // 故意不处理界面事件，也不消费输出，验证后台混音和缓冲上限。
         const auto blocks = mixer.takeOutput();
         QCOMPARE(blocks.size(), size_t(100));
         QVERIFY(mixer.droppedOutputBlocks() > 0);
@@ -281,7 +281,7 @@ private slots:
         for (int sample = 0; sample < rate / 100; ++sample) {
             auto *out = data.data() + sample * bytesPerSample[format];
             if (format == 0)
-                *out = char(160); // +0.25 full scale
+                *out = char(160); // 构造满幅四分之一的测试信号。
             if (format == 1) {
                 qint16 value = 8192;
                 memcpy(out, &value, 2);
@@ -355,7 +355,7 @@ private slots:
                 QVERIFY(frames > 24000);
                 microphone = true;
             } else
-                system = true; // Idle loopback may legally return no packets.
+                system = true; // 系统空闲时回环采集可以不返回数据，不能据此判定失败。
             qInfo() << toString(type) << "normalized frames:" << frames;
             worker.stop();
             QVERIFY(worker.wait(2000));

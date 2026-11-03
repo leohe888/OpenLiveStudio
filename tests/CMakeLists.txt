@@ -350,7 +350,7 @@ qt_add_resources(tst_mainwindow "test_icons"
     FILES ${OPENLIVE_STUDIO_ICON_FILES}
 )
 
-# This smoke test needs no desktop; future GPU tests need real GL.
+# 此测试以离屏平台验证界面结构；需要原生 GL 的子项会按条件跳过。
 add_test(NAME ui.mainwindow
     COMMAND "${CMAKE_COMMAND}" -E env
         "PATH=$<TARGET_FILE_DIR:Qt6::Core>;${FFmpeg_RUNTIME_DIR};$ENV{PATH}"
@@ -359,7 +359,7 @@ add_test(NAME ui.mainwindow
         "$<TARGET_FILE:tst_mainwindow>"
         -o "${CMAKE_CURRENT_BINARY_DIR}/mainwindow-results.txt,txt"
 )
-# Timeout covers the complete UI suite; allow headroom for device discovery and CI variance.
+# 超时覆盖整个界面测试套件，为设备查询和 CI 调度波动预留余量。
 set_tests_properties(ui.mainwindow PROPERTIES
     LABELS "ui;smoke"
     TIMEOUT 120
@@ -397,7 +397,7 @@ qt_add_resources(tst_previewwidget "preview_shaders"
     FILES ${OPENLIVE_STUDIO_SHADER_FILES}
 )
 
-# Uses a desktop OpenGL context; explicitly skips when the platform cannot create one.
+# 依赖桌面 OpenGL 上下文；平台无法创建时明确跳过，避免误报逻辑失败。
 add_test(NAME ui.previewwidget
     COMMAND "${CMAKE_COMMAND}" -E env
         "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"

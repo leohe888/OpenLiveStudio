@@ -4,8 +4,8 @@
 #include <mutex>
 #include <QtGlobal>
 
-// Each subscriber owns a bounded queue. Payloads are implicitly shared; a slow
-// subscriber cannot consume another subscriber's data or stall the producer.
+// 每个订阅者独占有界队列，慢消费者不会抢走其他订阅者的数据，也不会阻塞生产者。
+// 负载采用共享数据，发布到多个队列时无需复制像素或采样内容。
 template <class T> class OutputTap
 {
 public:

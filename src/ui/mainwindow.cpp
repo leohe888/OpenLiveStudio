@@ -40,9 +40,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     setupAudioSourcesDock();
     setupControlsDock();
     setupDockLayout();
-    // Do not pass `this` when constructing these objects above: Qt deletes child
-    // objects in child-list order. Set their parent after creating the docks so
-    // the dock widgets are destroyed before the models/settings they reference.
+    // Qt 按子对象顺序销毁对象；在面板创建后才为管理器和设置指定父对象，
+    // 保证面板先销毁，避免析构时访问已经释放的依赖。
     m_videoSourceManager->setParent(this);
     m_audioSourceManager->setParent(this);
     m_outputSettings->setParent(this);
@@ -117,7 +116,7 @@ void MainWindow::connectSourceErrors()
 MainWindow::~MainWindow()
 {
     qDeleteAll(findChildren<QDialog *>(QString(), Qt::FindDirectChildrenOnly));
-    // Finish encoding while its compositor and audio mixer are still alive.
+    // 编码器仍引用合成器和混音器，必须先完成编码，再释放这两个依赖。
     delete m_streamingController;
     m_streamingController = nullptr;
     delete m_recordingController;
@@ -332,7 +331,7 @@ void MainWindow::setupStatusBar()
     m_outputStatusLabel = new QLabel(tr("录制 00:00:00   |   直播 00:00:00"), this);
     m_outputStatusLabel->setObjectName(QStringLiteral("outputStatus"));
 
-    // Output timers remain visible even when a temporary status message appears.
+    // 临时状态消息不应遮住录制和直播计时，因此使用永久状态栏控件。
     statusBar()->addPermanentWidget(m_outputStatusLabel);
     statusBar()->showMessage(tr("就绪"));
 }

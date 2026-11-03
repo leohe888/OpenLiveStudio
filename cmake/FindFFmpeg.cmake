@@ -1,5 +1,5 @@
-# Locate an FFmpeg development installation (headers and link libraries).
-# Set FFmpeg_ROOT to the package directory; never bake a local path into source.
+# 查找含头文件和链接库的 FFmpeg 开发包。
+# 通过 FFmpeg_ROOT 指定依赖目录，避免将个人机器路径写入项目。
 set(FFmpeg_ROOT "" CACHE PATH "FFmpeg development package root")
 
 find_package(PkgConfig QUIET)
@@ -21,8 +21,8 @@ foreach(_component avdevice avformat avcodec avutil swresample swscale)
     list(APPEND _FFmpeg_required_vars FFmpeg_${_component}_LIBRARY)
 endforeach()
 
-# MSVC uses .lib import libraries; MinGW can use .dll.a import libraries.
-# The runtime set also contains dependencies such as avfilter and swresample.
+# MSVC 使用 .lib 导入库，MinGW 可使用 .dll.a 导入库。
+# 运行时目录还包含间接依赖，部署时应复制完整 DLL 集合。
 if(WIN32)
     set(FFmpeg_RUNTIME_DIR "" CACHE PATH "FFmpeg shared runtime directory")
     if(NOT FFmpeg_RUNTIME_DIR)

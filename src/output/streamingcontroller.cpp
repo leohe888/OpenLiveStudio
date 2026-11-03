@@ -88,9 +88,7 @@ protected:
                         1000);
                     while (!m_stop) {
                         status.lagMs = timeline.lagNs(frameIndex) / 1000000;
-                        // Live output prioritizes freshness. A scheduling hitch
-                        // skips media time instead of encoding a catch-up burst.
-                        // Network backlog requires a fresh socket as well.
+                        // 直播优先保持实时性，落后时跳过旧内容，避免集中补帧；若网络也发生积压，则重建连接。
                         if (timeline.lagNs(frameIndex) > 1000000000LL) {
                             if (lastNetworkStallNs &&
                                 MediaClock::nowNs() - lastNetworkStallNs < 3000000000LL)
@@ -150,7 +148,7 @@ protected:
                         status.droppedFrames = previousDropped + quint64(skippedVideoFrames) +
                                                timeline.droppedVideoFrames();
                         if (frameIndex >= 60)
-                            attempt = 0; // Backoff is for consecutive failures.
+                            attempt = 0; // 稳定出帧后清除连续失败计数，避免后续独立故障继承过长退避。
                         const auto now = MediaClock::nowNs();
                         if (now - bitrateWindowStartNs >= 1000000000LL) {
                             status.bitrateKbps = (encoder.bytesSent() - bitrateWindowStartBytes) *
@@ -160,8 +158,7 @@ protected:
                         }
                         publish(status, firstConnectedNs);
                     }
-                    // On user stop, interrupt network cleanup immediately. RTMP
-                    // has no file trailer to preserve; do not flush stale frames.
+                    // 用户停止直播时立即中断网络清理；无需像本地文件那样完成封装，也不再发送积压帧。
                 } catch (const StreamFailure &failure) {
                     if (m_stop)
                         break;
@@ -213,8 +210,7 @@ private:
         QUrl url(m_server + "/" + m_key, QUrl::StrictMode);
         QHostAddress address;
         if (!address.setAddress(url.host())) {
-            // Resolve asynchronously so native getaddrinfo cannot hold this
-            // output's cancellation or application close hostage.
+            // 异步解析域名，避免系统 getaddrinfo 阻塞时无法取消输出或关闭应用。
             QEventLoop loop;
             QTimer timer;
             timer.setInterval(25);

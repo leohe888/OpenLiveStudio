@@ -68,7 +68,7 @@ void OutputTimeline::checkProducerHealth(qint64 nowNs)
 
 void OutputTimeline::selectVideoFrame(qint64 targetTimeNs, QImage &image)
 {
-    // Choose the closest timestamp; reuse the last image when capture is slower.
+    // 采集帧率较低时复用上一图像，使编码输出仍保持固定节奏。
     while (!m_images.empty() && m_images.front().timestampNs <= targetTimeNs) {
         m_selectedImage = std::move(m_images.front().image);
         m_selectedImageTimeNs = m_images.front().timestampNs;
@@ -90,7 +90,7 @@ void OutputTimeline::assembleAudioFrame(qint64 frameIndex, QVector<float> &sampl
 {
     constexpr int audioFramesPerVideoFrame = AudioFormat::rate / outputFramesPerSecond;
     static_assert(AudioFormat::rate % outputFramesPerSecond == 0);
-    // Gaps stay silent; copy only the overlap with this encoder tick.
+    // 缺失区间保留静音，不压缩音频时间线，否则会逐渐与视频失步。
     const qint64 outputStartFrame = frameIndex * audioFramesPerVideoFrame;
     const qint64 outputEndFrame = outputStartFrame + audioFramesPerVideoFrame;
     samples.fill(0, audioFramesPerVideoFrame * AudioFormat::channels);

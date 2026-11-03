@@ -45,7 +45,7 @@ MediaEncoder::~MediaEncoder()
         avio_context_free(&m_io);
     }
     m_file.close();
-    // Only remove an empty, newly-created attempt; preserve incomplete real recordings.
+    // 只删除本次新建且尚无视频帧的文件；已写入内容的未完成录制应保留，供用户恢复。
     if (m_created && !m_videoFrames)
         m_file.remove();
 }
@@ -114,8 +114,7 @@ void MediaEncoder::networkCheck(int result, const char *operation)
 {
     if (result >= 0)
         return;
-    // RTMP protocol errors can include credentials in library diagnostics. Only
-    // expose operation and error code, never the endpoint or server response.
+    // RTMP 库的错误文本可能含串流密钥，只向上层返回操作名和错误码。
     const bool permanent = result == AVERROR(EACCES) || result == AVERROR(EPERM) ||
                            result == AVERROR(EINVAL) || result == AVERROR(ENOENT) ||
                            result == AVERROR_PROTOCOL_NOT_FOUND || result == AVERROR(ENOSYS) ||
@@ -131,8 +130,7 @@ void MediaEncoder::openStream(const QString &url, int bitrateKbps, std::function
     m_network = true;
     m_cancelled = std::move(cancelled);
     rejectedStream = false;
-    // Native RTMP logs may contain arbitrary authentication responses. Keep
-    // diagnostics in our typed, redacted error path for all library threads.
+    // FFmpeg 原始日志可能包含服务器认证响应；全局日志回调统一脱敏，避免其他库线程泄漏密钥。
     static std::once_flag logging;
     std::call_once(logging, [] {
         av_log_set_callback([](void *, int level, const char *format, va_list args) {
@@ -309,8 +307,7 @@ void MediaEncoder::encodeVideoFrame(const QImage &image, qint64 frameIndex)
     const auto conversionStart = MediaClock::nowNs();
     if (!m_videoFrame || image.size() != QSize(1920, 1080) || frameIndex != m_videoFrames)
         throw QStringLiteral("视频帧尺寸或时间序号无效。");
-    // FBO readback is normally native BGRA. Feed it directly to swscale rather
-    // than copying/swizzling eight MiB in each output on every frame.
+    // FBO 通常读回为 BGRA，直接交给 swscale，避免每路输出逐帧复制并交换颜色通道。
     const bool bgra = image.format() == QImage::Format_ARGB32 ||
                       image.format() == QImage::Format_ARGB32_Premultiplied ||
                       image.format() == QImage::Format_RGB32;

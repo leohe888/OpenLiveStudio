@@ -40,7 +40,7 @@ DisplaySourceController::~DisplaySourceController()
     m_framePollTimer.stop();
     for (auto &entry : m_entries)
         retireWorker(entry.second);
-    // App shutdown only. Normal deletion retires workers without a GUI-thread join.
+    // 仅应用退出时等待；正常移除来源时把线程转入退出队列，避免阻塞界面。
     for (auto &worker : m_retiringWorkers)
         worker->wait();
 }
@@ -60,7 +60,7 @@ QString DisplaySourceController::addDisplay(const QString &name, const QString &
     if (name.trimmed().isEmpty() || displayId.trimmed().isEmpty())
         return {};
     const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    // Keep the source even if opening the selected display subsequently fails.
+    // 即使后续打开设备失败，也保留来源配置，方便用户查看错误或重试。
     if (!m_sourceManager.addSource(
             {id, name.trimmed(), DisplaySourceConfig{displayId, captureCursor}}))
         return {};

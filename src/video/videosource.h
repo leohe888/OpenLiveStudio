@@ -51,7 +51,7 @@ public:
 
     const QString &deviceId() const;
     void setDeviceId(const QString &deviceId);
-    // Invalid size and zero frame rate mean no explicit preference.
+    // 空分辨率和零帧率表示采用设备默认模式，不代表配置无效。
     const QSize &resolution() const;
     void setResolution(const QSize &resolution);
     int frameRateNumerator() const;
@@ -83,7 +83,7 @@ private:
     QString m_filePath;
 };
 
-// Configuration owned by the source kind; the active alternative decides VideoSource::type().
+// 来源类型由配置的 variant 分支决定，避免另存一份类型字段后出现不一致。
 using VideoSourceConfig = std::variant<DisplaySourceConfig, CameraSourceConfig, ImageSourceConfig>;
 
 class VideoSourceRuntime
@@ -100,7 +100,7 @@ public:
     void setState(VideoSourceState state);
     const QString &error() const;
     void setError(const QString &error);
-    // Only populated for camera sources.
+    // 仅摄像头来源提供实际帧率。
     int actualFrameRateNumerator() const;
     void setActualFrameRateNumerator(int actualFrameRateNumerator);
     int actualFrameRateDenominator() const;
@@ -155,4 +155,4 @@ private:
     VideoSourceConfig m_config = DisplaySourceConfig{};
 };
 
-#endif // VIDEOSOURCE_H
+#endif

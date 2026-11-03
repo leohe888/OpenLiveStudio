@@ -12,7 +12,7 @@ struct GpuFrameResource;
 struct CaptureFrame
 {
     QSize size;
-    qint64 timestampNs = 0; // Monotonic capture time, in nanoseconds.
+    qint64 timestampNs = 0; // 采集时刻，与后续合成时刻分别记录。
     quint64 sequence = 0;
     quint64 generation = 0;
     std::shared_ptr<GpuFrameResource> gpu;
@@ -29,7 +29,7 @@ struct CaptureFrame
     CaptureFrame &operator=(const CaptureFrame &) = delete;
 };
 
-// The lock protects ownership exchange, never pixel copies or GPU operations.
+// 锁内只交换帧的所有权，避免像素复制或 GPU 操作占用临界区。
 class LatestCaptureFrameSlot
 {
 public:

@@ -25,8 +25,8 @@ public:
     explicit PreviewWidget(QWidget *parent = nullptr);
     ~PreviewWidget() override;
 
-    // Call on the GUI thread. Topmost first; applied on the next composition tick.
-    // An unset canvas geometry uses the initial centered, fit-without-upscaling layout.
+    // 在界面线程调用，列表首项位于最上层，下次合成时生效。
+    // 未设置变换时采用居中适配且不放大的初始布局。
     void setSources(const QList<RenderSourceSnapshot> &sources);
     void setCurrentSourceId(const QString &sourceId);
 
@@ -119,4 +119,4 @@ private:
     QMetaObject::Connection m_contextDestructionConnection;
 };
 
-#endif // PREVIEWWIDGET_H
+#endif

@@ -482,7 +482,7 @@ private slots:
             QCOMPARE(gl->glGetError(), GLenum(GL_NO_ERROR));
         }
         qInfo() << "Maximum GPU import/copy time (ms):" << maximum / 1000000.0;
-        QVERIFY(maximum < 100000000); // Reject a route that visibly stalls GUI work.
+        QVERIFY(maximum < 100000000); // 导入与复制耗时应低于会造成明显界面停顿的阈值。
 #else
         QSKIP("Windows D3D11 required");
 #endif

@@ -17,9 +17,9 @@ struct AVStream;
 struct AVIOContext;
 struct SwsContext;
 
-// Worker-thread-only, one-shot FFmpeg encoder. Local failures throw QString;
-// network failures throw redacted StreamFailure with a retry classification.
-// Never overwrites a path; the owning session selects a unique filename.
+// 每个实例仅供一个工作线程的一次输出会话使用。
+// 本地错误抛出 QString；网络错误抛出已脱敏的 StreamFailure，并标明能否重试。
+// 文件以独占新建方式打开，调用方负责选择未占用的路径。
 class MediaEncoder
 {
 public:
@@ -44,7 +44,7 @@ public:
 
     void encodeVideoFrame(const QImage &image, qint64 frameIndex);
     void encodeAudioSamples(const QVector<float> &samples);
-    void skipTo(qint64 nextFrame); // Live-only timeline jump, preserving monotonic PTS.
+    void skipTo(qint64 nextFrame); // 仅直播允许跳过积压；跳转后仍须保持音视频 PTS 单调递增。
     void finish();
 
     bool completed() const

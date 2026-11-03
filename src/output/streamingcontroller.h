@@ -23,8 +23,6 @@ public:
     StreamingController(Compositor &video, AudioMixer &audio, QObject *parent = nullptr);
     ~StreamingController() override;
 
-    // State name only ("idle", "connecting", "live", "reconnecting", "stopping", "error");
-    // status() returns the whole snapshot including duration, bitrate and counters.
     QString state() const
     {
         return m_status.state;

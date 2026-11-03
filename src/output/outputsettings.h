@@ -56,7 +56,7 @@ public:
                                   bool allowEmpty = true);
     bool apply(const QString &directory, int recordingBitrateKbps, const QString &server,
                const QString &key, int streamingBitrateKbps = 6000);
-    QString nextRecordingPath(); // Creates the selected directory only at recording start.
+    QString nextRecordingPath(); // 开始录制时才创建目录，避免仅编辑设置就修改文件系统。
 
 signals:
     void recordingLockedChanged();

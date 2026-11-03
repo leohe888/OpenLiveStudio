@@ -134,7 +134,7 @@ if(WIN32)
         d3d11 dxgi windowsapp opengl32 mfplat mfreadwrite mfuuid mf ole32 uuid)
 endif()
 
-# Include the shared build's transitive DLL dependencies as well.
+# 同时复制共享库的间接 DLL 依赖，避免开发环境能启动而部署目录缺少运行库。
 if(WIN32 AND FFmpeg_RUNTIME_DLLS)
     add_custom_command(TARGET OpenLiveStudio POST_BUILD
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different

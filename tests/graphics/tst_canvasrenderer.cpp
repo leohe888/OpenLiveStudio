@@ -125,7 +125,7 @@ private slots:
         compositor.setSources({solid(Qt::red)});
         QVERIFY(compositor.startRendering(&m_context));
         QCOMPARE(compositor.captureImage().pixelColor(960, 540), QColor(Qt::red));
-        // Bursty diagnostic reads must not postpone normal output deadlines.
+        // 密集诊断读回不应推迟正常输出周期。
         for (int i = 0; i < 12; ++i)
             QVERIFY(!compositor.captureImage().isNull());
         auto frame = compositor.latestFrame();
@@ -133,7 +133,7 @@ private slots:
         const quint64 sequence = frame->sequence;
         const qint64 timestamp = frame->timestampNs;
         frame.reset();
-        QThread::msleep(180); // Deliberately do not dispatch GUI events.
+        QThread::msleep(180); // 故意不处理界面事件，验证合成线程独立运行。
         frame = compositor.latestFrame();
         QVERIFY(frame && frame->sequence >= sequence + 3);
         QVERIFY(frame->timestampNs > timestamp);
@@ -169,8 +169,7 @@ private slots:
         QCOMPARE(compositor.captureImage().pixelColor(960, 540), QColor(Qt::yellow));
         QThread::msleep(100);
         QCOMPARE(compositor.latestFrame()->sequence, held[2]->sequence);
-        // Attaching a shared texture to this context's FBO verifies that neither
-        // hidden-preview output nor a slow consumer can observe a slot overwrite.
+        // 在消费者上下文中读取共享纹理，验证隐藏预览或慢消费者持有的纹理槽不会被覆盖。
         QVERIFY(m_context.makeCurrent(&m_surface));
         {
             QOpenGLFramebufferObject target(1, 1);

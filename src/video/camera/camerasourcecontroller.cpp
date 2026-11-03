@@ -46,7 +46,7 @@ void CameraSourceController::refreshDevices()
 {
     if (m_refreshing)
         return;
-    // Refresh disconnected/inactive devices without reopening a camera that is currently in use.
+    // 只清除未使用设备的模式缓存，避免刷新时重新打开正在采集的摄像头。
     for (auto it = m_deviceModes.begin(); it != m_deviceModes.end();) {
         const bool deviceHasActiveWorker =
             std::any_of(m_entries.cbegin(), m_entries.cend(), [&](const auto &entry) {
@@ -81,7 +81,7 @@ void CameraSourceController::requestModes(const QString &deviceId)
 {
     if (deviceId.isEmpty() || m_pendingModeDeviceIds.contains(deviceId))
         return;
-    // A cached catalog avoids opening a second capture session on an active device.
+    // 使用缓存可避免查询模式时为同一摄像头额外打开采集会话。
     if (m_deviceModes.contains(deviceId)) {
         emit modesChanged(deviceId, {});
         return;
@@ -172,7 +172,7 @@ void CameraSourceController::synchronizeSources()
             setRuntimeStatus(m_sourceManager, id, VideoSourceState::Paused,
                              entry.failed ? m_sourceManager.sourceRuntime(id).error() : QString());
         } else if (!entry.worker && !entry.failed) {
-            // Never reopen while an old session on the same device is still retiring.
+            // 旧会话尚未退出时不能重新打开同一摄像头，否则驱动可能拒绝访问。
             const bool retiring = std::any_of(
                 m_retiringWorkers.cbegin(), m_retiringWorkers.cend(), [&](const auto &worker) {
                     return worker->deviceId() == config.deviceId() && !worker->isFinished();

@@ -14,7 +14,7 @@ public:
     explicit AudioSourceManager(QObject *parent = nullptr);
     ~AudioSourceManager() override;
     QList<AudioSource> sources() const;
-    // The pointer is only valid until the next mutation; do not retain it across signals.
+    // 指针仅在下一次修改前有效；信号回调可能触发修改，不可跨回调持有。
     const AudioSource *source(const QString &sourceId) const;
 
     int count() const

@@ -7,7 +7,7 @@
 #include <condition_variable>
 #include <map>
 
-// Deterministic sample-timeline mixer, also used by synthetic audio tests.
+// 仅按传入的采样时间线混音，不依赖设备或线程，便于用合成音频验证对齐行为。
 class AudioMixerCore
 {
 public:
@@ -49,7 +49,7 @@ public:
     };
 
     Levels takeLevels();
-    // Independent bounded subscriptions; legacy diagnostic tap below.
+    // 每个输出独立订阅有界队列；下方的单队列接口仅供诊断和测试使用。
     std::shared_ptr<OutputTap<std::shared_ptr<const MixedAudioBlock>>> subscribeOutput();
     void setOutputEnabled(bool enabled);
     std::deque<std::shared_ptr<const MixedAudioBlock>> takeOutput();

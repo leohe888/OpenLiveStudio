@@ -29,8 +29,7 @@ bool Compositor::startRendering(QOpenGLContext *shareContext)
         if (previousContext && previousSurface)
             previousContext->makeCurrent(previousSurface);
     });
-    // Establish sharing on the GUI thread. WGL drivers may reject creation on
-    // another thread while the share context is current on the GUI thread.
+    // 先在界面线程建立上下文共享；部分 WGL 驱动不允许在另一线程创建并共享仍由界面线程使用的上下文。
     m_context = std::make_unique<QOpenGLContext>();
     m_context->setFormat(shareContext ? shareContext->format() : QSurfaceFormat::defaultFormat());
     if (shareContext)
@@ -41,7 +40,7 @@ bool Compositor::startRendering(QOpenGLContext *shareContext)
         m_context.reset();
         return false;
     }
-    // Native offscreen surfaces must be created and destroyed on the GUI thread.
+    // 原生离屏表面的创建与销毁必须留在界面线程。
     m_surface = std::make_unique<QOffscreenSurface>();
     m_surface->setFormat(m_context->format());
     m_surface->create();
@@ -74,7 +73,7 @@ void Compositor::stopRendering()
         m_latest.reset();
     }
     m_wake.notify_all();
-    wait(); // Worker cleanup never waits for GUI events.
+    wait(); // 工作线程清理不依赖界面事件，因此这里等待不会形成循环等待。
     m_surface.reset();
     if (previousContext && previousSurface)
         previousContext->makeCurrent(previousSurface);
@@ -161,10 +160,10 @@ void Compositor::run()
                 Qt::DirectConnection);
         connect(&renderer, &CanvasRenderer::gpuTransferFailed, this, &Compositor::gpuTransferFailed,
                 Qt::DirectConnection);
-        // Fatal errors are handled below so pending readbacks also wake up.
+        // 致命错误由下面的统一路径处理，确保等待读回的调用方也被唤醒。
         if (!renderer.initialize()) {
             fail(renderer.lastError());
-            return; // Renderer is destroyed before its current context.
+            return; // 先析构渲染器，确保清理时 GL 上下文仍有效。
         }
 
         struct OutputSlot
@@ -200,7 +199,7 @@ void Compositor::run()
             qint64 timestampNs = 0;
             {
                 std::unique_lock<std::mutex> lock(m_mutex);
-                // Diagnostic requests may wake early; normal output stays at 30 Hz.
+                // 诊断请求可以提前唤醒，但不能改变正常输出的 30 Hz 节奏。
                 m_wake.wait_until(lock, deadline, [&] {
                     return m_stop || m_requestedReadbackId > m_completedReadbackId;
                 });
@@ -211,8 +210,7 @@ void Compositor::run()
                 readback = m_requestedReadbackId;
                 needsReadback = readback > m_completedReadbackId;
                 outputEnabled = m_outputEnabled || m_bus.hasSubscribers();
-                // The image represents this source snapshot. GPU rendering,
-                // cross-context synchronization and readback can finish later.
+                // 时间戳对应本次取出的来源快照，不把后续渲染、同步和读回的耗时计入画面时间。
                 timestampNs = MediaClock::nowNs();
             }
             if (!renderer.render(sources)) {
@@ -228,8 +226,7 @@ void Compositor::run()
                     fail(tr("无法复制合成输出画布。"));
                     break;
                 }
-                // Complete producer writes before publishing across GL contexts.
-                // The preview likewise finishes reads before returning its lease.
+                // 跨 GL 上下文发布前必须完成纹理写入；预览端同样要在归还租约前完成读取。
                 context.functions()->glFinish();
                 frame = std::make_shared<CompositionFrame>();
                 frame->texture = slot.fbo->texture();
@@ -265,8 +262,7 @@ void Compositor::run()
                 }
             }
             m_wake.notify_all();
-            // Skip missed deadlines rather than enqueueing a catch-up burst.
-            // An early diagnostic render must not push normal output into the future.
+            // 错过的合成周期直接跳过，避免集中补帧；诊断触发的提前渲染也不改变正常输出期限。
             const auto now = Clock::now();
             if (deadline <= now)
                 deadline += period * ((now - deadline) / period + 1);
@@ -275,7 +271,7 @@ void Compositor::run()
             std::lock_guard<std::mutex> lock(m_mutex);
             m_latest.reset();
         }
-        // Slots, imports, textures and shaders are destroyed with this context current.
+        // 在释放当前 GL 上下文前，先销毁纹理槽、导入资源和着色器。
     }
     context.doneCurrent();
 }

@@ -452,7 +452,7 @@ void MainWindowTest::aggregatesIndependentSourceControllers()
     QVERIFY(pixels.save(path));
     QVERIFY(model->addSource({"image", "Image", ImageSourceConfig{path}}));
     VideoSource screen{"display", "Display", DisplaySourceConfig{"missing-display"}};
-    screen.setVisible(false); // Exercise wiring without opening physical devices.
+    screen.setVisible(false); // 隐藏来源以验证信号连接，同时避免打开实际设备。
     QVERIFY(model->addSource(screen));
     VideoSource webcam{"camera", "Camera", CameraSourceConfig{"missing-camera"}};
     webcam.setVisible(false);
@@ -552,8 +552,7 @@ void MainWindowTest::previewEditsModelAndSynchronizesSelection()
              QColor(Qt::blue));
     QVERIFY(model->setSourceLocked(frontId, true));
     QVERIFY(!model->setSourceTransform(frontId, before));
-    QCoreApplication::processEvents(); // Aggregator publishes model changes through a queued
-                                       // connection.
+    QCoreApplication::processEvents(); // 聚合器延后发布变更，处理事件后才能检查最新快照。
     QTest::mouseClick(preview, Qt::LeftButton, Qt::NoModifier, center);
     QCOMPARE(model->currentSourceId(), backId);
     QVERIFY(model->selectSource(frontId));
@@ -623,8 +622,7 @@ void MainWindowTest::previewShowsRenderingError()
 
 void MainWindowTest::dockTitlesStayVerticallyCentered()
 {
-    // Observe the alignment passed to Qt's text renderer, without depending on
-    // font glyph pixels or title-bar dimensions at a particular DPI.
+    // 检查传给 Qt 的对齐参数，避免断言依赖字体像素或特定 DPI 下的标题栏尺寸。
     class TitleStyle final : public QProxyStyle
     {
     public:
@@ -735,8 +733,7 @@ void MainWindowTest::cameraHardwarePreview()
     QVERIFY(!frame.isNull());
     const QColor pixel = frame.pixelColor(frame.width() / 2, frame.height() / 2);
     QVERIFY(qAbs(pixel.red() - pixel.green()) <= 3 && qAbs(pixel.green() - pixel.blue()) <= 3);
-    // Keep the mouse pressed while real camera frames arrive between edits.
-    // Check the entire model -> controller -> preview -> model path.
+    // 保持鼠标按下，让真实摄像头帧穿插到编辑过程中，验证管理器、控制器与预览之间的完整往返链路。
     const VideoSourceTransform start{{960, 540}, {600, 300}, 0};
     for (int operation = 0; operation < 3; ++operation) {
         QVERIFY(model->setSourceTransform(id, start));
@@ -918,7 +915,7 @@ void MainWindowTest::previewDisplaysImageSources()
     auto *preview = window.findChild<PreviewWidget *>("previewWidget");
     if (!preview)
         QSKIP("Native desktop OpenGL is required for preview integration testing.");
-    window.resize(1100, 820); // Exercise letterboxing with a deliberately non-16:9 viewport.
+    window.resize(1100, 820); // 使用非 16:9 视口，验证画布适配后留下的边缘区域。
     window.show();
     QVERIFY(QTest::qWaitForWindowExposed(&window));
     QTRY_VERIFY(preview->isValid());

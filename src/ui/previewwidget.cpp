@@ -20,7 +20,7 @@
 #include <cmath>
 
 namespace {
-// Clockwise from the upper-left corner: corners alternate with edge midpoints.
+// 手柄索引从左上角顺时针排列，角点与边中点交替；缩放计算依赖此顺序。
 const std::array<QPointF, 8> handleFractions{
     {{0, 0}, {.5, 0}, {1, 0}, {1, .5}, {1, 1}, {.5, 1}, {0, 1}, {0, .5}}};
 
@@ -175,7 +175,7 @@ void PreviewWidget::initializeGL()
         return;
     }
 
-    // Position (x, y), then top-left-origin image coordinates (u, v).
+    // 顶点依次保存位置 (x, y) 和纹理坐标 (u, v)；纹理坐标以图像左上角为原点。
     static constexpr GLfloat vertices[] = {
         -1, -1, 0, 1, 1, -1, 1, 1, -1, 1, 0, 0, 1, 1, 1, 0,
     };
@@ -230,7 +230,7 @@ void PreviewWidget::paintGL()
     if (!m_initialized || pixelSize.isEmpty())
         return;
 
-    // The previous paint completed its reads before this lease can be released.
+    // 上一轮绘制已完成纹理读取，此时才能释放旧租约并获取新帧。
     m_presentedFrame = m_compositor.latestFrame();
     if (!m_presentedFrame)
         return;
@@ -256,7 +256,7 @@ void PreviewWidget::paintGL()
     m_program->setUniformValue("colorCorrection", false);
     glBindTexture(GL_TEXTURE_2D, m_presentedFrame->texture);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    glFinish(); // Output slot may be reused by the producer after the lease ends.
+    glFinish(); // 释放租约后生产者可能覆盖纹理，必须先完成读取。
     m_vertexArray->release();
     m_program->release();
     paintSelection();
@@ -305,7 +305,7 @@ int PreviewWidget::handleAt(const RenderSourceSnapshot &source, const QPointF &p
     if (source.locked)
         return -1;
     const auto handles = selectionHandles(source);
-    // Prefer rotation and corners if small sources make handle targets overlap.
+    // 小来源的手柄命中区可能重叠，优先响应旋转和角点以保持可操作性。
     for (int index : {8, 0, 2, 4, 6, 1, 3, 5, 7})
         if (QRectF(handles[index] - QPointF(6, 6), QSizeF(12, 12)).contains(point))
             return index;
@@ -532,7 +532,7 @@ void PreviewWidget::cleanup()
     disconnect(m_contextDestructionConnection);
     m_framePollTimer.stop();
     m_initialized = false;
-    // Finish preview reads and return its lease before destroying shared outputs.
+    // 停止合成器前先完成预览读取并归还纹理租约，防止释放仍在使用的共享资源。
     if (context()) {
         makeCurrent();
         glFinish();
@@ -544,7 +544,7 @@ void PreviewWidget::cleanup()
     m_program.reset();
     if (context())
         doneCurrent();
-    // Retain the source snapshot for context recreation.
+    // 保留来源快照，供 GL 上下文重建后恢复画面。
 }
 
 void PreviewWidget::reportError(const QString &message)

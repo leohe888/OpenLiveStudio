@@ -6,8 +6,8 @@
 #include "core/outputtap.h"
 #include <functional>
 
-// Aligns timestamped video and audio to the fixed encoder cadence.
-// Each output worker owns its subscriptions, history and clock origin.
+// 将带时间戳的音视频对齐到编码器的固定输出节奏。
+// 各输出线程独占订阅、历史缓冲和时间原点，录制与直播不会争抢数据或相互重置。
 class OutputTimeline
 {
 public:
@@ -17,9 +17,11 @@ public:
     {
     }
 
+    // 取消时返回 false；等不到首帧则抛出错误，避免输出线程无限等待。
     bool initialize(const std::function<bool()> &cancelled);
+    // false 表示同步窗口尚未到达，调用方应稍后重试同一帧序号。
     bool read(qint64 frameIndex, QImage &image, QVector<float> &samples);
-    void recover(); // Drop old local history after a live-only timeline jump.
+    void recover(); // 直播跳过积压后丢弃旧历史；录制不能用此接口跳过内容。
 
     qint64 originNs() const
     {

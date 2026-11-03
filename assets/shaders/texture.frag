@@ -3,7 +3,7 @@
 in vec2 uv;
 uniform sampler2D sourceTexture;
 uniform bool colorCorrection;
-uniform vec3 correction; // brightness, contrast, saturation
+uniform vec3 correction; // 分量依次为亮度、对比度、饱和度。
 out vec4 fragmentColor;
 
 void main()

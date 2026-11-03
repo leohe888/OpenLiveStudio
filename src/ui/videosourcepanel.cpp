@@ -55,7 +55,7 @@ QDialog *createSourceDialog(QWidget *parent, const char *name, const QString &ti
     return dialog;
 }
 
-// Preserve a disconnected selection so merely refreshing never changes the saved device.
+// 保留已断开设备的选择，避免刷新列表时悄悄替换用户保存的设备。
 template <typename Device>
 void fillDevices(QComboBox *combo, const QList<Device> &entries, const QString &selected)
 {
@@ -420,8 +420,7 @@ QDialog *createSourceAddDialog(QWidget *parent, VideoSourceManager *manager,
 
     auto *display = new CaptureSettingsWidget(pages, displays, cameras, false);
     pages->addWidget(display);
-    // Camera discovery starts when that page is selected, not when opening an unrelated image
-    // dialog.
+    // 切到摄像头页面后才查询设备，避免添加图片时也访问摄像头。
     auto *cameraPage = new QWidget(pages);
     auto *cameraLayout = new QVBoxLayout(cameraPage);
     cameraLayout->setContentsMargins(0, 0, 0, 0);

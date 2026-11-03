@@ -12,9 +12,8 @@
 class QOffscreenSurface;
 class QOpenGLContext;
 
-// An immutable lease on one of three shared output textures. A consumer must
-// finish its GL reads before releasing the lease. Release all leases before stop().
-// timestampNs is composition time on the shared monotonic media clock (not capture PTS).
+// 持有此对象即占用一个共享纹理槽；消费者必须完成 GL 读取后再释放，防止生产者覆盖纹理。
+// 调用 stopRendering() 前应释放所有租约。timestampNs 属于单调媒体时钟，表示合成时间。
 struct CompositionFrame
 {
     GLuint texture = 0;
@@ -31,8 +30,8 @@ struct ComposedImage
     qint64 timestampNs = 0;
 };
 
-// GUI-thread control API; rendering, imports and GL cleanup run on this thread's
-// worker. setSources replaces a single snapshot, never queues per-frame work.
+// 控制接口在界面线程调用；渲染、纹理导入和 GL 清理由工作线程完成。
+// setSources 只替换最新快照，避免按采集帧堆积渲染任务。
 class Compositor : public QThread
 {
     Q_OBJECT
@@ -43,11 +42,10 @@ public:
     void stopRendering();
     void setSources(const QList<RenderSourceSnapshot> &sources);
     std::shared_ptr<const CompositionFrame> latestFrame() const;
-    // Blocking diagnostic readback, not used by the preview or output hot path.
-    // Returns a composition at least as new as the snapshot at call time.
+    // 阻塞式诊断读回，不用于预览或编码主流程；返回结果至少包含调用时的来源快照。
     QImage captureImage(int timeoutMs = 3000);
-    // Independent bounded CPU subscriptions. Read back once while any output
-    // is subscribed. The legacy tap below is retained for diagnostics/tests.
+    // CPU 输出按消费者独立订阅；存在订阅时，每次合成只读回一次并共享图像。
+    // 下方的单队列接口仅保留给诊断和测试使用。
     std::shared_ptr<OutputTap<ComposedImage>> subscribeOutput();
     void setOutputEnabled(bool enabled);
     std::deque<ComposedImage> takeOutput();

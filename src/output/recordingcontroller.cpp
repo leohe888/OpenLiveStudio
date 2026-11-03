@@ -40,7 +40,7 @@ protected:
     {
         MediaEncoder encoder;
         RecordingStatus result = snapshot();
-        // Deterministic acceptance-test hook; never enabled by the product UI.
+        // 用于验收测试稳定复现编码积压，产品界面不会启用这些延迟。
         const int artificialEncodeDelayMs = std::clamp(
             qEnvironmentVariableIntValue("OPENLIVE_RECORDING_ENCODER_DELAY_MS"), 0, 1000);
         const int artificialPauseOnceMs =
@@ -82,9 +82,7 @@ protected:
                     continue;
                 }
                 result.lagMs = timeline.lagNs(result.videoFrames) / 1000000;
-                // A backlog that is draining after a scheduling/IO hiccup is
-                // not sustained overload. Only shed streaming when the backlog
-                // stays high and fails to decrease over a 150 ms observation.
+                // 短暂调度或 IO 抖动后的积压可能自行消退；只有持续高位且不再下降时，才请求停止直播以保留录制资源。
                 const auto lagNs = timeline.lagNs(result.videoFrames), nowNs = MediaClock::nowNs();
                 if (lagNs <= 650000000LL) {
                     pressureSinceNs = 0;
@@ -201,8 +199,7 @@ bool RecordingController::startRecording(const QString &path, int bitrateKbps)
 {
     if (busy() || (m_worker && m_worker->isRunning()))
         return false;
-    // A completed session must not overwrite a subsequent validation error
-    // when the periodic status poll runs.
+    // 先释放上一会话，避免定时轮询用旧结果覆盖本次参数校验错误。
     m_worker.reset();
     if (!m_video.isRunning() || !m_audio.isRunning() || !QFileInfo(path).isAbsolute() ||
         QFileInfo(path).suffix().compare("mp4", Qt::CaseInsensitive) || bitrateKbps < 500 ||
@@ -238,7 +235,7 @@ void RecordingController::refreshWorkerStatus()
     const bool wasBusy = busy();
     const bool stopping = state() == "stopping";
     m_status = m_worker->snapshot();
-    // Completion is observable only after output taps and worker-owned resources close.
+    // 只有线程退出、输出订阅和编码资源全部释放后，才能对外报告结束。
     if (!m_worker->isFinished() &&
         (stopping || m_status.state == "idle" || m_status.state == "error"))
         m_status.state = "stopping";
