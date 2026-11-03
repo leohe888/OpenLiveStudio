@@ -151,7 +151,7 @@ void ImageSourceController::synchronize()
                 synchronize();
             });
         }
-        sources.append({id, it->image, item.visible(), item.canvasGeometry(), item.locked(), item.filters()});
+        sources.append({id, it->image, item.visible(), item.transform(), item.locked(), item.filters()});
     }
     for (auto it = m_images.begin(); it != m_images.end();) {
         if (!retained.contains(it.key()))

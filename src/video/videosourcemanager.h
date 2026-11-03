@@ -45,9 +45,9 @@ public:
     bool sourceLocked(const QString &sourceId) const;
     bool setSourceLocked(const QString &sourceId, bool locked);
 
-    VideoSourceCanvasGeometry sourceCanvasGeometry(const QString &sourceId) const;
-    bool setSourceCanvasGeometry(const QString &sourceId,
-                                const VideoSourceCanvasGeometry &canvasGeometry);
+    VideoSourceTransform sourceTransform(const QString &sourceId) const;
+    bool setSourceTransform(const QString &sourceId,
+                                const VideoSourceTransform &transform);
 
     QList<VideoSourceFilter> sourceFilters(const QString &sourceId) const;
     bool setSourceFilters(const QString &sourceId, const QList<VideoSourceFilter> &filters);

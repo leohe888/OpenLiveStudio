@@ -1,11 +1,11 @@
-#include "video/videosourcecanvasgeometry.h"
+#include "video/videosourcetransform.h"
 
 #include <QRectF>
 #include <cmath>
 
-VideoSourceCanvasGeometry::VideoSourceCanvasGeometry() = default;
+VideoSourceTransform::VideoSourceTransform() = default;
 
-VideoSourceCanvasGeometry::VideoSourceCanvasGeometry(const QSizeF &pixelSize)
+VideoSourceTransform::VideoSourceTransform(const QSizeF &pixelSize)
 {
     if (pixelSize.isEmpty())
         return;
@@ -13,58 +13,58 @@ VideoSourceCanvasGeometry::VideoSourceCanvasGeometry(const QSizeF &pixelSize)
     m_size = pixelSize * scale;
 }
 
-VideoSourceCanvasGeometry::VideoSourceCanvasGeometry(const QPointF &center, const QSizeF &size)
+VideoSourceTransform::VideoSourceTransform(const QPointF &center, const QSizeF &size)
     : m_center(center), m_size(size)
 {
 }
 
-VideoSourceCanvasGeometry::VideoSourceCanvasGeometry(const QPointF &center, const QSizeF &size,
+VideoSourceTransform::VideoSourceTransform(const QPointF &center, const QSizeF &size,
                                                      qreal rotation)
     : m_center(center), m_size(size)
 {
     setRotation(rotation);
 }
 
-bool VideoSourceCanvasGeometry::isValid() const
+bool VideoSourceTransform::isValid() const
 {
     return std::isfinite(m_center.x()) && std::isfinite(m_center.y()) &&
            std::isfinite(m_size.width()) && std::isfinite(m_size.height()) &&
            std::isfinite(m_rotation) && m_size.width() > 0 && m_size.height() > 0;
 }
 
-QPointF VideoSourceCanvasGeometry::center() const
+QPointF VideoSourceTransform::center() const
 {
     return m_center;
 }
 
-void VideoSourceCanvasGeometry::setCenter(const QPointF &center)
+void VideoSourceTransform::setCenter(const QPointF &center)
 {
     m_center = center;
 }
 
-QSizeF VideoSourceCanvasGeometry::size() const
+QSizeF VideoSourceTransform::size() const
 {
     return m_size;
 }
 
-void VideoSourceCanvasGeometry::setSize(const QSizeF &size)
+void VideoSourceTransform::setSize(const QSizeF &size)
 {
     m_size = size;
 }
 
-qreal VideoSourceCanvasGeometry::rotation() const
+qreal VideoSourceTransform::rotation() const
 {
     return m_rotation;
 }
 
-void VideoSourceCanvasGeometry::setRotation(qreal rotation)
+void VideoSourceTransform::setRotation(qreal rotation)
 {
     m_rotation = std::isfinite(rotation) ? std::fmod(rotation, 360.0) : rotation;
     if (m_rotation < 0)
         m_rotation += 360;
 }
 
-QTransform VideoSourceCanvasGeometry::sourceToCanvas() const
+QTransform VideoSourceTransform::sourceToCanvas() const
 {
     QTransform matrix;
     matrix.translate(m_center.x(), m_center.y());
@@ -73,18 +73,18 @@ QTransform VideoSourceCanvasGeometry::sourceToCanvas() const
     return matrix;
 }
 
-bool VideoSourceCanvasGeometry::contains(const QPointF &canvasPoint) const
+bool VideoSourceTransform::contains(const QPointF &canvasPoint) const
 {
     return isValid() &&
            QRectF(QPointF(), m_size).contains(sourceToCanvas().inverted().map(canvasPoint));
 }
 
-bool VideoSourceCanvasGeometry::operator==(const VideoSourceCanvasGeometry &other) const
+bool VideoSourceTransform::operator==(const VideoSourceTransform &other) const
 {
     return m_center == other.m_center && m_size == other.m_size && m_rotation == other.m_rotation;
 }
 
-bool VideoSourceCanvasGeometry::operator!=(const VideoSourceCanvasGeometry &other) const
+bool VideoSourceTransform::operator!=(const VideoSourceTransform &other) const
 {
     return !(*this == other);
 }

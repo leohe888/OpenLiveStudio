@@ -300,8 +300,8 @@ void MainWindow::setupPreview()
             &DisplaySourceController::failTransfer, Qt::QueuedConnection);
     connect(preview, &PreviewWidget::selectionRequested, m_videoSourceManager,
             &VideoSourceManager::selectSource);
-    connect(preview, &PreviewWidget::canvasGeometryRequested, m_videoSourceManager,
-            &VideoSourceManager::setSourceCanvasGeometry);
+    connect(preview, &PreviewWidget::transformRequested, m_videoSourceManager,
+            &VideoSourceManager::setSourceTransform);
     connect(m_videoSourceManager, &VideoSourceManager::currentSourceIdChanged, preview,
             [this, preview] {
                 preview->setCurrentSourceId(m_videoSourceManager->currentSourceId());

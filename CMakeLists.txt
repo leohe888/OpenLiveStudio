@@ -23,10 +23,10 @@ qt_add_executable(OpenLiveStudio
     src/graphics/previewsource.h
     src/video/videosource.cpp
     src/video/videosource.h
-    src/video/videosourcecanvasgeometry.cpp
+    src/video/videosourcetransform.cpp
     src/video/videosourcefilter.cpp
     src/video/videosourcefilter.h
-    src/video/videosourcecanvasgeometry.h
+    src/video/videosourcetransform.h
     src/video/videosourcemanager.cpp
     src/video/videosourcemanager.h
     src/video/videosourceaggregator.cpp

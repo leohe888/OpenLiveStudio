@@ -181,11 +181,11 @@ VideoSource::VideoSource(const QString &id, const QString &name, const VideoSour
 }
 
 VideoSource::VideoSource(const QString &id, const QString &name, bool visible, bool locked,
-                         const VideoSourceCanvasGeometry &canvasGeometry,
+                         const VideoSourceTransform &transform,
                          const QList<VideoSourceFilter> &filters, const VideoSourceRuntime &runtime,
                          const VideoSourceConfig &config)
     : m_id(id), m_name(name), m_visible(visible), m_locked(locked),
-      m_canvasGeometry(canvasGeometry), m_filters(filters), m_runtime(runtime), m_config(config)
+      m_transform(transform), m_filters(filters), m_runtime(runtime), m_config(config)
 {
 }
 
@@ -229,14 +229,14 @@ void VideoSource::setLocked(bool locked)
     m_locked = locked;
 }
 
-const VideoSourceCanvasGeometry &VideoSource::canvasGeometry() const
+const VideoSourceTransform &VideoSource::transform() const
 {
-    return m_canvasGeometry;
+    return m_transform;
 }
 
-void VideoSource::setCanvasGeometry(const VideoSourceCanvasGeometry &canvasGeometry)
+void VideoSource::setTransform(const VideoSourceTransform &transform)
 {
-    m_canvasGeometry = canvasGeometry;
+    m_transform = transform;
 }
 
 const QList<VideoSourceFilter> &VideoSource::filters() const

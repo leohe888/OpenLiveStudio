@@ -41,8 +41,8 @@ bool VideoSourceManager::addSource(const VideoSource &source)
             return false;
     }
     VideoSource initialized = source;
-    if (initialized.canvasGeometry().size().isEmpty())
-        initialized.setCanvasGeometry(VideoSourceCanvasGeometry(source.runtime().pixelSize()));
+    if (initialized.transform().size().isEmpty())
+        initialized.setTransform(VideoSourceTransform(source.runtime().pixelSize()));
     m_sources.prepend(initialized);
     emit sourcesChanged();
     selectSource(source.id());
@@ -166,21 +166,21 @@ bool VideoSourceManager::setSourceLocked(const QString &sourceId, bool locked)
     return true;
 }
 
-VideoSourceCanvasGeometry VideoSourceManager::sourceCanvasGeometry(const QString &sourceId) const
+VideoSourceTransform VideoSourceManager::sourceTransform(const QString &sourceId) const
 {
     const int row = sourceRow(sourceId);
-    return row >= 0 ? m_sources.at(row).canvasGeometry() : VideoSourceCanvasGeometry{};
+    return row >= 0 ? m_sources.at(row).transform() : VideoSourceTransform{};
 }
 
-bool VideoSourceManager::setSourceCanvasGeometry(const QString &sourceId,
-                                                 const VideoSourceCanvasGeometry &canvasGeometry)
+bool VideoSourceManager::setSourceTransform(const QString &sourceId,
+                                                 const VideoSourceTransform &transform)
 {
     const int row = sourceRow(sourceId);
-    if (row < 0 || m_sources[row].locked() || !canvasGeometry.isValid() ||
-        canvasGeometry.size().width() < 1 || canvasGeometry.size().height() < 1)
+    if (row < 0 || m_sources[row].locked() || !transform.isValid() ||
+        transform.size().width() < 1 || transform.size().height() < 1)
         return false;
-    if (m_sources[row].canvasGeometry() != canvasGeometry) {
-        m_sources[row].setCanvasGeometry(canvasGeometry);
+    if (m_sources[row].transform() != transform) {
+        m_sources[row].setTransform(transform);
         emit sourceChanged(sourceId);
     }
     return true;
@@ -334,14 +334,14 @@ bool VideoSourceManager::setSourceRuntime(const QString &sourceId, const VideoSo
     m_sources[row].setRuntime(runtime);
     if (sizeChanged) {
         const auto size = runtime.pixelSize();
-        auto geometry = m_sources.at(row).canvasGeometry();
+        auto geometry = m_sources.at(row).transform();
         if (geometry.size().isEmpty() && !size.isEmpty()) {
-            m_sources[row].setCanvasGeometry(VideoSourceCanvasGeometry(size));
+            m_sources[row].setTransform(VideoSourceTransform(size));
         } else if (m_sources.at(row).type() == VideoSourceType::Camera && !size.isEmpty() &&
                    !geometry.size().isEmpty()) {
             geometry.setSize(QSizeF(geometry.size().width(),
                                     geometry.size().width() * size.height() / size.width()));
-            m_sources[row].setCanvasGeometry(geometry);
+            m_sources[row].setTransform(geometry);
         }
         emit sourceChanged(sourceId);
     }

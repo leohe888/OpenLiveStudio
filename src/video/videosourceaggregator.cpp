@@ -76,7 +76,7 @@ void VideoSourceAggregator::publish()
         PreviewSource source = *entry;
         source.visible = item.visible();
         source.locked = item.locked();
-        source.canvasGeometry = item.canvasGeometry();
+        source.transform = item.transform();
         source.filters = item.filters();
         result.append(std::move(source));
     }

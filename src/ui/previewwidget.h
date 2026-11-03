@@ -55,8 +55,8 @@ public:
 
 signals:
     void selectionRequested(const QString &sourceId);
-    void canvasGeometryRequested(const QString &sourceId,
-                                 const VideoSourceCanvasGeometry &canvasGeometry);
+    void transformRequested(const QString &sourceId,
+                                 const VideoSourceTransform &transform);
     void sourceFailed(const QString &sourceId, const QString &message);
     void renderingFailed(const QString &message);
     void gpuTransferFailed(const QString &sourceId, quint64 generation, const QString &message);
@@ -81,7 +81,7 @@ private:
     bool selectable(const PreviewSource &source) const;
     QRectF canvasRect() const;
     QTransform canvasToWidget() const;
-    static VideoSourceCanvasGeometry resized(const VideoSourceCanvasGeometry &start, int handle,
+    static VideoSourceTransform resized(const VideoSourceTransform &start, int handle,
                                         const QPointF &canvasDelta);
     QPointF toCanvas(const QPointF &point) const;
     QPolygonF selectionHandles(const PreviewSource &source) const;
@@ -104,7 +104,7 @@ private:
     };
     Gesture m_gesture = Gesture::None;
     QString m_gestureSourceId;
-    VideoSourceCanvasGeometry m_gestureStart;
+    VideoSourceTransform m_gestureStart;
     QPointF m_pressCanvas;
     int m_resizeHandle = -1;
     QColor m_surroundingColor = Qt::black;

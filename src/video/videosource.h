@@ -1,7 +1,7 @@
 #ifndef VIDEOSOURCE_H
 #define VIDEOSOURCE_H
 
-#include "video/videosourcecanvasgeometry.h"
+#include "video/videosourcetransform.h"
 #include "video/videosourcefilter.h"
 
 #include <QSize>
@@ -121,7 +121,7 @@ public:
     VideoSource(const QString &id, const QString &name);
     VideoSource(const QString &id, const QString &name, const VideoSourceConfig &config);
     VideoSource(const QString &id, const QString &name, bool visible, bool locked,
-                const VideoSourceCanvasGeometry &canvasGeometry,
+                const VideoSourceTransform &transform,
                 const QList<VideoSourceFilter> &filters, const VideoSourceRuntime &runtime,
                 const VideoSourceConfig &config);
 
@@ -133,8 +133,8 @@ public:
     void setVisible(bool visible);
     bool locked() const;
     void setLocked(bool locked);
-    const VideoSourceCanvasGeometry &canvasGeometry() const;
-    void setCanvasGeometry(const VideoSourceCanvasGeometry &canvasGeometry);
+    const VideoSourceTransform &transform() const;
+    void setTransform(const VideoSourceTransform &transform);
     const QList<VideoSourceFilter> &filters() const;
     void setFilters(const QList<VideoSourceFilter> &filters);
     const VideoSourceRuntime &runtime() const;
@@ -149,7 +149,7 @@ private:
     QString m_name;
     bool m_visible = true;
     bool m_locked = false;
-    VideoSourceCanvasGeometry m_canvasGeometry;
+    VideoSourceTransform m_transform;
     QList<VideoSourceFilter> m_filters;
     VideoSourceRuntime m_runtime;
     VideoSourceConfig m_config = DisplaySourceConfig{};

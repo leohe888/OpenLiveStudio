@@ -1,18 +1,18 @@
-#ifndef VIDEOSOURCECANVASGEOMETRY_H
-#define VIDEOSOURCECANVASGEOMETRY_H
+#ifndef VIDEOSOURCETRANSFORM_H
+#define VIDEOSOURCETRANSFORM_H
 
 #include <QMetaType>
 #include <QPointF>
 #include <QSizeF>
 #include <QTransform>
 
-class VideoSourceCanvasGeometry
+class VideoSourceTransform
 {
 public:
-    VideoSourceCanvasGeometry();
-    explicit VideoSourceCanvasGeometry(const QSizeF &pixelSize);
-    VideoSourceCanvasGeometry(const QPointF &center, const QSizeF &size);
-    VideoSourceCanvasGeometry(const QPointF &center, const QSizeF &size, qreal rotation);
+    VideoSourceTransform();
+    explicit VideoSourceTransform(const QSizeF &pixelSize);
+    VideoSourceTransform(const QPointF &center, const QSizeF &size);
+    VideoSourceTransform(const QPointF &center, const QSizeF &size, qreal rotation);
 
     QPointF center() const;
     void setCenter(const QPointF &center);
@@ -26,14 +26,14 @@ public:
     QTransform sourceToCanvas() const;
     // True when a canvas point falls inside the source rectangle.
     bool contains(const QPointF &canvasPoint) const;
-    bool operator==(const VideoSourceCanvasGeometry &other) const;
-    bool operator!=(const VideoSourceCanvasGeometry &other) const;
+    bool operator==(const VideoSourceTransform &other) const;
+    bool operator!=(const VideoSourceTransform &other) const;
 
 private:
     QPointF m_center{960, 540};
     QSizeF m_size;
     qreal m_rotation = 0;
 };
-Q_DECLARE_METATYPE(VideoSourceCanvasGeometry)
+Q_DECLARE_METATYPE(VideoSourceTransform)
 
 #endif

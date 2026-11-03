@@ -1,7 +1,7 @@
 #ifndef PREVIEWSOURCE_H
 #define PREVIEWSOURCE_H
 
-#include "video/videosourcecanvasgeometry.h"
+#include "video/videosourcetransform.h"
 #include "video/videosourcefilter.h"
 #include "graphics/captureframe.h"
 
@@ -14,7 +14,7 @@ struct PreviewSource
     QString id;
     QImage image;
     bool visible = true;
-    VideoSourceCanvasGeometry canvasGeometry;
+    VideoSourceTransform transform;
     bool locked = false;
     QList<VideoSourceFilter> filters;
     std::shared_ptr<const CaptureFrame> frame;

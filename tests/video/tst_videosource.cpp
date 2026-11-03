@@ -11,7 +11,7 @@ private slots:
     void shortConstructorsPreserveMemberDefaults();
     void typeFollowsConfig();
     void configEditsAndSourceCopiesAreIndependent();
-    void canvasGeometryConstructionAndAngles();
+    void transformConstructionAndAngles();
     void cameraConfigValidation_data();
     void cameraConfigValidation();
     void cameraConfigComparison();
@@ -29,24 +29,24 @@ void VideoSourceTest::typeFollowsConfig()
     QCOMPARE(source.type(), VideoSourceType::DisplayCapture);
 }
 
-void VideoSourceTest::canvasGeometryConstructionAndAngles()
+void VideoSourceTest::transformConstructionAndAngles()
 {
-    const VideoSourceCanvasGeometry unset;
+    const VideoSourceTransform unset;
     QVERIFY(!unset.isValid());
     QVERIFY(!unset.contains(QPointF(960, 540)));
     QCOMPARE(unset.center(), QPointF(960, 540));
     QCOMPARE(unset.rotation(), 0.0);
     for (const QSizeF &size : {QSizeF(), QSizeF(0, 100), QSizeF(-1, 100)})
-        QVERIFY(VideoSourceCanvasGeometry(size) == unset);
-    QCOMPARE(VideoSourceCanvasGeometry(QSizeF(400, 200)).size(), QSizeF(400, 200));
-    QCOMPARE(VideoSourceCanvasGeometry(QSizeF(4000, 2000)).size(), QSizeF(1920, 960));
-    QCOMPARE(VideoSourceCanvasGeometry(QSizeF(1000, 4000)).size(), QSizeF(270, 1080));
-    const VideoSourceCanvasGeometry explicitGeometry{{10, 20}, {100, 50}};
+        QVERIFY(VideoSourceTransform(size) == unset);
+    QCOMPARE(VideoSourceTransform(QSizeF(400, 200)).size(), QSizeF(400, 200));
+    QCOMPARE(VideoSourceTransform(QSizeF(4000, 2000)).size(), QSizeF(1920, 960));
+    QCOMPARE(VideoSourceTransform(QSizeF(1000, 4000)).size(), QSizeF(270, 1080));
+    const VideoSourceTransform explicitGeometry{{10, 20}, {100, 50}};
     QCOMPARE(explicitGeometry.rotation(), 0.0);
     QVERIFY(explicitGeometry.isValid());
     QVERIFY(explicitGeometry.contains(explicitGeometry.center()));
     QVERIFY(explicitGeometry != unset);
-    VideoSourceCanvasGeometry editable;
+    VideoSourceTransform editable;
     editable.setCenter(QPointF(-20, 75));
     editable.setSize(QSizeF(300, 150));
     QCOMPARE(editable.center(), QPointF(-20, 75));
@@ -57,7 +57,7 @@ void VideoSourceTest::canvasGeometryConstructionAndAngles()
     for (int i = 0; i < 5; ++i) {
         editable.setRotation(inputs[i]);
         QCOMPARE(editable.rotation(), expected[i]);
-        const VideoSourceCanvasGeometry constructed{editable.center(), editable.size(), inputs[i]};
+        const VideoSourceTransform constructed{editable.center(), editable.size(), inputs[i]};
         QVERIFY(editable == constructed);
         QCOMPARE(editable.sourceToCanvas(), constructed.sourceToCanvas());
     }
@@ -66,7 +66,7 @@ void VideoSourceTest::canvasGeometryConstructionAndAngles()
           std::numeric_limits<qreal>::quiet_NaN()}) {
         editable.setRotation(invalid);
         QVERIFY(!editable.isValid());
-        QVERIFY(!VideoSourceCanvasGeometry(QPointF(), QSizeF(100, 50), invalid).isValid());
+        QVERIFY(!VideoSourceTransform(QPointF(), QSizeF(100, 50), invalid).isValid());
     }
     editable.setRotation(0);
     QVERIFY(editable.isValid());
@@ -158,7 +158,7 @@ void VideoSourceTest::configEditsAndSourceCopiesAreIndependent()
     copy.setConfig(ImageSourceConfig{"image.png"});
     copy.setVisible(false);
     copy.setLocked(true);
-    copy.setCanvasGeometry(VideoSourceCanvasGeometry(QSizeF(640, 360)));
+    copy.setTransform(VideoSourceTransform(QSizeF(640, 360)));
     QCOMPARE(copy.type(), VideoSourceType::Image);
     QCOMPARE(original.type(), VideoSourceType::Camera);
     QCOMPARE(original.id(), QString("source"));
@@ -168,7 +168,7 @@ void VideoSourceTest::configEditsAndSourceCopiesAreIndependent()
     QVERIFY(original.filters()[0].enabled());
     QVERIFY(original.visible());
     QVERIFY(!original.locked());
-    QVERIFY(original.canvasGeometry().size().isEmpty());
+    QVERIFY(original.transform().size().isEmpty());
 }
 
 void VideoSourceTest::shortConstructorsPreserveMemberDefaults()
@@ -200,7 +200,7 @@ void VideoSourceTest::shortConstructorsPreserveMemberDefaults()
     QCOMPARE(source.type(), VideoSourceType::DisplayCapture);
     QVERIFY(source.visible());
     QVERIFY(!source.locked());
-    QVERIFY(source.canvasGeometry().size().isEmpty());
+    QVERIFY(source.transform().size().isEmpty());
     QVERIFY(source.filters().isEmpty());
     QVERIFY(source.runtime().pixelSize().isEmpty());
     const VideoSource image{"image", "Image", ImageSourceConfig{"image.png"}};

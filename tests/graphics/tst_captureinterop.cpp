@@ -124,12 +124,12 @@ private slots:
         QTRY_COMPARE(controller.activeWorkerCount(), 0);
         QTest::qWait(200);
         QCOMPARE(errors.count(), 1);
-        const VideoSourceCanvasGeometry canvasGeometry{{400, 300}, {500, 250}, 25};
-        QVERIFY(model.setSourceCanvasGeometry(id, canvasGeometry));
+        const VideoSourceTransform transform{{400, 300}, {500, 250}, 25};
+        QVERIFY(model.setSourceTransform(id, transform));
         const QString filter = model.addFilter(id);
         QVERIFY(!filter.isEmpty());
         QVERIFY(model.setSourceConfig(id, DisplaySourceConfig{"another-missing-display", false}));
-        QCOMPARE(model.sources().at(0).canvasGeometry(), canvasGeometry);
+        QCOMPARE(model.sources().at(0).transform(), transform);
         QCOMPARE(model.sourceFilters(id)[0].id(), filter);
         QVERIFY(!displaySource(model, id)->captureCursor());
         QTRY_COMPARE(errors.count(), 2);
@@ -192,7 +192,7 @@ private slots:
         }
         const QString filter = model.addFilter(id);
         QVERIFY(setFilterConfig(model, id, filter, ColorCorrectionConfig{.1f, .8f, 1.2f}));
-        QVERIFY(model.setSourceCanvasGeometry(id, {{960, 540}, {1200, 700}, 17}));
+        QVERIFY(model.setSourceTransform(id, {{960, 540}, {1200, 700}, 17}));
         QVERIFY(!grabPreview(preview).isNull());
 
         const int seconds = qEnvironmentVariableIntValue("OPENLIVE_CAPTURE_SOAK_SECONDS");
@@ -281,10 +281,10 @@ private slots:
         QVERIFY(!snapshot[0].hasFrame());
         QTRY_VERIFY_WITH_TIMEOUT(hasFrame(), 5000);
         QVERIFY(snapshot[0].frame->generation > oldGeneration);
-        const auto canvasGeometry = snapshot[0].canvasGeometry;
+        const auto transform = snapshot[0].transform;
         QVERIFY(model.setSourceConfig(id, DisplaySourceConfig{targets[0].id, false}));
         QTRY_VERIFY_WITH_TIMEOUT(hasFrame(), 5000);
-        QCOMPARE(snapshot[0].canvasGeometry, canvasGeometry);
+        QCOMPARE(snapshot[0].transform, transform);
         QCOMPARE(snapshot[0].filters[0].id(), filter);
 
         qputenv("OPENLIVE_FORCE_INTEROP_FAILURE", "1");
@@ -437,7 +437,7 @@ private slots:
                 gpuFrame->gpu = resource;
                 PreviewSource source;
                 source.id = "synthetic";
-                source.canvasGeometry = {{960, 540}, {1920, 1080}, 0};
+                source.transform = {{960, 540}, {1920, 1080}, 0};
                 source.frame = gpuFrame;
                 VideoSourceFilter correction{"correction"};
                 {
