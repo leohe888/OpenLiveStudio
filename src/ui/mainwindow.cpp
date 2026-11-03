@@ -31,6 +31,25 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     setMinimumSize(960, 640);
     resize(1280, 720);
 
+    setupSourceControllers();
+    setupPreview();
+    setupOutputControllers();
+    setupStatusBar();
+    connectSourceErrors();
+    setupSourcesDock();
+    setupMixerDock();
+    setupControlsDock();
+    setupDockLayout();
+    // Do not pass `this` when constructing these objects above: Qt deletes child
+    // objects in child-list order. Set their parent after creating the docks so
+    // the dock widgets are destroyed before the models/settings they reference.
+    m_videoSourceManager->setParent(this);
+    m_audioSourceManager->setParent(this);
+    m_outputSettings->setParent(this);
+}
+
+void MainWindow::setupSourceControllers()
+{
     m_videoSourceManager = new VideoSourceManager;
     m_audioSourceManager = new AudioSourceManager;
     m_outputSettings = new OutputSettings;
@@ -44,8 +63,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
             m_videoSourceAggregator, &VideoSourceAggregator::setImageSources);
     connect(m_cameraSourceController, &CameraSourceController::sourcesChanged,
             m_videoSourceAggregator, &VideoSourceAggregator::setCameraSources);
-    setupPreview();
-    if (auto *preview = findChild<PreviewWidget *>(QStringLiteral("previewWidget"))) {
+}
+
+void MainWindow::setupOutputControllers()
+{
+    if (auto *preview = m_preview) {
         m_recordingController =
             new RecordingController(*preview->compositor(), *m_audioSourceManager->mixer(), this);
         m_streamingController =
@@ -65,7 +87,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
                 QTimer::singleShot(0, this, &QWidget::close);
         });
     }
-    setupStatusBar();
+}
+
+void MainWindow::connectSourceErrors()
+{
     connect(m_audioSourceManager, &AudioSourceManager::sourceFailed, this,
             [this](const QString &sourceId, const QString &message) {
                 const auto *source = m_audioSourceManager->source(sourceId);
@@ -85,18 +110,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     connect(m_displaySourceController, &DisplaySourceController::sourceFailed, this,
             showSourceError);
     connect(m_cameraSourceController, &CameraSourceController::sourceFailed, this, showSourceError);
-    if (auto *preview = findChild<PreviewWidget *>(QStringLiteral("previewWidget")))
+    if (auto *preview = m_preview)
         connect(preview, &PreviewWidget::sourceFailed, this, showSourceError, Qt::QueuedConnection);
-    setupSourcesDock();
-    setupMixerDock();
-    setupControlsDock();
-    setupDockLayout();
-    // Do not pass `this` when constructing these objects above: Qt deletes child
-    // objects in child-list order. Set their parent after creating the docks so
-    // the dock widgets are destroyed before the models/settings they reference.
-    m_videoSourceManager->setParent(this);
-    m_audioSourceManager->setParent(this);
-    m_outputSettings->setParent(this);
 }
 
 MainWindow::~MainWindow()
@@ -292,6 +307,7 @@ void MainWindow::setupPreview()
     }
 
     auto *preview = new PreviewWidget(pages);
+    m_preview = preview;
     preview->setObjectName(QStringLiteral("previewWidget"));
     connect(preview, &PreviewWidget::renderingFailed, pages, showError, Qt::QueuedConnection);
     connect(m_videoSourceAggregator, &VideoSourceAggregator::sourcesChanged, preview,

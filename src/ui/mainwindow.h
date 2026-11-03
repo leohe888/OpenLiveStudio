@@ -3,6 +3,7 @@
 
 #include <QMainWindow>
 
+class PreviewWidget;
 class QDockWidget;
 class QLabel;
 class VideoSourceManager;
@@ -38,6 +39,9 @@ private slots:
     void toggleStreaming();
 
 private:
+    void setupSourceControllers();
+    void setupOutputControllers();
+    void connectSourceErrors();
     void setupPreview();
     void setupStatusBar();
     void setupSourcesDock();
@@ -45,6 +49,7 @@ private:
     void setupControlsDock();
     void setupDockLayout();
     void updateOutputStatus();
+    PreviewWidget *m_preview = nullptr;
     QDockWidget *m_videoSourceDock = nullptr;
     QDockWidget *m_audioSourceDock = nullptr;
     QDockWidget *m_controlDock = nullptr;

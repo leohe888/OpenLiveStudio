@@ -6,7 +6,8 @@
 #include "core/outputtap.h"
 #include <functional>
 
-// Worker-owned resampler. Independent subscriptions and origin for each output.
+// Aligns timestamped video and audio to the fixed encoder cadence.
+// Each output worker owns its subscriptions, history and clock origin.
 class OutputTimeline
 {
 public:
@@ -22,7 +23,7 @@ public:
 
     qint64 origin() const
     {
-        return m_origin;
+        return m_originNs;
     }
 
     quint64 dropped() const
@@ -37,23 +38,33 @@ public:
 
     qint64 missingAudio() const
     {
-        return m_missing;
+        return m_missingAudioFrames;
     }
 
     qint64 lag(qint64 index) const
     {
-        return MediaClock::nowNs() - (m_origin + index * 1000000000LL / 30);
+        return MediaClock::nowNs() - (m_originNs + index * 1000000000LL / outputFramesPerSecond);
     }
 
 private:
+    static constexpr int outputFramesPerSecond = 30;
+    void collectPendingMedia();
+    void checkProducerHealth(qint64 nowNs);
+    void selectVideoFrame(qint64 targetTimeNs, QImage &image);
+    void assembleAudioFrame(qint64 frameIndex, QVector<float> &samples);
+
     Compositor &m_video;
     AudioMixer &m_audio;
     std::shared_ptr<OutputTap<ComposedImage>> m_videoTap;
     std::shared_ptr<OutputTap<std::shared_ptr<const MixedAudioBlock>>> m_audioTap;
     std::deque<ComposedImage> m_images;
     std::deque<std::shared_ptr<const MixedAudioBlock>> m_audioBlocks;
-    QImage m_last;
-    qint64 m_origin = 0, m_lastTime = 0, m_previousTime = -1, m_inactive = 0, m_missing = 0;
+    QImage m_selectedImage;
+    qint64 m_originNs = 0;
+    qint64 m_selectedImageTimeNs = 0;
+    qint64 m_previousImageTimeNs = -1;
+    qint64 m_producersInactiveSinceNs = 0;
+    qint64 m_missingAudioFrames = 0;
     quint64 m_repeated = 0;
     quint64 m_audioDropBaseline = 0;
 };
