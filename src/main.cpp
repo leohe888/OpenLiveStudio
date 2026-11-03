@@ -12,15 +12,15 @@ int main(int argc, char *argv[])
     format.setProfile(QSurfaceFormat::CoreProfile);
     QSurfaceFormat::setDefaultFormat(format);
 
-    QApplication a(argc, argv);
+    QApplication application(argc, argv);
 
-    QFile style(":/assets/styles/style.qss");
-    if (!style.open(QIODevice::ReadOnly | QIODevice::Text))
+    QFile styleFile(":/assets/styles/style.qss");
+    if (!styleFile.open(QIODevice::ReadOnly | QIODevice::Text))
         qFatal("Cannot load application style sheet");
-    a.setStyleSheet(QString::fromUtf8(style.readAll()));
+    application.setStyleSheet(QString::fromUtf8(styleFile.readAll()));
 
-    MainWindow w;
-    w.show();
+    MainWindow mainWindow;
+    mainWindow.show();
 
     return QApplication::exec();
 }

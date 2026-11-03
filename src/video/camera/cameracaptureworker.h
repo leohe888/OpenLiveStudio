@@ -19,25 +19,27 @@ struct CameraMode
 {
     int width = 0;
     int height = 0;
-    int numerator = 0;
-    int denominator = 1;
+    int frameRateNumerator = 0;
+    int frameRateDenominator = 1;
     QString subtype;
     QString name;
 
     bool isValid() const
     {
-        return width > 0 && height > 0 && numerator > 0 && denominator > 0;
+        return width > 0 && height > 0 && frameRateNumerator > 0 && frameRateDenominator > 0;
     }
 
     bool sameFormat(const CameraMode &other) const
     {
         return width == other.width && height == other.height &&
-               qint64(numerator) * other.denominator == qint64(other.numerator) * denominator;
+               qint64(frameRateNumerator) * other.frameRateDenominator ==
+                   qint64(other.frameRateNumerator) * frameRateDenominator;
     }
 
     CameraSourceConfig config(const QString &deviceId) const
     {
-        return width > 0 ? CameraSourceConfig{deviceId, QSize(width, height), numerator, denominator}
+        return width > 0 ? CameraSourceConfig{deviceId, QSize(width, height), frameRateNumerator,
+                                              frameRateDenominator}
                          : CameraSourceConfig{deviceId};
     }
 };
@@ -49,7 +51,7 @@ struct CameraFrame
     qint64 timestampNs = 0;
     qint64 deviceTimestamp100ns = 0;
     quint64 sequence = 0, generation = 0;
-    int rateNumerator = 0, rateDenominator = 1;
+    int frameRateNumerator = 0, frameRateDenominator = 1;
 };
 
 // Each function initializes and shuts down COM/MF on its calling background thread.

@@ -67,21 +67,21 @@ public:
         if (block.samples.isEmpty() || block.samples.size() % 2 || block.frames() > maxFrames)
             return;
         std::lock_guard<std::mutex> lock(m_mutex);
-        m_frames += block.frames();
+        m_queuedFrames += block.frames();
         m_packets.push_back(std::move(block));
-        while (m_frames > maxFrames) {
-            m_frames -= m_packets.front().frames();
-            m_dropped += m_packets.front().frames();
+        while (m_queuedFrames > maxFrames) {
+            m_queuedFrames -= m_packets.front().frames();
+            m_droppedFrames += m_packets.front().frames();
             m_packets.pop_front();
         }
     }
 
-    Batch take()
+    Batch takeAll()
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         Batch result{m_generation, {}};
         result.packets.swap(m_packets);
-        m_frames = 0;
+        m_queuedFrames = 0;
         return result;
     }
 
@@ -89,21 +89,21 @@ public:
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_packets.clear();
-        m_frames = 0;
+        m_queuedFrames = 0;
         ++m_generation;
     }
 
     quint64 droppedFrames() const
     {
         std::lock_guard<std::mutex> lock(m_mutex);
-        return m_dropped;
+        return m_droppedFrames;
     }
 
 private:
     mutable std::mutex m_mutex;
     std::deque<AudioBlock> m_packets;
-    int m_frames = 0;
-    quint64 m_generation = 0, m_dropped = 0;
+    int m_queuedFrames = 0;
+    quint64 m_generation = 0, m_droppedFrames = 0;
 };
 
 struct AudioInput

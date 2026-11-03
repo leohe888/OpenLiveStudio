@@ -1,7 +1,7 @@
 #ifndef PREVIEWWIDGET_H
 #define PREVIEWWIDGET_H
 
-#include "graphics/previewsource.h"
+#include "graphics/rendersourcesnapshot.h"
 #include "graphics/compositor.h"
 #include <QTimer>
 
@@ -27,7 +27,7 @@ public:
 
     // Call on the GUI thread. Topmost first; applied on the next composition tick.
     // An unset canvas geometry uses the initial centered, fit-without-upscaling layout.
-    void setSources(const QList<PreviewSource> &sources);
+    void setSources(const QList<RenderSourceSnapshot> &sources);
     void setCurrentSourceId(const QString &sourceId);
 
     QColor selectionColor() const
@@ -77,15 +77,15 @@ protected:
 private:
     friend class PreviewWidgetTest;
 
-    const PreviewSource *selectedSource() const;
-    bool selectable(const PreviewSource &source) const;
+    const RenderSourceSnapshot *selectedSource() const;
+    bool isSourceSelectable(const RenderSourceSnapshot &source) const;
     QRectF canvasRect() const;
     QTransform canvasToWidget() const;
-    static VideoSourceTransform resized(const VideoSourceTransform &start, int handle,
+    static VideoSourceTransform resizeTransform(const VideoSourceTransform &start, int handle,
                                         const QPointF &canvasDelta);
     QPointF toCanvas(const QPointF &point) const;
-    QPolygonF selectionHandles(const PreviewSource &source) const;
-    int handleAt(const PreviewSource &source, const QPointF &point) const;
+    QPolygonF selectionHandles(const RenderSourceSnapshot &source) const;
+    int handleAt(const RenderSourceSnapshot &source, const QPointF &point) const;
     void paintSelection();
     void endGesture();
     void updateGesture(const QPointF &position);
@@ -93,7 +93,7 @@ private:
     void cleanup();
     void reportError(const QString &message);
 
-    QList<PreviewSource> m_sources;
+    QList<RenderSourceSnapshot> m_sources;
     QString m_currentSourceId;
     QColor m_selectionColor;
     enum class Gesture {
@@ -104,8 +104,8 @@ private:
     };
     Gesture m_gesture = Gesture::None;
     QString m_gestureSourceId;
-    VideoSourceTransform m_gestureStart;
-    QPointF m_pressCanvas;
+    VideoSourceTransform m_gestureStartTransform;
+    QPointF m_pressCanvasPosition;
     int m_resizeHandle = -1;
     QColor m_surroundingColor = Qt::black;
     QString m_lastError;
@@ -114,9 +114,9 @@ private:
     std::unique_ptr<QOpenGLBuffer> m_vertexBuffer;
     std::unique_ptr<QOpenGLVertexArrayObject> m_vertexArray;
     Compositor m_compositor;
-    QTimer m_framePoll;
+    QTimer m_framePollTimer;
     std::shared_ptr<const CompositionFrame> m_presentedFrame;
-    QMetaObject::Connection m_contextDestruction;
+    QMetaObject::Connection m_contextDestructionConnection;
 };
 
 #endif // PREVIEWWIDGET_H

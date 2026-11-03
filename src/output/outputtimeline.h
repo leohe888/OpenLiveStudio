@@ -21,29 +21,30 @@ public:
     bool read(qint64 frameIndex, QImage &image, QVector<float> &samples);
     void recover(); // Drop old local history after a live-only timeline jump.
 
-    qint64 origin() const
+    qint64 originNs() const
     {
         return m_originNs;
     }
 
-    quint64 dropped() const
+    quint64 droppedVideoFrames() const
     {
         return m_videoTap->dropped();
     }
 
-    quint64 repeated() const
+    quint64 repeatedVideoFrames() const
     {
-        return m_repeated;
+        return m_repeatedVideoFrames;
     }
 
-    qint64 missingAudio() const
+    qint64 missingAudioFrames() const
     {
         return m_missingAudioFrames;
     }
 
-    qint64 lag(qint64 index) const
+    qint64 lagNs(qint64 frameIndex) const
     {
-        return MediaClock::nowNs() - (m_originNs + index * 1000000000LL / outputFramesPerSecond);
+        return MediaClock::nowNs() -
+               (m_originNs + frameIndex * 1000000000LL / outputFramesPerSecond);
     }
 
 private:
@@ -65,7 +66,7 @@ private:
     qint64 m_previousImageTimeNs = -1;
     qint64 m_producersInactiveSinceNs = 0;
     qint64 m_missingAudioFrames = 0;
-    quint64 m_repeated = 0;
-    quint64 m_audioDropBaseline = 0;
+    quint64 m_repeatedVideoFrames = 0;
+    quint64 m_audioDropCountBaseline = 0;
 };
 #endif

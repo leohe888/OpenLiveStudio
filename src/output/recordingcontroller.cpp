@@ -26,7 +26,7 @@ public:
     void requestStop()
     {
         qint64 expected = 0;
-        m_stopAt.compare_exchange_strong(expected, MediaClock::nowNs());
+        m_stopAtNs.compare_exchange_strong(expected, MediaClock::nowNs());
     }
 
     RecordingStatus snapshot() const
@@ -41,12 +41,12 @@ protected:
         MediaEncoder encoder;
         RecordingStatus result = snapshot();
         // Deterministic acceptance-test hook; never enabled by the product UI.
-        const int artificialDelay = std::clamp(
+        const int artificialEncodeDelayMs = std::clamp(
             qEnvironmentVariableIntValue("OPENLIVE_RECORDING_ENCODER_DELAY_MS"), 0, 1000);
-        const int pauseOnce =
+        const int artificialPauseOnceMs =
             std::clamp(qEnvironmentVariableIntValue("OPENLIVE_RECORDING_PAUSE_ONCE_MS"), 0, 800);
         try {
-            if (m_stopAt.load()) {
+            if (m_stopAtNs.load()) {
                 result.state = "idle";
                 publish(result);
                 return;
@@ -54,73 +54,77 @@ protected:
             encoder.open(result.path, m_bitrateKbps);
             OutputTimeline timeline(m_video, m_audio);
             if (!timeline.initialize([&] {
-                    return m_stopAt.load() != 0;
+                    return m_stopAtNs.load() != 0;
                 })) {
                 result.state = "idle";
                 publish(result);
                 return;
             }
-            const auto origin = timeline.origin();
+            const auto originNs = timeline.originNs();
             result.state = "recording";
             publish(result);
-            qint64 pressureSince = 0, pressureBaseline = 0;
+            qint64 pressureSinceNs = 0, pressureBaselineNs = 0;
             while (true) {
-                const auto stop = m_stopAt.load();
+                const auto stopTimeNs = m_stopAtNs.load();
                 const qint64 finalFrames =
-                    stop ? std::max<qint64>(1, ((stop - origin) * 30 + 999999999LL) / 1000000000LL)
-                         : 0;
-                if (stop)
+                    stopTimeNs ? std::max<qint64>(1, ((stopTimeNs - originNs) * 30 + 999999999LL) /
+                                                         1000000000LL)
+                               : 0;
+                if (stopTimeNs)
                     result.state = "stopping";
-                if (stop && result.videoFrames >= finalFrames)
+                if (stopTimeNs && result.videoFrames >= finalFrames)
                     break;
                 QImage image;
                 QVector<float> samples;
                 if (!timeline.read(result.videoFrames, image, samples)) {
-                    publishProgress(result, origin, stop);
+                    publishProgress(result, originNs, stopTimeNs);
                     QThread::msleep(3);
                     continue;
                 }
-                result.lagMs = timeline.lag(result.videoFrames) / 1000000;
+                result.lagMs = timeline.lagNs(result.videoFrames) / 1000000;
                 // A backlog that is draining after a scheduling/IO hiccup is
                 // not sustained overload. Only shed streaming when the backlog
                 // stays high and fails to decrease over a 150 ms observation.
-                const auto lag = timeline.lag(result.videoFrames), now = MediaClock::nowNs();
-                if (lag <= 650000000LL) {
-                    pressureSince = 0;
+                const auto lagNs = timeline.lagNs(result.videoFrames), nowNs = MediaClock::nowNs();
+                if (lagNs <= 650000000LL) {
+                    pressureSinceNs = 0;
                     result.pressured = false;
-                } else if (!pressureSince) {
-                    pressureSince = now;
-                    pressureBaseline = lag;
-                } else if (now - pressureSince > 150000000LL) {
-                    result.pressured = lag >= pressureBaseline;
-                    pressureSince = now;
-                    pressureBaseline = lag;
+                } else if (!pressureSinceNs) {
+                    pressureSinceNs = nowNs;
+                    pressureBaselineNs = lagNs;
+                } else if (nowNs - pressureSinceNs > 150000000LL) {
+                    result.pressured = lagNs >= pressureBaselineNs;
+                    pressureSinceNs = nowNs;
+                    pressureBaselineNs = lagNs;
                 }
-                if (timeline.lag(result.videoFrames) > 1000000000LL)
+                if (timeline.lagNs(result.videoFrames) > 1000000000LL)
                     throw QStringLiteral("编码持续落后超过一秒，录制已停止。");
-                const auto encodeStart = MediaClock::nowNs(), outputStart = encoder.outputTimeNs();
-                encoder.video(image, result.videoFrames);
-                const auto audioStart = MediaClock::nowNs(), videoOutput = encoder.outputTimeNs();
+                const auto encodeStartNs = MediaClock::nowNs(),
+                           outputTimeBeforeNs = encoder.outputTimeNs();
+                encoder.encodeVideoFrame(image, result.videoFrames);
+                const auto audioStartNs = MediaClock::nowNs(),
+                           outputTimeAfterVideoNs = encoder.outputTimeNs();
                 result.videoEncodeMs =
-                    (audioStart - encodeStart - (videoOutput - outputStart)) / 1000000;
+                    (audioStartNs - encodeStartNs - (outputTimeAfterVideoNs - outputTimeBeforeNs)) /
+                    1000000;
                 result.conversionMs = encoder.lastConversionNs() / 1000000;
                 result.imageFormat = int(image.format());
-                encoder.audio(samples);
-                result.audioEncodeMs =
-                    (MediaClock::nowNs() - audioStart - (encoder.outputTimeNs() - videoOutput)) /
-                    1000000;
-                result.lastOutputMs = (encoder.outputTimeNs() - outputStart) / 1000000;
+                encoder.encodeAudioSamples(samples);
+                result.audioEncodeMs = (MediaClock::nowNs() - audioStartNs -
+                                        (encoder.outputTimeNs() - outputTimeAfterVideoNs)) /
+                                       1000000;
+                result.lastOutputMs = (encoder.outputTimeNs() - outputTimeBeforeNs) / 1000000;
                 result.lastEncodeMs =
-                    (MediaClock::nowNs() - encodeStart) / 1000000 - result.lastOutputMs;
+                    (MediaClock::nowNs() - encodeStartNs) / 1000000 - result.lastOutputMs;
                 ++result.videoFrames;
-                result.repeatedFrames = timeline.repeated();
-                result.missingAudioSamples = timeline.missingAudio();
-                result.droppedFrames = timeline.dropped();
-                if (artificialDelay)
-                    QThread::msleep(unsigned(artificialDelay));
-                if (pauseOnce && result.videoFrames == 6)
-                    QThread::msleep(unsigned(pauseOnce));
-                publishProgress(result, origin, stop);
+                result.repeatedFrames = timeline.repeatedVideoFrames();
+                result.missingAudioFrames = timeline.missingAudioFrames();
+                result.droppedFrames = timeline.droppedVideoFrames();
+                if (artificialEncodeDelayMs)
+                    QThread::msleep(unsigned(artificialEncodeDelayMs));
+                if (artificialPauseOnceMs && result.videoFrames == 6)
+                    QThread::msleep(unsigned(artificialPauseOnceMs));
+                publishProgress(result, originNs, stopTimeNs);
             }
             encoder.finish();
             result.fileComplete = true;
@@ -152,17 +156,17 @@ private:
         m_status = status;
     }
 
-    void publishProgress(RecordingStatus &status, qint64 origin, qint64 stop)
+    void publishProgress(RecordingStatus &status, qint64 originNs, qint64 stopTimeNs)
     {
-        status.durationMs =
-            std::max<qint64>(0, ((stop ? stop : MediaClock::nowNs()) - origin) / 1000000);
+        status.durationMs = std::max<qint64>(
+            0, ((stopTimeNs ? stopTimeNs : MediaClock::nowNs()) - originNs) / 1000000);
         publish(status);
     }
 
     Compositor &m_video;
     AudioMixer &m_audio;
     int m_bitrateKbps;
-    std::atomic<qint64> m_stopAt{0};
+    std::atomic<qint64> m_stopAtNs{0};
     mutable std::mutex m_mutex;
     RecordingStatus m_status;
 };
@@ -170,9 +174,9 @@ private:
 RecordingController::RecordingController(Compositor &video, AudioMixer &audio, QObject *parent)
     : QObject(parent), m_video(video), m_audio(audio)
 {
-    m_poll.setInterval(50);
-    connect(&m_poll, &QTimer::timeout, this, &RecordingController::poll);
-    m_poll.start();
+    m_statusPollTimer.setInterval(50);
+    connect(&m_statusPollTimer, &QTimer::timeout, this, &RecordingController::refreshWorkerStatus);
+    m_statusPollTimer.start();
     for (auto *thread : {static_cast<QThread *>(&m_video), static_cast<QThread *>(&m_audio)}) {
         connect(thread, &QThread::started, this, &RecordingController::availabilityChanged);
         connect(thread, &QThread::finished, this, &RecordingController::availabilityChanged);
@@ -186,7 +190,7 @@ bool RecordingController::ready() const
 
 RecordingController::~RecordingController()
 {
-    m_poll.stop();
+    m_statusPollTimer.stop();
     if (m_worker) {
         m_worker->requestStop();
         m_worker->wait();
@@ -210,7 +214,7 @@ bool RecordingController::startRecording(const QString &path, int bitrateKbps)
         return false;
     }
     m_worker = std::make_unique<RecordingWorker>(m_video, m_audio, path, bitrateKbps);
-    connect(m_worker.get(), &QThread::finished, this, &RecordingController::poll,
+    connect(m_worker.get(), &QThread::finished, this, &RecordingController::refreshWorkerStatus,
             Qt::QueuedConnection);
     m_status = m_worker->snapshot();
     emit statusChanged();
@@ -227,7 +231,7 @@ void RecordingController::stopRecording()
     emit statusChanged();
 }
 
-void RecordingController::poll()
+void RecordingController::refreshWorkerStatus()
 {
     if (!m_worker)
         return;

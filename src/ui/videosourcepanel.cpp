@@ -24,7 +24,8 @@
 #include <array>
 
 namespace {
-QToolButton *action(QWidget *parent, const char *name, const QString &text, const char *icon)
+QToolButton *createActionButton(QWidget *parent, const char *name, const QString &text,
+                                const char *icon)
 {
     auto *button = new QToolButton(parent);
     button->setObjectName(name);
@@ -35,7 +36,7 @@ QToolButton *action(QWidget *parent, const char *name, const QString &text, cons
     return button;
 }
 
-QLabel *label(QWidget *parent, const char *name, const QString &text = {})
+QLabel *createPlainLabel(QWidget *parent, const char *name, const QString &text = {})
 {
     auto *result = new QLabel(text, parent);
     result->setObjectName(name);
@@ -44,7 +45,7 @@ QLabel *label(QWidget *parent, const char *name, const QString &text = {})
     return result;
 }
 
-QDialog *dialogShell(QWidget *parent, const char *name, const QString &title)
+QDialog *createSourceDialog(QWidget *parent, const char *name, const QString &title)
 {
     auto *dialog = new QDialog(parent);
     dialog->setObjectName(name);
@@ -72,18 +73,18 @@ void fillDevices(QComboBox *combo, const QList<Device> &entries, const QString &
     combo->setPlaceholderText(QObject::tr("暂无可用设备"));
 }
 
-class CaptureSettings : public QWidget
+class CaptureSettingsWidget : public QWidget
 {
 public:
-    QComboBox *device, *mode = nullptr;
-    QCheckBox *cursor = nullptr;
-    QPushButton *refresh;
-    QLabel *error;
-    bool loading = false;
-    std::function<void()> changed;
+    QComboBox *deviceInput, *modeInput = nullptr;
+    QCheckBox *captureCursorInput = nullptr;
+    QPushButton *refreshButton;
+    QLabel *errorLabel;
+    bool modesLoading = false;
+    std::function<void()> onSettingsChanged;
 
-    CaptureSettings(QWidget *parent, DisplaySourceController *displays,
-                    CameraSourceController *cameras, bool camera)
+    CaptureSettingsWidget(QWidget *parent, DisplaySourceController *displays,
+                    CameraSourceController *cameras, bool isCamera)
         : QWidget(parent)
     {
         auto *layout = new QVBoxLayout(this);
@@ -91,102 +92,103 @@ public:
 
         auto *row = new QHBoxLayout;
         layout->addLayout(row);
-        device = new QComboBox(this);
-        device->setMinimumWidth(0);
-        device->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
-        device->setObjectName(camera ? "cameraDeviceInput" : "displayTargetInput");
-        row->addWidget(device, 1);
-        refresh = new QPushButton(tr("刷新"), this);
-        refresh->setObjectName(camera ? "refreshCamerasButton" : "refreshDisplaysButton");
-        row->addWidget(refresh);
-        error = label(this, "deviceCatalogError");
-        error->setProperty("uiError", true);
-        if (!camera) {
-            cursor = new QCheckBox(tr("采集鼠标光标"), this);
-            cursor->setObjectName("captureCursorInput");
-            cursor->setChecked(true);
-            layout->addWidget(cursor);
+        deviceInput = new QComboBox(this);
+        deviceInput->setMinimumWidth(0);
+        deviceInput->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+        deviceInput->setObjectName(isCamera ? "cameraDeviceInput" : "displayTargetInput");
+        row->addWidget(deviceInput, 1);
+        refreshButton = new QPushButton(tr("刷新"), this);
+        refreshButton->setObjectName(isCamera ? "refreshCamerasButton" : "refreshDisplaysButton");
+        row->addWidget(refreshButton);
+        errorLabel = createPlainLabel(this, "deviceCatalogError");
+        errorLabel->setProperty("uiError", true);
+        if (!isCamera) {
+            captureCursorInput = new QCheckBox(tr("采集鼠标光标"), this);
+            captureCursorInput->setObjectName("captureCursorInput");
+            captureCursorInput->setChecked(true);
+            layout->addWidget(captureCursorInput);
             layout->addWidget(
-                label(this, "displayCaptureHint", tr("原始分辨率 · 最高 30 FPS · SDR")));
-            fillDevices(device, displays->displayDevices(), {});
+                createPlainLabel(this, "displayCaptureHint", tr("原始分辨率 · 最高 30 FPS · SDR")));
+            fillDevices(deviceInput, displays->displayDevices(), {});
             connect(displays, &DisplaySourceController::displayDevicesChanged, this, [=] {
-                fillDevices(device, displays->displayDevices(), device->currentData().toString());
-                if (changed)
-                    changed();
+                fillDevices(deviceInput, displays->displayDevices(),
+                            deviceInput->currentData().toString());
+                if (onSettingsChanged)
+                    onSettingsChanged();
             });
-            connect(refresh, &QPushButton::clicked, displays,
+            connect(refreshButton, &QPushButton::clicked, displays,
                     &DisplaySourceController::refreshDisplayDevices);
             displays->refreshDisplayDevices();
         } else {
-            mode = new QComboBox(this);
-            mode->setObjectName("cameraModeInput");
-            layout->addWidget(mode);
-            fillDevices(device, cameras->devices(), {});
+            modeInput = new QComboBox(this);
+            modeInput->setObjectName("cameraModeInput");
+            layout->addWidget(modeInput);
+            fillDevices(deviceInput, cameras->devices(), {});
 
             const auto loadModes = [=] {
-                const auto id = device->currentData().toString();
-                loading = !id.isEmpty();
-                mode->setEnabled(!loading);
-                error->clear();
-                if (changed)
-                    changed();
-                if (loading)
+                const auto id = deviceInput->currentData().toString();
+                modesLoading = !id.isEmpty();
+                modeInput->setEnabled(!modesLoading);
+                errorLabel->clear();
+                if (onSettingsChanged)
+                    onSettingsChanged();
+                if (modesLoading)
                     cameras->requestModes(id);
             };
 
             connect(cameras, &CameraSourceController::devicesChanged, this, [=] {
-                const auto previous = device->currentData().toString();
-                fillDevices(device, cameras->devices(), previous);
-                refresh->setEnabled(!cameras->refreshing());
-                error->setText(cameras->catalogError());
-                if (previous != device->currentData().toString())
+                const auto previousDeviceId = deviceInput->currentData().toString();
+                fillDevices(deviceInput, cameras->devices(), previousDeviceId);
+                refreshButton->setEnabled(!cameras->refreshing());
+                errorLabel->setText(cameras->catalogError());
+                if (previousDeviceId != deviceInput->currentData().toString())
                     loadModes();
-                if (changed)
-                    changed();
+                if (onSettingsChanged)
+                    onSettingsChanged();
             });
             connect(cameras, &CameraSourceController::modesChanged, this,
-                    [=](const QString &sourceId, const QString &message) {
-                        if (sourceId != device->currentData().toString())
+                    [=](const QString &deviceId, const QString &message) {
+                        if (deviceId != deviceInput->currentData().toString())
                             return;
 
-                        auto selected = mode->currentData().value<CameraMode>();
-                        QSignalBlocker blocker(mode);
-                        mode->clear();
-                        mode->addItem(tr("设备默认"), QVariant::fromValue(CameraMode{}));
-                        int current = 0;
-                        for (const auto &entry : cameras->modes(sourceId)) {
-                            mode->addItem(entry.name, QVariant::fromValue(entry));
-                            if (entry.sameFormat(selected))
-                                current = mode->count() - 1;
+                        auto selectedMode = modeInput->currentData().value<CameraMode>();
+                        QSignalBlocker blocker(modeInput);
+                        modeInput->clear();
+                        modeInput->addItem(tr("设备默认"), QVariant::fromValue(CameraMode{}));
+                        int selectedModeIndex = 0;
+                        for (const auto &entry : cameras->modes(deviceId)) {
+                            modeInput->addItem(entry.name, QVariant::fromValue(entry));
+                            if (entry.sameFormat(selectedMode))
+                                selectedModeIndex = modeInput->count() - 1;
                         }
-                        mode->setCurrentIndex(current);
-                        loading = false;
-                        mode->setEnabled(true);
-                        error->setText(message);
-                        if (changed)
-                            changed();
+                        modeInput->setCurrentIndex(selectedModeIndex);
+                        modesLoading = false;
+                        modeInput->setEnabled(true);
+                        errorLabel->setText(message);
+                        if (onSettingsChanged)
+                            onSettingsChanged();
                     });
-            connect(device, &QComboBox::activated, this, [=] {
-                mode->clear();
+            connect(deviceInput, &QComboBox::activated, this, [=] {
+                modeInput->clear();
                 loadModes();
             });
-            connect(refresh, &QPushButton::clicked, this, [=] {
+            connect(refreshButton, &QPushButton::clicked, this, [=] {
                 cameras->refreshDevices();
                 loadModes();
             });
             cameras->refreshDevices();
             loadModes();
         }
-        layout->addWidget(error);
-        connect(device, &QComboBox::currentIndexChanged, this, [this] {
-            if (changed)
-                changed();
+        layout->addWidget(errorLabel);
+        connect(deviceInput, &QComboBox::currentIndexChanged, this, [this] {
+            if (onSettingsChanged)
+                onSettingsChanged();
         });
     }
 
     bool ready() const
     {
-        return !device->currentData().toString().isEmpty() && !loading;
+        return !deviceInput->currentData().toString().isEmpty() && !modesLoading;
     }
 };
 }
@@ -209,7 +211,7 @@ VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent)
     list->setObjectName("sourceList");
     stack->addWidget(list);
 
-    auto *empty = label(content, "emptySourcesLabel", tr("暂无来源"));
+    auto *empty = createPlainLabel(content, "emptySourcesLabel", tr("暂无来源"));
     empty->setAlignment(Qt::AlignCenter);
     empty->setAttribute(Qt::WA_TransparentForMouseEvents);
     stack->addWidget(empty);
@@ -219,19 +221,20 @@ VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent)
     buttons->setSpacing(2);
     layout->addLayout(buttons);
 
-    auto *add = action(this, "addSourceButton", tr("添加来源"), "plus");
+    auto *add = createActionButton(this, "addSourceButton", tr("添加来源"), "plus");
     buttons->addWidget(add);
 
-    auto *remove = action(this, "removeSourceButton", tr("移除来源"), "minus");
+    auto *remove = createActionButton(this, "removeSourceButton", tr("移除来源"), "minus");
     buttons->addWidget(remove);
 
-    auto *up = action(this, "moveSourceUpButton", tr("来源上移"), "arrow-up");
+    auto *up = createActionButton(this, "moveSourceUpButton", tr("来源上移"), "arrow-up");
     buttons->addWidget(up);
 
-    auto *down = action(this, "moveSourceDownButton", tr("来源下移"), "arrow-down");
+    auto *down = createActionButton(this, "moveSourceDownButton", tr("来源下移"), "arrow-down");
     buttons->addWidget(down);
 
-    auto *filters = action(this, "sourceFiltersButton", tr("来源滤镜"), "sliders-horizontal");
+    auto *filters =
+        createActionButton(this, "sourceFiltersButton", tr("来源滤镜"), "sliders-horizontal");
     buttons->addWidget(filters);
     buttons->addStretch();
 
@@ -302,17 +305,19 @@ VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent)
             rowLayout->setContentsMargins(8, 0, 0, 0);
             rowLayout->setSpacing(0);
 
-            auto *text = label(widget, "sourceName");
+            auto *text = createPlainLabel(widget, "sourceName");
             text->setWordWrap(false);
             text->setMinimumWidth(0);
             text->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
             text->setAttribute(Qt::WA_TransparentForMouseEvents);
             rowLayout->addWidget(text, 1);
 
-            auto *visible = action(widget, "sourceVisibilityButton", tr("显示/隐藏来源"), "eye");
+            auto *visible =
+                createActionButton(widget, "sourceVisibilityButton", tr("显示/隐藏来源"), "eye");
             rowLayout->addWidget(visible);
 
-            auto *locked = action(widget, "sourceLockButton", tr("锁定/解锁来源"), "lock-open");
+            auto *locked =
+                createActionButton(widget, "sourceLockButton", tr("锁定/解锁来源"), "lock-open");
             rowLayout->addWidget(locked);
             visible->setCheckable(true);
             locked->setCheckable(true);
@@ -357,15 +362,15 @@ VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent)
 QDialog *createRemovalDialog(QWidget *parent, const QString &name, const QString &hint,
                              const std::function<bool()> &remove)
 {
-    auto *dialog = dialogShell(parent, "sourceRemovalDialog", QObject::tr("移除来源"));
+    auto *dialog = createSourceDialog(parent, "sourceRemovalDialog", QObject::tr("移除来源"));
     dialog->resize(460, 220);
 
     auto *layout = new QVBoxLayout(dialog);
     layout->addWidget(
-        label(dialog, "sourceRemovalMessage", QObject::tr("确定移除来源“%1”吗？").arg(name)));
-    layout->addWidget(label(dialog, "sourceRemovalHint", hint));
+        createPlainLabel(dialog, "sourceRemovalMessage", QObject::tr("确定移除来源“%1”吗？").arg(name)));
+    layout->addWidget(createPlainLabel(dialog, "sourceRemovalHint", hint));
 
-    auto *error = label(dialog, "sourceRemovalError");
+    auto *error = createPlainLabel(dialog, "sourceRemovalError");
     error->setProperty("uiError", true);
     layout->addWidget(error);
     layout->addStretch();
@@ -394,7 +399,7 @@ QDialog *createSourceAddDialog(QWidget *parent, VideoSourceManager *manager,
                                ImageSourceController *images, DisplaySourceController *displays,
                                CameraSourceController *cameras)
 {
-    auto *dialog = dialogShell(parent, "sourceAddDialog", QObject::tr("添加来源"));
+    auto *dialog = createSourceDialog(parent, "sourceAddDialog", QObject::tr("添加来源"));
     auto *layout = new QVBoxLayout(dialog);
     auto *form = new QFormLayout;
     layout->addLayout(form);
@@ -413,7 +418,7 @@ QDialog *createSourceAddDialog(QWidget *parent, VideoSourceManager *manager,
     auto *pages = new QStackedWidget(dialog);
     layout->addWidget(pages);
 
-    auto *display = new CaptureSettings(pages, displays, cameras, false);
+    auto *display = new CaptureSettingsWidget(pages, displays, cameras, false);
     pages->addWidget(display);
     // Camera discovery starts when that page is selected, not when opening an unrelated image
     // dialog.
@@ -436,7 +441,7 @@ QDialog *createSourceAddDialog(QWidget *parent, VideoSourceManager *manager,
     imageLayout->addWidget(browse);
     pages->addWidget(imagePage);
 
-    auto *error = label(dialog, "sourceAddError");
+    auto *error = createPlainLabel(dialog, "sourceAddError");
     error->setProperty("uiError", true);
     layout->addWidget(error);
     layout->addStretch();
@@ -466,7 +471,7 @@ QDialog *createSourceAddDialog(QWidget *parent, VideoSourceManager *manager,
         path->setEnabled(!busy);
         browse->setEnabled(!busy);
     };
-    display->changed = refresh;
+    display->onSettingsChanged = refresh;
 
     QObject::connect(name, &QLineEdit::textEdited, dialog, [=] {
         dialog->setProperty("nameEdited", true);
@@ -479,9 +484,9 @@ QDialog *createSourceAddDialog(QWidget *parent, VideoSourceManager *manager,
         if (!dialog->property("nameEdited").toBool())
             name->setText(manager->suggestedSourceName(type->currentText()));
         if (index == 1 && !cameraPage->findChild<QComboBox *>("cameraDeviceInput")) {
-            auto *camera = new CaptureSettings(cameraPage, displays, cameras, true);
+            auto *camera = new CaptureSettingsWidget(cameraPage, displays, cameras, true);
             cameraLayout->addWidget(camera);
-            camera->changed = refresh;
+            camera->onSettingsChanged = refresh;
         }
         refresh();
     });
@@ -520,8 +525,8 @@ QDialog *createSourceAddDialog(QWidget *parent, VideoSourceManager *manager,
         }
         QString id;
         if (type->currentIndex() == 0)
-            id = displays->addDisplay(name->text(), display->device->currentData().toString(),
-                                      display->cursor->isChecked());
+            id = displays->addDisplay(name->text(), display->deviceInput->currentData().toString(),
+                                      display->captureCursorInput->isChecked());
         else
             id = cameras->addCamera(
                 name->text(), cameraPage->findChild<QComboBox *>("cameraModeInput")
@@ -544,7 +549,7 @@ QDialog *createSourceAddDialog(QWidget *parent, VideoSourceManager *manager,
 QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
                                    const QString &sourceId)
 {
-    auto *dialog = dialogShell(parent, "sourceFiltersDialog", QObject::tr("来源滤镜"));
+    auto *dialog = createSourceDialog(parent, "sourceFiltersDialog", QObject::tr("来源滤镜"));
     dialog->setProperty("filterSourceId", sourceId);
     dialog->resize(680, 380);
 
@@ -554,7 +559,7 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
 
     auto *left = new QVBoxLayout;
     row->addLayout(left, 1);
-    left->addWidget(label(dialog, "filterHint", QObject::tr("滤镜 · 从上到下处理")));
+    left->addWidget(createPlainLabel(dialog, "filterHint", QObject::tr("滤镜 · 从上到下处理")));
 
     auto *list = new QListWidget(dialog);
     list->setObjectName("filterList");
@@ -563,21 +568,21 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
     auto *actions = new QHBoxLayout;
     left->addLayout(actions);
 
-    auto *add = action(dialog, "addFilterButton", QObject::tr("添加色彩校正"), "plus");
+    auto *add = createActionButton(dialog, "addFilterButton", QObject::tr("添加色彩校正"), "plus");
     actions->addWidget(add);
 
-    auto *remove = action(dialog, "removeFilterButton", QObject::tr("删除滤镜"), "minus");
+    auto *remove = createActionButton(dialog, "removeFilterButton", QObject::tr("删除滤镜"), "minus");
     actions->addWidget(remove);
 
-    auto *up = action(dialog, "upFilterButton", QObject::tr("滤镜上移"), "arrow-up");
+    auto *up = createActionButton(dialog, "upFilterButton", QObject::tr("滤镜上移"), "arrow-up");
     actions->addWidget(up);
 
-    auto *down = action(dialog, "downFilterButton", QObject::tr("滤镜下移"), "arrow-down");
+    auto *down = createActionButton(dialog, "downFilterButton", QObject::tr("滤镜下移"), "arrow-down");
     actions->addWidget(down);
 
     auto *form = new QFormLayout;
     row->addLayout(form, 1);
-    form->addRow(label(dialog, "filterApplyHint", QObject::tr("修改立即生效，关闭后保留。")));
+    form->addRow(createPlainLabel(dialog, "filterApplyHint", QObject::tr("修改立即生效，关闭后保留。")));
     QList<QDoubleSpinBox *> inputs;
     QList<QSlider *> sliders;
     for (const auto &key : {"brightness", "contrast", "saturation"}) {

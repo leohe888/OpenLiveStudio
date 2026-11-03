@@ -4,7 +4,7 @@
 
 ```text
 用户操作 → MainWindow → 来源管理器 / 来源控制器
-视频设备 / 图片 → PreviewSource 快照 → VideoSourceAggregator
+视频设备 / 图片 → RenderSourceSnapshot 快照 → VideoSourceAggregator
     → PreviewWidget → Compositor / CanvasRenderer → 预览
                                              → 视频输出订阅 ┐
 音频设备 → AudioCaptureWorker → AudioMixer → 音频输出订阅 ───┤
@@ -19,8 +19,8 @@
 ## 推荐阅读顺序
 
 1. 从 `src/ui/mainwindow.cpp` 的构造函数开始：来源初始化、预览、输出控制器、错误提示、面板。这里负责组装各模块。
-2. 看 `src/video/videosource.h` 和 `videosourcemanager.h`：理解来源的状态和允许的操作。再看图片控制器，沿“添加图片”走到 `VideoSourceAggregator::publish()`。
-3. 看 `src/graphics/previewsource.h`、`src/ui/previewwidget.cpp` 和 `src/graphics/compositor.h`：快照怎样进入合成器，预览怎样消费合成结果。最后再深入 `CanvasRenderer` 的 GL 实现。
+2. 看 `src/video/videosource.h` 和 `videosourcemanager.h`：理解来源的状态和允许的操作。再看图片控制器，沿“添加图片”走到 `VideoSourceAggregator::publishRenderSources()`。
+3. 看 `src/graphics/rendersourcesnapshot.h`、`src/ui/previewwidget.cpp` 和 `src/graphics/compositor.h`：快照怎样进入合成器，预览怎样消费合成结果。最后再深入 `CanvasRenderer` 的 GL 实现。
 4. 看 `src/audio/audiobuffer.h` 和 `audiomixer.h`：区分采样帧和单声道采样值。当前音频格式为 48 kHz、双声道交错 float。
 5. 看 `src/output/outputtimeline.cpp`：`read()` 先收集媒体、检查生产者，再按目标时间选图像，拼出该视频帧对应的音频区间。当前输出节奏为 30 fps，因此每个视频帧对应 1600 个音频帧、3200 个 float。
 6. 看 `recordingcontroller.cpp` 与 `streamingcontroller.cpp`：它们各自拥有时间线与编码器，负责停止、错误和恢复策略。最后读 `mediaencoder.cpp` 的 FFmpeg 细节。

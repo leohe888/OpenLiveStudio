@@ -1,7 +1,7 @@
 #ifndef CANVASRENDERER_H
 #define CANVASRENDERER_H
 
-#include "graphics/previewsource.h"
+#include "graphics/rendersourcesnapshot.h"
 #include "graphics/gpuinterop.h"
 #include <QHash>
 #include <QObject>
@@ -32,7 +32,7 @@ public:
     explicit CanvasRenderer(QObject *parent = nullptr);
     ~CanvasRenderer() override;
     bool initialize();
-    bool render(const QList<PreviewSource> &sources);
+    bool render(const QList<RenderSourceSnapshot> &sources);
     void cleanup();
 
     QOpenGLFramebufferObject *canvas() const
@@ -54,8 +54,8 @@ signals:
 
 private:
     friend class CanvasRendererTest;
-    bool drawable(const PreviewSource &source) const;
-    GLuint filterTexture(const PreviewSource &source, GLuint original, bool &flipY);
+    bool drawable(const RenderSourceSnapshot &source) const;
+    GLuint filterTexture(const RenderSourceSnapshot &source, GLuint original, bool &flipY);
     void reportError(const QString &message);
     QString m_lastError;
     bool m_initialized = false;

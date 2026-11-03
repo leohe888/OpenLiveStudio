@@ -23,7 +23,7 @@ public:
         }
     }
 
-    std::deque<T> take()
+    std::deque<T> takeAll()
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         std::deque<T> result;

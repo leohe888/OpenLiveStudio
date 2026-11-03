@@ -14,16 +14,16 @@ constexpr size_t maxAudioHistory = 110;
 
 bool OutputTimeline::initialize(const std::function<bool()> &cancelled)
 {
-    const auto started = MediaClock::nowNs();
+    const auto waitStartedNs = MediaClock::nowNs();
     while (!cancelled()) {
-        m_images = m_videoTap->take();
+        m_images = m_videoTap->takeAll();
         if (!m_images.empty()) {
             m_originNs = MediaClock::nowNs();
             m_selectedImage = m_images.back().image;
             m_selectedImageTimeNs = m_images.back().timestampNs;
             return true;
         }
-        if (MediaClock::nowNs() - started > initialFrameTimeoutNs)
+        if (MediaClock::nowNs() - waitStartedNs > initialFrameTimeoutNs)
             throw QStringLiteral("等待合成画布超时。");
         QThread::msleep(initialFramePollMs);
     }
@@ -33,10 +33,10 @@ bool OutputTimeline::initialize(const std::function<bool()> &cancelled)
 bool OutputTimeline::read(qint64 frameIndex, QImage &image, QVector<float> &samples)
 {
     collectPendingMedia();
-    const auto now = MediaClock::nowNs();
-    checkProducerHealth(now);
+    const auto nowNs = MediaClock::nowNs();
+    checkProducerHealth(nowNs);
     const auto targetTimeNs = m_originNs + frameIndex * 1000000000LL / outputFramesPerSecond;
-    if (now < targetTimeNs + synchronizationDelayNs)
+    if (nowNs < targetTimeNs + synchronizationDelayNs)
         return false;
     selectVideoFrame(targetTimeNs, image);
     assembleAudioFrame(frameIndex, samples);
@@ -45,22 +45,22 @@ bool OutputTimeline::read(qint64 frameIndex, QImage &image, QVector<float> &samp
 
 void OutputTimeline::collectPendingMedia()
 {
-    for (auto &frame : m_videoTap->take())
+    for (auto &frame : m_videoTap->takeAll())
         m_images.push_back(std::move(frame));
-    for (auto &block : m_audioTap->take())
+    for (auto &block : m_audioTap->takeAll())
         m_audioBlocks.push_back(std::move(block));
     while (m_images.size() > maxVideoHistory)
         m_images.pop_front();
-    if (m_audioBlocks.size() > maxAudioHistory || m_audioTap->dropped() != m_audioDropBaseline)
+    if (m_audioBlocks.size() > maxAudioHistory || m_audioTap->dropped() != m_audioDropCountBaseline)
         throw QStringLiteral("音频输出缓冲已满。");
 }
 
-void OutputTimeline::checkProducerHealth(qint64 now)
+void OutputTimeline::checkProducerHealth(qint64 nowNs)
 {
     if (!m_video.isRunning() || !m_audio.isRunning()) {
         if (!m_producersInactiveSinceNs)
-            m_producersInactiveSinceNs = now;
-        if (now - m_producersInactiveSinceNs > producerStopGraceNs)
+            m_producersInactiveSinceNs = nowNs;
+        if (nowNs - m_producersInactiveSinceNs > producerStopGraceNs)
             throw QStringLiteral("画布合成或混音已停止。");
     } else
         m_producersInactiveSinceNs = 0;
@@ -81,7 +81,7 @@ void OutputTimeline::selectVideoFrame(qint64 targetTimeNs, QImage &image)
         m_images.pop_front();
     }
     if (m_previousImageTimeNs == m_selectedImageTimeNs)
-        ++m_repeated;
+        ++m_repeatedVideoFrames;
     m_previousImageTimeNs = m_selectedImageTimeNs;
     image = m_selectedImage;
 }
@@ -91,34 +91,37 @@ void OutputTimeline::assembleAudioFrame(qint64 frameIndex, QVector<float> &sampl
     constexpr int audioFramesPerVideoFrame = AudioFormat::rate / outputFramesPerSecond;
     static_assert(AudioFormat::rate % outputFramesPerSecond == 0);
     // Gaps stay silent; copy only the overlap with this encoder tick.
-    const qint64 position = frameIndex * audioFramesPerVideoFrame;
-    const qint64 end = position + audioFramesPerVideoFrame;
+    const qint64 outputStartFrame = frameIndex * audioFramesPerVideoFrame;
+    const qint64 outputEndFrame = outputStartFrame + audioFramesPerVideoFrame;
     samples.fill(0, audioFramesPerVideoFrame * AudioFormat::channels);
-    qint64 supplied = 0;
+    qint64 suppliedAudioFrames = 0;
     while (!m_audioBlocks.empty()) {
         const auto &block = *m_audioBlocks.front();
-        const auto start = AudioFormat::nsToFrames(block.timestampNs - m_originNs),
-                   finish = start + block.frames();
-        if (start >= end)
+        const auto blockStartFrame = AudioFormat::nsToFrames(block.timestampNs - m_originNs),
+                   blockEndFrame = blockStartFrame + block.frames();
+        if (blockStartFrame >= outputEndFrame)
             break;
-        const auto first = std::max(position, start), last = std::min(end, finish);
-        if (last > first) {
-            std::copy_n(block.samples.constData() + (first - start) * AudioFormat::channels,
-                        (last - first) * AudioFormat::channels,
-                        samples.data() + (first - position) * AudioFormat::channels);
-            supplied += last - first;
+        const auto overlapStartFrame = std::max(outputStartFrame, blockStartFrame),
+                   overlapEndFrame = std::min(outputEndFrame, blockEndFrame);
+        if (overlapEndFrame > overlapStartFrame) {
+            std::copy_n(block.samples.constData() +
+                            (overlapStartFrame - blockStartFrame) * AudioFormat::channels,
+                        (overlapEndFrame - overlapStartFrame) * AudioFormat::channels,
+                        samples.data() +
+                            (overlapStartFrame - outputStartFrame) * AudioFormat::channels);
+            suppliedAudioFrames += overlapEndFrame - overlapStartFrame;
         }
-        if (finish <= end)
+        if (blockEndFrame <= outputEndFrame)
             m_audioBlocks.pop_front();
         else
             break;
     }
-    m_missingAudioFrames += std::max<qint64>(0, audioFramesPerVideoFrame - supplied);
+    m_missingAudioFrames += std::max<qint64>(0, audioFramesPerVideoFrame - suppliedAudioFrames);
 }
 
 void OutputTimeline::recover()
 {
-    m_images = m_videoTap->take();
-    m_audioBlocks = m_audioTap->take();
-    m_audioDropBaseline = m_audioTap->dropped();
+    m_images = m_videoTap->takeAll();
+    m_audioBlocks = m_audioTap->takeAll();
+    m_audioDropCountBaseline = m_audioTap->dropped();
 }

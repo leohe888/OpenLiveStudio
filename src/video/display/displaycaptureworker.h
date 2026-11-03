@@ -9,19 +9,19 @@
 class DisplayCaptureWorker : public QThread
 {
 public:
-    DisplayCaptureWorker(QString displayId, bool cursor, quint64 generation);
+    DisplayCaptureWorker(QString displayId, bool captureCursor, quint64 generation);
     ~DisplayCaptureWorker() override;
 
     void stop()
     {
         m_stop.store(true);
-        m_wait.notify_one();
-        m_frames.clear();
+        m_stopCondition.notify_one();
+        m_latestFrame.clear();
     }
 
     std::shared_ptr<const CaptureFrame> takeLatest()
     {
-        return m_frames.take();
+        return m_latestFrame.takeLatest();
     }
 
     QString lastError() const;
@@ -36,14 +36,14 @@ protected:
 
 private:
     QString m_displayId;
-    bool m_cursor;
+    bool m_captureCursor;
     quint64 m_generation;
     std::atomic_bool m_stop{false};
-    LatestCaptureFrame m_frames;
+    LatestCaptureFrameSlot m_latestFrame;
     mutable std::mutex m_errorMutex;
     QString m_error;
-    std::mutex m_waitMutex;
-    std::condition_variable m_wait;
+    std::mutex m_stopMutex;
+    std::condition_variable m_stopCondition;
 };
 
 #endif

@@ -42,8 +42,8 @@ public:
         return m_lastConversionNs;
     }
 
-    void video(const QImage &image, qint64 frameIndex);
-    void audio(const QVector<float> &samples);
+    void encodeVideoFrame(const QImage &image, qint64 frameIndex);
+    void encodeAudioSamples(const QVector<float> &samples);
     void skipTo(qint64 nextFrame); // Live-only timeline jump, preserving monotonic PTS.
     void finish();
 
@@ -56,7 +56,7 @@ private:
     void initialize(int bitrateKbps);
     void networkCheck(int result, const char *operation);
     static int interrupted(void *opaque);
-    void deadline();
+    void resetNetworkDeadline();
     void encode(AVCodecContext *codec, AVStream *stream, AVFrame *frame);
     void encodeAudio(int count);
     static int write(void *opaque, const unsigned char *data, int size);
@@ -64,12 +64,12 @@ private:
     QFile m_file;
     AVFormatContext *m_format = nullptr;
     AVIOContext *m_io = nullptr;
-    AVCodecContext *m_video = nullptr, *m_audio = nullptr;
+    AVCodecContext *m_videoCodecContext = nullptr, *m_audioCodecContext = nullptr;
     AVFrame *m_videoFrame = nullptr, *m_audioFrame = nullptr;
     AVStream *m_videoStream = nullptr, *m_audioStream = nullptr;
-    SwsContext *m_scale = nullptr;
-    QVector<float> m_pending;
-    qint64 m_audioSamples = 0, m_videoFrames = 0;
+    SwsContext *m_pixelConversionContext = nullptr;
+    QVector<float> m_pendingAudioSamples;
+    qint64 m_encodedAudioFrames = 0, m_videoFrames = 0;
     bool m_created = false, m_completed = false;
     bool m_network = false;
     bool m_forceKeyframe = false;

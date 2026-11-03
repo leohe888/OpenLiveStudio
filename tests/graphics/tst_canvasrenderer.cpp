@@ -85,7 +85,7 @@ private slots:
         QVERIFY(renderer.initialize());
         QImage image(32, 16, QImage::Format_RGBA8888);
         image.fill(QColor(128, 0, 0, 128));
-        PreviewSource source{"image", image, true, {{960, 540}, {1920, 1080}, 0}};
+        RenderSourceSnapshot source{"image", image, true, {{960, 540}, {1920, 1080}, 0}};
         QVERIFY(renderer.render({source}));
         const GLuint texture = renderer.m_textures.at(source.id).texture->textureId();
         const auto *canvas = renderer.canvas();
@@ -131,12 +131,12 @@ private slots:
         auto frame = compositor.latestFrame();
         QVERIFY(frame);
         const quint64 sequence = frame->sequence;
-        const qint64 timestamp = frame->timestamp;
+        const qint64 timestamp = frame->timestampNs;
         frame.reset();
         QThread::msleep(180); // Deliberately do not dispatch GUI events.
         frame = compositor.latestFrame();
         QVERIFY(frame && frame->sequence >= sequence + 3);
-        QVERIFY(frame->timestamp > timestamp);
+        QVERIFY(frame->timestampNs > timestamp);
         frame.reset();
         compositor.setSources({solid(Qt::blue)});
         QCOMPARE(compositor.captureImage().pixelColor(960, 540), QColor(Qt::blue));
@@ -198,7 +198,7 @@ private slots:
     }
 
 private:
-    static PreviewSource solid(const QColor &color)
+    static RenderSourceSnapshot solid(const QColor &color)
     {
         QImage image(16, 16, QImage::Format_RGBA8888);
         image.fill(color);

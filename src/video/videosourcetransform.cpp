@@ -19,17 +19,17 @@ VideoSourceTransform::VideoSourceTransform(const QPointF &center, const QSizeF &
 }
 
 VideoSourceTransform::VideoSourceTransform(const QPointF &center, const QSizeF &size,
-                                                     qreal rotation)
+                                                     qreal rotationDegrees)
     : m_center(center), m_size(size)
 {
-    setRotation(rotation);
+    setRotationDegrees(rotationDegrees);
 }
 
 bool VideoSourceTransform::isValid() const
 {
     return std::isfinite(m_center.x()) && std::isfinite(m_center.y()) &&
            std::isfinite(m_size.width()) && std::isfinite(m_size.height()) &&
-           std::isfinite(m_rotation) && m_size.width() > 0 && m_size.height() > 0;
+           std::isfinite(m_rotationDegrees) && m_size.width() > 0 && m_size.height() > 0;
 }
 
 QPointF VideoSourceTransform::center() const
@@ -52,23 +52,24 @@ void VideoSourceTransform::setSize(const QSizeF &size)
     m_size = size;
 }
 
-qreal VideoSourceTransform::rotation() const
+qreal VideoSourceTransform::rotationDegrees() const
 {
-    return m_rotation;
+    return m_rotationDegrees;
 }
 
-void VideoSourceTransform::setRotation(qreal rotation)
+void VideoSourceTransform::setRotationDegrees(qreal rotationDegrees)
 {
-    m_rotation = std::isfinite(rotation) ? std::fmod(rotation, 360.0) : rotation;
-    if (m_rotation < 0)
-        m_rotation += 360;
+    m_rotationDegrees =
+        std::isfinite(rotationDegrees) ? std::fmod(rotationDegrees, 360.0) : rotationDegrees;
+    if (m_rotationDegrees < 0)
+        m_rotationDegrees += 360;
 }
 
 QTransform VideoSourceTransform::sourceToCanvas() const
 {
     QTransform matrix;
     matrix.translate(m_center.x(), m_center.y());
-    matrix.rotate(m_rotation);
+    matrix.rotate(m_rotationDegrees);
     matrix.translate(-m_size.width() / 2, -m_size.height() / 2);
     return matrix;
 }
@@ -81,7 +82,8 @@ bool VideoSourceTransform::contains(const QPointF &canvasPoint) const
 
 bool VideoSourceTransform::operator==(const VideoSourceTransform &other) const
 {
-    return m_center == other.m_center && m_size == other.m_size && m_rotation == other.m_rotation;
+    return m_center == other.m_center && m_size == other.m_size &&
+           m_rotationDegrees == other.m_rotationDegrees;
 }
 
 bool VideoSourceTransform::operator!=(const VideoSourceTransform &other) const

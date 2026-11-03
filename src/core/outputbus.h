@@ -16,9 +16,9 @@ public:
         return tap;
     }
 
-    bool active()
+    bool hasSubscribers()
     {
-        prune();
+        removeExpiredSubscribers();
         return !m_taps.empty();
     }
 
@@ -34,7 +34,7 @@ public:
     }
 
 private:
-    void prune()
+    void removeExpiredSubscribers()
     {
         m_taps.erase(std::remove_if(m_taps.begin(), m_taps.end(),
                                     [](const auto &tap) {

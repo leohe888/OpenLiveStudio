@@ -47,32 +47,37 @@ QTransform PreviewWidget::canvasToWidget() const
     return matrix;
 }
 
-VideoSourceTransform PreviewWidget::resized(const VideoSourceTransform &start, int handle,
+VideoSourceTransform PreviewWidget::resizeTransform(const VideoSourceTransform &start, int handle,
                                             const QPointF &canvasDelta)
 {
     if (!start.isValid() || handle < 0 || handle >= 8)
         return start;
-    QTransform rotation;
-    rotation.rotate(start.rotation());
-    const QPointF delta = rotation.inverted().map(canvasDelta);
+    QTransform rotationMatrix;
+    rotationMatrix.rotate(start.rotationDegrees());
+    const QPointF delta = rotationMatrix.inverted().map(canvasDelta);
     const QPointF fraction = handleFractions[handle];
     const QPointF opposite(1 - fraction.x(), 1 - fraction.y());
     VideoSourceTransform result = start;
-    const qreal w = start.size().width(), h = start.size().height();
+    const qreal sourceWidth = start.size().width(), sourceHeight = start.size().height();
     if (handle % 2 == 0) {
-        const QPointF diagonal((2 * fraction.x() - 1) * w, (2 * fraction.y() - 1) * h);
-        const qreal factor =
-            qMax(qMax(1 / w, 1 / h), QPointF::dotProduct(diagonal + delta, diagonal) /
-                                         QPointF::dotProduct(diagonal, diagonal));
+        const QPointF diagonal((2 * fraction.x() - 1) * sourceWidth,
+                               (2 * fraction.y() - 1) * sourceHeight);
+        const qreal factor = qMax(qMax(1 / sourceWidth, 1 / sourceHeight),
+                                  QPointF::dotProduct(diagonal + delta, diagonal) /
+                                      QPointF::dotProduct(diagonal, diagonal));
         result.setSize(start.size() * factor);
     } else if (fraction.x() != .5) {
-        result.setSize(QSizeF(qMax(1.0, w + (2 * fraction.x() - 1) * delta.x()), h));
+        result.setSize(
+            QSizeF(qMax(1.0, sourceWidth + (2 * fraction.x() - 1) * delta.x()), sourceHeight));
     } else {
-        result.setSize(QSizeF(w, qMax(1.0, h + (2 * fraction.y() - 1) * delta.y())));
+        result.setSize(
+            QSizeF(sourceWidth, qMax(1.0, sourceHeight + (2 * fraction.y() - 1) * delta.y())));
     }
-    const QPointF anchor = start.sourceToCanvas().map(QPointF(opposite.x() * w, opposite.y() * h));
-    result.setCenter(anchor + rotation.map(QPointF((.5 - opposite.x()) * result.size().width(),
-                                                  (.5 - opposite.y()) * result.size().height())));
+    const QPointF anchor = start.sourceToCanvas().map(
+        QPointF(opposite.x() * sourceWidth, opposite.y() * sourceHeight));
+    result.setCenter(anchor +
+                     rotationMatrix.map(QPointF((.5 - opposite.x()) * result.size().width(),
+                                                (.5 - opposite.y()) * result.size().height())));
     return result;
 }
 
@@ -86,9 +91,9 @@ PreviewWidget::PreviewWidget(QWidget *parent) : QOpenGLWidget(parent)
             Qt::QueuedConnection);
     connect(&m_compositor, &Compositor::gpuTransferFailed, this, &PreviewWidget::gpuTransferFailed,
             Qt::QueuedConnection);
-    m_framePoll.setInterval(16);
-    m_framePoll.setTimerType(Qt::PreciseTimer);
-    connect(&m_framePoll, &QTimer::timeout, this, [this] {
+    m_framePollTimer.setInterval(16);
+    m_framePollTimer.setTimerType(Qt::PreciseTimer);
+    connect(&m_framePollTimer, &QTimer::timeout, this, [this] {
         const auto frame = m_compositor.latestFrame();
         if (frame && (!m_presentedFrame || frame->sequence != m_presentedFrame->sequence))
             update();
@@ -100,7 +105,7 @@ PreviewWidget::~PreviewWidget()
     cleanup();
 }
 
-void PreviewWidget::setSources(const QList<PreviewSource> &sources)
+void PreviewWidget::setSources(const QList<RenderSourceSnapshot> &sources)
 {
     m_sources = sources;
     for (auto &source : m_sources) {
@@ -151,7 +156,7 @@ void PreviewWidget::showEvent(QShowEvent *event)
 void PreviewWidget::initializeGL()
 {
     initializeOpenGLFunctions();
-    m_contextDestruction = connect(context(), &QOpenGLContext::aboutToBeDestroyed, this,
+    m_contextDestructionConnection = connect(context(), &QOpenGLContext::aboutToBeDestroyed, this,
                                    &PreviewWidget::cleanup, Qt::DirectConnection);
     m_lastError.clear();
     m_initialized = false;
@@ -205,7 +210,7 @@ void PreviewWidget::initializeGL()
     }
     m_initialized = m_compositor.startRendering(context());
     if (m_initialized)
-        m_framePoll.start();
+        m_framePollTimer.start();
 }
 
 void PreviewWidget::paintGL()
@@ -257,7 +262,7 @@ void PreviewWidget::paintGL()
     paintSelection();
 }
 
-bool PreviewWidget::selectable(const PreviewSource &source) const
+bool PreviewWidget::isSourceSelectable(const RenderSourceSnapshot &source) const
 {
     if (!m_presentedFrame || !source.visible || !source.hasFrame() ||
         !source.transform.isValid())
@@ -267,10 +272,10 @@ bool PreviewWidget::selectable(const PreviewSource &source) const
            resource->generation == (source.frame ? source.frame->generation : 0);
 }
 
-const PreviewSource *PreviewWidget::selectedSource() const
+const RenderSourceSnapshot *PreviewWidget::selectedSource() const
 {
     for (const auto &source : m_sources)
-        if (source.id == m_currentSourceId && selectable(source))
+        if (source.id == m_currentSourceId && isSourceSelectable(source))
             return &source;
     return nullptr;
 }
@@ -280,7 +285,7 @@ QPointF PreviewWidget::toCanvas(const QPointF &point) const
     return canvasToWidget().inverted().map(point);
 }
 
-QPolygonF PreviewWidget::selectionHandles(const PreviewSource &source) const
+QPolygonF PreviewWidget::selectionHandles(const RenderSourceSnapshot &source) const
 {
     const auto local = source.transform.sourceToCanvas();
     const auto display = canvasToWidget();
@@ -295,7 +300,7 @@ QPolygonF PreviewWidget::selectionHandles(const PreviewSource &source) const
     return handles;
 }
 
-int PreviewWidget::handleAt(const PreviewSource &source, const QPointF &point) const
+int PreviewWidget::handleAt(const RenderSourceSnapshot &source, const QPointF &point) const
 {
     if (source.locked)
         return -1;
@@ -353,10 +358,10 @@ void PreviewWidget::updateCursor(const QPointF &position)
         }
         if (handle >= 0) {
             const auto fraction = handleFractions[handle];
-            const qreal angle =
-                source->transform.rotation() +
+            const qreal rotationDeltaDegrees =
+                source->transform.rotationDegrees() +
                 std::atan2(fraction.y() - .5, fraction.x() - .5) * 180 / std::acos(-1.0);
-            const int direction = (qRound(angle / 45) % 4 + 4) % 4;
+            const int direction = (qRound(rotationDeltaDegrees / 45) % 4 + 4) % 4;
             static constexpr Qt::CursorShape cursors[]{Qt::SizeHorCursor, Qt::SizeFDiagCursor,
                                                        Qt::SizeVerCursor, Qt::SizeBDiagCursor};
             setCursor(cursors[direction]);
@@ -365,7 +370,7 @@ void PreviewWidget::updateCursor(const QPointF &position)
     }
     if (canvasRect().contains(position)) {
         for (const auto &source : m_sources) {
-            if (selectable(source) && !source.locked &&
+            if (isSourceSelectable(source) && !source.locked &&
                 source.transform.contains(toCanvas(position))) {
                 setCursor(Qt::SizeAllCursor);
                 return;
@@ -390,27 +395,27 @@ void PreviewWidget::mousePressEvent(QMouseEvent *event)
         m_gesture = handle == 8 ? Gesture::Rotate : Gesture::Resize;
         m_resizeHandle = handle;
     } else {
-        QString hit;
+        QString hitSourceId;
         if (canvasRect().contains(position)) {
             for (const auto &candidate : m_sources) {
-                if (selectable(candidate) && !candidate.locked &&
+                if (isSourceSelectable(candidate) && !candidate.locked &&
                     candidate.transform.contains(toCanvas(position))) {
-                    hit = candidate.id;
+                    hitSourceId = candidate.id;
                     break;
                 }
             }
         }
-        emit selectionRequested(hit);
+        emit selectionRequested(hitSourceId);
         source = selectedSource();
-        if (hit.isEmpty() || !source || source->id != hit || source->locked) {
+        if (hitSourceId.isEmpty() || !source || source->id != hitSourceId || source->locked) {
             event->accept();
             return;
         }
         m_gesture = Gesture::Move;
     }
     m_gestureSourceId = source->id;
-    m_gestureStart = source->transform;
-    m_pressCanvas = toCanvas(position);
+    m_gestureStartTransform = source->transform;
+    m_pressCanvasPosition = toCanvas(position);
     if (m_gesture == Gesture::Rotate)
         setCursor(Qt::ClosedHandCursor);
     event->accept();
@@ -439,23 +444,24 @@ void PreviewWidget::updateGesture(const QPointF &position)
         return;
     }
     const QPointF point = toCanvas(position);
-    VideoSourceTransform result = m_gestureStart;
+    VideoSourceTransform result = m_gestureStartTransform;
     switch (m_gesture) {
     case Gesture::Move:
-        result.setCenter(result.center() + point - m_pressCanvas);
+        result.setCenter(result.center() + point - m_pressCanvasPosition);
         break;
     case Gesture::Resize:
-        result = resized(m_gestureStart, m_resizeHandle, point - m_pressCanvas);
+        result =
+            resizeTransform(m_gestureStartTransform, m_resizeHandle, point - m_pressCanvasPosition);
         break;
     case Gesture::Rotate: {
-        const QPointF before = m_pressCanvas - result.center();
+        const QPointF before = m_pressCanvasPosition - result.center();
         const QPointF after = point - result.center();
         if (std::hypot(after.x(), after.y()) < 1e-9)
             break;
-        const qreal angle =
+        const qreal rotationDeltaDegrees =
             (std::atan2(after.y(), after.x()) - std::atan2(before.y(), before.x())) * 180 /
             std::acos(-1.0);
-        result.setRotation(result.rotation() + angle);
+        result.setRotationDegrees(result.rotationDegrees() + rotationDeltaDegrees);
         break;
     }
     case Gesture::None:
@@ -482,7 +488,7 @@ void PreviewWidget::keyPressEvent(QKeyEvent *event)
 {
     if (event->key() == Qt::Key_Escape && m_gesture != Gesture::None) {
         const QString id = m_gestureSourceId;
-        const auto start = m_gestureStart;
+        const auto start = m_gestureStartTransform;
         endGesture();
         emit transformRequested(id, start);
         event->accept();
@@ -523,8 +529,8 @@ bool PreviewWidget::event(QEvent *event)
 void PreviewWidget::cleanup()
 {
     endGesture();
-    disconnect(m_contextDestruction);
-    m_framePoll.stop();
+    disconnect(m_contextDestructionConnection);
+    m_framePollTimer.stop();
     m_initialized = false;
     // Finish preview reads and return its lease before destroying shared outputs.
     if (context()) {

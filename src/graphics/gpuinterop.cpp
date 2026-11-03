@@ -18,20 +18,20 @@ struct GpuInterop::Impl
     using Lock = BOOL(WINAPI *)(HANDLE, GLint, HANDLE *);
     Open open = nullptr;
     Close close = nullptr;
-    Register reg = nullptr;
-    Unregister unreg = nullptr;
+    Register registerObject = nullptr;
+    Unregister unregisterObject = nullptr;
     Lock lock = nullptr, unlock = nullptr;
-    HANDLE device = nullptr;
-    ID3D11Device *nativeDevice = nullptr;
+    HANDLE interopDevice = nullptr;
+    ID3D11Device *d3dDevice = nullptr;
 
     struct Entry
     {
         std::shared_ptr<GpuFrameResource> resource;
         GLuint texture;
-        HANDLE object;
+        HANDLE interopObject;
     };
 
-    std::vector<Entry> entries;
+    std::vector<Entry> registeredTextures;
 };
 #else
 struct GpuInterop::Impl
@@ -46,15 +46,15 @@ GpuInterop::GpuInterop() : m_impl(std::make_unique<Impl>())
 GpuInterop::~GpuInterop()
 {
 #ifdef Q_OS_WIN
-    auto &d = *m_impl;
-    if (!d.device)
+    auto &interop = *m_impl;
+    if (!interop.interopDevice)
         return;
     auto *gl = QOpenGLContext::currentContext()->extraFunctions();
-    for (auto &entry : d.entries) {
-        d.unreg(d.device, entry.object);
+    for (auto &entry : interop.registeredTextures) {
+        interop.unregisterObject(interop.interopDevice, entry.interopObject);
         gl->glDeleteTextures(1, &entry.texture);
     }
-    d.close(d.device);
+    interop.close(interop.interopDevice);
 #endif
 }
 
@@ -67,10 +67,10 @@ bool GpuInterop::copy(const CaptureFrame &frame, GLuint destination, QString *er
     };
     if (!frame.gpu || qEnvironmentVariableIsSet("OPENLIVE_FORCE_INTEROP_FAILURE"))
         return fail(QStringLiteral("GPU interop disabled or no GPU frame"));
-    auto &d = *m_impl;
+    auto &interop = *m_impl;
     auto *context = QOpenGLContext::currentContext();
     auto *gl = context->extraFunctions();
-    if (!d.device) {
+    if (!interop.interopDevice) {
         using Extensions = const char *(WINAPI *)(HDC);
         auto extensions =
             reinterpret_cast<Extensions>(context->getProcAddress("wglGetExtensionsStringARB"));
@@ -78,55 +78,61 @@ bool GpuInterop::copy(const CaptureFrame &frame, GLuint destination, QString *er
             extensions ? QByteArray(extensions(wglGetCurrentDC())) : QByteArray();
         if (!names.split(' ').contains("WGL_NV_DX_interop2"))
             return fail(QStringLiteral("WGL_NV_DX_interop2 unavailable"));
-        d.open = reinterpret_cast<Impl::Open>(context->getProcAddress("wglDXOpenDeviceNV"));
-        d.close = reinterpret_cast<Impl::Close>(context->getProcAddress("wglDXCloseDeviceNV"));
-        d.reg = reinterpret_cast<Impl::Register>(context->getProcAddress("wglDXRegisterObjectNV"));
-        d.unreg =
+        interop.open = reinterpret_cast<Impl::Open>(context->getProcAddress("wglDXOpenDeviceNV"));
+        interop.close =
+            reinterpret_cast<Impl::Close>(context->getProcAddress("wglDXCloseDeviceNV"));
+        interop.registerObject =
+            reinterpret_cast<Impl::Register>(context->getProcAddress("wglDXRegisterObjectNV"));
+        interop.unregisterObject =
             reinterpret_cast<Impl::Unregister>(context->getProcAddress("wglDXUnregisterObjectNV"));
-        d.lock = reinterpret_cast<Impl::Lock>(context->getProcAddress("wglDXLockObjectsNV"));
-        d.unlock = reinterpret_cast<Impl::Lock>(context->getProcAddress("wglDXUnlockObjectsNV"));
-        if (!d.open || !d.close || !d.reg || !d.unreg || !d.lock || !d.unlock)
+        interop.lock = reinterpret_cast<Impl::Lock>(context->getProcAddress("wglDXLockObjectsNV"));
+        interop.unlock =
+            reinterpret_cast<Impl::Lock>(context->getProcAddress("wglDXUnlockObjectsNV"));
+        if (!interop.open || !interop.close || !interop.registerObject ||
+            !interop.unregisterObject || !interop.lock || !interop.unlock)
             return fail(QStringLiteral("GPU interop entry points unavailable"));
-        d.nativeDevice = frame.gpu->device.Get();
-        d.device = d.open(d.nativeDevice);
-        if (!d.device)
+        interop.d3dDevice = frame.gpu->device.Get();
+        interop.interopDevice = interop.open(interop.d3dDevice);
+        if (!interop.interopDevice)
             return fail(QStringLiteral("D3D11/OpenGL device pairing failed"));
     }
-    if (d.nativeDevice != frame.gpu->device.Get())
+    if (interop.d3dDevice != frame.gpu->device.Get())
         return fail(QStringLiteral("D3D11 capture device changed"));
     // A resize replaces the pool. Unregister retired resources before importing more.
-    for (auto it = d.entries.begin(); it != d.entries.end();) {
+    for (auto it = interop.registeredTextures.begin(); it != interop.registeredTextures.end();) {
         if (it->resource.use_count() == 1) {
-            d.unreg(d.device, it->object);
+            interop.unregisterObject(interop.interopDevice, it->interopObject);
             gl->glDeleteTextures(1, &it->texture);
-            it = d.entries.erase(it);
+            it = interop.registeredTextures.erase(it);
         } else
             ++it;
     }
-    auto it = std::find_if(d.entries.begin(), d.entries.end(), [&](const auto &entry) {
-        return entry.resource == frame.gpu;
-    });
-    if (it == d.entries.end()) {
+    auto it = std::find_if(interop.registeredTextures.begin(), interop.registeredTextures.end(),
+                           [&](const auto &entry) {
+                               return entry.resource == frame.gpu;
+                           });
+    if (it == interop.registeredTextures.end()) {
         GLuint texture = 0;
         gl->glGenTextures(1, &texture);
-        HANDLE object = d.reg(d.device, frame.gpu->texture.Get(), texture, GL_TEXTURE_2D,
-                              0x0000 /* READ_ONLY_NV */);
-        if (!object) {
+        HANDLE interopObject =
+            interop.registerObject(interop.interopDevice, frame.gpu->texture.Get(), texture,
+                                   GL_TEXTURE_2D, 0x0000 /* READ_ONLY_NV */);
+        if (!interopObject) {
             gl->glDeleteTextures(1, &texture);
             return fail(QStringLiteral("D3D11 texture registration failed"));
         }
-        d.entries.push_back({frame.gpu, texture, object});
-        it = std::prev(d.entries.end());
+        interop.registeredTextures.push_back({frame.gpu, texture, interopObject});
+        it = std::prev(interop.registeredTextures.end());
     }
-    if (!d.lock(d.device, 1, &it->object))
+    if (!interop.lock(interop.interopDevice, 1, &it->interopObject))
         return fail(QStringLiteral("GPU texture lock failed"));
-    GLint readFbo = 0, drawFbo = 0, texture = 0;
-    gl->glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &readFbo);
-    gl->glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &drawFbo);
+    GLint previousReadFramebuffer = 0, previousDrawFramebuffer = 0, texture = 0;
+    gl->glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &previousReadFramebuffer);
+    gl->glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previousDrawFramebuffer);
     gl->glGetIntegerv(GL_TEXTURE_BINDING_2D, &texture);
-    GLuint fbo = 0;
-    gl->glGenFramebuffers(1, &fbo);
-    gl->glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+    GLuint readFramebuffer = 0;
+    gl->glGenFramebuffers(1, &readFramebuffer);
+    gl->glBindFramebuffer(GL_READ_FRAMEBUFFER, readFramebuffer);
     gl->glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
                                it->texture, 0);
     const bool complete =
@@ -138,10 +144,10 @@ bool GpuInterop::copy(const CaptureFrame &frame, GLuint destination, QString *er
     }
     const GLenum copyError = gl->glGetError();
     gl->glBindTexture(GL_TEXTURE_2D, GLuint(texture));
-    gl->glBindFramebuffer(GL_READ_FRAMEBUFFER, GLuint(readFbo));
-    gl->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, GLuint(drawFbo));
-    gl->glDeleteFramebuffers(1, &fbo);
-    const bool unlocked = d.unlock(d.device, 1, &it->object);
+    gl->glBindFramebuffer(GL_READ_FRAMEBUFFER, GLuint(previousReadFramebuffer));
+    gl->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, GLuint(previousDrawFramebuffer));
+    gl->glDeleteFramebuffers(1, &readFramebuffer);
+    const bool unlocked = interop.unlock(interop.interopDevice, 1, &it->interopObject);
     if (!complete || copyError != GL_NO_ERROR || !unlocked)
         return fail(QStringLiteral("GPU texture copy/unlock failed"));
     return true;

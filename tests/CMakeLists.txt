@@ -12,7 +12,7 @@ qt_add_executable(tst_streaming output/tst_streaming.cpp
     ../src/graphics/canvasrenderer.cpp
     ../src/graphics/compositor.h
     ../src/graphics/compositor.cpp
-    ../src/graphics/previewsource.h
+    ../src/graphics/rendersourcesnapshot.h
     ../src/audio/audiobuffer.h
     ../src/audio/audioresampler.h
     ../src/audio/audioresampler.cpp
@@ -63,7 +63,7 @@ qt_add_executable(tst_recording output/tst_recording.cpp
     ../src/graphics/canvasrenderer.cpp
     ../src/graphics/compositor.h
     ../src/graphics/compositor.cpp
-    ../src/graphics/previewsource.h
+    ../src/graphics/rendersourcesnapshot.h
     ../src/audio/audiobuffer.h
     ../src/audio/audioresampler.h
     ../src/audio/audioresampler.cpp
@@ -139,7 +139,7 @@ qt_add_executable(tst_canvasrenderer graphics/tst_canvasrenderer.cpp
     ../src/graphics/canvasrenderer.cpp
     ../src/graphics/compositor.h
     ../src/graphics/compositor.cpp
-    ../src/graphics/previewsource.h
+    ../src/graphics/rendersourcesnapshot.h
 )
 target_include_directories(tst_canvasrenderer PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_canvasrenderer PRIVATE
@@ -179,7 +179,7 @@ qt_add_executable(tst_captureinterop graphics/tst_captureinterop.cpp
     ../src/graphics/canvasrenderer.cpp
     ../src/graphics/compositor.h
     ../src/graphics/compositor.cpp
-    ../src/graphics/previewsource.h
+    ../src/graphics/rendersourcesnapshot.h
 )
 target_include_directories(tst_captureinterop PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_captureinterop PRIVATE
@@ -278,7 +278,7 @@ qt_add_executable(tst_mainwindow
     ../src/ui/mainwindow.h
     ../src/ui/previewwidget.cpp
     ../src/ui/previewwidget.h
-    ../src/graphics/previewsource.h
+    ../src/graphics/rendersourcesnapshot.h
     ../src/video/videosource.cpp
     ../src/video/videosource.h
     ../src/video/videosourcetransform.h
@@ -371,7 +371,7 @@ qt_add_executable(tst_previewwidget
     ui/tst_previewwidget.cpp
     ../src/ui/previewwidget.cpp
     ../src/ui/previewwidget.h
-    ../src/graphics/previewsource.h
+    ../src/graphics/rendersourcesnapshot.h
     ../src/video/videosourcetransform.h
     ../src/graphics/captureframe.h
     ../src/graphics/gpuframeresource.h
@@ -417,7 +417,7 @@ qt_add_executable(tst_imagesourcecontroller
     ../src/video/videosourcemanager.cpp
     ../src/video/image/imagesourcecontroller.cpp
     ../src/video/image/imagesourcecontroller.h
-    ../src/graphics/previewsource.h
+    ../src/graphics/rendersourcesnapshot.h
     ../src/video/videosourcetransform.h
 )
 target_include_directories(tst_imagesourcecontroller PRIVATE

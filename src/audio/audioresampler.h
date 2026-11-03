@@ -17,15 +17,16 @@ class AudioResampler
 {
 public:
     ~AudioResampler();
-    bool configure(int rate, int channels, PcmFormat format, quint64 channelMask, QString *error);
-    QVector<float> convert(const unsigned char *data, int frames, QString *error);
+    bool configure(int inputSampleRate, int inputChannels, PcmFormat format, quint64 channelMask,
+                   QString *error);
+    QVector<float> convert(const unsigned char *data, int inputFrameCount, QString *error);
     bool reset();
     qint64 delayFrames() const;
-    bool compensate(int delta, int distance);
+    bool compensate(int sampleDelta, int compensationDistanceFrames);
 
 private:
     SwrContext *m_context = nullptr;
-    int m_rate = 0, m_channels = 0;
-    PcmFormat m_format = PcmFormat::Float32;
+    int m_inputSampleRate = 0, m_inputChannels = 0;
+    PcmFormat m_inputFormat = PcmFormat::Float32;
 };
 #endif

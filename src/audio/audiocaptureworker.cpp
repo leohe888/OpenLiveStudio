@@ -174,37 +174,38 @@ QString AudioCaptureWorker::capture()
     const auto freeFormat = qScopeGuard([&] {
         CoTaskMemFree(format);
     });
-    WORD tag = format->wFormatTag;
-    quint64 mask = 0;
-    if (tag == WAVE_FORMAT_EXTENSIBLE &&
+    WORD formatTag = format->wFormatTag;
+    quint64 channelMask = 0;
+    if (formatTag == WAVE_FORMAT_EXTENSIBLE &&
         format->cbSize >= sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX)) {
         const auto *extended = reinterpret_cast<WAVEFORMATEXTENSIBLE *>(format);
-        mask = extended->dwChannelMask;
+        channelMask = extended->dwChannelMask;
         if (extended->SubFormat == KSDATAFORMAT_SUBTYPE_IEEE_FLOAT)
-            tag = WAVE_FORMAT_IEEE_FLOAT;
+            formatTag = WAVE_FORMAT_IEEE_FLOAT;
         else if (extended->SubFormat == KSDATAFORMAT_SUBTYPE_PCM)
-            tag = WAVE_FORMAT_PCM;
+            formatTag = WAVE_FORMAT_PCM;
     }
-    PcmFormat pcm;
-    if (tag == WAVE_FORMAT_IEEE_FLOAT && format->wBitsPerSample == 32)
-        pcm = PcmFormat::Float32;
-    else if (tag == WAVE_FORMAT_IEEE_FLOAT && format->wBitsPerSample == 64)
-        pcm = PcmFormat::Float64;
-    else if (tag == WAVE_FORMAT_PCM && format->wBitsPerSample == 8)
-        pcm = PcmFormat::Unsigned8;
-    else if (tag == WAVE_FORMAT_PCM && format->wBitsPerSample == 16)
-        pcm = PcmFormat::Signed16;
-    else if (tag == WAVE_FORMAT_PCM && format->wBitsPerSample == 24)
-        pcm = PcmFormat::Signed24;
-    else if (tag == WAVE_FORMAT_PCM && format->wBitsPerSample == 32)
-        pcm = PcmFormat::Signed32;
+    PcmFormat pcmFormat;
+    if (formatTag == WAVE_FORMAT_IEEE_FLOAT && format->wBitsPerSample == 32)
+        pcmFormat = PcmFormat::Float32;
+    else if (formatTag == WAVE_FORMAT_IEEE_FLOAT && format->wBitsPerSample == 64)
+        pcmFormat = PcmFormat::Float64;
+    else if (formatTag == WAVE_FORMAT_PCM && format->wBitsPerSample == 8)
+        pcmFormat = PcmFormat::Unsigned8;
+    else if (formatTag == WAVE_FORMAT_PCM && format->wBitsPerSample == 16)
+        pcmFormat = PcmFormat::Signed16;
+    else if (formatTag == WAVE_FORMAT_PCM && format->wBitsPerSample == 24)
+        pcmFormat = PcmFormat::Signed24;
+    else if (formatTag == WAVE_FORMAT_PCM && format->wBitsPerSample == 32)
+        pcmFormat = PcmFormat::Signed32;
     else
         return QStringLiteral("不支持设备提供的 PCM 音频格式。");
     if (format->nBlockAlign != format->nChannels * format->wBitsPerSample / 8)
         return QStringLiteral("音频设备提供了无效的采样对齐。");
     AudioResampler resampler;
     QString error;
-    if (!resampler.configure(int(format->nSamplesPerSec), format->nChannels, pcm, mask, &error))
+    if (!resampler.configure(int(format->nSamplesPerSec), format->nChannels, pcmFormat, channelMask,
+                             &error))
         return error;
     hr = client->Initialize(AUDCLNT_SHAREMODE_SHARED,
                             m_type == AudioSourceType::SystemAudio ? AUDCLNT_STREAMFLAGS_LOOPBACK
@@ -226,25 +227,27 @@ QString AudioCaptureWorker::capture()
     });
     m_queue->clear();
     setStatus("capturing");
-    qint64 origin = 0, produced = 0, lastCorrection = 0, lastStateCheck = audioClockNs();
+    qint64 originNs = 0, producedAudioFrames = 0, lastCorrectionNs = 0,
+           lastStateCheckNs = audioClockNs();
     while (!m_stop.load()) {
         if (qEnvironmentVariable("OPENLIVE_FORCE_AUDIO_DEVICE_FAILURE") == m_deviceId)
             return audioError(QStringLiteral("音频设备已中断"), AUDCLNT_E_DEVICE_INVALIDATED);
-        UINT32 available = 0;
-        hr = captureClient->GetNextPacketSize(&available);
+        UINT32 availablePacketFrames = 0;
+        hr = captureClient->GetNextPacketSize(&availablePacketFrames);
         if (FAILED(hr))
             return audioError(QStringLiteral("音频设备采集已中断"), hr);
-        for (int packet = 0; available && packet < 128 && !m_stop.load(); ++packet) {
+        for (int packet = 0; availablePacketFrames && packet < 128 && !m_stop.load(); ++packet) {
             BYTE *data = nullptr;
             UINT32 frames = 0;
             DWORD flags = 0;
-            UINT64 position = 0, qpc = 0;
-            hr = captureClient->GetBuffer(&data, &frames, &flags, &position, &qpc);
+            UINT64 deviceFramePosition = 0, deviceTimestamp100ns = 0;
+            hr = captureClient->GetBuffer(&data, &frames, &flags, &deviceFramePosition,
+                                          &deviceTimestamp100ns);
             if (FAILED(hr))
                 return audioError(QStringLiteral("无法读取音频采样"), hr);
             if (hr == AUDCLNT_S_BUFFER_EMPTY)
                 break;
-            QByteArray raw;
+            QByteArray pcmBytes;
             HRESULT released = S_OK;
             {
                 const auto release = qScopeGuard([&] {
@@ -255,61 +258,62 @@ QString AudioCaptureWorker::capture()
                 if (frames && !data && !(flags & AUDCLNT_BUFFERFLAGS_SILENT))
                     return QStringLiteral("音频设备返回了空采样缓冲。");
                 const int bytes = int(frames * format->nBlockAlign);
-                raw = flags & AUDCLNT_BUFFERFLAGS_SILENT
+                pcmBytes = flags & AUDCLNT_BUFFERFLAGS_SILENT
                           ? QByteArray(bytes, 0)
                           : QByteArray(reinterpret_cast<const char *>(data), bytes);
                 // Unsigned PCM silence is its midpoint, not zero.
-                if ((flags & AUDCLNT_BUFFERFLAGS_SILENT) && pcm == PcmFormat::Unsigned8)
-                    raw.fill(char(128));
+                if ((flags & AUDCLNT_BUFFERFLAGS_SILENT) && pcmFormat == PcmFormat::Unsigned8)
+                    pcmBytes.fill(char(128));
             }
             if (FAILED(released))
                 return audioError(QStringLiteral("无法归还音频采样缓冲"), released);
             if (frames) {
-                const qint64 timestamp =
-                    !(flags & AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR) && qpc
-                        ? qint64(qpc) * 100
+                const qint64 timestampNs =
+                    !(flags & AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR) && deviceTimestamp100ns
+                        ? qint64(deviceTimestamp100ns) * 100
                         : audioClockNs() - qint64(frames) * 1000000000LL / format->nSamplesPerSec;
-                const qint64 expected =
-                    origin + AudioFormat::framesToNs(produced) +
+                const qint64 expectedTimestampNs =
+                    originNs + AudioFormat::framesToNs(producedAudioFrames) +
                     resampler.delayFrames() * 1000000000LL / format->nSamplesPerSec;
-                if (!origin || (flags & AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY) ||
-                    std::abs(timestamp - expected) > 50000000LL) {
+                if (!originNs || (flags & AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY) ||
+                    std::abs(timestampNs - expectedTimestampNs) > 50000000LL) {
                     if (!resampler.reset())
                         return QStringLiteral("无法重建音频重采样器。");
-                    origin = timestamp;
-                    produced = 0;
-                    lastCorrection = timestamp;
+                    originNs = timestampNs;
+                    producedAudioFrames = 0;
+                    lastCorrectionNs = timestampNs;
                     m_queue->clear();
-                } else if (timestamp - lastCorrection >= 1000000000LL) {
-                    const int delta = int(
-                        std::clamp<qint64>(AudioFormat::nsToFrames(timestamp - expected), -48, 48));
-                    if (!resampler.compensate(delta, AudioFormat::rate))
+                } else if (timestampNs - lastCorrectionNs >= 1000000000LL) {
+                    const int correctionFrames = int(std::clamp<qint64>(
+                        AudioFormat::nsToFrames(timestampNs - expectedTimestampNs), -48, 48));
+                    if (!resampler.compensate(correctionFrames, AudioFormat::rate))
                         return QStringLiteral("无法校正音频设备时钟。");
-                    lastCorrection = timestamp;
+                    lastCorrectionNs = timestampNs;
                 }
-                auto samples = resampler.convert(
-                    reinterpret_cast<const unsigned char *>(raw.constData()), int(frames), &error);
+                auto samples =
+                    resampler.convert(reinterpret_cast<const unsigned char *>(pcmBytes.constData()),
+                                      int(frames), &error);
                 if (!error.isEmpty())
                     return error;
                 if (!samples.isEmpty()) {
-                    AudioBlock block{origin + AudioFormat::framesToNs(produced),
+                    AudioBlock block{originNs + AudioFormat::framesToNs(producedAudioFrames),
                                      std::move(samples)};
-                    produced += block.frames();
+                    producedAudioFrames += block.frames();
                     m_queue->publish(std::move(block));
                 }
             }
-            hr = captureClient->GetNextPacketSize(&available);
+            hr = captureClient->GetNextPacketSize(&availablePacketFrames);
             if (FAILED(hr))
                 return audioError(QStringLiteral("音频采集已中断"), hr);
         }
         const auto now = audioClockNs();
-        if (now - lastStateCheck > 1000000000LL) {
+        if (now - lastStateCheckNs > 1000000000LL) {
             DWORD state = 0;
             hr = device->GetState(&state);
             if (FAILED(hr) || state != DEVICE_STATE_ACTIVE)
                 return audioError(QStringLiteral("所选音频设备已断开"),
                                   FAILED(hr) ? hr : AUDCLNT_E_DEVICE_INVALIDATED);
-            lastStateCheck = now;
+            lastStateCheckNs = now;
         }
         std::unique_lock<std::mutex> lock(m_mutex);
         m_wake.wait_for(lock, std::chrono::milliseconds(5), [this] {

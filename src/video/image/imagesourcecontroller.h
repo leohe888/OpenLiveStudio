@@ -1,7 +1,7 @@
 #ifndef IMAGESOURCECONTROLLER_H
 #define IMAGESOURCECONTROLLER_H
 
-#include "graphics/previewsource.h"
+#include "graphics/rendersourcesnapshot.h"
 #include <QObject>
 #include <QHash>
 #include <QThreadPool>
@@ -22,15 +22,15 @@ public:
 signals:
     void imageAdded(QObject *requester);
     void addFailed(QObject *requester, const QString &message);
-    void sourcesChanged(const QList<PreviewSource> &sources);
+    void renderSourcesChanged(const QList<RenderSourceSnapshot> &sources);
     void sourceFailed(const QString &sourceId, const QString &message);
 
 private:
-    void synchronize();
+    void synchronizeSources();
     void loadImage(const QString &path, std::function<void(QImage, QString)> completion);
     VideoSourceManager &m_sourceManager;
-    QThreadPool m_workers;
-    QHash<QObject *, quint64> m_requests;
+    QThreadPool m_imageLoadPool;
+    QHash<QObject *, quint64> m_pendingAddRequests;
 
     struct ImageEntry
     {

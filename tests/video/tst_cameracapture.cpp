@@ -14,9 +14,9 @@ class CameraCaptureTest : public QObject
     Q_OBJECT
 private slots:
     void typedModesPreserveDefaultsAndFrameRates();
-    void configAndLayout();
+    void configUpdatesPreserveTransformAndAspectRatio();
     void unavailableDeviceAndLifecycle();
-    void hardware();
+    void capturesHardwareCameraAndSupportedModes();
 };
 
 void CameraCaptureTest::typedModesPreserveDefaultsAndFrameRates()
@@ -44,7 +44,7 @@ void CameraCaptureTest::typedModesPreserveDefaultsAndFrameRates()
     QVERIFY(!invalid.config("camera").isValid());
 }
 
-void CameraCaptureTest::configAndLayout()
+void CameraCaptureTest::configUpdatesPreserveTransformAndAspectRatio()
 {
     VideoSourceManager model;
     CameraSourceController controller(model);
@@ -63,7 +63,7 @@ void CameraCaptureTest::configAndLayout()
     setCameraActualMode(model, id, {640, 480}, 30, 1);
     const auto adjusted = model.sources().at(0).transform();
     QCOMPARE(adjusted.center(), transform.center());
-    QCOMPARE(adjusted.rotation(), transform.rotation());
+    QCOMPARE(adjusted.rotationDegrees(), transform.rotationDegrees());
     QCOMPARE(adjusted.size(), QSizeF(600, 450));
     QCOMPARE(model.sourceFilters(id)[0].id(), filter);
     QVERIFY(!setCameraConfig(model, id, CameraSourceConfig{"missing-device", {1280, 720}, 30, 0}));
@@ -76,8 +76,8 @@ void CameraCaptureTest::unavailableDeviceAndLifecycle()
     VideoSourceManager model;
     CameraSourceController controller(model);
     QSignalSpy errors(&controller, &CameraSourceController::sourceFailed);
-    QList<PreviewSource> output;
-    connect(&controller, &CameraSourceController::sourcesChanged, this, [&](const auto &sources) {
+    QList<RenderSourceSnapshot> output;
+    connect(&controller, &CameraSourceController::renderSourcesChanged, this, [&](const auto &sources) {
         output = sources;
     });
     QImage image(8, 8, QImage::Format_RGB32);
@@ -108,7 +108,7 @@ void CameraCaptureTest::unavailableDeviceAndLifecycle()
              1); // The image remains in the model, not in this controller's output.
 }
 
-void CameraCaptureTest::hardware()
+void CameraCaptureTest::capturesHardwareCameraAndSupportedModes()
 {
     if (!qEnvironmentVariableIsSet("OPENLIVE_CAMERA_HARDWARE"))
         QSKIP("Set OPENLIVE_CAMERA_HARDWARE=1 to open cameras.");
@@ -143,14 +143,14 @@ void CameraCaptureTest::hardware()
     QTest::qWait(2000);
     QElapsedTimer interval;
     interval.start();
-    qint64 maxGap = 0;
+    qint64 maxFrameGapMs = 0;
     int updates = 0;
     const auto countFrames =
-        connect(&controller, &CameraSourceController::sourcesChanged, this, [&](const auto &) {
-            maxGap = qMax(maxGap, interval.restart());
+        connect(&controller, &CameraSourceController::renderSourcesChanged, this, [&](const auto &) {
+            maxFrameGapMs = qMax(maxFrameGapMs, interval.restart());
             ++updates;
         });
-    const int duration = qMax(2000, qEnvironmentVariableIntValue("OPENLIVE_CAMERA_STRESS_MS"));
+    const int testDurationMs = qMax(2000, qEnvironmentVariableIntValue("OPENLIVE_CAMERA_STRESS_MS"));
 #ifdef Q_OS_WIN
     PROCESS_MEMORY_COUNTERS_EX before{}, after{};
     before.cb = sizeof(before);
@@ -160,16 +160,16 @@ void CameraCaptureTest::hardware()
     DWORD handlesBefore = 0, handlesAfter = 0;
     GetProcessHandleCount(GetCurrentProcess(), &handlesBefore);
 #endif
-    QTest::qWait(duration);
+    QTest::qWait(testDurationMs);
     disconnect(countFrames);
     QVERIFY(updates > 0);
-    QVERIFY2(maxGap < 2000, "Camera publication stalled for over two seconds");
+    QVERIFY2(maxFrameGapMs < 2000, "Camera publication stalled for over two seconds");
 #ifdef Q_OS_WIN
     GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS *>(&after),
                          sizeof(after));
     GetProcessHandleCount(GetCurrentProcess(), &handlesAfter);
-    qInfo() << "Stability duration ms:" << duration << "updates:" << updates
-            << "max publication gap ms:" << maxGap
+    qInfo() << "Stability duration ms:" << testDurationMs << "updates:" << updates
+            << "max publication gap ms:" << maxFrameGapMs
             << "private bytes:" << quint64(before.PrivateUsage) << quint64(after.PrivateUsage)
             << "handles:" << handlesBefore << handlesAfter;
     QVERIFY(after.PrivateUsage < before.PrivateUsage + 64 * 1024 * 1024);

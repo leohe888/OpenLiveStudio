@@ -12,14 +12,14 @@ public:
     VideoSourceTransform();
     explicit VideoSourceTransform(const QSizeF &pixelSize);
     VideoSourceTransform(const QPointF &center, const QSizeF &size);
-    VideoSourceTransform(const QPointF &center, const QSizeF &size, qreal rotation);
+    VideoSourceTransform(const QPointF &center, const QSizeF &size, qreal rotationDegrees);
 
     QPointF center() const;
     void setCenter(const QPointF &center);
     QSizeF size() const;
     void setSize(const QSizeF &size);
-    qreal rotation() const;
-    void setRotation(qreal rotation);
+    qreal rotationDegrees() const;
+    void setRotationDegrees(qreal rotationDegrees);
 
     bool isValid() const;
     // Maps source-local coordinates to canvas coordinates.
@@ -32,7 +32,7 @@ public:
 private:
     QPointF m_center{960, 540};
     QSizeF m_size;
-    qreal m_rotation = 0;
+    qreal m_rotationDegrees = 0;
 };
 Q_DECLARE_METATYPE(VideoSourceTransform)
 

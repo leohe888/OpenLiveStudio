@@ -23,10 +23,10 @@ private slots:
         QVERIFY(image.save(path));
         VideoSourceManager model;
         ImageSourceController controller(model);
-        QList<PreviewSource> snapshot;
+        QList<RenderSourceSnapshot> snapshot;
         int updates = 0;
-        connect(&controller, &ImageSourceController::sourcesChanged, this,
-                [&](const QList<PreviewSource> &sources) {
+        connect(&controller, &ImageSourceController::renderSourcesChanged, this,
+                [&](const QList<RenderSourceSnapshot> &sources) {
                     snapshot = sources;
                     ++updates;
                 });
@@ -159,9 +159,9 @@ private slots:
         file.close();
         VideoSourceManager model;
         ImageSourceController controller(model);
-        QList<PreviewSource> snapshot;
-        connect(&controller, &ImageSourceController::sourcesChanged, this,
-                [&](const QList<PreviewSource> &sources) {
+        QList<RenderSourceSnapshot> snapshot;
+        connect(&controller, &ImageSourceController::renderSourcesChanged, this,
+                [&](const QList<RenderSourceSnapshot> &sources) {
                     snapshot = sources;
                 });
         QObject owner;
@@ -210,9 +210,9 @@ private slots:
                 [&](const QString &sourceId) {
                     loadStates.append(model.sourceRuntime(sourceId).state());
                 });
-        QList<PreviewSource> snapshot;
-        connect(&controller, &ImageSourceController::sourcesChanged, this,
-                [&](const QList<PreviewSource> &sources) {
+        QList<RenderSourceSnapshot> snapshot;
+        connect(&controller, &ImageSourceController::renderSourcesChanged, this,
+                [&](const QList<RenderSourceSnapshot> &sources) {
                     snapshot = sources;
                 });
         QTRY_COMPARE(errors.count(), 1);

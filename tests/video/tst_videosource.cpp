@@ -35,14 +35,14 @@ void VideoSourceTest::transformConstructionAndAngles()
     QVERIFY(!unset.isValid());
     QVERIFY(!unset.contains(QPointF(960, 540)));
     QCOMPARE(unset.center(), QPointF(960, 540));
-    QCOMPARE(unset.rotation(), 0.0);
+    QCOMPARE(unset.rotationDegrees(), 0.0);
     for (const QSizeF &size : {QSizeF(), QSizeF(0, 100), QSizeF(-1, 100)})
         QVERIFY(VideoSourceTransform(size) == unset);
     QCOMPARE(VideoSourceTransform(QSizeF(400, 200)).size(), QSizeF(400, 200));
     QCOMPARE(VideoSourceTransform(QSizeF(4000, 2000)).size(), QSizeF(1920, 960));
     QCOMPARE(VideoSourceTransform(QSizeF(1000, 4000)).size(), QSizeF(270, 1080));
     const VideoSourceTransform explicitGeometry{{10, 20}, {100, 50}};
-    QCOMPARE(explicitGeometry.rotation(), 0.0);
+    QCOMPARE(explicitGeometry.rotationDegrees(), 0.0);
     QVERIFY(explicitGeometry.isValid());
     QVERIFY(explicitGeometry.contains(explicitGeometry.center()));
     QVERIFY(explicitGeometry != unset);
@@ -55,8 +55,8 @@ void VideoSourceTest::transformConstructionAndAngles()
     const qreal inputs[] = {-30, 690, 360, -720, 12.5};
     const qreal expected[] = {330, 330, 0, 0, 12.5};
     for (int i = 0; i < 5; ++i) {
-        editable.setRotation(inputs[i]);
-        QCOMPARE(editable.rotation(), expected[i]);
+        editable.setRotationDegrees(inputs[i]);
+        QCOMPARE(editable.rotationDegrees(), expected[i]);
         const VideoSourceTransform constructed{editable.center(), editable.size(), inputs[i]};
         QVERIFY(editable == constructed);
         QCOMPARE(editable.sourceToCanvas(), constructed.sourceToCanvas());
@@ -64,11 +64,11 @@ void VideoSourceTest::transformConstructionAndAngles()
     for (qreal invalid :
          {std::numeric_limits<qreal>::infinity(), -std::numeric_limits<qreal>::infinity(),
           std::numeric_limits<qreal>::quiet_NaN()}) {
-        editable.setRotation(invalid);
+        editable.setRotationDegrees(invalid);
         QVERIFY(!editable.isValid());
         QVERIFY(!VideoSourceTransform(QPointF(), QSizeF(100, 50), invalid).isValid());
     }
-    editable.setRotation(0);
+    editable.setRotationDegrees(0);
     QVERIFY(editable.isValid());
 }
 
@@ -76,8 +76,8 @@ void VideoSourceTest::cameraConfigValidation_data()
 {
     QTest::addColumn<QString>("deviceId");
     QTest::addColumn<QSize>("resolution");
-    QTest::addColumn<int>("numerator");
-    QTest::addColumn<int>("denominator");
+    QTest::addColumn<int>("frameRateNumerator");
+    QTest::addColumn<int>("frameRateDenominator");
     QTest::addColumn<bool>("valid");
 
     QTest::newRow("automatic") << QString("camera") << QSize() << 0 << 1 << true;
@@ -100,11 +100,11 @@ void VideoSourceTest::cameraConfigValidation()
 {
     QFETCH(QString, deviceId);
     QFETCH(QSize, resolution);
-    QFETCH(int, numerator);
-    QFETCH(int, denominator);
+    QFETCH(int, frameRateNumerator);
+    QFETCH(int, frameRateDenominator);
     QFETCH(bool, valid);
 
-    const CameraSourceConfig config{deviceId, resolution, numerator, denominator};
+    const CameraSourceConfig config{deviceId, resolution, frameRateNumerator, frameRateDenominator};
     QCOMPARE(config.isValid(), valid);
 }
 

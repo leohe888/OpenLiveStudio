@@ -71,7 +71,8 @@ protected:
     }
 };
 
-QToolButton *action(QWidget *parent, const char *name, const QString &text, const char *icon)
+QToolButton *createActionButton(QWidget *parent, const char *name, const QString &text,
+                                const char *icon)
 {
     auto *button = new QToolButton(parent);
     button->setObjectName(name);
@@ -107,22 +108,23 @@ AudioSourcePanel::AudioSourcePanel(AudioSourceManager *manager, QWidget *parent)
     auto *meterLayout = new QVBoxLayout;
     master->addLayout(meterLayout, 1);
 
-    auto *left = new LevelMeter(false, this), *right = new LevelMeter(false, this);
-    meterLayout->addWidget(left);
-    meterLayout->addWidget(right);
+    auto *masterLeftMeter = new LevelMeter(false, this),
+         *masterRightMeter = new LevelMeter(false, this);
+    meterLayout->addWidget(masterLeftMeter);
+    meterLayout->addWidget(masterRightMeter);
 
-    auto *clip = plainLabel(this);
-    clip->setObjectName("mixedClipLabel");
-    master->addWidget(clip);
+    auto *clippingLabel = plainLabel(this);
+    clippingLabel->setObjectName("mixedClipLabel");
+    master->addWidget(clippingLabel);
 
-    const auto masterLevels = [=] {
-        left->setPeak(manager->masterPeakLeft());
-        right->setPeak(manager->masterPeakRight());
-        clip->setText(manager->masterClipped() ? tr("过载") : tr("输出"));
+    const auto refreshMasterMeters = [=] {
+        masterLeftMeter->setPeak(manager->masterPeakLeft());
+        masterRightMeter->setPeak(manager->masterPeakRight());
+        clippingLabel->setText(manager->masterClipped() ? tr("过载") : tr("输出"));
     };
 
-    connect(manager, &AudioSourceManager::masterLevelsChanged, this, masterLevels);
-    masterLevels();
+    connect(manager, &AudioSourceManager::masterLevelsChanged, this, refreshMasterMeters);
+    refreshMasterMeters();
 
     auto *scroll = new QScrollArea(this);
     scroll->setObjectName("mixerScrollView");
@@ -153,10 +155,10 @@ AudioSourcePanel::AudioSourcePanel(AudioSourceManager *manager, QWidget *parent)
     auto *actions = new QHBoxLayout;
     layout->addLayout(actions);
 
-    auto *add = action(this, "addSoundSourceButton", tr("添加声音来源"), "plus");
+    auto *add = createActionButton(this, "addSoundSourceButton", tr("添加声音来源"), "plus");
     actions->addWidget(add);
 
-    auto *remove = action(this, "removeSoundSourceButton", tr("移除声音来源"), "minus");
+    auto *remove = createActionButton(this, "removeSoundSourceButton", tr("移除声音来源"), "minus");
     actions->addWidget(remove);
     actions->addStretch();
 
@@ -198,9 +200,10 @@ AudioSourcePanel::AudioSourcePanel(AudioSourceManager *manager, QWidget *parent)
             auto *levels = new QHBoxLayout;
             column->addLayout(levels);
 
-            auto *l = new LevelMeter(true, channel), *r = new LevelMeter(true, channel);
-            levels->addWidget(l);
-            levels->addWidget(r);
+            auto *leftMeter = new LevelMeter(true, channel),
+                 *rightMeter = new LevelMeter(true, channel);
+            levels->addWidget(leftMeter);
+            levels->addWidget(rightMeter);
 
             auto *volume = new QSlider(Qt::Vertical, channel);
             volume->setObjectName(id + "VolumeSlider");
@@ -211,45 +214,46 @@ AudioSourcePanel::AudioSourcePanel(AudioSourceManager *manager, QWidget *parent)
             auto *muteRow = new QHBoxLayout;
             column->addLayout(muteRow);
 
-            auto *mute = action(channel, qPrintable(id + "MuteButton"), tr("静音"), "volume-2");
+            auto *mute =
+                createActionButton(channel, qPrintable(id + "MuteButton"), tr("静音"), "volume-2");
             mute->setCheckable(true);
             muteRow->addWidget(mute);
 
-            auto *value = plainLabel(channel);
-            value->setObjectName("channelValue");
-            muteRow->addWidget(value);
+            auto *volumeLabel = plainLabel(channel);
+            volumeLabel->setObjectName("channelValue");
+            muteRow->addWidget(volumeLabel);
 
-            auto *state = plainLabel(channel);
-            state->setObjectName("channelStatus");
-            column->addWidget(state);
+            auto *statusLabel = plainLabel(channel);
+            statusLabel->setObjectName("channelStatus");
+            column->addWidget(statusLabel);
             column->addStretch();
             row->addWidget(channel);
 
             const auto update = [=] {
-                const auto *info = manager->source(id);
-                if (!info)
+                const auto *sourceInfo = manager->source(id);
+                if (!sourceInfo)
                     return;
-                name->setText(info->name);
-                name->setToolTip(info->deviceName);
-                volume->setAccessibleName(info->name + tr("音量"));
+                name->setText(sourceInfo->name);
+                name->setToolTip(sourceInfo->deviceName);
+                volume->setAccessibleName(sourceInfo->name + tr("音量"));
                 {
                     QSignalBlocker block(volume);
-                    volume->setValue(qRound(info->volume * 100));
+                    volume->setValue(qRound(sourceInfo->volume * 100));
                 }
-                const bool muted = info->muted;
+                const bool muted = sourceInfo->muted;
                 mute->setChecked(muted);
                 mute->setIcon(
                     QIcon(muted ? ":/assets/icons/volume-x.svg" : ":/assets/icons/volume-2.svg"));
                 mute->setToolTip(muted ? tr("取消静音") : tr("静音"));
                 mute->setAccessibleName(mute->toolTip());
-                value->setText(QString::number(volume->value()) + "%");
+                volumeLabel->setText(QString::number(volume->value()) + "%");
 
-                const auto status = info->state;
-                state->setText(status == "error"      ? tr("等待设备恢复")
+                const auto status = sourceInfo->state;
+                statusLabel->setText(status == "error"      ? tr("等待设备恢复")
                                : status == "starting" ? tr("正在连接…")
                                : muted                ? tr("已静音")
                                                       : tr("采集中"));
-                state->setToolTip(info->error);
+                statusLabel->setToolTip(sourceInfo->error);
                 const bool selected = manager->currentSourceId() == id;
                 if (channel->property("selected").toBool() != selected) {
                     channel->setProperty("selected", selected);
@@ -260,9 +264,9 @@ AudioSourcePanel::AudioSourcePanel(AudioSourceManager *manager, QWidget *parent)
             };
 
             const auto updateLevels = [=] {
-                if (const auto *info = manager->source(id)) {
-                    l->setPeak(info->peak.left);
-                    r->setPeak(info->peak.right);
+                if (const auto *sourceInfo = manager->source(id)) {
+                    leftMeter->setPeak(sourceInfo->peak.left);
+                    rightMeter->setPeak(sourceInfo->peak.right);
                 }
             };
             connect(manager, &AudioSourceManager::sourceChanged, channel,

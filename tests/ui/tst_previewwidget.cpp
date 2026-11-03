@@ -38,7 +38,7 @@ private slots:
             QThread::msleep(180);
             QVERIFY(widget.compositor()->latestFrame()->sequence >= before + 3);
             image.fill(mode == 0 ? Qt::green : Qt::blue);
-            PreviewSource source{"image", image, true, {{960, 540}, {1920, 1080}, 0}};
+            RenderSourceSnapshot source{"image", image, true, {{960, 540}, {1920, 1080}, 0}};
             VideoSourceFilter filter{"brightness"};
             {
                 auto config = std::get<ColorCorrectionConfig>(filter.config());
@@ -68,7 +68,7 @@ private slots:
         QSignalSpy errors(&widget, &PreviewWidget::sourceFailed);
         QImage image(32, 16, QImage::Format_RGBA8888);
         image.fill(QColor(64, 128, 192));
-        PreviewSource source{"image", image, true, {{960, 540}, {1920, 1080}, 0}};
+        RenderSourceSnapshot source{"image", image, true, {{960, 540}, {1920, 1080}, 0}};
         VideoSourceFilter first{"first"};
         source.filters = {first};
         const auto render = [&] {
@@ -151,7 +151,7 @@ private slots:
         source.filters = {first, second};
         QImage background(16, 16, QImage::Format_RGBA8888);
         background.fill(Qt::green);
-        PreviewSource other{"background", background, true, source.transform};
+        RenderSourceSnapshot other{"background", background, true, source.transform};
         widget.setSources({source, other});
         grabPreview(widget);
         const auto frame = readCanvas(widget);
@@ -165,7 +165,7 @@ private slots:
         grabPreview(widget);
         QCOMPARE(sample(readCanvas(widget), .5, .5), QColor(Qt::green));
         source.visible = true;
-        source.transform.setRotation(180);
+        source.transform.setRotationDegrees(180);
         widget.resize(300, 300);
         widget.setSources({source, other});
         grabPreview(widget);
@@ -180,7 +180,7 @@ private slots:
             config.setBrightness(4);
             source.filters[0].setConfig(config);
         }
-        source.transform.setRotation(0);
+        source.transform.setRotationDegrees(0);
         widget.setSources({source});
         grabPreview(widget);
         QVERIFY(errors.count() > 0);
@@ -484,7 +484,7 @@ private slots:
         background.fill(Qt::blue);
         QImage foreground(400, 200, QImage::Format_RGBA8888);
         foreground.fill(QColor(255, 0, 0, 128));
-        QList<PreviewSource> sources{{"top", foreground, true}, {"bottom", background, true}};
+        QList<RenderSourceSnapshot> sources{{"top", foreground, true}, {"bottom", background, true}};
         widget.setSources(sources);
         widget.show();
         QVERIFY(QTest::qWaitForWindowExposed(&widget));
@@ -707,7 +707,7 @@ private slots:
             widget.setCurrentSourceId("image");
         }
         widget.resize(800, 500);
-        start.setRotation(37);
+        start.setRotationDegrees(37);
         widget.setSources({{"image", image, true, start}});
         grabPreview(widget);
         QTransform rotation;
@@ -727,14 +727,14 @@ private slots:
         drag(widget, handles[3], handles[3] + display.map(sideDelta) - display.map(QPointF()));
         QVERIFY(qAbs(widget.m_sources[0].transform.size().width() - 680) < 1e-6);
         QVERIFY(qAbs(widget.m_sources[0].transform.size().height() - 300) < 1e-6);
-        start.setRotation(0);
+        start.setRotationDegrees(0);
         widget.setSources({{"image", image, true, start}});
         handles = widget.selectionHandles(widget.m_sources[0]);
         const auto center = display.map(start.center());
         QTransform quarterTurn;
         quarterTurn.rotate(90);
         drag(widget, handles[8], center + quarterTurn.map(handles[8] - center));
-        QVERIFY(qAbs(widget.m_sources[0].transform.rotation() - 90) < 1e-6);
+        QVERIFY(qAbs(widget.m_sources[0].transform.rotationDegrees() - 90) < 1e-6);
         QVERIFY(closePoint(widget.m_sources[0].transform.center(), start.center()));
     }
 
@@ -787,7 +787,7 @@ private slots:
         transparent.fill(Qt::transparent);
         QImage background(100, 100, QImage::Format_RGBA8888);
         background.fill(Qt::yellow);
-        QList<PreviewSource> sources{{"top", transparent, true, {{960, 540}, {200, 400}, 45}, true},
+        QList<RenderSourceSnapshot> sources{{"top", transparent, true, {{960, 540}, {200, 400}, 45}, true},
                                      {"bottom", background, true, {{960, 540}, {500, 500}, 0}}};
         widget.setSources(sources);
         widget.show();
@@ -938,7 +938,7 @@ private slots:
                 QVERIFY(qAbs(transform.size().width() - (600 + 40 * step)) < 1e-6);
                 QVERIFY(qAbs(transform.size().height() - (300 + 20 * step)) < 1e-6);
             } else
-                QVERIFY(qAbs(transform.rotation() - 20 * step) < 1e-6);
+                QVERIFY(qAbs(transform.rotationDegrees() - 20 * step) < 1e-6);
         }
         mouse(widget, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
         QVERIFY(widget.m_gesture == PreviewWidget::Gesture::None);

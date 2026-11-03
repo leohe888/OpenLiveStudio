@@ -1,7 +1,7 @@
 #ifndef CAMERASOURCECONTROLLER_H
 #define CAMERASOURCECONTROLLER_H
 #include "video/camera/cameracaptureworker.h"
-#include "graphics/previewsource.h"
+#include "graphics/rendersourcesnapshot.h"
 #include <QObject>
 #include <QTimer>
 #include <QHash>
@@ -37,7 +37,7 @@ public:
 
     QList<CameraMode> modes(const QString &deviceId) const
     {
-        return m_modes.value(deviceId);
+        return m_deviceModes.value(deviceId);
     }
 
     QString addCamera(const QString &name, const CameraSourceConfig &config);
@@ -46,7 +46,7 @@ public:
 signals:
     void devicesChanged();
     void modesChanged(const QString &deviceId, const QString &error);
-    void sourcesChanged(const QList<PreviewSource> &sources);
+    void renderSourcesChanged(const QList<RenderSourceSnapshot> &sources);
     void sourceFailed(const QString &sourceId, const QString &message);
 
 private:
@@ -59,20 +59,20 @@ private:
         std::shared_ptr<const CameraFrame> frame;
     };
 
-    void synchronize();
-    void poll();
-    void publish();
-    void stop(Entry &entry);
+    void synchronizeSources();
+    void collectCaptureUpdates();
+    void publishRenderSources();
+    void retireWorker(Entry &entry);
     VideoSourceManager &m_sourceManager;
     QList<CameraDevice> m_devices;
-    QHash<QString, QList<CameraMode>> m_modes;
-    QSet<QString> m_querying;
+    QHash<QString, QList<CameraMode>> m_deviceModes;
+    QSet<QString> m_pendingModeDeviceIds;
     QString m_catalogError;
-    bool m_refreshing = false, m_busy = false, m_pending = false;
+    bool m_refreshing = false, m_updatingSources = false, m_syncPending = false;
     quint64 m_generation = 0;
-    QTimer m_timer;
+    QTimer m_framePollTimer;
     std::map<QString, Entry> m_entries;
-    std::vector<std::unique_ptr<CameraCaptureWorker>> m_retired;
-    std::vector<std::unique_ptr<QThread>> m_queries;
+    std::vector<std::unique_ptr<CameraCaptureWorker>> m_retiringWorkers;
+    std::vector<std::unique_ptr<QThread>> m_queryThreads;
 };
 #endif

@@ -44,8 +44,8 @@ private:
     void connectSourceErrors();
     void setupPreview();
     void setupStatusBar();
-    void setupSourcesDock();
-    void setupMixerDock();
+    void setupVideoSourcesDock();
+    void setupAudioSourcesDock();
     void setupControlsDock();
     void setupDockLayout();
     void updateOutputStatus();
@@ -53,7 +53,7 @@ private:
     QDockWidget *m_videoSourceDock = nullptr;
     QDockWidget *m_audioSourceDock = nullptr;
     QDockWidget *m_controlDock = nullptr;
-    QLabel *m_outputStatus = nullptr;
+    QLabel *m_outputStatusLabel = nullptr;
     VideoSourceManager *m_videoSourceManager = nullptr;
     VideoSourceAggregator *m_videoSourceAggregator = nullptr;
     ImageSourceController *m_imageSourceController = nullptr;

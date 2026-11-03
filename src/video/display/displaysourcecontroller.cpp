@@ -22,25 +22,26 @@ DisplaySourceController::DisplaySourceController(VideoSourceManager &manager, QO
     : QObject(parent), m_sourceManager(manager)
 {
     refreshDisplayDevices();
-    const auto sync = [this] {
-        synchronize();
+    const auto synchronizeSourcesFromManager = [this] {
+        synchronizeSources();
     };
-    connect(&manager, &VideoSourceManager::sourcesChanged, this, sync);
-    connect(&manager, &VideoSourceManager::sourceChanged, this, sync);
-    m_timer.setTimerType(Qt::PreciseTimer);
-    m_timer.setInterval(33);
-    connect(&m_timer, &QTimer::timeout, this, &DisplaySourceController::poll);
-    m_timer.start();
-    QMetaObject::invokeMethod(this, sync, Qt::QueuedConnection);
+    connect(&manager, &VideoSourceManager::sourcesChanged, this, synchronizeSourcesFromManager);
+    connect(&manager, &VideoSourceManager::sourceChanged, this, synchronizeSourcesFromManager);
+    m_framePollTimer.setTimerType(Qt::PreciseTimer);
+    m_framePollTimer.setInterval(33);
+    connect(&m_framePollTimer, &QTimer::timeout, this,
+            &DisplaySourceController::collectCaptureUpdates);
+    m_framePollTimer.start();
+    QMetaObject::invokeMethod(this, synchronizeSourcesFromManager, Qt::QueuedConnection);
 }
 
 DisplaySourceController::~DisplaySourceController()
 {
-    m_timer.stop();
+    m_framePollTimer.stop();
     for (auto &entry : m_entries)
-        stop(entry.second);
+        retireWorker(entry.second);
     // App shutdown only. Normal deletion retires workers without a GUI-thread join.
-    for (auto &worker : m_retired)
+    for (auto &worker : m_retiringWorkers)
         worker->wait();
 }
 
@@ -54,14 +55,14 @@ void DisplaySourceController::refreshDisplayDevices()
 }
 
 QString DisplaySourceController::addDisplay(const QString &name, const QString &displayId,
-                                            bool cursor)
+                                            bool captureCursor)
 {
     if (name.trimmed().isEmpty() || displayId.trimmed().isEmpty())
         return {};
     const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     // Keep the source even if opening the selected display subsequently fails.
     if (!m_sourceManager.addSource(
-            {id, name.trimmed(), DisplaySourceConfig{displayId, cursor}}))
+            {id, name.trimmed(), DisplaySourceConfig{displayId, captureCursor}}))
         return {};
     return id;
 }
@@ -71,65 +72,65 @@ bool DisplaySourceController::retry(const QString &sourceId)
     auto it = m_entries.find(sourceId);
     if (it == m_entries.end())
         return false;
-    stop(it->second);
+    retireWorker(it->second);
     it->second.failed = false;
-    synchronize();
+    synchronizeSources();
     return true;
 }
 
-void DisplaySourceController::stop(Entry &entry)
+void DisplaySourceController::retireWorker(Entry &entry)
 {
     entry.frame.reset();
     if (!entry.worker)
         return;
     entry.worker->stop();
-    m_retired.push_back(std::move(entry.worker));
+    m_retiringWorkers.push_back(std::move(entry.worker));
 }
 
-void DisplaySourceController::synchronize()
+void DisplaySourceController::synchronizeSources()
 {
-    if (m_busy) {
+    if (m_updatingSources) {
         if (!m_syncPending) {
             m_syncPending = true;
             QMetaObject::invokeMethod(
                 this,
                 [this] {
                     m_syncPending = false;
-                    synchronize();
+                    synchronizeSources();
                 },
                 Qt::QueuedConnection);
         }
         return;
     }
-    m_busy = true;
-    const auto reset = qScopeGuard([this] {
-        m_busy = false;
+    m_updatingSources = true;
+    const auto clearUpdateGuard = qScopeGuard([this] {
+        m_updatingSources = false;
     });
-    QSet<QString> retained;
+    QSet<QString> retainedSourceIds;
     const auto sourceEntries = m_sourceManager.sources();
     for (const auto &item : sourceEntries) {
         if (item.type() != VideoSourceType::DisplayCapture)
             continue;
         const QString id = item.id();
         const auto &config = std::get<DisplaySourceConfig>(item.config());
-        retained.insert(id);
+        retainedSourceIds.insert(id);
         auto &entry = m_entries[id];
         const QString displayId = config.displayId();
-        const bool cursor = config.captureCursor();
-        if (entry.displayId != displayId || entry.cursor != cursor) {
-            stop(entry);
+        const bool captureCursor = config.captureCursor();
+        if (entry.displayId != displayId || entry.captureCursor != captureCursor) {
+            retireWorker(entry);
             entry.displayId = displayId;
-            entry.cursor = cursor;
+            entry.captureCursor = captureCursor;
             entry.failed = false;
         }
         if (!item.visible()) {
-            stop(entry);
+            retireWorker(entry);
             setRuntimeStatus(m_sourceManager, id, VideoSourceState::Paused,
                              entry.failed ? m_sourceManager.sourceRuntime(id).error() : QString());
         } else if (!entry.worker && !entry.failed) {
             entry.generation = ++m_generation;
             entry.worker =
-                std::make_unique<DisplayCaptureWorker>(displayId, cursor, entry.generation);
+                std::make_unique<DisplayCaptureWorker>(displayId, captureCursor, entry.generation);
             entry.worker->start();
             setRuntimeStatus(m_sourceManager, id, VideoSourceState::Starting, {});
         } else if (entry.failed) {
@@ -138,13 +139,13 @@ void DisplaySourceController::synchronize()
         }
     }
     for (auto it = m_entries.begin(); it != m_entries.end();) {
-        if (!retained.contains(it->first)) {
-            stop(it->second);
+        if (!retainedSourceIds.contains(it->first)) {
+            retireWorker(it->second);
             it = m_entries.erase(it);
         } else
             ++it;
     }
-    publish();
+    publishRenderSources();
 }
 
 void DisplaySourceController::failTransfer(const QString &sourceId, quint64 generation,
@@ -156,33 +157,33 @@ void DisplaySourceController::failTransfer(const QString &sourceId, quint64 gene
         return;
     auto &entry = it->second;
     entry.failed = true;
-    stop(entry);
+    retireWorker(entry);
     const QString message = tr("GPU 画面传输失败，已停止采集。请检查显卡驱动后重新添加来源。");
     setRuntimeStatus(m_sourceManager, sourceId, VideoSourceState::Error, message);
     qWarning().noquote() << "Display GPU transfer failed:" << sourceId << reason;
     emit sourceFailed(sourceId, message);
-    publish();
+    publishRenderSources();
 }
 
-void DisplaySourceController::poll()
+void DisplaySourceController::collectCaptureUpdates()
 {
-    if (m_busy)
+    if (m_updatingSources)
         return;
-    m_busy = true;
-    const auto reset = qScopeGuard([this] {
-        m_busy = false;
+    m_updatingSources = true;
+    const auto clearUpdateGuard = qScopeGuard([this] {
+        m_updatingSources = false;
     });
-    bool changed = false;
+    bool captureUpdated = false;
     for (auto &[id, entry] : m_entries) {
         if (!entry.worker)
             continue;
         const QString error = entry.worker->lastError();
         if (!error.isEmpty()) {
             entry.failed = true;
-            stop(entry);
+            retireWorker(entry);
             setRuntimeStatus(m_sourceManager, id, VideoSourceState::Error, error);
             emit sourceFailed(id, error);
-            changed = true;
+            captureUpdated = true;
         } else if (auto frame = entry.worker->takeLatest()) {
             if (frame->generation != entry.generation)
                 continue;
@@ -192,39 +193,39 @@ void DisplaySourceController::poll()
             runtime.setState(VideoSourceState::Capturing);
             runtime.setError({});
             m_sourceManager.setSourceRuntime(id, runtime);
-            changed = true;
+            captureUpdated = true;
         }
     }
-    m_retired.erase(std::remove_if(m_retired.begin(), m_retired.end(),
+    m_retiringWorkers.erase(std::remove_if(m_retiringWorkers.begin(), m_retiringWorkers.end(),
                                    [](const auto &worker) {
                                        return worker->isFinished();
                                    }),
-                    m_retired.end());
-    if (changed)
-        publish();
+                    m_retiringWorkers.end());
+    if (captureUpdated)
+        publishRenderSources();
 }
 
-void DisplaySourceController::publish()
+void DisplaySourceController::publishRenderSources()
 {
-    QList<PreviewSource> result;
+    QList<RenderSourceSnapshot> result;
     const auto sourceEntries = m_sourceManager.sources();
     for (const auto &item : sourceEntries) {
         if (item.type() != VideoSourceType::DisplayCapture)
             continue;
         const QString id = item.id();
-        PreviewSource source;
+        RenderSourceSnapshot source;
         source.id = id;
-        const auto dynamic = m_entries.find(id);
-        if (dynamic == m_entries.end())
+        const auto captureEntry = m_entries.find(id);
+        if (captureEntry == m_entries.end())
             continue;
-        source.frame = dynamic->second.frame;
+        source.frame = captureEntry->second.frame;
         source.visible = item.visible();
         source.locked = item.locked();
         source.transform = item.transform();
         source.filters = item.filters();
         result.append(std::move(source));
     }
-    emit sourcesChanged(result);
+    emit renderSourcesChanged(result);
 }
 
 int DisplaySourceController::activeWorkerCount() const
@@ -233,7 +234,7 @@ int DisplaySourceController::activeWorkerCount() const
     for (const auto &entry : m_entries)
         if (entry.second.worker && !entry.second.worker->isFinished())
             ++count;
-    for (const auto &worker : m_retired)
+    for (const auto &worker : m_retiringWorkers)
         if (!worker->isFinished())
             ++count;
     return count;

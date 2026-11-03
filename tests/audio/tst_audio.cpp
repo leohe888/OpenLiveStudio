@@ -9,10 +9,10 @@ class AudioTest : public QObject
 {
     Q_OBJECT
 private:
-    static AudioBlock constant(qint64 timestamp, float left, float right, int frames = 480)
+    static AudioBlock constant(qint64 timestampNs, float left, float right, int frames = 480)
     {
         AudioBlock block;
-        block.timestampNs = timestamp;
+        block.timestampNs = timestampNs;
         block.samples.resize(frames * 2);
         for (int i = 0; i < frames; ++i) {
             block.samples[i * 2] = left;
@@ -37,7 +37,7 @@ private slots:
             mixer.wait();
         });
         QTest::qWait(650);
-        const auto blocks = tap->take();
+        const auto blocks = tap->takeAll();
         QVERIFY(blocks.size() > 50);
         for (size_t i = 1; i < blocks.size(); ++i)
             QCOMPARE(blocks[i]->timestampNs - blocks[i - 1]->timestampNs, qint64(10000000));
@@ -188,24 +188,24 @@ private slots:
 
     void mixingGainMuteClippingAndInputMeters()
     {
-        const qint64 timestamp = 1000000000;
-        auto a = std::make_shared<AudioPacketQueue>(), b = std::make_shared<AudioPacketQueue>();
-        a->publish(constant(timestamp, .8f, -.8f, 960));
-        b->publish(constant(timestamp, .7f, .9f, 960));
+        const qint64 timestampNs = 1000000000;
+        auto firstInputQueue = std::make_shared<AudioPacketQueue>(), secondInputQueue = std::make_shared<AudioPacketQueue>();
+        firstInputQueue->publish(constant(timestampNs, .8f, -.8f, 960));
+        secondInputQueue->publish(constant(timestampNs, .7f, .9f, 960));
         AudioMixerCore mixer;
         QHash<QString, AudioPeak> peaks;
-        auto output = mixer.mix({{"a", 1, false, a}, {"b", 1, false, b}}, timestamp, &peaks);
+        auto output = mixer.mix({{"a", 1, false, firstInputQueue}, {"b", 1, false, secondInputQueue}}, timestampNs, &peaks);
         QCOMPARE(output.samples[0], 1.f);
         QVERIFY(std::abs(output.samples[1] - .1f) < .00001f);
         QVERIFY(output.clipped);
         QVERIFY(std::abs(output.peak.left - 1.5f) < .00001f);
         QCOMPARE(peaks["a"].left, .8f);
-        output = mixer.mix({{"b", .5f, false, b}, {"a", 1, true, a}}, timestamp + 10000000, &peaks);
+        output = mixer.mix({{"b", .5f, false, secondInputQueue}, {"a", 1, true, firstInputQueue}}, timestampNs + 10000000, &peaks);
         QVERIFY(!output.clipped);
         QVERIFY(std::abs(output.samples[0] - .35f) < .00001f);
         QVERIFY(std::abs(output.samples[1] - .45f) < .00001f);
         QCOMPARE(peaks["a"].right, .8f); // Muted input still meters its signal.
-        output = mixer.mix({}, timestamp + 20000000);
+        output = mixer.mix({}, timestampNs + 20000000);
         QVERIFY(std::all_of(output.samples.cbegin(), output.samples.cend(), [](float value) {
             return value == 0;
         }));
@@ -213,29 +213,29 @@ private slots:
 
     void timestampsMissingSamplesAndReconnect()
     {
-        const qint64 timestamp = 1000000000;
+        const qint64 timestampNs = 1000000000;
         auto queue = std::make_shared<AudioPacketQueue>();
-        queue->publish(constant(timestamp + 5000000, .5f, -.5f));
+        queue->publish(constant(timestampNs + 5000000, .5f, -.5f));
         AudioMixerCore mixer;
         const QList<AudioInput> inputs{{"source", 1, false, queue}};
-        auto first = mixer.mix(inputs, timestamp);
+        auto first = mixer.mix(inputs, timestampNs);
         QCOMPARE(first.samples[0], 0.f);
         QCOMPARE(first.samples[480], .5f);
-        auto second = mixer.mix(inputs, timestamp + 10000000);
+        auto second = mixer.mix(inputs, timestampNs + 10000000);
         QCOMPARE(second.samples[0], .5f);
         QCOMPARE(second.samples[480], 0.f);
-        queue->publish(constant(timestamp + 20000000, .8f, .8f, 960));
-        QCOMPARE(mixer.mix(inputs, timestamp + 20000000).samples[0], .8f);
+        queue->publish(constant(timestampNs + 20000000, .8f, .8f, 960));
+        QCOMPARE(mixer.mix(inputs, timestampNs + 20000000).samples[0], .8f);
         queue->clear(); // Device disconnect discards the remainder of its old session.
-        QCOMPARE(mixer.mix(inputs, timestamp + 30000000).samples[0], 0.f);
-        queue->publish(constant(timestamp + 40000000, .2f, .3f));
-        QCOMPARE(mixer.mix(inputs, timestamp + 40000000).samples[0], .2f);
-        queue->publish(constant(timestamp - 2000000000LL, 1, 1));
-        queue->publish(constant(timestamp + 2000000000LL, 1, 1));
-        QCOMPARE(mixer.mix(inputs, timestamp + 50000000).samples[0], 0.f);
-        queue->publish(constant(timestamp + 60000000, std::numeric_limits<float>::quiet_NaN(),
+        QCOMPARE(mixer.mix(inputs, timestampNs + 30000000).samples[0], 0.f);
+        queue->publish(constant(timestampNs + 40000000, .2f, .3f));
+        QCOMPARE(mixer.mix(inputs, timestampNs + 40000000).samples[0], .2f);
+        queue->publish(constant(timestampNs - 2000000000LL, 1, 1));
+        queue->publish(constant(timestampNs + 2000000000LL, 1, 1));
+        QCOMPARE(mixer.mix(inputs, timestampNs + 50000000).samples[0], 0.f);
+        queue->publish(constant(timestampNs + 60000000, std::numeric_limits<float>::quiet_NaN(),
                                 std::numeric_limits<float>::infinity()));
-        QCOMPARE(mixer.mix(inputs, timestamp + 60000000).samples[0], 0.f);
+        QCOMPARE(mixer.mix(inputs, timestampNs + 60000000).samples[0], 0.f);
     }
 
     void boundedQueuesAndIndependentSilentOutput()
@@ -243,7 +243,7 @@ private slots:
         AudioPacketQueue queue;
         for (int i = 0; i < 1000; ++i)
             queue.publish(constant(i * 10000000LL, 1, 1));
-        auto batch = queue.take();
+        auto batch = queue.takeAll();
         QCOMPARE(batch.packets.size(), size_t(50));
         QCOMPARE(queue.droppedFrames(), quint64(950 * 480));
         AudioMixer mixer;
@@ -276,10 +276,10 @@ private slots:
     {
         QFETCH(int, rate);
         QFETCH(int, format);
-        const int bytes[]{1, 2, 3, 4, 4, 8};
-        QByteArray data(rate / 100 * bytes[format], 0);
+        const int bytesPerSample[]{1, 2, 3, 4, 4, 8};
+        QByteArray data(rate / 100 * bytesPerSample[format], 0);
         for (int sample = 0; sample < rate / 100; ++sample) {
-            auto *out = data.data() + sample * bytes[format];
+            auto *out = data.data() + sample * bytesPerSample[format];
             if (format == 0)
                 *out = char(160); // +0.25 full scale
             if (format == 1) {
@@ -319,7 +319,7 @@ private slots:
         QVERIFY(resampler.reset());
     }
 
-    void hardware()
+    void capturesHardwareMicrophoneAndSystemAudio()
     {
         if (!qEnvironmentVariableIsSet("OPENLIVE_AUDIO_HARDWARE"))
             QSKIP("Requires explicit WASAPI hardware validation");
@@ -342,7 +342,7 @@ private slots:
             int frames = 0;
             for (int i = 0; i < 40; ++i) {
                 QTest::qWait(25);
-                for (const auto &packet : queue->take().packets) {
+                for (const auto &packet : queue->takeAll().packets) {
                     frames += packet.frames();
                     QVERIFY(packet.timestampNs > audioClockNs() - 2000000000LL);
                     QVERIFY(packet.timestampNs < audioClockNs() + 100000000LL);

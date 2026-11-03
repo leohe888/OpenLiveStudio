@@ -16,7 +16,7 @@ MixedAudioBlock AudioMixerCore::mix(const QList<AudioInput> &inputs, qint64 time
     MixedAudioBlock output;
     output.timestampNs = timestampNs;
     output.samples.fill(0, AudioFormat::blockFrames * 2);
-    auto *mixed = output.samples.data();
+    auto *mixedSamples = output.samples.data();
     for (auto it = m_tracks.begin(); it != m_tracks.end();) {
         if (std::none_of(inputs.cbegin(), inputs.cend(), [&](const auto &input) {
                 return input.id == it->first;
@@ -28,7 +28,7 @@ MixedAudioBlock AudioMixerCore::mix(const QList<AudioInput> &inputs, qint64 time
     for (const auto &input : inputs) {
         if (!input.queue)
             continue;
-        auto batch = input.queue->take();
+        auto batch = input.queue->takeAll();
         auto &track = m_tracks[input.id];
         if (track.queue != input.queue || track.generation != batch.generation)
             track.pending.clear();
@@ -45,15 +45,16 @@ MixedAudioBlock AudioMixerCore::mix(const QList<AudioInput> &inputs, qint64 time
         while (track.pending.size() > 100)
             track.pending.pop_front();
         QVector<float> samples(AudioFormat::blockFrames * 2, 0);
-        auto *values = samples.data();
+        auto *inputSamples = samples.data();
         for (auto it = track.pending.begin(); it != track.pending.end();) {
-            const qint64 offset = AudioFormat::nsToFrames(it->timestampNs - timestampNs);
-            const int begin = int(std::max<qint64>(0, offset));
-            const int end = int(std::min<qint64>(AudioFormat::blockFrames, offset + it->frames()));
+            const qint64 frameOffset = AudioFormat::nsToFrames(it->timestampNs - timestampNs);
+            const int begin = int(std::max<qint64>(0, frameOffset));
+            const int end =
+                int(std::min<qint64>(AudioFormat::blockFrames, frameOffset + it->frames()));
             if (end > begin)
-                std::copy_n(it->samples.constData() + (begin - offset) * 2, (end - begin) * 2,
-                            values + begin * 2);
-            if (offset + it->frames() <= AudioFormat::blockFrames)
+                std::copy_n(it->samples.constData() + (begin - frameOffset) * 2, (end - begin) * 2,
+                            inputSamples + begin * 2);
+            if (frameOffset + it->frames() <= AudioFormat::blockFrames)
                 it = track.pending.erase(it);
             else
                 ++it;
@@ -62,19 +63,20 @@ MixedAudioBlock AudioMixerCore::mix(const QList<AudioInput> &inputs, qint64 time
         const float gain =
             !input.muted && std::isfinite(input.gain) ? std::clamp(input.gain, 0.f, 1.f) : 0;
         for (int frame = 0; frame < AudioFormat::blockFrames; ++frame) {
-            const float left = std::isfinite(values[frame * 2]) ? values[frame * 2] : 0;
-            const float right = std::isfinite(values[frame * 2 + 1]) ? values[frame * 2 + 1] : 0;
+            const float left = std::isfinite(inputSamples[frame * 2]) ? inputSamples[frame * 2] : 0;
+            const float right =
+                std::isfinite(inputSamples[frame * 2 + 1]) ? inputSamples[frame * 2 + 1] : 0;
             peak.left = std::max(peak.left, std::abs(left));
             peak.right = std::max(peak.right, std::abs(right));
-            mixed[frame * 2] += left * gain;
-            mixed[frame * 2 + 1] += right * gain;
+            mixedSamples[frame * 2] += left * gain;
+            mixedSamples[frame * 2 + 1] += right * gain;
         }
         if (inputPeaks)
             (*inputPeaks)[input.id].add(peak);
     }
     for (int frame = 0; frame < AudioFormat::blockFrames; ++frame) {
-        output.peak.left = std::max(output.peak.left, std::abs(mixed[frame * 2]));
-        output.peak.right = std::max(output.peak.right, std::abs(mixed[frame * 2 + 1]));
+        output.peak.left = std::max(output.peak.left, std::abs(mixedSamples[frame * 2]));
+        output.peak.right = std::max(output.peak.right, std::abs(mixedSamples[frame * 2 + 1]));
     }
     output.clipped = output.peak.left > 1 || output.peak.right > 1;
     for (auto &sample : output.samples)
@@ -136,20 +138,20 @@ void AudioMixer::setOutputEnabled(bool enabled)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_outputEnabled = enabled;
-    m_output.clear();
-    m_dropped = 0;
+    m_diagnosticOutputBlocks.clear();
+    m_droppedDiagnosticBlocks = 0;
 }
 
 std::deque<std::shared_ptr<const MixedAudioBlock>> AudioMixer::takeOutput()
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    return std::exchange(m_output, {});
+    return std::exchange(m_diagnosticOutputBlocks, {});
 }
 
 quint64 AudioMixer::droppedOutputBlocks() const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    return m_dropped;
+    return m_droppedDiagnosticBlocks;
 }
 
 quint64 AudioMixer::discontinuities() const
@@ -165,8 +167,8 @@ void AudioMixer::run()
     using Clock = std::chrono::steady_clock;
     const auto period = std::chrono::milliseconds(10);
     auto deadline = Clock::now();
-    const qint64 origin = audioClockNs() - 60000000LL; // 60 ms input jitter allowance.
-    qint64 samplePosition = 0;
+    const qint64 originNs = audioClockNs() - 60000000LL; // 60 ms input jitter allowance.
+    qint64 audioFramePosition = 0;
     quint64 sequence = 0;
     const int pauseOnce =
         std::clamp(qEnvironmentVariableIntValue("OPENLIVE_AUDIO_MIXER_PAUSE_ONCE_MS"), 0, 1200);
@@ -185,16 +187,16 @@ void AudioMixer::run()
         // allowance (60 ms capture jitter + at most 100 ms catch-up). Preserve
         // captured samples instead of turning a 40 ms hitch into an audio hole.
         if (Clock::now() > deadline + period * 10) {
-            const auto skipped = (Clock::now() - deadline) / period;
-            samplePosition += skipped * AudioFormat::blockFrames;
-            deadline += period * skipped;
+            const auto skippedBlocks = (Clock::now() - deadline) / period;
+            audioFramePosition += skippedBlocks * AudioFormat::blockFrames;
+            deadline += period * skippedBlocks;
             core.clear();
             std::lock_guard<std::mutex> lock(m_mutex);
             ++m_discontinuities;
         }
         Levels levels;
-        auto block = std::make_shared<MixedAudioBlock>(
-            core.mix(inputs, origin + AudioFormat::framesToNs(samplePosition), &levels.sources));
+        auto block = std::make_shared<MixedAudioBlock>(core.mix(
+            inputs, originNs + AudioFormat::framesToNs(audioFramePosition), &levels.sources));
         block->sequence = ++sequence;
         levels.master = block->peak;
         levels.clipped = block->clipped;
@@ -207,14 +209,14 @@ void AudioMixer::run()
             m_levels.clipped |= levels.clipped;
             m_bus.publish(block);
             if (m_outputEnabled) {
-                m_output.push_back(std::move(block));
-                if (m_output.size() > 100) {
-                    m_output.pop_front();
-                    ++m_dropped;
+                m_diagnosticOutputBlocks.push_back(std::move(block));
+                if (m_diagnosticOutputBlocks.size() > 100) {
+                    m_diagnosticOutputBlocks.pop_front();
+                    ++m_droppedDiagnosticBlocks;
                 }
             }
         }
-        samplePosition += AudioFormat::blockFrames;
+        audioFramePosition += AudioFormat::blockFrames;
         deadline += period;
         if (pauseOnce && sequence == 20)
             QThread::msleep(unsigned(pauseOnce));

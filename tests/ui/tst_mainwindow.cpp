@@ -429,18 +429,18 @@ void MainWindowTest::aggregatesIndependentSourceControllers()
     auto *display = window.findChild<DisplaySourceController *>();
     auto *camera = window.findChild<CameraSourceController *>();
     QVERIFY(model && aggregator && images && display && camera);
-    QList<PreviewSource> output, imageOutput, displayOutput, cameraOutput;
+    QList<RenderSourceSnapshot> output, imageOutput, displayOutput, cameraOutput;
 
-    connect(aggregator, &VideoSourceAggregator::sourcesChanged, &window, [&](const auto &sources) {
+    connect(aggregator, &VideoSourceAggregator::renderSourcesChanged, &window, [&](const auto &sources) {
         output = sources;
     });
-    connect(images, &ImageSourceController::sourcesChanged, &window, [&](const auto &sources) {
+    connect(images, &ImageSourceController::renderSourcesChanged, &window, [&](const auto &sources) {
         imageOutput = sources;
     });
-    connect(display, &DisplaySourceController::sourcesChanged, &window, [&](const auto &sources) {
+    connect(display, &DisplaySourceController::renderSourcesChanged, &window, [&](const auto &sources) {
         displayOutput = sources;
     });
-    connect(camera, &CameraSourceController::sourcesChanged, &window, [&](const auto &sources) {
+    connect(camera, &CameraSourceController::renderSourcesChanged, &window, [&](const auto &sources) {
         cameraOutput = sources;
     });
     QTemporaryDir directory;
@@ -541,7 +541,7 @@ void MainWindowTest::previewEditsModelAndSynchronizesSelection()
     move(canvasPoint(moved.center()), canvasPoint(moved.center()) + QPoint(10, 5));
     QVERIFY(currentTransform().center() != moved.center());
     VideoSourceTransform rotated = currentTransform();
-    rotated.setRotation(30);
+    rotated.setRotationDegrees(30);
     rotated.setSize(QSizeF(450, 250));
     QVERIFY(model->setSourceTransform(frontId, rotated));
 
@@ -779,7 +779,7 @@ void MainWindowTest::cameraHardwarePreview()
             QVERIFY(qAbs(actual.size().width() - 660) < 0.001);
             QVERIFY(qAbs(actual.size().height() - 330) < 0.001);
         } else
-            QVERIFY(qAbs(actual.rotation() - 30) < 0.001);
+            QVERIFY(qAbs(actual.rotationDegrees() - 30) < 0.001);
     }
     window.resize(1100, 720);
     QTest::qWait(100);

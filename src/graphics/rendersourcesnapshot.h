@@ -1,5 +1,5 @@
-#ifndef PREVIEWSOURCE_H
-#define PREVIEWSOURCE_H
+#ifndef RENDERSOURCESNAPSHOT_H
+#define RENDERSOURCESNAPSHOT_H
 
 #include "video/videosourcetransform.h"
 #include "video/videosourcefilter.h"
@@ -9,7 +9,7 @@
 #include <QList>
 #include <QString>
 
-struct PreviewSource
+struct RenderSourceSnapshot
 {
     QString id;
     QImage image;

@@ -11,9 +11,10 @@
 class StreamingWorker : public QThread
 {
 public:
-    StreamingWorker(Compositor &video, AudioMixer &audio, QString server, QString key, int bitrate)
+    StreamingWorker(Compositor &video, AudioMixer &audio, QString server, QString key,
+                    int bitrateKbps)
         : m_video(video), m_audio(audio), m_server(std::move(server)), m_key(std::move(key)),
-          m_bitrate(bitrate)
+          m_bitrateKbps(bitrateKbps)
     {
         m_status.state = "connecting";
     }
@@ -41,7 +42,7 @@ protected:
     void run() override
     {
         StreamingStatus status = snapshot();
-        qint64 firstConnected = 0;
+        qint64 firstConnectedNs = 0;
         int attempt = 0;
         try {
             while (!m_stop) {
@@ -49,13 +50,13 @@ protected:
                     status.state = attempt ? "reconnecting" : "connecting";
                     status.retryInSeconds = 0;
                     status.bitrateKbps = 0;
-                    publish(status, firstConnected);
+                    publish(status, firstConnectedNs);
                     const QString endpoint = resolvedEndpoint();
                     if (m_stop)
                         break;
                     MediaEncoder encoder;
                     encoder.openStream(
-                        endpoint, m_bitrate,
+                        endpoint, m_bitrateKbps,
                         [&] {
                             return m_stop.load();
                         },
@@ -67,95 +68,97 @@ protected:
                             return m_stop.load();
                         }))
                         break;
-                    if (!firstConnected)
-                        firstConnected = MediaClock::nowNs();
+                    if (!firstConnectedNs)
+                        firstConnectedNs = MediaClock::nowNs();
                     status.state = "live";
                     status.error.clear();
-                    publish(status, firstConnected);
-                    qint64 frame = 0, rateTime = MediaClock::nowNs(),
-                           rateBytes = encoder.bytesSent();
-                    qint64 lastEncodeNs = 0, lastNetworkStall = 0, processingTotal = 0,
-                           slowSince = 0;
-                    std::deque<std::pair<qint64, qint64>> processing;
-                    qint64 skipped = 0;
-                    const auto performanceStart = MediaClock::nowNs();
-                    const int pauseOnce = std::clamp(
+                    publish(status, firstConnectedNs);
+                    qint64 frameIndex = 0, bitrateWindowStartNs = MediaClock::nowNs(),
+                           bitrateWindowStartBytes = encoder.bytesSent();
+                    qint64 lastEncodeNs = 0, lastNetworkStallNs = 0, processingTotalNs = 0,
+                           slowSinceNs = 0;
+                    std::deque<std::pair<qint64, qint64>> recentEncodeDurations;
+                    qint64 skippedVideoFrames = 0;
+                    const auto performanceStartNs = MediaClock::nowNs();
+                    const int artificialPauseOnceMs = std::clamp(
                         qEnvironmentVariableIntValue("OPENLIVE_STREAMING_PAUSE_ONCE_MS"), 0, 1500);
                     const auto previousDropped = status.droppedFrames;
-                    const int delay = std::clamp(
+                    const int artificialEncodeDelayMs = std::clamp(
                         qEnvironmentVariableIntValue("OPENLIVE_STREAMING_ENCODER_DELAY_MS"), 0,
                         1000);
                     while (!m_stop) {
-                        status.lagMs = timeline.lag(frame) / 1000000;
+                        status.lagMs = timeline.lagNs(frameIndex) / 1000000;
                         // Live output prioritizes freshness. A scheduling hitch
                         // skips media time instead of encoding a catch-up burst.
                         // Network backlog requires a fresh socket as well.
-                        if (timeline.lag(frame) > 1000000000LL) {
-                            if (lastNetworkStall &&
-                                MediaClock::nowNs() - lastNetworkStall < 3000000000LL)
+                        if (timeline.lagNs(frameIndex) > 1000000000LL) {
+                            if (lastNetworkStallNs &&
+                                MediaClock::nowNs() - lastNetworkStallNs < 3000000000LL)
                                 throw StreamFailure{
                                     QStringLiteral("直播发送积压，正在恢复实时画面。"), true};
-                            const auto fresh = std::max(
-                                frame + 1, (MediaClock::nowNs() - timeline.origin() - 200000000LL) *
-                                               30 / 1000000000LL);
-                            skipped += fresh - frame;
-                            frame = fresh;
-                            encoder.skipTo(frame);
+                            const auto freshFrameIndex =
+                                std::max(frameIndex + 1,
+                                         (MediaClock::nowNs() - timeline.originNs() - 200000000LL) *
+                                             30 / 1000000000LL);
+                            skippedVideoFrames += freshFrameIndex - frameIndex;
+                            frameIndex = freshFrameIndex;
+                            encoder.skipTo(frameIndex);
                             timeline.recover();
-                            status.droppedFrames =
-                                previousDropped + quint64(skipped) + timeline.dropped();
+                            status.droppedFrames = previousDropped + quint64(skippedVideoFrames) +
+                                                   timeline.droppedVideoFrames();
                         }
                         QImage image;
                         QVector<float> audio;
-                        if (!timeline.read(frame, image, audio)) {
-                            publish(status, firstConnected);
+                        if (!timeline.read(frameIndex, image, audio)) {
+                            publish(status, firstConnectedNs);
                             msleep(3);
                             continue;
                         }
-                        const auto encodeStart = MediaClock::nowNs(),
-                                   networkStart = encoder.outputTimeNs();
-                        encoder.video(image, frame);
-                        encoder.audio(audio);
-                        if (delay)
-                            msleep(unsigned(delay));
-                        if (pauseOnce && frame == 60)
-                            msleep(unsigned(pauseOnce));
-                        lastEncodeNs = MediaClock::nowNs() - encodeStart -
-                                       (encoder.outputTimeNs() - networkStart);
+                        const auto encodeStartNs = MediaClock::nowNs(),
+                                   outputTimeBeforeNs = encoder.outputTimeNs();
+                        encoder.encodeVideoFrame(image, frameIndex);
+                        encoder.encodeAudioSamples(audio);
+                        if (artificialEncodeDelayMs)
+                            msleep(unsigned(artificialEncodeDelayMs));
+                        if (artificialPauseOnceMs && frameIndex == 60)
+                            msleep(unsigned(artificialPauseOnceMs));
+                        lastEncodeNs = MediaClock::nowNs() - encodeStartNs -
+                                       (encoder.outputTimeNs() - outputTimeBeforeNs);
                         status.lastEncodeMs = lastEncodeNs / 1000000;
-                        const auto processedAt = MediaClock::nowNs();
-                        if (encoder.outputTimeNs() - networkStart > 100000000LL)
-                            lastNetworkStall = processedAt;
-                        processing.emplace_back(processedAt, lastEncodeNs);
-                        processingTotal += lastEncodeNs;
-                        while (!processing.empty() &&
-                               processing.front().first < processedAt - 10000000000LL) {
-                            processingTotal -= processing.front().second;
-                            processing.pop_front();
+                        const auto processedAtNs = MediaClock::nowNs();
+                        if (encoder.outputTimeNs() - outputTimeBeforeNs > 100000000LL)
+                            lastNetworkStallNs = processedAtNs;
+                        recentEncodeDurations.emplace_back(processedAtNs, lastEncodeNs);
+                        processingTotalNs += lastEncodeNs;
+                        while (!recentEncodeDurations.empty() &&
+                               recentEncodeDurations.front().first <
+                                   processedAtNs - 10000000000LL) {
+                            processingTotalNs -= recentEncodeDurations.front().second;
+                            recentEncodeDurations.pop_front();
                         }
-                        if (processedAt - performanceStart > 3000000000LL &&
-                            processing.size() >= 15 &&
-                            processingTotal / qint64(processing.size()) > 33333333LL) {
-                            if (!slowSince)
-                                slowSince = processedAt;
-                            if (processedAt - slowSince > 2000000000LL)
+                        if (processedAtNs - performanceStartNs > 3000000000LL &&
+                            recentEncodeDurations.size() >= 15 &&
+                            processingTotalNs / qint64(recentEncodeDurations.size()) > 33333333LL) {
+                            if (!slowSinceNs)
+                                slowSinceNs = processedAtNs;
+                            if (processedAtNs - slowSinceNs > 2000000000LL)
                                 throw QStringLiteral(
                                     "推流编码持续跟不上实时速度，直播已停止；请减少系统负载。");
                         } else
-                            slowSince = 0;
-                        ++frame;
-                        status.droppedFrames =
-                            previousDropped + quint64(skipped) + timeline.dropped();
-                        if (frame >= 60)
+                            slowSinceNs = 0;
+                        ++frameIndex;
+                        status.droppedFrames = previousDropped + quint64(skippedVideoFrames) +
+                                               timeline.droppedVideoFrames();
+                        if (frameIndex >= 60)
                             attempt = 0; // Backoff is for consecutive failures.
                         const auto now = MediaClock::nowNs();
-                        if (now - rateTime >= 1000000000LL) {
-                            status.bitrateKbps =
-                                (encoder.bytesSent() - rateBytes) * 8000000LL / (now - rateTime);
-                            rateTime = now;
-                            rateBytes = encoder.bytesSent();
+                        if (now - bitrateWindowStartNs >= 1000000000LL) {
+                            status.bitrateKbps = (encoder.bytesSent() - bitrateWindowStartBytes) *
+                                                 8000000LL / (now - bitrateWindowStartNs);
+                            bitrateWindowStartNs = now;
+                            bitrateWindowStartBytes = encoder.bytesSent();
                         }
-                        publish(status, firstConnected);
+                        publish(status, firstConnectedNs);
                     }
                     // On user stop, interrupt network cleanup immediately. RTMP
                     // has no file trailer to preserve; do not flush stale frames.
@@ -167,15 +170,16 @@ protected:
                     status.error = failure.message;
                     status.state = "reconnecting";
                     status.bitrateKbps = 0;
-                    const int waits[]{1, 2, 5, 10};
-                    const int seconds = waits[std::min(attempt, 3)];
+                    const int retryDelaysSeconds[]{1, 2, 5, 10};
+                    const int retryDelaySeconds = retryDelaysSeconds[std::min(attempt, 3)];
                     ++attempt;
                     ++status.reconnects;
-                    const auto until = MediaClock::nowNs() + qint64(seconds) * 1000000000LL;
-                    while (!m_stop && MediaClock::nowNs() < until) {
-                        status.retryInSeconds =
-                            int((until - MediaClock::nowNs() + 999999999LL) / 1000000000LL);
-                        publish(status, firstConnected);
+                    const auto retryDeadlineNs =
+                        MediaClock::nowNs() + qint64(retryDelaySeconds) * 1000000000LL;
+                    while (!m_stop && MediaClock::nowNs() < retryDeadlineNs) {
+                        status.retryInSeconds = int(
+                            (retryDeadlineNs - MediaClock::nowNs() + 999999999LL) / 1000000000LL);
+                        publish(status, firstConnectedNs);
                         msleep(25);
                     }
                 }
@@ -200,7 +204,7 @@ protected:
         }
         status.bitrateKbps = 0;
         status.retryInSeconds = 0;
-        publish(status, firstConnected);
+        publish(status, firstConnectedNs);
     }
 
 private:
@@ -214,24 +218,25 @@ private:
             QEventLoop loop;
             QTimer timer;
             timer.setInterval(25);
-            const auto deadline = MediaClock::nowNs() + 3000000000LL;
+            const auto lookupDeadlineNs = MediaClock::nowNs() + 3000000000LL;
             QList<QHostAddress> addresses;
-            bool complete = false;
-            const int lookup = QHostInfo::lookupHost(url.host(), &loop, [&](const QHostInfo &info) {
-                addresses = info.addresses();
-                complete = true;
-                loop.quit();
-            });
+            bool lookupCompleted = false;
+            const int lookupId =
+                QHostInfo::lookupHost(url.host(), &loop, [&](const QHostInfo &info) {
+                    addresses = info.addresses();
+                    lookupCompleted = true;
+                    loop.quit();
+                });
             QObject::connect(&timer, &QTimer::timeout, &loop, [&] {
-                if (m_stop || MediaClock::nowNs() > deadline)
+                if (m_stop || MediaClock::nowNs() > lookupDeadlineNs)
                     loop.quit();
             });
             timer.start();
             loop.exec();
-            QHostInfo::abortHostLookup(lookup);
+            QHostInfo::abortHostLookup(lookupId);
             if (m_stop)
                 return {};
-            if (!complete || addresses.empty())
+            if (!lookupCompleted || addresses.empty())
                 throw StreamFailure{QStringLiteral("无法解析推流服务器地址。"), true};
             address = addresses.front();
             for (const auto &candidate : addresses)
@@ -244,10 +249,10 @@ private:
         return url.toString(QUrl::FullyEncoded);
     }
 
-    void publish(StreamingStatus &status, qint64 origin)
+    void publish(StreamingStatus &status, qint64 originNs)
     {
-        if (origin)
-            status.durationMs = (MediaClock::nowNs() - origin) / 1000000;
+        if (originNs)
+            status.durationMs = (MediaClock::nowNs() - originNs) / 1000000;
         std::lock_guard<std::mutex> lock(m_mutex);
         m_status = status;
     }
@@ -255,7 +260,7 @@ private:
     Compositor &m_video;
     AudioMixer &m_audio;
     QString m_server, m_key;
-    int m_bitrate;
+    int m_bitrateKbps;
     std::atomic<bool> m_stop{false}, m_overload{false};
     mutable std::mutex m_mutex;
     StreamingStatus m_status;
@@ -264,9 +269,9 @@ private:
 StreamingController::StreamingController(Compositor &video, AudioMixer &audio, QObject *parent)
     : QObject(parent), m_video(video), m_audio(audio)
 {
-    m_poll.setInterval(50);
-    connect(&m_poll, &QTimer::timeout, this, &StreamingController::poll);
-    m_poll.start();
+    m_statusPollTimer.setInterval(50);
+    connect(&m_statusPollTimer, &QTimer::timeout, this, &StreamingController::refreshWorkerStatus);
+    m_statusPollTimer.start();
     for (auto *thread : {static_cast<QThread *>(&video), static_cast<QThread *>(&audio)}) {
         connect(thread, &QThread::started, this, &StreamingController::availabilityChanged);
         connect(thread, &QThread::finished, this, &StreamingController::availabilityChanged);
@@ -275,7 +280,7 @@ StreamingController::StreamingController(Compositor &video, AudioMixer &audio, Q
 
 StreamingController::~StreamingController()
 {
-    m_poll.stop();
+    m_statusPollTimer.stop();
     if (m_worker) {
         m_worker->stop();
         m_worker->wait();
@@ -304,7 +309,7 @@ bool StreamingController::startStreaming(const QString &server, const QString &k
     while (endpoint.endsWith('/'))
         endpoint.chop(1);
     m_worker = std::make_unique<StreamingWorker>(m_video, m_audio, endpoint, key, bitrateKbps);
-    connect(m_worker.get(), &QThread::finished, this, &StreamingController::poll,
+    connect(m_worker.get(), &QThread::finished, this, &StreamingController::refreshWorkerStatus,
             Qt::QueuedConnection);
     m_status = m_worker->snapshot();
     emit statusChanged();
@@ -331,7 +336,7 @@ void StreamingController::stopForOverload()
     }
 }
 
-void StreamingController::poll()
+void StreamingController::refreshWorkerStatus()
 {
     if (!m_worker)
         return;

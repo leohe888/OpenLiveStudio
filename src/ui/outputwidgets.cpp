@@ -45,12 +45,12 @@ QWidget *createOutputControls(QWidget *parent, OutputSettings *settings,
     options->setEnabled(settings);
 
     const auto refresh = [record, stream, recorder, streamer] {
-        const auto rec = recorder ? recorder->state() : QString();
-        record->setText(rec == "recording"  ? QObject::tr("停止录制")
-                        : rec == "starting" ? QObject::tr("取消启动")
-                        : rec == "stopping" ? QObject::tr("正在停止…")
+        const auto recordingState = recorder ? recorder->state() : QString();
+        record->setText(recordingState == "recording"  ? QObject::tr("停止录制")
+                        : recordingState == "starting" ? QObject::tr("取消启动")
+                        : recordingState == "stopping" ? QObject::tr("正在停止…")
                                             : QObject::tr("开始录制"));
-        record->setEnabled(recorder && rec != "stopping" &&
+        record->setEnabled(recorder && recordingState != "stopping" &&
                            (recorder->busy() || recorder->ready()));
 
         const auto live = streamer ? streamer->state() : QString();
@@ -94,7 +94,7 @@ QDialog *createOutputSettingsDialog(QWidget *parent, OutputSettings *settings)
     tabs->setCurrentIndex(1);
 
     auto *liveForm = new QFormLayout(live);
-    auto *recForm = new QFormLayout(record);
+    auto *recordingForm = new QFormLayout(record);
     const auto input = [](const QString &text, const char *name, QWidget *owner) {
         auto *edit = new QLineEdit(text, owner);
         edit->setObjectName(name);
@@ -118,11 +118,13 @@ QDialog *createOutputSettingsDialog(QWidget *parent, OutputSettings *settings)
         return spin;
     };
 
-    auto *liveRate = bitrate(settings->streamingBitrateKbps(), "streamingBitrateInput", live);
-    auto *recRate = bitrate(settings->recordingBitrateKbps(), "recordingBitrateInput", record);
+    auto *streamingBitrateInput =
+        bitrate(settings->streamingBitrateKbps(), "streamingBitrateInput", live);
+    auto *recordingBitrateInput =
+        bitrate(settings->recordingBitrateKbps(), "recordingBitrateInput", record);
     liveForm->addRow(QObject::tr("服务器地址"), server);
     liveForm->addRow(QObject::tr("串流密钥"), key);
-    liveForm->addRow(QObject::tr("视频码率"), liveRate);
+    liveForm->addRow(QObject::tr("视频码率"), streamingBitrateInput);
     liveForm->addRow(new QLabel(
         QObject::tr("RTMP · H.264 / AAC · 1080p · 30 FPS；连接和重连期间设置锁定。"), live));
 
@@ -132,18 +134,18 @@ QDialog *createOutputSettingsDialog(QWidget *parent, OutputSettings *settings)
     auto *browse = new QPushButton(QObject::tr("浏览…"), record);
     browse->setObjectName("browseRecordingDirectoryButton");
     directoryRow->addWidget(browse);
-    recForm->addRow(QObject::tr("保存目录"), directoryRow);
-    recForm->addRow(QObject::tr("视频码率"), recRate);
-    recForm->addRow(
+    recordingForm->addRow(QObject::tr("保存目录"), directoryRow);
+    recordingForm->addRow(QObject::tr("视频码率"), recordingBitrateInput);
+    recordingForm->addRow(
         new QLabel(QObject::tr("MP4 · 1080p · 30 FPS；录制期间保存目录和码率保持不变。"), record));
 
     const auto refreshLocks = [=] {
         server->setEnabled(!settings->streamingLocked());
         key->setEnabled(!settings->streamingLocked());
-        liveRate->setEnabled(!settings->streamingLocked());
+        streamingBitrateInput->setEnabled(!settings->streamingLocked());
         directory->setEnabled(!settings->recordingLocked());
         browse->setEnabled(!settings->recordingLocked());
-        recRate->setEnabled(!settings->recordingLocked());
+        recordingBitrateInput->setEnabled(!settings->recordingLocked());
     };
 
     QObject::connect(settings, &OutputSettings::recordingLockedChanged, dialog, refreshLocks);
@@ -172,10 +174,10 @@ QDialog *createOutputSettingsDialog(QWidget *parent, OutputSettings *settings)
     layout->addWidget(buttons);
     QObject::connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
     QObject::connect(buttons, &QDialogButtonBox::accepted, dialog, [=] {
-        recRate->interpretText();
-        liveRate->interpretText();
-        if (settings->apply(directory->text(), recRate->value(), server->text(), key->text(),
-                            liveRate->value()))
+        recordingBitrateInput->interpretText();
+        streamingBitrateInput->interpretText();
+        if (settings->apply(directory->text(), recordingBitrateInput->value(), server->text(),
+                            key->text(), streamingBitrateInput->value()))
             dialog->accept();
         else
             error->setText(settings->lastError());

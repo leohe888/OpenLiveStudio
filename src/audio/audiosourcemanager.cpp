@@ -4,25 +4,26 @@
 AudioSourceManager::AudioSourceManager(QObject *parent) : QObject(parent)
 {
     m_mixer.start();
-    m_timer.setInterval(40);
-    connect(&m_timer, &QTimer::timeout, this, &AudioSourceManager::poll);
-    m_timer.start();
+    m_statusPollTimer.setInterval(40);
+    connect(&m_statusPollTimer, &QTimer::timeout, this,
+            &AudioSourceManager::refreshSourceStatusAndLevels);
+    m_statusPollTimer.start();
 }
 
 AudioSourceManager::~AudioSourceManager()
 {
-    m_timer.stop();
+    m_statusPollTimer.stop();
     for (auto &entry : m_entries)
         entry.worker->stop();
-    for (auto &worker : m_retired)
+    for (auto &worker : m_retiringWorkers)
         worker->stop();
     m_mixer.stop();
     m_mixer.wait();
     for (auto &entry : m_entries)
         entry.worker->wait();
-    for (auto &worker : m_retired)
+    for (auto &worker : m_retiringWorkers)
         worker->wait();
-    for (auto &query : m_queries)
+    for (auto &query : m_deviceQueryThreads)
         query->wait();
 }
 
@@ -37,11 +38,11 @@ QList<AudioSource> AudioSourceManager::sources() const
 
 const AudioSource *AudioSourceManager::source(const QString &sourceId) const
 {
-    const int row = rowFor(sourceId);
+    const int row = sourceRow(sourceId);
     return row >= 0 ? &m_entries[size_t(row)].source : nullptr;
 }
 
-int AudioSourceManager::rowFor(const QString &sourceId) const
+int AudioSourceManager::sourceRow(const QString &sourceId) const
 {
     for (int row = 0; row < count(); ++row)
         if (m_entries[size_t(row)].source.id == sourceId)
@@ -49,26 +50,27 @@ int AudioSourceManager::rowFor(const QString &sourceId) const
     return -1;
 }
 
-bool AudioSourceManager::nameAvailable(const QString &name, const QString &except) const
+bool AudioSourceManager::isSourceNameAvailable(const QString &name,
+                                               const QString &excludedSourceId) const
 {
     if (name.isEmpty() || name.size() > 80)
         return false;
     return std::none_of(m_entries.cbegin(), m_entries.cend(), [&](const auto &entry) {
-        return entry.source.id != except &&
+        return entry.source.id != excludedSourceId &&
                entry.source.name.compare(name, Qt::CaseInsensitive) == 0;
     });
 }
 
-QString AudioSourceManager::suggestedSourceName(const QString &base) const
+QString AudioSourceManager::suggestedSourceName(const QString &baseName) const
 {
-    const QString name = base.trimmed().left(65);
+    const QString name = baseName.trimmed().left(65);
     if (name.isEmpty())
         return {};
-    if (nameAvailable(name))
+    if (isSourceNameAvailable(name))
         return name;
     for (int count = 2; count < 100000; ++count) {
         const auto candidate = QStringLiteral("%1 %2").arg(name).arg(count);
-        if (nameAvailable(candidate))
+        if (isSourceNameAvailable(candidate))
             return candidate;
     }
     return {};
@@ -81,15 +83,16 @@ bool AudioSourceManager::deviceInUse(const QString &deviceId) const
                        [&](const auto &entry) {
                            return entry.source.deviceId.compare(deviceId, Qt::CaseInsensitive) == 0;
                        }) ||
-           std::any_of(m_retired.cbegin(), m_retired.cend(), [&](const auto &worker) {
-               return worker->deviceId().compare(deviceId, Qt::CaseInsensitive) == 0;
-           });
+           std::any_of(m_retiringWorkers.cbegin(), m_retiringWorkers.cend(),
+                       [&](const auto &worker) {
+                           return worker->deviceId().compare(deviceId, Qt::CaseInsensitive) == 0;
+                       });
 }
 
 QString AudioSourceManager::addSource(const QString &name, AudioSourceType type,
                                       const QString &deviceId)
 {
-    if (!nameAvailable(name.trimmed()) || deviceId.isEmpty() || deviceId.size() > 2048 ||
+    if (!isSourceNameAvailable(name.trimmed()) || deviceId.isEmpty() || deviceId.size() > 2048 ||
         deviceInUse(deviceId))
         return {};
     Entry entry;
@@ -111,9 +114,9 @@ QString AudioSourceManager::addSource(const QString &name, AudioSourceType type,
     const QString id = entry.source.id;
     m_entries.push_back(std::move(entry));
     m_entries.back().worker->start();
-    synchronize();
+    updateMixerInputs();
     emit sourcesChanged();
-    if (rowFor(id) >= 0)
+    if (sourceRow(id) >= 0)
         selectSource(id);
     emit devicesChanged();
     return id;
@@ -121,16 +124,16 @@ QString AudioSourceManager::addSource(const QString &name, AudioSourceType type,
 
 bool AudioSourceManager::removeSource(const QString &sourceId)
 {
-    const int row = rowFor(sourceId);
+    const int row = sourceRow(sourceId);
     if (row < 0)
         return false;
     auto &entry = m_entries[size_t(row)];
     entry.worker->stop();
     entry.queue->clear();
-    m_retired.push_back(std::move(entry.worker));
+    m_retiringWorkers.push_back(std::move(entry.worker));
     m_entries.erase(m_entries.begin() + row);
-    synchronize();
-    if (m_selected == sourceId)
+    updateMixerInputs();
+    if (m_currentSourceId == sourceId)
         selectSource(count() ? m_entries[size_t(std::min(row, count() - 1))].source.id : QString());
     emit sourcesChanged();
     emit devicesChanged();
@@ -139,8 +142,8 @@ bool AudioSourceManager::removeSource(const QString &sourceId)
 
 bool AudioSourceManager::renameSource(const QString &sourceId, const QString &name)
 {
-    const int row = rowFor(sourceId);
-    if (row < 0 || !nameAvailable(name.trimmed(), sourceId))
+    const int row = sourceRow(sourceId);
+    if (row < 0 || !isSourceNameAvailable(name.trimmed(), sourceId))
         return false;
     if (m_entries[size_t(row)].source.name == name.trimmed())
         return true;
@@ -151,42 +154,42 @@ bool AudioSourceManager::renameSource(const QString &sourceId, const QString &na
 
 bool AudioSourceManager::setVolume(const QString &sourceId, qreal volume)
 {
-    const int row = rowFor(sourceId);
+    const int row = sourceRow(sourceId);
     if (row < 0 || !std::isfinite(volume) || volume < 0 || volume > 1)
         return false;
     if (m_entries[size_t(row)].source.volume == float(volume))
         return true;
     m_entries[size_t(row)].source.volume = float(volume);
-    synchronize();
+    updateMixerInputs();
     emit sourceChanged(sourceId);
     return true;
 }
 
 bool AudioSourceManager::setMuted(const QString &sourceId, bool muted)
 {
-    const int row = rowFor(sourceId);
+    const int row = sourceRow(sourceId);
     if (row < 0)
         return false;
     if (m_entries[size_t(row)].source.muted == muted)
         return true;
     m_entries[size_t(row)].source.muted = muted;
-    synchronize();
+    updateMixerInputs();
     emit sourceChanged(sourceId);
     return true;
 }
 
 bool AudioSourceManager::selectSource(const QString &sourceId)
 {
-    if (!sourceId.isEmpty() && rowFor(sourceId) < 0)
+    if (!sourceId.isEmpty() && sourceRow(sourceId) < 0)
         return false;
-    if (m_selected != sourceId) {
-        m_selected = sourceId;
+    if (m_currentSourceId != sourceId) {
+        m_currentSourceId = sourceId;
         emit currentSourceIdChanged();
     }
     return true;
 }
 
-void AudioSourceManager::synchronize()
+void AudioSourceManager::updateMixerInputs()
 {
     QList<AudioInput> inputs;
     for (const auto &entry : m_entries)
@@ -215,25 +218,25 @@ void AudioSourceManager::refreshDevices()
             Qt::QueuedConnection);
     }));
     query->start();
-    m_queries.push_back(std::move(query));
+    m_deviceQueryThreads.push_back(std::move(query));
 }
 
-void AudioSourceManager::poll()
+void AudioSourceManager::refreshSourceStatusAndLevels()
 {
     const auto levels = m_mixer.takeLevels();
     QStringList ids;
     for (const auto &entry : m_entries)
         ids.append(entry.source.id);
     for (const auto &id : ids) {
-        const int row = rowFor(id);
+        const int row = sourceRow(id);
         if (row < 0)
             continue;
         auto &entry = m_entries[size_t(row)];
-        const auto state = entry.worker->status();
+        const auto workerStatus = entry.worker->status();
         const bool statusChanged =
-            state.state != entry.source.state || state.error != entry.source.error;
-        entry.source.state = state.state;
-        entry.source.error = state.error;
+            workerStatus.state != entry.source.state || workerStatus.error != entry.source.error;
+        entry.source.state = workerStatus.state;
+        entry.source.error = workerStatus.error;
         const auto level = levels.sources.value(id);
         const AudioPeak peak{std::max(level.left, entry.source.peak.left * .72f),
                              std::max(level.right, entry.source.peak.right * .72f)};
@@ -244,31 +247,32 @@ void AudioSourceManager::poll()
         // Notifications may synchronously remove sources or reallocate the entries.
         if (statusChanged)
             emit sourceChanged(id);
-        if (levelsChanged && rowFor(id) >= 0)
+        if (levelsChanged && sourceRow(id) >= 0)
             emit sourceLevelsChanged(id);
-        if (statusChanged && state.state == "error" && rowFor(id) >= 0)
-            emit sourceFailed(id, state.error);
+        if (statusChanged && workerStatus.state == "error" && sourceRow(id) >= 0)
+            emit sourceFailed(id, workerStatus.error);
     }
-    m_master = {std::max(levels.master.left, m_master.left * .72f),
-                std::max(levels.master.right, m_master.right * .72f)};
+    m_masterPeak = {std::max(levels.master.left, m_masterPeak.left * .72f),
+                std::max(levels.master.right, m_masterPeak.right * .72f)};
     if (levels.clipped)
-        m_clipTicks = 25;
-    else if (m_clipTicks)
-        --m_clipTicks;
+        m_clippingHoldTicks = 25;
+    else if (m_clippingHoldTicks)
+        --m_clippingHoldTicks;
     emit masterLevelsChanged();
-    const auto retired = m_retired.size();
-    m_retired.erase(std::remove_if(m_retired.begin(), m_retired.end(),
+    const auto retiringWorkerCountBeforeCleanup = m_retiringWorkers.size();
+    m_retiringWorkers.erase(std::remove_if(m_retiringWorkers.begin(), m_retiringWorkers.end(),
                                    [](const auto &worker) {
                                        return worker->isFinished();
                                    }),
-                    m_retired.end());
-    if (retired != m_retired.size())
+                    m_retiringWorkers.end());
+    if (retiringWorkerCountBeforeCleanup != m_retiringWorkers.size())
         emit devicesChanged();
-    m_queries.erase(std::remove_if(m_queries.begin(), m_queries.end(),
-                                   [](const auto &query) {
-                                       return query->isFinished();
-                                   }),
-                    m_queries.end());
+    m_deviceQueryThreads.erase(std::remove_if(m_deviceQueryThreads.begin(),
+                                              m_deviceQueryThreads.end(),
+                                              [](const auto &query) {
+                                                  return query->isFinished();
+                                              }),
+                               m_deviceQueryThreads.end());
 }
 
 int AudioSourceManager::activeWorkerCount() const
@@ -277,7 +281,7 @@ int AudioSourceManager::activeWorkerCount() const
     for (const auto &entry : m_entries)
         if (entry.worker->isRunning())
             ++count;
-    for (const auto &worker : m_retired)
+    for (const auto &worker : m_retiringWorkers)
         if (worker->isRunning())
             ++count;
     return count;

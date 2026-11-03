@@ -106,7 +106,7 @@ bool CanvasRenderer::initialize()
     return true;
 }
 
-bool CanvasRenderer::render(const QList<PreviewSource> &sources)
+bool CanvasRenderer::render(const QList<RenderSourceSnapshot> &sources)
 {
     if (!m_initialized)
         return false;
@@ -133,7 +133,7 @@ bool CanvasRenderer::render(const QList<PreviewSource> &sources)
 
     for (auto it = m_textures.begin(); it != m_textures.end();) {
         const bool retained =
-            std::any_of(sources.cbegin(), sources.cend(), [&](const PreviewSource &source) {
+            std::any_of(sources.cbegin(), sources.cend(), [&](const RenderSourceSnapshot &source) {
                 return source.id == it->first && source.hasFrame() &&
                        (source.frame ? source.frame->generation == it->second.generation
                                      : it->second.generation == 0);
@@ -241,7 +241,8 @@ bool CanvasRenderer::render(const QList<PreviewSource> &sources)
     return true;
 }
 
-GLuint CanvasRenderer::filterTexture(const PreviewSource &source, GLuint original, bool &flipY)
+GLuint CanvasRenderer::filterTexture(const RenderSourceSnapshot &source, GLuint original,
+                                     bool &flipY)
 {
     flipY = false;
     auto &error = m_textures.at(source.id).filterError;
@@ -315,7 +316,7 @@ void CanvasRenderer::cleanup()
     m_program.reset();
 }
 
-bool CanvasRenderer::drawable(const PreviewSource &source) const
+bool CanvasRenderer::drawable(const RenderSourceSnapshot &source) const
 {
     const auto it = m_textures.find(source.id);
     if (it == m_textures.end())

@@ -30,36 +30,36 @@ QString failure(HRESULT hr)
         .arg(quint32(hr), 8, 16, QLatin1Char('0'));
 }
 
-struct Runtime
+struct MediaFoundationRuntime
 {
-    bool com = false, mf = false;
+    bool comInitialized = false, mediaFoundationInitialized = false;
 
-    Runtime()
+    MediaFoundationRuntime()
     {
         check(CoInitializeEx(nullptr, COINIT_MULTITHREADED));
-        com = true;
+        comInitialized = true;
         const HRESULT hr = MFStartup(MF_VERSION, MFSTARTUP_LITE);
         if (FAILED(hr)) {
             CoUninitialize();
-            com = false;
+            comInitialized = false;
             throw hr;
         }
-        mf = true;
+        mediaFoundationInitialized = true;
     }
 
-    ~Runtime()
+    ~MediaFoundationRuntime()
     {
-        if (mf)
+        if (mediaFoundationInitialized)
             MFShutdown();
-        if (com)
+        if (comInitialized)
             CoUninitialize();
     }
 };
 
-QString stringAttribute(IMFAttributes *attrs, REFGUID key)
+QString stringAttribute(IMFAttributes *attributes, REFGUID key)
 {
     WCHAR *value = nullptr;
-    check(attrs->GetAllocatedString(key, &value, nullptr));
+    check(attributes->GetAllocatedString(key, &value, nullptr));
     const QString result = QString::fromWCharArray(value);
     CoTaskMemFree(value);
     return result;
@@ -67,72 +67,75 @@ QString stringAttribute(IMFAttributes *attrs, REFGUID key)
 
 ComPtr<IMFMediaSource> openCamera(const QString &deviceId)
 {
-    ComPtr<IMFAttributes> attrs;
-    check(MFCreateAttributes(&attrs, 2));
-    check(attrs->SetGUID(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
+    ComPtr<IMFAttributes> attributes;
+    check(MFCreateAttributes(&attributes, 2));
+    check(attributes->SetGUID(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
                          MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID));
-    check(attrs->SetString(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK,
+    check(attributes->SetString(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK,
                            reinterpret_cast<LPCWSTR>(deviceId.utf16())));
     ComPtr<IMFMediaSource> source;
-    check(MFCreateDeviceSource(attrs.Get(), &source));
+    check(MFCreateDeviceSource(attributes.Get(), &source));
     return source;
 }
 
-CameraMode modeInfo(IMFMediaType *type)
+CameraMode readCameraMode(IMFMediaType *type)
 {
-    UINT32 width = 0, height = 0, numerator = 0, denominator = 0;
+    UINT32 width = 0, height = 0, frameRateNumerator = 0, frameRateDenominator = 0;
     GUID subtype{};
     if (FAILED(MFGetAttributeSize(type, MF_MT_FRAME_SIZE, &width, &height)) ||
-        FAILED(MFGetAttributeRatio(type, MF_MT_FRAME_RATE, &numerator, &denominator)) || !width ||
-        !height || width > INT_MAX / 4 || height > INT_MAX || !numerator || !denominator ||
-        numerator > INT_MAX || denominator > INT_MAX ||
+        FAILED(MFGetAttributeRatio(type, MF_MT_FRAME_RATE, &frameRateNumerator,
+                                   &frameRateDenominator)) ||
+        !width || !height || width > INT_MAX / 4 || height > INT_MAX || !frameRateNumerator ||
+        !frameRateDenominator || frameRateNumerator > INT_MAX || frameRateDenominator > INT_MAX ||
         FAILED(type->GetGUID(MF_MT_SUBTYPE, &subtype)))
         return {};
     WCHAR guid[40];
     StringFromGUID2(subtype, guid, 40);
     return {int(width),
             int(height),
-            int(numerator),
-            int(denominator),
+            int(frameRateNumerator),
+            int(frameRateDenominator),
             QString::fromWCharArray(guid),
             QStringLiteral("%1 × %2 · %3 FPS")
                 .arg(width)
                 .arg(height)
-                .arg(double(numerator) / denominator, 0, 'f', denominator == 1 ? 0 : 2)};
+                .arg(double(frameRateNumerator) / frameRateDenominator, 0, 'f',
+                     frameRateDenominator == 1 ? 0 : 2)};
 }
 
-bool matches(const CameraSourceConfig &config, const CameraMode &mode)
+bool matchesRequestedMode(const CameraSourceConfig &config, const CameraMode &mode)
 {
     if (config.resolution().isEmpty())
         return true;
-    const double wanted = double(config.frameRateNumerator()) / config.frameRateDenominator();
-    const double actual = double(mode.numerator) / mode.denominator;
+    const double requestedFps = double(config.frameRateNumerator()) / config.frameRateDenominator();
+    const double actualFps = double(mode.frameRateNumerator) / mode.frameRateDenominator;
     return config.resolution() == QSize(mode.width, mode.height) &&
-           std::abs(wanted - actual) <= std::max(0.001, wanted * 0.0001);
+           std::abs(requestedFps - actualFps) <= std::max(0.001, requestedFps * 0.0001);
 }
 
-struct Samples
+struct CameraReaderState
 {
     std::mutex mutex;
-    std::mutex requests;
-    std::condition_variable ready;
+    std::mutex requestMutex;
+    std::condition_variable sampleReady;
     ComPtr<IMFSourceReader> reader;
     ComPtr<IMFSample> latest;
     HRESULT error = S_OK;
-    bool stopped = false;
-    bool flushed = false;
-    int callbacks = 0;
-    LONGLONG timestamp = 0;
-    qint64 arrivalNs = 0;
+    bool stopRequested = false;
+    bool flushCompleted = false;
+    int activeCallbackCount = 0;
+    LONGLONG deviceTimestamp100ns = 0;
+    qint64 sampleArrivalNs = 0;
 };
 
-class Callback final : public IMFSourceReaderCallback
+class CameraReaderCallback final : public IMFSourceReaderCallback
 {
-    std::atomic<ULONG> refs{1};
-    std::shared_ptr<Samples> state;
+    std::atomic<ULONG> m_referenceCount{1};
+    std::shared_ptr<CameraReaderState> m_readerState;
 
 public:
-    explicit Callback(std::shared_ptr<Samples> value) : state(std::move(value))
+    explicit CameraReaderCallback(std::shared_ptr<CameraReaderState> value)
+        : m_readerState(std::move(value))
     {
     }
 
@@ -151,66 +154,67 @@ public:
 
     STDMETHODIMP_(ULONG) AddRef() override
     {
-        return ++refs;
+        return ++m_referenceCount;
     }
 
     STDMETHODIMP_(ULONG) Release() override
     {
-        const ULONG n = --refs;
-        if (!n)
+        const ULONG remainingReferences = --m_referenceCount;
+        if (!remainingReferences)
             delete this;
-        return n;
+        return remainingReferences;
     }
 
-    STDMETHODIMP OnReadSample(HRESULT hr, DWORD, DWORD flags, LONGLONG timestamp,
+    STDMETHODIMP OnReadSample(HRESULT hr, DWORD, DWORD flags, LONGLONG deviceTimestamp100ns,
                               IMFSample *sample) override
     {
         {
-            std::lock_guard lock(state->mutex);
-            ++state->callbacks;
+            std::lock_guard lock(m_readerState->mutex);
+            ++m_readerState->activeCallbackCount;
         }
         const auto finished = qScopeGuard([&] {
             {
-                std::lock_guard lock(state->mutex);
-                --state->callbacks;
+                std::lock_guard lock(m_readerState->mutex);
+                --m_readerState->activeCallbackCount;
             }
-            state->ready.notify_one();
+            m_readerState->sampleReady.notify_one();
         });
         {
-            std::lock_guard lock(state->mutex);
-            if (state->stopped)
+            std::lock_guard lock(m_readerState->mutex);
+            if (m_readerState->stopRequested)
                 return S_OK;
             if (FAILED(hr))
-                state->error = hr;
+                m_readerState->error = hr;
             else if (flags & MF_SOURCE_READERF_ENDOFSTREAM)
-                state->error = MF_E_END_OF_STREAM;
+                m_readerState->error = MF_E_END_OF_STREAM;
             else if (flags & MF_SOURCE_READERF_CURRENTMEDIATYPECHANGED)
-                state->error = MF_E_INVALIDMEDIATYPE;
+                m_readerState->error = MF_E_INVALIDMEDIATYPE;
             else if (sample) {
-                state->latest = sample;
-                state->timestamp = timestamp;
-                state->arrivalNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                       std::chrono::steady_clock::now().time_since_epoch())
-                                       .count();
+                m_readerState->latest = sample;
+                m_readerState->deviceTimestamp100ns = deviceTimestamp100ns;
+                m_readerState->sampleArrivalNs =
+                    std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        std::chrono::steady_clock::now().time_since_epoch())
+                        .count();
             }
         }
-        state->ready.notify_one();
+        m_readerState->sampleReady.notify_one();
         // Serialize submission with stop/Flush: no request may slip in after cancellation.
-        std::lock_guard request(state->requests);
+        std::lock_guard request(m_readerState->requestMutex);
         ComPtr<IMFSourceReader> reader;
         {
-            std::lock_guard lock(state->mutex);
-            if (!state->stopped && SUCCEEDED(state->error))
-                reader = state->reader;
+            std::lock_guard lock(m_readerState->mutex);
+            if (!m_readerState->stopRequested && SUCCEEDED(m_readerState->error))
+                reader = m_readerState->reader;
         }
         if (reader) {
             const HRESULT next = reader->ReadSample(MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, nullptr,
                                                     nullptr, nullptr, nullptr);
             if (FAILED(next)) {
-                std::lock_guard lock(state->mutex);
-                if (!state->stopped)
-                    state->error = next;
-                state->ready.notify_one();
+                std::lock_guard lock(m_readerState->mutex);
+                if (!m_readerState->stopRequested)
+                    m_readerState->error = next;
+                m_readerState->sampleReady.notify_one();
             }
         }
         return S_OK;
@@ -219,10 +223,10 @@ public:
     STDMETHODIMP OnFlush(DWORD) override
     {
         {
-            std::lock_guard lock(state->mutex);
-            state->flushed = true;
+            std::lock_guard lock(m_readerState->mutex);
+            m_readerState->flushCompleted = true;
         }
-        state->ready.notify_one();
+        m_readerState->sampleReady.notify_one();
         return S_OK;
     }
 
@@ -232,7 +236,7 @@ public:
     }
 };
 
-QImage copyRgb(IMFSample *sample, int width, int height, LONG stride)
+QImage copyRgb32Image(IMFSample *sample, int width, int height, LONG stride)
 {
     ComPtr<IMFMediaBuffer> buffer;
     check(sample->ConvertToContiguousBuffer(&buffer));
@@ -277,14 +281,14 @@ QList<CameraDevice> cameraDevices(QString *error)
     QList<CameraDevice> result;
 #ifdef Q_OS_WIN
     try {
-        Runtime runtime;
-        ComPtr<IMFAttributes> attrs;
-        check(MFCreateAttributes(&attrs, 1));
-        check(attrs->SetGUID(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
+        MediaFoundationRuntime runtime;
+        ComPtr<IMFAttributes> attributes;
+        check(MFCreateAttributes(&attributes, 1));
+        check(attributes->SetGUID(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
                              MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID));
         IMFActivate **devices = nullptr;
         UINT32 count = 0;
-        check(MFEnumDeviceSources(attrs.Get(), &devices, &count));
+        check(MFEnumDeviceSources(attributes.Get(), &devices, &count));
         const auto cleanup = qScopeGuard([&] {
             for (UINT32 i = 0; i < count; ++i)
                 devices[i]->Release();
@@ -310,7 +314,7 @@ QList<CameraMode> cameraModes(const QString &deviceId, QString *error)
     QList<CameraMode> result;
 #ifdef Q_OS_WIN
     try {
-        Runtime runtime;
+        MediaFoundationRuntime runtime;
         auto source = openCamera(deviceId);
         const auto shutdown = qScopeGuard([&] {
             source->Shutdown();
@@ -324,7 +328,7 @@ QList<CameraMode> cameraModes(const QString &deviceId, QString *error)
             if (hr == MF_E_NO_MORE_TYPES)
                 break;
             check(hr);
-            auto mode = modeInfo(type.Get());
+            auto mode = readCameraMode(type.Get());
             if (!mode.isValid())
                 continue;
             const bool duplicate =
@@ -388,34 +392,34 @@ void CameraCaptureWorker::run()
     QString error;
 #ifdef Q_OS_WIN
     try {
-        Runtime runtime;
+        MediaFoundationRuntime runtime;
         auto source = openCamera(m_config.deviceId());
         const auto shutdown = qScopeGuard([&] {
             source->Shutdown();
         });
-        auto samples = std::make_shared<Samples>();
-        ComPtr<Callback> callback;
-        callback.Attach(new Callback(samples));
-        ComPtr<IMFAttributes> attrs;
-        check(MFCreateAttributes(&attrs, 3));
-        check(attrs->SetUnknown(MF_SOURCE_READER_ASYNC_CALLBACK, callback.Get()));
-        check(attrs->SetUINT32(MF_SOURCE_READER_ENABLE_VIDEO_PROCESSING, TRUE));
-        check(attrs->SetUINT32(MF_SOURCE_READER_DISCONNECT_MEDIASOURCE_ON_SHUTDOWN, TRUE));
+        auto samples = std::make_shared<CameraReaderState>();
+        ComPtr<CameraReaderCallback> callback;
+        callback.Attach(new CameraReaderCallback(samples));
+        ComPtr<IMFAttributes> attributes;
+        check(MFCreateAttributes(&attributes, 3));
+        check(attributes->SetUnknown(MF_SOURCE_READER_ASYNC_CALLBACK, callback.Get()));
+        check(attributes->SetUINT32(MF_SOURCE_READER_ENABLE_VIDEO_PROCESSING, TRUE));
+        check(attributes->SetUINT32(MF_SOURCE_READER_DISCONNECT_MEDIASOURCE_ON_SHUTDOWN, TRUE));
         ComPtr<IMFSourceReader> reader;
-        check(MFCreateSourceReaderFromMediaSource(source.Get(), attrs.Get(), &reader));
+        check(MFCreateSourceReaderFromMediaSource(source.Get(), attributes.Get(), &reader));
         bool readStarted = false;
         const auto stopReader = qScopeGuard([&] {
             {
-                std::lock_guard request(samples->requests);
+                std::lock_guard request(samples->requestMutex);
                 std::lock_guard lock(samples->mutex);
-                samples->stopped = true;
+                samples->stopRequested = true;
             }
             // Flush is asynchronous with this reader. Keep COM/MF and the source alive
             // until OnFlush and all in-flight sample callbacks have drained.
             if (readStarted && SUCCEEDED(reader->Flush(MF_SOURCE_READER_ALL_STREAMS))) {
                 std::unique_lock lock(samples->mutex);
-                samples->ready.wait(lock, [&] {
-                    return samples->flushed && samples->callbacks == 0;
+                samples->sampleReady.wait(lock, [&] {
+                    return samples->flushCompleted && samples->activeCallbackCount == 0;
                 });
             }
             {
@@ -439,7 +443,7 @@ void CameraCaptureWorker::run()
                 if (hr == MF_E_NO_MORE_TYPES)
                     break;
                 check(hr);
-                if (!matches(m_config, modeInfo(type.Get())))
+                if (!matchesRequestedMode(m_config, readCameraMode(type.Get())))
                     continue;
                 if (SUCCEEDED(reader->SetCurrentMediaType(MF_SOURCE_READER_FIRST_VIDEO_STREAM,
                                                           nullptr, type.Get())) &&
@@ -457,12 +461,12 @@ void CameraCaptureWorker::run()
             check(reader->SetCurrentMediaType(MF_SOURCE_READER_FIRST_VIDEO_STREAM, nullptr,
                                               output.Get()));
         check(reader->GetCurrentMediaType(MF_SOURCE_READER_FIRST_VIDEO_STREAM, &output));
-        const auto actual = modeInfo(output.Get());
-        if (!actual.isValid() || !matches(m_config, actual)) {
+        const auto actualMode = readCameraMode(output.Get());
+        if (!actualMode.isValid() || !matchesRequestedMode(m_config, actualMode)) {
             error = tr("设备实际采用的采集模式与所选模式不符。");
             throw MF_E_INVALIDMEDIATYPE;
         }
-        const int width = actual.width, height = actual.height;
+        const int width = actualMode.width, height = actualMode.height;
         UINT32 encodedStride = 0;
         LONG stride = width * 4;
         if (SUCCEEDED(output->GetUINT32(MF_MT_DEFAULT_STRIDE, &encodedStride)))
@@ -478,50 +482,52 @@ void CameraCaptureWorker::run()
         check(reader->ReadSample(MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, nullptr, nullptr, nullptr,
                                  nullptr));
         readStarted = true;
-        QElapsedTimer lastFrame;
-        lastFrame.start();
-        const double fps = double(actual.numerator) / double(actual.denominator);
-        bool received = false;
+        QElapsedTimer timeSinceLastFrame;
+        timeSinceLastFrame.start();
+        const double fps =
+            double(actualMode.frameRateNumerator) / double(actualMode.frameRateDenominator);
+        bool receivedFirstFrame = false;
         quint64 sequence = 0;
         // MF provides device timestamps; publish a steady-clock timestamp too for future
         // common-timeline mapping.
         try {
             while (!m_stop.load()) {
                 ComPtr<IMFSample> sample;
-                LONGLONG timestamp = 0;
-                qint64 arrivalNs = 0;
+                LONGLONG deviceTimestamp100ns = 0;
+                qint64 sampleArrivalNs = 0;
                 {
                     std::unique_lock lock(samples->mutex);
-                    samples->ready.wait_for(lock, std::chrono::milliseconds(20), [&] {
+                    samples->sampleReady.wait_for(lock, std::chrono::milliseconds(20), [&] {
                         return samples->latest || FAILED(samples->error);
                     });
                     check(samples->error);
                     sample = std::move(samples->latest);
-                    timestamp = samples->timestamp;
-                    arrivalNs = samples->arrivalNs;
+                    deviceTimestamp100ns = samples->deviceTimestamp100ns;
+                    sampleArrivalNs = samples->sampleArrivalNs;
                 }
                 if (!sample) {
-                    if (lastFrame.elapsed() > std::max(received ? 5000.0 : 10000.0, 3000.0 / fps)) {
-                        error = received ? tr("摄像头停止出帧，请检查连接后重新添加来源。")
+                    if (timeSinceLastFrame.elapsed() >
+                        std::max(receivedFirstFrame ? 5000.0 : 10000.0, 3000.0 / fps)) {
+                        error = receivedFirstFrame ? tr("摄像头停止出帧，请检查连接后重新添加来源。")
                                          : tr("等待摄像头首帧超时，请重新添加来源。");
                         break;
                     }
                     continue;
                 }
                 auto frame = std::make_shared<CameraFrame>();
-                frame->image = copyRgb(sample.Get(), width, height, stride);
-                frame->timestampNs = arrivalNs;
-                frame->deviceTimestamp100ns = timestamp;
+                frame->image = copyRgb32Image(sample.Get(), width, height, stride);
+                frame->timestampNs = sampleArrivalNs;
+                frame->deviceTimestamp100ns = deviceTimestamp100ns;
                 frame->sequence = ++sequence;
                 frame->generation = m_generation;
-                frame->rateNumerator = actual.numerator;
-                frame->rateDenominator = actual.denominator;
+                frame->frameRateNumerator = actualMode.frameRateNumerator;
+                frame->frameRateDenominator = actualMode.frameRateDenominator;
                 {
                     QMutexLocker lock(&m_mutex);
                     m_latest = std::move(frame);
                 }
-                received = true;
-                lastFrame.restart();
+                receivedFirstFrame = true;
+                timeSinceLastFrame.restart();
             }
             if (!error.isEmpty())
                 fail(error);

@@ -59,27 +59,27 @@ private slots:
             audio.stop();
             audio.wait();
         });
-        auto a = video.subscribeOutput(), b = video.subscribeOutput();
-        auto c = audio.subscribeOutput(), d = audio.subscribeOutput();
+        auto firstVideoSubscription = video.subscribeOutput(), secondVideoSubscription = video.subscribeOutput();
+        auto firstAudioSubscription = audio.subscribeOutput(), secondAudioSubscription = audio.subscribeOutput();
         QTest::qWait(350);
-        const auto first = a->take(), second = b->take();
+        const auto first = firstVideoSubscription->takeAll(), second = secondVideoSubscription->takeAll();
         QVERIFY(!first.empty());
         QCOMPARE(first.size(), second.size());
         QCOMPARE(first.back().timestampNs, second.back().timestampNs);
-        QVERIFY(!c->take().empty());
-        QVERIFY(!d->take().empty());
-        a.reset();
-        c.reset();
+        QVERIFY(!firstAudioSubscription->takeAll().empty());
+        QVERIFY(!secondAudioSubscription->takeAll().empty());
+        firstVideoSubscription.reset();
+        firstAudioSubscription.reset();
         video.setOutputEnabled(false);
         audio.setOutputEnabled(false);
         QTest::qWait(200);
-        QVERIFY(!b->take().empty());
-        QVERIFY(!d->take().empty());
+        QVERIFY(!secondVideoSubscription->takeAll().empty());
+        QVERIFY(!secondAudioSubscription->takeAll().empty());
         QTest::qWait(600);
-        d->take();
+        secondAudioSubscription->takeAll();
         QTest::qWait(600);
-        QVERIFY(b->dropped() > 0);
-        QVERIFY(d->dropped() == 0);
+        QVERIFY(secondVideoSubscription->dropped() > 0);
+        QVERIFY(secondAudioSubscription->dropped() == 0);
     }
 
     void hungHandshakeRetriesAndCancelsWithoutStoppingRecording()
@@ -580,7 +580,7 @@ private slots:
         QVERIFY(recording.fileComplete());
         save("summary.json", {{"seconds", seconds},
                               {"frames", recording.status().videoFrames},
-                              {"missingAudioSamples", recording.status().missingAudioSamples},
+                              {"missingAudioFrames", recording.status().missingAudioFrames},
                               {"reconnects", qint64(streaming.status().reconnects)},
                               {"maxPlaybackLatencyMs", maxLatency},
                               {"latencySamples", latencySamples},
@@ -588,7 +588,7 @@ private slots:
                               {"file", path}});
         QVERIFY(latencySamples > 100);
         QVERIFY2(maxLatency <= 3000, "HTTP-FLV playback latency exceeded 3 seconds");
-        QCOMPARE(recording.status().missingAudioSamples, qint64(0));
+        QCOMPARE(recording.status().missingAudioFrames, qint64(0));
         // This standalone harness also performs synchronous artifact writes and
         // pipe sampling on its main thread. Its heartbeat is diagnostic, not a
         // product-UI deadline; UI cancellation/close have separate native tests.

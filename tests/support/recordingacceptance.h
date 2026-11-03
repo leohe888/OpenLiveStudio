@@ -35,9 +35,9 @@ inline bool saveJson(const QString &path, const QJsonObject &data)
            file.commit();
 }
 
-inline QJsonObject resources(qint64 elapsed)
+inline QJsonObject collectProcessMetrics(qint64 elapsedMs)
 {
-    QJsonObject value{{"elapsedMs", elapsed}};
+    QJsonObject value{{"elapsedMs", elapsedMs}};
 #ifdef Q_OS_WIN
     PROCESS_MEMORY_COUNTERS_EX memory{};
     DWORD handles = 0;
@@ -50,7 +50,7 @@ inline QJsonObject resources(qint64 elapsed)
     return value;
 }
 
-inline QByteArray command(const QString &binary, const QStringList &arguments, QString *error)
+inline QByteArray runMediaTool(const QString &binary, const QStringList &arguments, QString *error)
 {
     QProcess process;
     process.start(binary, arguments);
@@ -136,17 +136,17 @@ inline void run(MainWindow &window)
     }
     QVERIFY(!microphoneId.isEmpty() && !systemId.isEmpty());
     const auto screen = display->addDisplay("Screen", display->displayDevices()[0].id, true);
-    const auto cam = camera->addCamera("Camera", CameraSourceConfig{camera->devices()[0].id});
-    const auto mic = audio->addSource("Microphone", AudioSourceType::Microphone, microphoneId);
+    const auto cameraSourceId = camera->addCamera("Camera", CameraSourceConfig{camera->devices()[0].id});
+    const auto microphoneSourceId = audio->addSource("Microphone", AudioSourceType::Microphone, microphoneId);
     QString system = audio->addSource("System", AudioSourceType::SystemAudio, systemId);
-    QVERIFY(!screen.isEmpty() && !cam.isEmpty() && !mic.isEmpty() && !system.isEmpty());
+    QVERIFY(!screen.isEmpty() && !cameraSourceId.isEmpty() && !microphoneSourceId.isEmpty() && !system.isEmpty());
     QTRY_COMPARE_WITH_TIMEOUT(model->sourceRuntime(screen).state(),
                               VideoSourceState::Capturing, 15000);
-    QTRY_COMPARE_WITH_TIMEOUT(model->sourceRuntime(cam).state(), VideoSourceState::Capturing,
+    QTRY_COMPARE_WITH_TIMEOUT(model->sourceRuntime(cameraSourceId).state(), VideoSourceState::Capturing,
                               15000);
-    QTRY_COMPARE_WITH_TIMEOUT(audio->source(mic)->state, QString("capturing"), 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(audio->source(microphoneSourceId)->state, QString("capturing"), 5000);
     QTRY_COMPARE_WITH_TIMEOUT(audio->source(system)->state, QString("capturing"), 5000);
-    QVERIFY(audio->setVolume(mic, .05));
+    QVERIFY(audio->setVolume(microphoneSourceId, .05));
     QVERIFY(audio->setVolume(system, .05));
     const auto picturePath = QDir(directory).filePath("source.png");
     QImage picture(128, 128, QImage::Format_RGBA8888);
@@ -161,12 +161,12 @@ inline void run(MainWindow &window)
     const qint64 epoch = MediaClock::nowNs();
     std::atomic<qint64> cueOnset{epoch};
     qint64 cuePeriod = -1;
-    QList<PreviewSource> latest;
-    qint64 maximumUiGap = 0, lastHeartbeat = MediaClock::nowNs();
+    QList<RenderSourceSnapshot> latest;
+    qint64 maximumUiGapMs = 0, lastHeartbeatNs = MediaClock::nowNs();
     const auto render = [&] {
         const auto now = MediaClock::nowNs();
-        maximumUiGap = std::max(maximumUiGap, (now - lastHeartbeat) / 1000000);
-        lastHeartbeat = now;
+        maximumUiGapMs = std::max(maximumUiGapMs, (now - lastHeartbeatNs) / 1000000);
+        lastHeartbeatNs = now;
         auto inputs = audio->mixer()->inputs();
         if (std::none_of(inputs.cbegin(), inputs.cend(), [](const auto &input) {
                 return input.id == "acceptance-sync";
@@ -187,7 +187,7 @@ inline void run(MainWindow &window)
         sources.prepend({"acceptance-sync", marker, true, {{125, 125}, {250, 250}, 0}});
         preview->setSources(sources);
     };
-    const auto connection = QObject::connect(aggregator, &VideoSourceAggregator::sourcesChanged,
+    const auto connection = QObject::connect(aggregator, &VideoSourceAggregator::renderSourcesChanged,
                                              &window, [&](const auto &sources) {
                                                  latest = sources;
                                                  render();
@@ -209,9 +209,9 @@ inline void run(MainWindow &window)
             block.samples.resize(960);
             for (int frame = 0; frame < 480; ++frame) {
                 const auto index = position + frame;
-                const auto sinceCue = epoch + AudioFormat::framesToNs(index) - cueOnset.load();
+                const auto sinceCueNs = epoch + AudioFormat::framesToNs(index) - cueOnset.load();
                 const float value =
-                    sinceCue >= 0 && sinceCue < 100000000LL
+                    sinceCueNs >= 0 && sinceCueNs < 100000000LL
                         ? .25f * float(std::sin(2 * std::acos(-1.0) * 1500 * double(index) / 48000))
                         : 0;
                 block.samples[frame * 2] = block.samples[frame * 2 + 1] = value;
@@ -267,15 +267,15 @@ inline void run(MainWindow &window)
         }
         if (percent >= 20 && !done[1]) {
             done[1] = true;
-            QVERIFY(model->setSourceVisible(cam, false));
+            QVERIFY(model->setSourceVisible(cameraSourceId, false));
             QTRY_COMPARE_WITH_TIMEOUT(camera->activeWorkerCount(), 0, 5000);
             pausedAt = now;
             event("camera-hidden-and-released");
         }
         if (pausedAt >= 0 && now - pausedAt > std::min(1500, seconds * 20)) {
             pausedAt = -1;
-            QVERIFY(model->setSourceVisible(cam, true));
-            QTRY_COMPARE_WITH_TIMEOUT(model->sourceRuntime(cam).state(),
+            QVERIFY(model->setSourceVisible(cameraSourceId, true));
+            QTRY_COMPARE_WITH_TIMEOUT(model->sourceRuntime(cameraSourceId).state(),
                                       VideoSourceState::Capturing, 10000);
             event("camera-restored");
         }
@@ -290,7 +290,7 @@ inline void run(MainWindow &window)
         if (percent >= 45 && !done[3]) {
             done[3] = true;
             qputenv("OPENLIVE_FORCE_AUDIO_DEVICE_FAILURE", microphoneId.toUtf8());
-            QTRY_COMPARE_WITH_TIMEOUT(audio->source(mic)->state, QString("error"), 5000);
+            QTRY_COMPARE_WITH_TIMEOUT(audio->source(microphoneSourceId)->state, QString("error"), 5000);
             QCOMPARE(audio->source(system)->state, QString("capturing"));
             faultAt = now;
             event("microphone-fault");
@@ -298,12 +298,12 @@ inline void run(MainWindow &window)
         if (faultAt >= 0 && now - faultAt > std::min(2000, seconds * 30)) {
             faultAt = -1;
             qunsetenv("OPENLIVE_FORCE_AUDIO_DEVICE_FAILURE");
-            QTRY_COMPARE_WITH_TIMEOUT(audio->source(mic)->state, QString("capturing"), 5000);
+            QTRY_COMPARE_WITH_TIMEOUT(audio->source(microphoneSourceId)->state, QString("capturing"), 5000);
             event("microphone-restored");
         }
         if (percent >= 65 && !done[4]) {
             done[4] = true;
-            QVERIFY(audio->setMuted(mic, true));
+            QVERIFY(audio->setMuted(microphoneSourceId, true));
             QVERIFY(audio->setVolume(system, .1));
             event("audio-mute-and-volume");
         }
@@ -337,14 +337,14 @@ inline void run(MainWindow &window)
         }
         if (now - lastReport >= 10000) {
             lastReport = now;
-            samples.append(resources(now));
+            samples.append(collectProcessMetrics(now));
             saveJson(QDir(directory).filePath("progress.json"),
                      {{"phase", "recording"},
                       {"elapsedMs", now},
                       {"targetSeconds", seconds},
                       {"recordingState", recorder->state()},
                       {"file", recorder->filePath()},
-                      {"maximumUiGapMs", maximumUiGap},
+                      {"maximumUiGapMs", maximumUiGapMs},
                       {"events", events},
                       {"resources", samples}});
         }
@@ -359,10 +359,10 @@ inline void run(MainWindow &window)
     QObject::disconnect(connection);
     stopped.store(true);
     producer->wait();
-    QVERIFY(model->removeSource(cam));
+    QVERIFY(model->removeSource(cameraSourceId));
     QVERIFY(model->removeSource(screen));
     QVERIFY(model->removeSource(imageId));
-    QVERIFY(audio->removeSource(mic));
+    QVERIFY(audio->removeSource(microphoneSourceId));
     QVERIFY(audio->removeSource(system));
     QTRY_COMPARE_WITH_TIMEOUT(camera->activeWorkerCount() + display->activeWorkerCount() +
                                   audio->activeWorkerCount(),
@@ -375,7 +375,7 @@ inline void run(MainWindow &window)
     saveJson(QDir(directory).filePath("progress.json"),
              {{"phase", "decoding-video"}, {"file", movie}, {"elapsedMs", elapsed.elapsed()}});
     const auto info = QJsonDocument::fromJson(
-                          command(QStringLiteral(OPENLIVE_FFPROBE),
+                          runMediaTool(QStringLiteral(OPENLIVE_FFPROBE),
                                   {"-v", "error", "-show_streams", "-of", "json", movie}, &error))
                           .object();
     QVERIFY2(error.isEmpty(), qPrintable(error));
@@ -393,7 +393,7 @@ inline void run(MainWindow &window)
     QCOMPARE(video["height"].toInt(), 1080);
     QCOMPARE(video["avg_frame_rate"].toString(), QString("30/1"));
     QVERIFY(std::abs(duration - audioStream["duration"].toString().toDouble()) < .035);
-    const auto pixels = command(ffmpeg,
+    const auto pixels = runMediaTool(ffmpeg,
                                 {"-v", "error", "-threads", "2", "-i", movie, "-map", "0:v:0",
                                  "-vf", "crop=8:8:60:60,scale=1:1,format=gray", "-fps_mode",
                                  "passthrough", "-f", "rawvideo", "-"},
@@ -406,7 +406,7 @@ inline void run(MainWindow &window)
     const auto visual = risingEdges(flashes, 1.0 / 30);
     saveJson(QDir(directory).filePath("progress.json"),
              {{"phase", "decoding-audio"}, {"file", movie}, {"elapsedMs", elapsed.elapsed()}});
-    const auto pcm = command(ffmpeg,
+    const auto pcm = runMediaTool(ffmpeg,
                              {"-v", "error", "-threads", "2", "-i", movie, "-map", "0:a:0", "-ac",
                               "1", "-ar", "48000", "-f", "f32le", "-"},
                              &error);
@@ -470,10 +470,10 @@ inline void run(MainWindow &window)
                         {"lastMeanOffsetMs", lastMean * 1000},
                         {"driftMs", std::abs(lastMean - firstMean) * 1000},
                         {"pairedEvents", offsets.size()},
-                        {"missingAudioSamples", status.missingAudioSamples},
+                        {"missingAudioFrames", status.missingAudioFrames},
                         {"repeatedVideoFrames", qint64(status.repeatedFrames)},
                         {"droppedVideoFrames", qint64(status.droppedFrames)},
-                        {"maximumUiGapMs", maximumUiGap},
+                        {"maximumUiGapMs", maximumUiGapMs},
                         {"privateBytesBaseline", baseline},
                         {"privateBytesMaximum", maximumPrivate},
                         {"handlesBaseline", baselineHandles},
@@ -486,11 +486,11 @@ inline void run(MainWindow &window)
     QCOMPARE(pixels.size(), status.videoFrames);
     QVERIFY2(maximumOffset <= .1, "Encoded flash/beep offset exceeded 100 ms");
     QVERIFY2(std::abs(lastMean - firstMean) < .05, "Encoded sync offset drifted by 50 ms");
-    QVERIFY2(maximumUiGap < 250, "GUI heartbeat stalled for 250 ms");
+    QVERIFY2(maximumUiGapMs < 250, "GUI heartbeat stalled for 250 ms");
     QVERIFY2(maximumPrivate - baseline < 192 * 1024 * 1024LL,
              "Private memory grew by over 192 MiB after warmup");
     QVERIFY2(maximumHandles - baselineHandles < 64, "Process handles grew by over 64 after warmup");
-    QCOMPARE(status.missingAudioSamples, qint64(0));
+    QCOMPARE(status.missingAudioFrames, qint64(0));
     saveJson(QDir(directory).filePath("progress.json"),
              {{"phase", "passed"}, {"summary", summary}});
 }

@@ -24,7 +24,7 @@ public:
 
     QString currentSourceId() const
     {
-        return m_selected;
+        return m_currentSourceId;
     }
 
     QList<AudioDevice> devices() const
@@ -44,17 +44,17 @@ public:
 
     qreal masterPeakLeft() const
     {
-        return m_master.left;
+        return m_masterPeak.left;
     }
 
     qreal masterPeakRight() const
     {
-        return m_master.right;
+        return m_masterPeak.right;
     }
 
     bool masterClipped() const
     {
-        return m_clipTicks > 0;
+        return m_clippingHoldTicks > 0;
     }
 
     void refreshDevices();
@@ -65,7 +65,7 @@ public:
     bool setMuted(const QString &sourceId, bool muted);
     bool selectSource(const QString &sourceId);
     bool deviceInUse(const QString &deviceId) const;
-    QString suggestedSourceName(const QString &base) const;
+    QString suggestedSourceName(const QString &baseName) const;
     int activeWorkerCount() const;
 
     AudioMixer *mixer()
@@ -90,19 +90,19 @@ private:
         std::unique_ptr<AudioCaptureWorker> worker;
     };
 
-    int rowFor(const QString &sourceId) const;
-    bool nameAvailable(const QString &name, const QString &except = {}) const;
-    void synchronize();
-    void poll();
+    int sourceRow(const QString &sourceId) const;
+    bool isSourceNameAvailable(const QString &name, const QString &excludedSourceId = {}) const;
+    void updateMixerInputs();
+    void refreshSourceStatusAndLevels();
     std::vector<Entry> m_entries;
-    std::vector<std::unique_ptr<AudioCaptureWorker>> m_retired;
-    std::vector<std::unique_ptr<QThread>> m_queries;
+    std::vector<std::unique_ptr<AudioCaptureWorker>> m_retiringWorkers;
+    std::vector<std::unique_ptr<QThread>> m_deviceQueryThreads;
     AudioMixer m_mixer;
-    QTimer m_timer;
-    QString m_selected, m_catalogError;
+    QTimer m_statusPollTimer;
+    QString m_currentSourceId, m_catalogError;
     QList<AudioDevice> m_devices;
     bool m_refreshing = false;
-    AudioPeak m_master;
-    int m_clipTicks = 0;
+    AudioPeak m_masterPeak;
+    int m_clippingHoldTicks = 0;
 };
 #endif

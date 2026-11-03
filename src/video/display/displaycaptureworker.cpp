@@ -22,8 +22,9 @@ using namespace winrt::Windows::Graphics::DirectX;
 using namespace winrt::Windows::Graphics::DirectX::Direct3D11;
 #endif
 
-DisplayCaptureWorker::DisplayCaptureWorker(QString displayId, bool cursor, quint64 generation)
-    : m_displayId(std::move(displayId)), m_cursor(cursor), m_generation(generation)
+DisplayCaptureWorker::DisplayCaptureWorker(QString displayId, bool captureCursor,
+                                           quint64 generation)
+    : m_displayId(std::move(displayId)), m_captureCursor(captureCursor), m_generation(generation)
 {
 }
 
@@ -42,7 +43,7 @@ QString DisplayCaptureWorker::lastError() const
 void DisplayCaptureWorker::run()
 {
     const auto fail = [&](const QString &message) {
-        m_frames.clear();
+        m_latestFrame.clear();
         std::lock_guard<std::mutex> lock(m_errorMutex);
         m_error = message;
     };
@@ -74,20 +75,21 @@ void DisplayCaptureWorker::run()
         winrt::check_hresult(D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
                                                D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0,
                                                D3D11_SDK_VERSION, &device, nullptr, &context));
-        ComPtr<IDXGIDevice> dxgi;
-        winrt::check_hresult(device.As(&dxgi));
+        ComPtr<IDXGIDevice> dxgiDevice;
+        winrt::check_hresult(device.As(&dxgiDevice));
         winrt::com_ptr<IInspectable> inspectable;
-        winrt::check_hresult(CreateDirect3D11DeviceFromDXGIDevice(dxgi.Get(), inspectable.put()));
-        auto directDevice = inspectable.as<IDirect3DDevice>();
+        winrt::check_hresult(
+            CreateDirect3D11DeviceFromDXGIDevice(dxgiDevice.Get(), inspectable.put()));
+        auto winrtDevice = inspectable.as<IDirect3DDevice>();
         auto interop =
             winrt::get_activation_factory<GraphicsCaptureItem, IGraphicsCaptureItemInterop>();
         GraphicsCaptureItem item{nullptr};
         winrt::check_hresult(interop->CreateForMonitor(
             monitor, winrt::guid_of<GraphicsCaptureItem>(), winrt::put_abi(item)));
         auto size = item.Size();
-        auto pool = Direct3D11CaptureFramePool::CreateFreeThreaded(
-            directDevice, DirectXPixelFormat::B8G8R8A8UIntNormalized, 2, size);
-        auto session = pool.CreateCaptureSession(item);
+        auto captureFramePool = Direct3D11CaptureFramePool::CreateFreeThreaded(
+            winrtDevice, DirectXPixelFormat::B8G8R8A8UIntNormalized, 2, size);
+        auto session = captureFramePool.CreateCaptureSession(item);
         const auto closeObject = [](auto &object) noexcept {
             try {
                 object.Close();
@@ -97,15 +99,15 @@ void DisplayCaptureWorker::run()
         };
         const auto close = qScopeGuard([&] {
             closeObject(session);
-            closeObject(pool);
+            closeObject(captureFramePool);
         });
-        session.IsCursorCaptureEnabled(m_cursor);
+        session.IsCursorCaptureEnabled(m_captureCursor);
         auto closed = std::make_shared<std::atomic_bool>(false);
-        auto token = item.Closed([closed](auto &&, auto &&) {
+        auto closedEventToken = item.Closed([closed](auto &&, auto &&) {
             closed->store(true);
         });
         const auto revoke = qScopeGuard([&] {
-            item.Closed(token);
+            item.Closed(closedEventToken);
         });
         if (m_stop.load())
             return;
@@ -122,15 +124,17 @@ void DisplayCaptureWorker::run()
         D3D11_QUERY_DESC queryDesc{D3D11_QUERY_EVENT, 0};
         winrt::check_hresult(device->CreateQuery(&queryDesc, &query));
         quint64 sequence = 0;
-        auto nextTargetCheck = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+        auto nextTargetCheckTime =
+            std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
         while (!m_stop.load()) {
             // Polling coalesces frame notifications and bounds application processing to 30 Hz.
-            const auto next = std::chrono::steady_clock::now() + std::chrono::microseconds(33334);
+            const auto nextPollTime =
+                std::chrono::steady_clock::now() + std::chrono::microseconds(33334);
             if (closed->load()) {
                 fail(tr("显示器采集已关闭，请重新添加来源。"));
                 break;
             }
-            if (std::chrono::steady_clock::now() >= nextTargetCheck) {
+            if (std::chrono::steady_clock::now() >= nextTargetCheckTime) {
                 const auto available = displayDevices();
                 if (std::none_of(available.cbegin(), available.cend(), [&](const auto &target) {
                         return target.id == m_displayId;
@@ -138,10 +142,11 @@ void DisplayCaptureWorker::run()
                     fail(tr("所选显示器已断开，请检查连接并重新添加来源。"));
                     break;
                 }
-                nextTargetCheck = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+                nextTargetCheckTime =
+                    std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
             }
             Direct3D11CaptureFrame latest{nullptr};
-            while (auto frame = pool.TryGetNextFrame()) {
+            while (auto frame = captureFramePool.TryGetNextFrame()) {
                 if (latest)
                     latest.Close();
                 latest = std::move(frame);
@@ -152,41 +157,42 @@ void DisplayCaptureWorker::run()
                     size = content;
                     latest.Close();
                     latest = nullptr;
-                    m_frames.clear();
+                    m_latestFrame.clear();
                     poolSlots = {};
                     if (size.Width > 0 && size.Height > 0)
-                        pool.Recreate(directDevice, DirectXPixelFormat::B8G8R8A8UIntNormalized, 2,
-                                      size);
+                        captureFramePool.Recreate(
+                            winrtDevice, DirectXPixelFormat::B8G8R8A8UIntNormalized, 2, size);
                 } else if (content.Width > 0 && content.Height > 0) {
                     auto access = latest.Surface()
                                       .as<::Windows::Graphics::DirectX::Direct3D11::
                                               IDirect3DDxgiInterfaceAccess>();
-                    ComPtr<ID3D11Texture2D> input;
-                    winrt::check_hresult(access->GetInterface(IID_PPV_ARGS(&input)));
+                    ComPtr<ID3D11Texture2D> captureTexture;
+                    winrt::check_hresult(access->GetInterface(IID_PPV_ARGS(&captureTexture)));
                     auto frame = std::make_shared<CaptureFrame>();
                     frame->size = QSize(size.Width, size.Height);
-                    frame->timestamp = latest.SystemRelativeTime().count() * 100;
+                    frame->timestampNs = latest.SystemRelativeTime().count() * 100;
                     frame->sequence = ++sequence;
                     frame->generation = m_generation;
-                    D3D11_TEXTURE2D_DESC desc{};
-                    input->GetDesc(&desc);
+                    D3D11_TEXTURE2D_DESC textureDescription{};
+                    captureTexture->GetDesc(&textureDescription);
                     for (auto &slot : poolSlots) {
                         bool available = false;
                         if (!slot.busy->compare_exchange_strong(available, true))
                             continue;
-                        frame->busy = slot.busy;
+                        frame->poolSlotInUse = slot.busy;
                         if (!slot.resource) {
                             slot.resource = std::make_shared<GpuFrameResource>();
                             slot.resource->device = device;
-                            desc.Usage = D3D11_USAGE_DEFAULT;
-                            desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
-                            desc.CPUAccessFlags = 0;
-                            desc.MiscFlags = 0;
-                            winrt::check_hresult(
-                                device->CreateTexture2D(&desc, nullptr, &slot.resource->texture));
+                            textureDescription.Usage = D3D11_USAGE_DEFAULT;
+                            textureDescription.BindFlags =
+                                D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+                            textureDescription.CPUAccessFlags = 0;
+                            textureDescription.MiscFlags = 0;
+                            winrt::check_hresult(device->CreateTexture2D(
+                                &textureDescription, nullptr, &slot.resource->texture));
                         }
                         frame->gpu = slot.resource;
-                        context->CopyResource(slot.resource->texture.Get(), input.Get());
+                        context->CopyResource(slot.resource->texture.Get(), captureTexture.Get());
                         context->End(query.Get());
                         context->Flush();
                         break;
@@ -201,14 +207,14 @@ void DisplayCaptureWorker::run()
                             QThread::msleep(1);
                         winrt::check_hresult(result);
                         if (!m_stop.load() && ready) {
-                            m_frames.publish(std::move(frame));
+                            m_latestFrame.publish(std::move(frame));
                         }
                     }
                     latest.Close();
                 }
             }
-            std::unique_lock<std::mutex> waitLock(m_waitMutex);
-            m_wait.wait_until(waitLock, next, [this] {
+            std::unique_lock<std::mutex> waitLock(m_stopMutex);
+            m_stopCondition.wait_until(waitLock, nextPollTime, [this] {
                 return m_stop.load();
             });
         }

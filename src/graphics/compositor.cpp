@@ -55,8 +55,8 @@ bool Compositor::startRendering(QOpenGLContext *shareContext)
         std::lock_guard<std::mutex> lock(m_mutex);
         m_stop = false;
         m_failed = false;
-        m_requestedReadback = m_completedReadback = 0;
-        m_readback = {};
+        m_requestedReadbackId = m_completedReadbackId = 0;
+        m_readbackImage = {};
     }
     m_context->moveToThread(this);
     start();
@@ -90,23 +90,23 @@ void Compositor::setOutputEnabled(bool enabled)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_outputEnabled = enabled;
-    m_output.clear();
-    m_droppedOutput = 0;
+    m_diagnosticOutputFrames.clear();
+    m_droppedDiagnosticFrames = 0;
 }
 
 std::deque<ComposedImage> Compositor::takeOutput()
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    return std::exchange(m_output, {});
+    return std::exchange(m_diagnosticOutputFrames, {});
 }
 
 quint64 Compositor::droppedOutputFrames() const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    return m_droppedOutput;
+    return m_droppedDiagnosticFrames;
 }
 
-void Compositor::setSources(const QList<PreviewSource> &sources)
+void Compositor::setSources(const QList<RenderSourceSnapshot> &sources)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_sources = sources;
@@ -128,15 +128,15 @@ QImage Compositor::captureImage(int timeoutMs)
     std::unique_lock<std::mutex> lock(m_mutex);
     if (m_stop || m_failed)
         return {};
-    const auto request = ++m_requestedReadback;
+    const auto request = ++m_requestedReadbackId;
     m_wake.notify_all();
     if (!m_wake.wait_for(lock, std::chrono::milliseconds(timeoutMs),
                          [&] {
-                             return m_completedReadback >= request || m_stop || m_failed;
+                             return m_completedReadbackId >= request || m_stop || m_failed;
                          }) ||
         m_stop || m_failed)
         return {};
-    return m_readback;
+    return m_readbackImage;
 }
 
 void Compositor::run()
@@ -194,26 +194,26 @@ void Compositor::run()
         auto deadline = Clock::now();
         quint64 sequence = 0;
         while (true) {
-            QList<PreviewSource> sources;
+            QList<RenderSourceSnapshot> sources;
             quint64 revision = 0, readback = 0;
             bool needsReadback = false, outputEnabled = false;
-            qint64 timestamp = 0;
+            qint64 timestampNs = 0;
             {
                 std::unique_lock<std::mutex> lock(m_mutex);
                 // Diagnostic requests may wake early; normal output stays at 30 Hz.
                 m_wake.wait_until(lock, deadline, [&] {
-                    return m_stop || m_requestedReadback > m_completedReadback;
+                    return m_stop || m_requestedReadbackId > m_completedReadbackId;
                 });
                 if (m_stop)
                     break;
                 sources = m_sources;
                 revision = m_revision;
-                readback = m_requestedReadback;
-                needsReadback = readback > m_completedReadback;
-                outputEnabled = m_outputEnabled || m_bus.active();
+                readback = m_requestedReadbackId;
+                needsReadback = readback > m_completedReadbackId;
+                outputEnabled = m_outputEnabled || m_bus.hasSubscribers();
                 // The image represents this source snapshot. GPU rendering,
                 // cross-context synchronization and readback can finish later.
-                timestamp = MediaClock::nowNs();
+                timestampNs = MediaClock::nowNs();
             }
             if (!renderer.render(sources)) {
                 fail(renderer.lastError());
@@ -236,7 +236,7 @@ void Compositor::run()
                 frame->size = slot.fbo->size();
                 frame->sequence = ++sequence;
                 frame->revision = revision;
-                frame->timestamp = timestamp;
+                frame->timestampNs = timestampNs;
                 frame->sources = renderer.renderedSources();
                 slot.lease = frame;
                 break;
@@ -249,17 +249,17 @@ void Compositor::run()
                     break;
                 if (!m_stop && frame)
                     m_latest = std::move(frame);
-                if (readback > m_completedReadback) {
-                    m_readback = image;
-                    m_completedReadback = readback;
+                if (readback > m_completedReadbackId) {
+                    m_readbackImage = image;
+                    m_completedReadbackId = readback;
                 }
                 if (outputEnabled && !m_stop) {
-                    m_bus.publish({image, timestamp});
+                    m_bus.publish({image, timestampNs});
                     if (m_outputEnabled) {
-                        m_output.push_back({image, timestamp});
-                        if (m_output.size() > 8) {
-                            m_output.pop_front();
-                            ++m_droppedOutput;
+                        m_diagnosticOutputFrames.push_back({image, timestampNs});
+                        if (m_diagnosticOutputFrames.size() > 8) {
+                            m_diagnosticOutputFrames.pop_front();
+                            ++m_droppedDiagnosticFrames;
                         }
                     }
                 }

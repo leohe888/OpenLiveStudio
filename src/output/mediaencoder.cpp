@@ -28,13 +28,13 @@ void check(int result, const char *operation)
 
 MediaEncoder::~MediaEncoder()
 {
-    sws_freeContext(m_scale);
+    sws_freeContext(m_pixelConversionContext);
     av_frame_free(&m_videoFrame);
     av_frame_free(&m_audioFrame);
-    avcodec_free_context(&m_video);
-    avcodec_free_context(&m_audio);
+    avcodec_free_context(&m_videoCodecContext);
+    avcodec_free_context(&m_audioCodecContext);
     if (m_network && m_format && m_format->pb) {
-        deadline();
+        resetNetworkDeadline();
         avio_closep(&m_format->pb);
     }
     if (m_format)
@@ -99,7 +99,7 @@ void MediaEncoder::open(const QString &path, int bitrateKbps)
     check(avformat_write_header(m_format, nullptr), "无法写入 MP4 文件头");
 }
 
-void MediaEncoder::deadline()
+void MediaEncoder::resetNetworkDeadline()
 {
     m_deadlineNs = MediaClock::nowNs() + 3000000000LL;
 }
@@ -160,14 +160,14 @@ void MediaEncoder::openStream(const QString &url, int bitrateKbps, std::function
     av_dict_set(&options, "tcp_nodelay", "1", 0);
     if (!tcUrl.isEmpty())
         av_dict_set(&options, "rtmp_tcurl", tcUrl.toUtf8().constData(), 0);
-    deadline();
+    resetNetworkDeadline();
     const auto endpoint = url.toUtf8();
     const int opened = avio_open2(&m_format->pb, endpoint.constData(), AVIO_FLAG_WRITE,
                                   &m_format->interrupt_callback, &options);
     av_dict_free(&options);
     networkCheck(opened, "无法连接推流服务器");
     av_dict_set(&options, "flvflags", "no_duration_filesize", 0);
-    deadline();
+    resetNetworkDeadline();
     const int header = avformat_write_header(m_format, &options);
     av_dict_free(&options);
     networkCheck(header, "推流服务器未接受直播输出");
@@ -186,79 +186,82 @@ void MediaEncoder::initialize(int bitrateKbps)
     const auto *audioCodec = avcodec_find_encoder_by_name("aac");
     if (!videoCodec || !audioCodec)
         throw QStringLiteral("FFmpeg 缺少 libx264 或 AAC 编码器。");
-    m_video = avcodec_alloc_context3(videoCodec);
-    m_audio = avcodec_alloc_context3(audioCodec);
-    if (!m_video || !m_audio)
+    m_videoCodecContext = avcodec_alloc_context3(videoCodec);
+    m_audioCodecContext = avcodec_alloc_context3(audioCodec);
+    if (!m_videoCodecContext || !m_audioCodecContext)
         throw QStringLiteral("无法分配音视频编码器。");
-    m_video->width = 1920;
-    m_video->height = 1080;
-    m_video->pix_fmt = AV_PIX_FMT_YUV420P;
-    m_video->time_base = {1, 30};
-    m_video->framerate = {30, 1};
-    m_video->gop_size = 60;
-    m_video->max_b_frames = 0;
-    m_video->color_range = AVCOL_RANGE_MPEG;
-    m_video->colorspace = AVCOL_SPC_BT709;
-    m_video->color_primaries = AVCOL_PRI_BT709;
-    m_video->color_trc = AVCOL_TRC_BT709;
-    m_video->log_level_offset = 16;
-    m_audio->sample_rate = 48000;
-    m_audio->time_base = {1, 48000};
-    m_audio->sample_fmt = AV_SAMPLE_FMT_FLTP;
-    m_audio->bit_rate = 192000;
-    av_channel_layout_default(&m_audio->ch_layout, 2);
-    m_audio->log_level_offset = 16;
+    m_videoCodecContext->width = 1920;
+    m_videoCodecContext->height = 1080;
+    m_videoCodecContext->pix_fmt = AV_PIX_FMT_YUV420P;
+    m_videoCodecContext->time_base = {1, 30};
+    m_videoCodecContext->framerate = {30, 1};
+    m_videoCodecContext->gop_size = 60;
+    m_videoCodecContext->max_b_frames = 0;
+    m_videoCodecContext->color_range = AVCOL_RANGE_MPEG;
+    m_videoCodecContext->colorspace = AVCOL_SPC_BT709;
+    m_videoCodecContext->color_primaries = AVCOL_PRI_BT709;
+    m_videoCodecContext->color_trc = AVCOL_TRC_BT709;
+    m_videoCodecContext->log_level_offset = 16;
+    m_audioCodecContext->sample_rate = 48000;
+    m_audioCodecContext->time_base = {1, 48000};
+    m_audioCodecContext->sample_fmt = AV_SAMPLE_FMT_FLTP;
+    m_audioCodecContext->bit_rate = 192000;
+    av_channel_layout_default(&m_audioCodecContext->ch_layout, 2);
+    m_audioCodecContext->log_level_offset = 16;
     if (m_format->oformat->flags & AVFMT_GLOBALHEADER) {
-        m_video->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
-        m_audio->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+        m_videoCodecContext->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+        m_audioCodecContext->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
     }
     AVDictionary *options = nullptr;
     av_dict_set(&options, "preset", "ultrafast", 0);
-    m_video->bit_rate = qint64(bitrateKbps) * 1000;
-    m_video->rc_max_rate = m_video->bit_rate;
-    m_video->rc_buffer_size = bitrateKbps * 1000;
-    m_video->thread_count = 4;
+    m_videoCodecContext->bit_rate = qint64(bitrateKbps) * 1000;
+    m_videoCodecContext->rc_max_rate = m_videoCodecContext->bit_rate;
+    m_videoCodecContext->rc_buffer_size = bitrateKbps * 1000;
+    m_videoCodecContext->thread_count = 4;
     av_dict_set(&options, "tune", "zerolatency", 0);
     av_dict_set(&options, "forced-idr", "1", 0);
     av_dict_set(&options, "x264-params",
                 m_network ? "nal-hrd=cbr:force-cfr=1:scenecut=0" : "scenecut=0", 0);
     if (m_network)
-        m_video->rc_min_rate = m_video->bit_rate;
-    const int opened = avcodec_open2(m_video, videoCodec, &options);
+        m_videoCodecContext->rc_min_rate = m_videoCodecContext->bit_rate;
+    const int opened = avcodec_open2(m_videoCodecContext, videoCodec, &options);
     av_dict_free(&options);
     check(opened, "无法启动 H.264 编码器");
-    check(avcodec_open2(m_audio, audioCodec, nullptr), "无法启动 AAC 编码器");
+    check(avcodec_open2(m_audioCodecContext, audioCodec, nullptr), "无法启动 AAC 编码器");
     m_videoStream = avformat_new_stream(m_format, nullptr);
     m_audioStream = avformat_new_stream(m_format, nullptr);
     if (!m_videoStream || !m_audioStream)
         throw QStringLiteral("无法创建 MP4 音视频轨道。");
-    m_videoStream->time_base = m_video->time_base;
-    m_audioStream->time_base = m_audio->time_base;
-    check(avcodec_parameters_from_context(m_videoStream->codecpar, m_video), "无法设置视频轨道");
-    check(avcodec_parameters_from_context(m_audioStream->codecpar, m_audio), "无法设置音频轨道");
+    m_videoStream->time_base = m_videoCodecContext->time_base;
+    m_audioStream->time_base = m_audioCodecContext->time_base;
+    check(avcodec_parameters_from_context(m_videoStream->codecpar, m_videoCodecContext),
+          "无法设置视频轨道");
+    check(avcodec_parameters_from_context(m_audioStream->codecpar, m_audioCodecContext),
+          "无法设置音频轨道");
     m_videoFrame = av_frame_alloc();
     m_audioFrame = av_frame_alloc();
     if (!m_videoFrame || !m_audioFrame)
         throw QStringLiteral("无法分配编码帧。");
-    m_videoFrame->format = m_video->pix_fmt;
+    m_videoFrame->format = m_videoCodecContext->pix_fmt;
     m_videoFrame->width = 1920;
     m_videoFrame->height = 1080;
-    m_videoFrame->color_range = m_video->color_range;
-    m_videoFrame->colorspace = m_video->colorspace;
-    m_videoFrame->color_primaries = m_video->color_primaries;
-    m_videoFrame->color_trc = m_video->color_trc;
+    m_videoFrame->color_range = m_videoCodecContext->color_range;
+    m_videoFrame->colorspace = m_videoCodecContext->colorspace;
+    m_videoFrame->color_primaries = m_videoCodecContext->color_primaries;
+    m_videoFrame->color_trc = m_videoCodecContext->color_trc;
     check(av_frame_get_buffer(m_videoFrame, 32), "无法分配视频帧缓冲");
-    m_audioFrame->format = m_audio->sample_fmt;
+    m_audioFrame->format = m_audioCodecContext->sample_fmt;
     m_audioFrame->sample_rate = 48000;
-    m_audioFrame->nb_samples = m_audio->frame_size;
-    check(av_channel_layout_copy(&m_audioFrame->ch_layout, &m_audio->ch_layout),
+    m_audioFrame->nb_samples = m_audioCodecContext->frame_size;
+    check(av_channel_layout_copy(&m_audioFrame->ch_layout, &m_audioCodecContext->ch_layout),
           "无法设置音频声道");
     check(av_frame_get_buffer(m_audioFrame, 0), "无法分配音频帧缓冲");
-    m_scale = sws_getContext(1920, 1080, AV_PIX_FMT_RGBA, 1920, 1080, AV_PIX_FMT_YUV420P,
-                             SWS_BILINEAR, nullptr, nullptr, nullptr);
-    if (!m_scale)
+    m_pixelConversionContext =
+        sws_getContext(1920, 1080, AV_PIX_FMT_RGBA, 1920, 1080, AV_PIX_FMT_YUV420P, SWS_BILINEAR,
+                       nullptr, nullptr, nullptr);
+    if (!m_pixelConversionContext)
         throw QStringLiteral("无法初始化视频颜色转换。");
-    check(sws_setColorspaceDetails(m_scale, sws_getCoefficients(SWS_CS_ITU709), 1,
+    check(sws_setColorspaceDetails(m_pixelConversionContext, sws_getCoefficients(SWS_CS_ITU709), 1,
                                    sws_getCoefficients(SWS_CS_ITU709), 0, 0, 1 << 16, 1 << 16),
           "无法设置 BT.709 颜色转换");
 }
@@ -277,18 +280,18 @@ void MediaEncoder::encode(AVCodecContext *codec, AVStream *stream, AVFrame *fram
         if (result == AVERROR(EAGAIN) || result == AVERROR_EOF)
             break;
         check(result, "编码失败");
-        if (codec == m_video && m_expectKeyframe) {
+        if (codec == m_videoCodecContext && m_expectKeyframe) {
             if (!(packet->flags & AV_PKT_FLAG_KEY))
                 throw QStringLiteral("编码器未能在直播跳帧后生成关键帧。");
             m_expectKeyframe = false;
         }
-        if (codec == m_video && packet->duration <= 0)
+        if (codec == m_videoCodecContext && packet->duration <= 0)
             packet->duration = 1;
         av_packet_rescale_ts(packet, codec->time_base, stream->time_base);
         packet->stream_index = stream->index;
         const auto ioStart = MediaClock::nowNs();
         if (m_network)
-            deadline();
+            resetNetworkDeadline();
         const int written = av_interleaved_write_frame(m_format, packet);
         av_packet_unref(packet);
         if (m_network) {
@@ -301,7 +304,7 @@ void MediaEncoder::encode(AVCodecContext *codec, AVStream *stream, AVFrame *fram
     }
 }
 
-void MediaEncoder::video(const QImage &image, qint64 frameIndex)
+void MediaEncoder::encodeVideoFrame(const QImage &image, qint64 frameIndex)
 {
     const auto conversionStart = MediaClock::nowNs();
     if (!m_videoFrame || image.size() != QSize(1920, 1080) || frameIndex != m_videoFrames)
@@ -317,25 +320,25 @@ void MediaEncoder::video(const QImage &image, qint64 frameIndex)
     if (rgba.isNull())
         throw QStringLiteral("无法分配录制画面缓冲。");
     check(av_frame_make_writable(m_videoFrame), "无法写入视频帧");
-    m_scale =
-        sws_getCachedContext(m_scale, 1920, 1080, bgra ? AV_PIX_FMT_BGRA : AV_PIX_FMT_RGBA, 1920,
-                             1080, AV_PIX_FMT_YUV420P, SWS_BILINEAR, nullptr, nullptr, nullptr);
-    if (!m_scale)
+    m_pixelConversionContext = sws_getCachedContext(
+        m_pixelConversionContext, 1920, 1080, bgra ? AV_PIX_FMT_BGRA : AV_PIX_FMT_RGBA, 1920, 1080,
+        AV_PIX_FMT_YUV420P, SWS_BILINEAR, nullptr, nullptr, nullptr);
+    if (!m_pixelConversionContext)
         throw QStringLiteral("无法初始化视频颜色转换。");
-    check(sws_setColorspaceDetails(m_scale, sws_getCoefficients(SWS_CS_ITU709), 1,
+    check(sws_setColorspaceDetails(m_pixelConversionContext, sws_getCoefficients(SWS_CS_ITU709), 1,
                                    sws_getCoefficients(SWS_CS_ITU709), 0, 0, 1 << 16, 1 << 16),
           "无法设置 BT.709 颜色转换");
     const unsigned char *source[]{rgba.constBits()};
     const int stride[]{int(rgba.bytesPerLine())};
-    if (sws_scale(m_scale, source, stride, 0, 1080, m_videoFrame->data, m_videoFrame->linesize) !=
-        1080)
+    if (sws_scale(m_pixelConversionContext, source, stride, 0, 1080, m_videoFrame->data,
+                  m_videoFrame->linesize) != 1080)
         throw QStringLiteral("视频颜色转换失败。");
     m_videoFrame->pts = frameIndex;
     m_videoFrame->duration = 1;
     m_videoFrame->pict_type = m_forceKeyframe ? AV_PICTURE_TYPE_I : AV_PICTURE_TYPE_NONE;
     m_forceKeyframe = false;
     m_lastConversionNs = MediaClock::nowNs() - conversionStart;
-    encode(m_video, m_videoStream, m_videoFrame);
+    encode(m_videoCodecContext, m_videoStream, m_videoFrame);
     ++m_videoFrames;
 }
 
@@ -344,35 +347,35 @@ void MediaEncoder::skipTo(qint64 nextFrame)
     if (!m_network || nextFrame < m_videoFrames)
         throw QStringLiteral("直播时间线跳转无效。");
     m_videoFrames = nextFrame;
-    m_pending.clear();
-    m_audioSamples = nextFrame * 1600;
+    m_pendingAudioSamples.clear();
+    m_encodedAudioFrames = nextFrame * 1600;
     m_forceKeyframe = true;
     m_expectKeyframe = true;
 }
 
-void MediaEncoder::audio(const QVector<float> &samples)
+void MediaEncoder::encodeAudioSamples(const QVector<float> &samples)
 {
     if (samples.size() % 2)
         throw QStringLiteral("音频帧声道数据无效。");
-    m_pending += samples;
-    while (m_pending.size() >= m_audio->frame_size * 2)
-        encodeAudio(m_audio->frame_size);
+    m_pendingAudioSamples += samples;
+    while (m_pendingAudioSamples.size() >= m_audioCodecContext->frame_size * 2)
+        encodeAudio(m_audioCodecContext->frame_size);
 }
 
 void MediaEncoder::encodeAudio(int count)
 {
     check(av_frame_make_writable(m_audioFrame), "无法写入音频帧");
     m_audioFrame->nb_samples = count;
-    m_audioFrame->pts = m_audioSamples;
-    const auto *input = m_pending.constData();
+    m_audioFrame->pts = m_encodedAudioFrames;
+    const auto *input = m_pendingAudioSamples.constData();
     for (int channel = 0; channel < 2; ++channel) {
         auto *out = reinterpret_cast<float *>(m_audioFrame->data[channel]);
         for (int i = 0; i < count; ++i)
             out[i] = input[i * 2 + channel];
     }
-    encode(m_audio, m_audioStream, m_audioFrame);
-    m_audioSamples += count;
-    m_pending.remove(0, count * 2);
+    encode(m_audioCodecContext, m_audioStream, m_audioFrame);
+    m_encodedAudioFrames += count;
+    m_pendingAudioSamples.remove(0, count * 2);
 }
 
 void MediaEncoder::finish()
@@ -381,12 +384,12 @@ void MediaEncoder::finish()
         return;
     if (!m_videoFrames)
         throw QStringLiteral("未生成有效视频帧。");
-    if (!m_pending.isEmpty())
-        encodeAudio(int(m_pending.size() / 2));
-    encode(m_video, m_videoStream, nullptr);
-    encode(m_audio, m_audioStream, nullptr);
+    if (!m_pendingAudioSamples.isEmpty())
+        encodeAudio(int(m_pendingAudioSamples.size() / 2));
+    encode(m_videoCodecContext, m_videoStream, nullptr);
+    encode(m_audioCodecContext, m_audioStream, nullptr);
     if (m_network) {
-        deadline();
+        resetNetworkDeadline();
         networkCheck(av_write_trailer(m_format), "无法结束直播输出");
         m_completed = true;
         return;

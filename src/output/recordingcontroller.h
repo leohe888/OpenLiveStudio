@@ -10,7 +10,7 @@ class RecordingWorker;
 struct RecordingStatus
 {
     QString state = QStringLiteral("idle"), path, error;
-    qint64 durationMs = 0, videoFrames = 0, missingAudioSamples = 0;
+    qint64 durationMs = 0, videoFrames = 0, missingAudioFrames = 0;
     qint64 lagMs = 0, lastEncodeMs = 0, lastOutputMs = 0;
     qint64 videoEncodeMs = 0, audioEncodeMs = 0, conversionMs = 0;
     int imageFormat = 0;
@@ -83,11 +83,11 @@ signals:
     void availabilityChanged();
 
 private:
-    void poll();
+    void refreshWorkerStatus();
     Compositor &m_video;
     AudioMixer &m_audio;
     std::unique_ptr<RecordingWorker> m_worker;
-    QTimer m_poll;
+    QTimer m_statusPollTimer;
     RecordingStatus m_status;
 };
 #endif

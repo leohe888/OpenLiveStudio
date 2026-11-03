@@ -426,10 +426,10 @@ void VideoSourceManagerTest::initializesAndValidatesTransform()
     VideoSourceTransform edited{{-20.5, 95.25}, {300.5, 100.25}, -30};
     QSignalSpy changes(&model, &VideoSourceManager::sourceChanged);
     QVERIFY(model.setSourceTransform("image", edited));
-    QCOMPARE(current().rotation(), 330.0);
+    QCOMPARE(current().rotationDegrees(), 330.0);
     QCOMPARE(changes.size(), 1);
     QCOMPARE(changes.last().at(0).toString(), QString("image"));
-    edited.setRotation(690);
+    edited.setRotationDegrees(690);
     QVERIFY(model.setSourceTransform("image", edited));
     QCOMPARE(changes.size(), 1);
     QVERIFY(setSourcePixelSize(model, "image", QSize(600, 200)));
@@ -452,7 +452,7 @@ void VideoSourceManagerTest::initializesAndValidatesTransform()
         if (part == 3)
             invalid.setSize(QSizeF(before.size().width(), -1));
         if (part == 4)
-            invalid.setRotation(std::numeric_limits<qreal>::quiet_NaN());
+            invalid.setRotationDegrees(std::numeric_limits<qreal>::quiet_NaN());
         QVERIFY(!model.setSourceTransform("image", invalid));
         QVERIFY(current() == before);
     }

@@ -57,11 +57,11 @@ signals:
     void finished();
 
 private:
-    void poll();
+    void refreshWorkerStatus();
     Compositor &m_video;
     AudioMixer &m_audio;
     std::unique_ptr<StreamingWorker> m_worker;
-    QTimer m_poll;
+    QTimer m_statusPollTimer;
     StreamingStatus m_status;
 };
 #endif

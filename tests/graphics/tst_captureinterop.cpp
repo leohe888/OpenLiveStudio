@@ -108,8 +108,8 @@ private slots:
     {
         VideoSourceManager model;
         DisplaySourceController controller(model);
-        QList<PreviewSource> snapshot;
-        connect(&controller, &DisplaySourceController::sourcesChanged, this,
+        QList<RenderSourceSnapshot> snapshot;
+        connect(&controller, &DisplaySourceController::renderSourcesChanged, this,
                 [&](const auto &sources) {
                     snapshot = sources;
                 });
@@ -162,10 +162,10 @@ private slots:
                      "Interactive OpenGL desktop required");
             QSKIP("Interactive OpenGL desktop unavailable");
         }
-        QList<PreviewSource> snapshot;
-        connect(&controller, &DisplaySourceController::sourcesChanged, &preview,
+        QList<RenderSourceSnapshot> snapshot;
+        connect(&controller, &DisplaySourceController::renderSourcesChanged, &preview,
                 &PreviewWidget::setSources);
-        connect(&controller, &DisplaySourceController::sourcesChanged, this,
+        connect(&controller, &DisplaySourceController::renderSourcesChanged, this,
                 [&](const auto &sources) {
                     snapshot = sources;
                 });
@@ -320,7 +320,7 @@ private slots:
 
     void latestSlotNeverQueuesFrames()
     {
-        LatestCaptureFrame slot;
+        LatestCaptureFrameSlot slot;
         std::weak_ptr<const CaptureFrame> previous;
         for (quint64 i = 1; i <= 10000; ++i) {
             auto frame = std::make_shared<CaptureFrame>();
@@ -329,9 +329,9 @@ private slots:
             QVERIFY(previous.expired());
             previous = frame;
         }
-        auto latest = slot.take();
+        auto latest = slot.takeLatest();
         QCOMPARE(latest->sequence, quint64(10000));
-        QVERIFY(!slot.take());
+        QVERIFY(!slot.takeLatest());
         latest.reset();
         QVERIFY(previous.expired());
         std::thread producer([&] {
@@ -343,13 +343,13 @@ private slots:
         });
         quint64 last = 0;
         for (int i = 0; i < 10000; ++i) {
-            if (auto frame = slot.take()) {
+            if (auto frame = slot.takeLatest()) {
                 QVERIFY(frame->sequence > last);
                 last = frame->sequence;
             }
         }
         producer.join();
-        if (auto frame = slot.take()) {
+        if (auto frame = slot.takeLatest()) {
             QVERIFY(frame->sequence > last);
             last = frame->sequence;
         }
@@ -435,7 +435,7 @@ private slots:
                 gpuFrame->generation = 1;
                 gpuFrame->sequence = 1;
                 gpuFrame->gpu = resource;
-                PreviewSource source;
+                RenderSourceSnapshot source;
                 source.id = "synthetic";
                 source.transform = {{960, 540}, {1920, 1080}, 0};
                 source.frame = gpuFrame;

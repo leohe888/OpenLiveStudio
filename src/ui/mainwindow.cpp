@@ -36,8 +36,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     setupOutputControllers();
     setupStatusBar();
     connectSourceErrors();
-    setupSourcesDock();
-    setupMixerDock();
+    setupVideoSourcesDock();
+    setupAudioSourcesDock();
     setupControlsDock();
     setupDockLayout();
     // Do not pass `this` when constructing these objects above: Qt deletes child
@@ -57,11 +57,11 @@ void MainWindow::setupSourceControllers()
     m_displaySourceController = new DisplaySourceController(*m_videoSourceManager, this);
     m_cameraSourceController = new CameraSourceController(*m_videoSourceManager, this);
     m_videoSourceAggregator = new VideoSourceAggregator(*m_videoSourceManager, this);
-    connect(m_displaySourceController, &DisplaySourceController::sourcesChanged,
+    connect(m_displaySourceController, &DisplaySourceController::renderSourcesChanged,
             m_videoSourceAggregator, &VideoSourceAggregator::setDisplaySources);
-    connect(m_imageSourceController, &ImageSourceController::sourcesChanged,
+    connect(m_imageSourceController, &ImageSourceController::renderSourcesChanged,
             m_videoSourceAggregator, &VideoSourceAggregator::setImageSources);
-    connect(m_cameraSourceController, &CameraSourceController::sourcesChanged,
+    connect(m_cameraSourceController, &CameraSourceController::renderSourcesChanged,
             m_videoSourceAggregator, &VideoSourceAggregator::setCameraSources);
 }
 
@@ -142,7 +142,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 
 void MainWindow::updateOutputStatus()
 {
-    if (!m_recordingController || !m_outputStatus)
+    if (!m_recordingController || !m_outputStatusLabel)
         return;
     m_outputSettings->setRecordingLocked(m_recordingController->busy());
     if (m_streamingController)
@@ -156,7 +156,7 @@ void MainWindow::updateOutputStatus()
     };
 
     const auto live = m_streamingController ? m_streamingController->status() : StreamingStatus{};
-    m_outputStatus->setText(
+    m_outputStatusLabel->setText(
         tr("录制 %1   |   直播 %2")
             .arg(formatDuration(m_recordingController->busy() ? m_recordingController->durationMs()
                                                               : 0),
@@ -310,7 +310,7 @@ void MainWindow::setupPreview()
     m_preview = preview;
     preview->setObjectName(QStringLiteral("previewWidget"));
     connect(preview, &PreviewWidget::renderingFailed, pages, showError, Qt::QueuedConnection);
-    connect(m_videoSourceAggregator, &VideoSourceAggregator::sourcesChanged, preview,
+    connect(m_videoSourceAggregator, &VideoSourceAggregator::renderSourcesChanged, preview,
             &PreviewWidget::setSources);
     connect(preview, &PreviewWidget::gpuTransferFailed, m_displaySourceController,
             &DisplaySourceController::failTransfer, Qt::QueuedConnection);
@@ -329,15 +329,15 @@ void MainWindow::setupPreview()
 
 void MainWindow::setupStatusBar()
 {
-    m_outputStatus = new QLabel(tr("录制 00:00:00   |   直播 00:00:00"), this);
-    m_outputStatus->setObjectName(QStringLiteral("outputStatus"));
+    m_outputStatusLabel = new QLabel(tr("录制 00:00:00   |   直播 00:00:00"), this);
+    m_outputStatusLabel->setObjectName(QStringLiteral("outputStatus"));
 
     // Output timers remain visible even when a temporary status message appears.
-    statusBar()->addPermanentWidget(m_outputStatus);
+    statusBar()->addPermanentWidget(m_outputStatusLabel);
     statusBar()->showMessage(tr("就绪"));
 }
 
-void MainWindow::setupSourcesDock()
+void MainWindow::setupVideoSourcesDock()
 {
     m_videoSourceDock = new QDockWidget(tr("画面来源"), this);
     m_videoSourceDock->setFeatures(QDockWidget::NoDockWidgetFeatures);
@@ -352,7 +352,7 @@ void MainWindow::setupSourcesDock()
     connect(panel, &VideoSourcePanel::filtersRequested, this, &MainWindow::showSourceFiltersDialog);
 }
 
-void MainWindow::setupMixerDock()
+void MainWindow::setupAudioSourcesDock()
 {
     m_audioSourceDock = new QDockWidget(tr("声音来源"), this);
     m_audioSourceDock->setFeatures(QDockWidget::NoDockWidgetFeatures);

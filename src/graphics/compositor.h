@@ -14,14 +14,14 @@ class QOpenGLContext;
 
 // An immutable lease on one of three shared output textures. A consumer must
 // finish its GL reads before releasing the lease. Release all leases before stop().
-// timestamp is composition time on the shared monotonic media clock (not capture PTS).
+// timestampNs is composition time on the shared monotonic media clock (not capture PTS).
 struct CompositionFrame
 {
     GLuint texture = 0;
     QSize size;
     quint64 sequence = 0;
     quint64 revision = 0;
-    qint64 timestamp = 0;
+    qint64 timestampNs = 0;
     QHash<QString, RenderedSource> sources;
 };
 
@@ -41,7 +41,7 @@ public:
     ~Compositor() override;
     bool startRendering(QOpenGLContext *shareContext = nullptr);
     void stopRendering();
-    void setSources(const QList<PreviewSource> &sources);
+    void setSources(const QList<RenderSourceSnapshot> &sources);
     std::shared_ptr<const CompositionFrame> latestFrame() const;
     // Blocking diagnostic readback, not used by the preview or output hot path.
     // Returns a composition at least as new as the snapshot at call time.
@@ -65,18 +65,18 @@ private:
     OutputBus<ComposedImage> m_bus;
     mutable std::mutex m_mutex;
     std::condition_variable m_wake;
-    QList<PreviewSource> m_sources;
+    QList<RenderSourceSnapshot> m_sources;
     quint64 m_revision = 0;
     bool m_stop = true;
     bool m_failed = false;
-    quint64 m_requestedReadback = 0, m_completedReadback = 0;
-    QImage m_readback;
+    quint64 m_requestedReadbackId = 0, m_completedReadbackId = 0;
+    QImage m_readbackImage;
     std::shared_ptr<const CompositionFrame> m_latest;
     std::unique_ptr<QOffscreenSurface> m_surface;
     std::unique_ptr<QOpenGLContext> m_context;
     bool m_outputEnabled = false;
-    std::deque<ComposedImage> m_output;
-    quint64 m_droppedOutput = 0;
+    std::deque<ComposedImage> m_diagnosticOutputFrames;
+    quint64 m_droppedDiagnosticFrames = 0;
 };
 
 #endif

@@ -1,7 +1,7 @@
 #ifndef VIDEOSOURCEAGGREGATOR_H
 #define VIDEOSOURCEAGGREGATOR_H
 
-#include "graphics/previewsource.h"
+#include "graphics/rendersourcesnapshot.h"
 
 #include <QHash>
 #include <QObject>
@@ -16,23 +16,23 @@ public:
     explicit VideoSourceAggregator(VideoSourceManager &manager, QObject *parent = nullptr);
 
     // Each update replaces the complete snapshot for that source type.
-    void setImageSources(const QList<PreviewSource> &sources);
-    void setDisplaySources(const QList<PreviewSource> &sources);
-    void setCameraSources(const QList<PreviewSource> &sources);
+    void setImageSources(const QList<RenderSourceSnapshot> &sources);
+    void setDisplaySources(const QList<RenderSourceSnapshot> &sources);
+    void setCameraSources(const QList<RenderSourceSnapshot> &sources);
 
 signals:
-    void sourcesChanged(const QList<PreviewSource> &sources);
+    void renderSourcesChanged(const QList<RenderSourceSnapshot> &sources);
 
 private:
-    using Snapshot = QHash<QString, PreviewSource>;
-    void replaceSnapshot(Snapshot &snapshot, const QList<PreviewSource> &sources);
-    void schedulePublish();
-    void publish();
+    using Snapshot = QHash<QString, RenderSourceSnapshot>;
+    void replaceSnapshot(Snapshot &snapshot, const QList<RenderSourceSnapshot> &sources);
+    void scheduleRenderSourcesPublish();
+    void publishRenderSources();
 
     VideoSourceManager &m_sourceManager;
-    Snapshot m_images;
-    Snapshot m_displays;
-    Snapshot m_cameras;
+    Snapshot m_imageSources;
+    Snapshot m_displaySources;
+    Snapshot m_cameraSources;
     bool m_publishPending = false;
 };
 

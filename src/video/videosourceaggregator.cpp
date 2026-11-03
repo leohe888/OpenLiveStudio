@@ -6,38 +6,39 @@
 VideoSourceAggregator::VideoSourceAggregator(VideoSourceManager &manager, QObject *parent)
     : QObject(parent), m_sourceManager(manager)
 {
-    const auto schedule = [this] {
-        schedulePublish();
+    const auto scheduleSnapshotUpdate = [this] {
+        scheduleRenderSourcesPublish();
     };
-    connect(&manager, &VideoSourceManager::sourcesChanged, this, schedule);
-    connect(&manager, &VideoSourceManager::sourceChanged, this, schedule);
-    schedulePublish();
+    connect(&manager, &VideoSourceManager::sourcesChanged, this, scheduleSnapshotUpdate);
+    connect(&manager, &VideoSourceManager::sourceChanged, this, scheduleSnapshotUpdate);
+    scheduleRenderSourcesPublish();
 }
 
-void VideoSourceAggregator::setImageSources(const QList<PreviewSource> &sources)
+void VideoSourceAggregator::setImageSources(const QList<RenderSourceSnapshot> &sources)
 {
-    replaceSnapshot(m_images, sources);
+    replaceSnapshot(m_imageSources, sources);
 }
 
-void VideoSourceAggregator::setDisplaySources(const QList<PreviewSource> &sources)
+void VideoSourceAggregator::setDisplaySources(const QList<RenderSourceSnapshot> &sources)
 {
-    replaceSnapshot(m_displays, sources);
+    replaceSnapshot(m_displaySources, sources);
 }
 
-void VideoSourceAggregator::setCameraSources(const QList<PreviewSource> &sources)
+void VideoSourceAggregator::setCameraSources(const QList<RenderSourceSnapshot> &sources)
 {
-    replaceSnapshot(m_cameras, sources);
+    replaceSnapshot(m_cameraSources, sources);
 }
 
-void VideoSourceAggregator::replaceSnapshot(Snapshot &snapshot, const QList<PreviewSource> &sources)
+void VideoSourceAggregator::replaceSnapshot(Snapshot &snapshot,
+                                            const QList<RenderSourceSnapshot> &sources)
 {
     snapshot.clear();
     for (const auto &source : sources)
         snapshot.insert(source.id, source);
-    schedulePublish();
+    scheduleRenderSourcesPublish();
 }
 
-void VideoSourceAggregator::schedulePublish()
+void VideoSourceAggregator::scheduleRenderSourcesPublish()
 {
     if (m_publishPending)
         return;
@@ -46,34 +47,34 @@ void VideoSourceAggregator::schedulePublish()
         this,
         [this] {
             m_publishPending = false;
-            publish();
+            publishRenderSources();
         },
         Qt::QueuedConnection);
 }
 
-void VideoSourceAggregator::publish()
+void VideoSourceAggregator::publishRenderSources()
 {
-    QList<PreviewSource> result;
-    QSet<QString> retained;
+    QList<RenderSourceSnapshot> result;
+    QSet<QString> retainedSourceIds;
     const auto sourceEntries = m_sourceManager.sources();
     for (const auto &item : sourceEntries) {
         const auto id = item.id();
-        retained.insert(id);
+        retainedSourceIds.insert(id);
         const auto type = item.type();
         const Snapshot *snapshot = nullptr;
         if (type == VideoSourceType::Image)
-            snapshot = &m_images;
+            snapshot = &m_imageSources;
         else if (type == VideoSourceType::DisplayCapture)
-            snapshot = &m_displays;
+            snapshot = &m_displaySources;
         else if (type == VideoSourceType::Camera)
-            snapshot = &m_cameras;
+            snapshot = &m_cameraSources;
         if (!snapshot)
             continue;
         const auto entry = snapshot->constFind(id);
         if (entry == snapshot->cend())
             continue;
 
-        PreviewSource source = *entry;
+        RenderSourceSnapshot source = *entry;
         source.visible = item.visible();
         source.locked = item.locked();
         source.transform = item.transform();
@@ -81,13 +82,13 @@ void VideoSourceAggregator::publish()
         result.append(std::move(source));
     }
     // Release removed frames even when a controller has no further updates.
-    for (auto *snapshot : {&m_images, &m_displays, &m_cameras}) {
+    for (auto *snapshot : {&m_imageSources, &m_displaySources, &m_cameraSources}) {
         for (auto it = snapshot->begin(); it != snapshot->end();) {
-            if (!retained.contains(it.key()))
+            if (!retainedSourceIds.contains(it.key()))
                 it = snapshot->erase(it);
             else
                 ++it;
         }
     }
-    emit sourcesChanged(result);
+    emit renderSourcesChanged(result);
 }

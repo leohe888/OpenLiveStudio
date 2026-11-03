@@ -27,7 +27,7 @@ class RecordingTest : public QObject
         return QJsonDocument::fromJson(process.readAllStandardOutput()).object();
     }
 
-    static void verifyFile(const QString &path, double minimum)
+    static void verifyFile(const QString &path, double minimumDurationSeconds)
     {
         const auto info = probe(path);
         QVERIFY(!info.isEmpty());
@@ -49,10 +49,10 @@ class RecordingTest : public QObject
         QCOMPARE(audio["codec_name"].toString(), QString("aac"));
         QCOMPARE(audio["sample_rate"].toString(), QString("48000"));
         QCOMPARE(audio["channels"].toInt(), 2);
-        const double vd = video["duration"].toString().toDouble(),
-                     ad = audio["duration"].toString().toDouble();
-        QVERIFY(vd >= minimum);
-        QVERIFY(std::abs(vd - ad) < .035);
+        const double videoDurationSeconds = video["duration"].toString().toDouble(),
+                     audioDurationSeconds = audio["duration"].toString().toDouble();
+        QVERIFY(videoDurationSeconds >= minimumDurationSeconds);
+        QVERIFY(std::abs(videoDurationSeconds - audioDurationSeconds) < .035);
         QVERIFY(std::abs(video["start_time"].toString().toDouble()) < .001);
         QVERIFY(std::abs(audio["start_time"].toString().toDouble()) < .025);
     }
@@ -104,8 +104,8 @@ private slots:
             QImage image(1920, 1080, QImage::Format_RGBA8888);
             image.fill(Qt::red);
             for (int i = 0; i < 6; ++i) {
-                encoder.video(image, i);
-                encoder.audio(QVector<float>(3200, 0));
+                encoder.encodeVideoFrame(image, i);
+                encoder.encodeAudioSamples(QVector<float>(3200, 0));
             }
             encoder.finish();
             QVERIFY(encoder.completed());
@@ -136,8 +136,8 @@ private slots:
                 QImage image(1920, 1080, format);
                 image.fill(QColor(240, 30, 10));
                 for (int i = 0; i < 3; ++i) {
-                    encoder.video(image, i);
-                    encoder.audio(QVector<float>(3200, 0));
+                    encoder.encodeVideoFrame(image, i);
+                    encoder.encodeAudioSamples(QVector<float>(3200, 0));
                 }
                 encoder.finish();
             } catch (const QString &error) {
@@ -185,8 +185,8 @@ private slots:
         QVERIFY2(recording.lastError().isEmpty(), qPrintable(recording.lastError()));
         QVERIFY(recording.fileComplete());
         qInfo() << "recorded frames / missing audio samples:" << recording.status().videoFrames
-                << recording.status().missingAudioSamples;
-        QVERIFY(recording.status().missingAudioSamples < 480);
+                << recording.status().missingAudioFrames;
+        QVERIFY(recording.status().missingAudioFrames < 480);
         verifyFile(path, .65);
         QVERIFY(compositor.isRunning());
         QVERIFY(mixer.isRunning());

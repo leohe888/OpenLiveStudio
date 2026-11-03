@@ -2,7 +2,7 @@
 #define DISPLAYSOURCECONTROLLER_H
 
 #include "video/display/displaycaptureworker.h"
-#include "graphics/previewsource.h"
+#include "graphics/rendersourcesnapshot.h"
 #include <QObject>
 #include <QTimer>
 #include "video/display/displaydevices.h"
@@ -24,36 +24,36 @@ public:
     }
 
     void refreshDisplayDevices();
-    QString addDisplay(const QString &name, const QString &displayId, bool cursor);
+    QString addDisplay(const QString &name, const QString &displayId, bool captureCursor);
     bool retry(const QString &sourceId);
     void failTransfer(const QString &sourceId, quint64 generation, const QString &reason);
     int activeWorkerCount() const;
 signals:
     void displayDevicesChanged();
-    void sourcesChanged(const QList<PreviewSource> &sources);
+    void renderSourcesChanged(const QList<RenderSourceSnapshot> &sources);
     void sourceFailed(const QString &sourceId, const QString &message);
 
 private:
     struct Entry
     {
         QString displayId;
-        bool cursor = true, failed = false;
+        bool captureCursor = true, failed = false;
         quint64 generation = 0;
         std::unique_ptr<DisplayCaptureWorker> worker;
         std::shared_ptr<const CaptureFrame> frame;
     };
 
-    void synchronize();
-    void poll();
-    void publish();
-    void stop(Entry &entry);
+    void synchronizeSources();
+    void collectCaptureUpdates();
+    void publishRenderSources();
+    void retireWorker(Entry &entry);
     VideoSourceManager &m_sourceManager;
     QList<DisplayDevice> m_devices;
     std::map<QString, Entry> m_entries;
-    std::vector<std::unique_ptr<DisplayCaptureWorker>> m_retired;
-    QTimer m_timer;
+    std::vector<std::unique_ptr<DisplayCaptureWorker>> m_retiringWorkers;
+    QTimer m_framePollTimer;
     quint64 m_generation = 0;
-    bool m_busy = false;
+    bool m_updatingSources = false;
     bool m_syncPending = false;
 };
 #endif

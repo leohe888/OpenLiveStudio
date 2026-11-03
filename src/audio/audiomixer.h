@@ -67,8 +67,8 @@ private:
     QList<AudioInput> m_inputs;
     std::shared_ptr<const MixedAudioBlock> m_latest;
     Levels m_levels;
-    std::deque<std::shared_ptr<const MixedAudioBlock>> m_output;
-    quint64 m_dropped = 0, m_discontinuities = 0;
+    std::deque<std::shared_ptr<const MixedAudioBlock>> m_diagnosticOutputBlocks;
+    quint64 m_droppedDiagnosticBlocks = 0, m_discontinuities = 0;
 };
 
 #endif

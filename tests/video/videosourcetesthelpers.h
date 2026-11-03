@@ -41,14 +41,14 @@ inline const DisplaySourceConfig *displaySource(const VideoSourceManager &manage
 }
 
 inline bool setCameraActualMode(VideoSourceManager &manager, const QString &id, const QSize &size,
-                                int numerator, int denominator)
+                                int frameRateNumerator, int frameRateDenominator)
 {
     if (!cameraSource(manager, id))
         return false;
     auto runtime = manager.sourceRuntime(id);
     runtime.setPixelSize(size);
-    runtime.setActualFrameRateNumerator(numerator);
-    runtime.setActualFrameRateDenominator(denominator);
+    runtime.setActualFrameRateNumerator(frameRateNumerator);
+    runtime.setActualFrameRateDenominator(frameRateDenominator);
     return manager.setSourceRuntime(id, runtime);
 }
 
