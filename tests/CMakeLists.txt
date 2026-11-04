@@ -191,7 +191,7 @@ target_link_libraries(tst_captureinterop PRIVATE
     Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Widgets Qt6::Test)
 if(WIN32)
     target_compile_definitions(tst_captureinterop PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
-    target_link_libraries(tst_captureinterop PRIVATE d3d11 dxgi windowsapp opengl32 mfplat mfreadwrite mfuuid mf ole32 psapi)
+    target_link_libraries(tst_captureinterop PRIVATE d3d11 dxgi windowsapp opengl32 ole32 psapi)
 endif()
 
 qt_add_resources(tst_captureinterop "capture_shaders" PREFIX "/" BASE "${PROJECT_SOURCE_DIR}"
@@ -294,6 +294,8 @@ qt_add_executable(tst_mainwindow
     ../src/video/videosourceaggregator.h
     ../src/video/camera/cameracaptureworker.h
     ../src/video/camera/cameracaptureworker.cpp
+    ../src/video/camera/v4l2camera.cpp
+    ../src/video/camera/v4l2camera.h
     ../src/video/camera/camerasourcecontroller.h
     ../src/video/camera/camerasourcecontroller.cpp
     ../src/graphics/captureframe.h
@@ -337,7 +339,7 @@ target_link_libraries(tst_mainwindow PRIVATE
     PkgConfig::swresample PkgConfig::avutil PkgConfig::avcodec PkgConfig::avformat PkgConfig::swscale)
 if(WIN32)
     target_compile_definitions(tst_mainwindow PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
-    target_link_libraries(tst_mainwindow PRIVATE d3d11 dxgi windowsapp opengl32 mfplat mfreadwrite mfuuid mf ole32 uuid psapi)
+    target_link_libraries(tst_mainwindow PRIVATE d3d11 dxgi windowsapp opengl32 ole32 uuid psapi)
 endif()
 
 target_compile_definitions(tst_mainwindow PRIVATE OPENLIVE_FFPROBE="${OPENLIVE_FFPROBE}")
@@ -440,6 +442,8 @@ qt_add_executable(tst_cameracapture video/tst_cameracapture.cpp
     ../src/video/videosourcemanager.h
     ../src/video/camera/cameracaptureworker.h
     ../src/video/camera/cameracaptureworker.cpp
+    ../src/video/camera/v4l2camera.cpp
+    ../src/video/camera/v4l2camera.h
     ../src/video/camera/camerasourcecontroller.h
     ../src/video/camera/camerasourcecontroller.cpp
     ../src/graphics/captureframe.h
@@ -448,10 +452,7 @@ qt_add_executable(tst_cameracapture video/tst_cameracapture.cpp
 target_include_directories(tst_cameracapture PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_cameracapture PRIVATE
     Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::Test)
-if(WIN32)
-    target_compile_definitions(tst_cameracapture PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
-    target_link_libraries(tst_cameracapture PRIVATE d3d11 dxgi windowsapp opengl32 mfplat mfreadwrite mfuuid mf ole32 psapi)
-endif()
+
 
 add_test(NAME capture.camera COMMAND "${CMAKE_COMMAND}" -E env
     ${OPENLIVE_TEST_ENV}

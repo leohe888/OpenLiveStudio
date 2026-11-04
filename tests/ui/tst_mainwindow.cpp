@@ -43,6 +43,7 @@
 #include <QSurfaceFormat>
 #include <QTabWidget>
 #include <QTemporaryDir>
+#include <QTcpServer>
 #include <QToolButton>
 #include <QtTest>
 #include <cmath>
@@ -88,6 +89,7 @@ private slots:
     void keepsOutputStatusVisibleWhenResized();
     void recordingAcceptance();
     void cameraHardwarePreview();
+    void cameraHardwareOutputs();
     void cameraFormatSelectionFiltersModes();
     void recordingControlsAndGracefulClose();
     void streamingControlsAndGracefulClose();
@@ -830,10 +832,85 @@ void MainWindowTest::cameraHardwarePreview()
     QCOMPARE(controller->activeWorkerCount(), 1);
     QVERIFY(!preview->compositor()->captureImage().isNull());
     window.showNormal();
-    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QTRY_VERIFY(window.isVisible());
+    QTRY_VERIFY(preview->isValid());
     QVERIFY(model->setSourceVisible(id, false));
     QTRY_COMPARE_WITH_TIMEOUT(controller->activeWorkerCount(), 0, 10000);
     QVERIFY(model->removeSource(id));
+}
+
+void MainWindowTest::cameraHardwareOutputs()
+{
+    if (!qEnvironmentVariableIsSet("OPENLIVE_CAMERA_HARDWARE"))
+        QSKIP("Requires explicit camera hardware validation");
+    MainWindow window;
+    window.show();
+    auto *model = window.findChild<VideoSourceManager *>();
+    auto *camera = window.findChild<CameraSourceController *>();
+    auto *recording = window.findChild<RecordingController *>();
+    auto *streaming = window.findChild<StreamingController *>();
+    QVERIFY(recording && streaming);
+    const auto devices = cameraDevices();
+    QVERIFY(!devices.isEmpty());
+    const auto id = camera->addCamera("USB camera", CameraSourceConfig{devices[0].id});
+    QVERIFY(!id.isEmpty());
+    QTRY_COMPARE_WITH_TIMEOUT(model->sourceRuntime(id).state(), VideoSourceState::Capturing, 15000);
+    QTRY_VERIFY_WITH_TIMEOUT(recording->ready() && streaming->ready(), 10000);
+
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    QTcpServer port;
+    QVERIFY(port.listen(QHostAddress::LocalHost));
+    const auto server = QStringLiteral("rtmp://127.0.0.1:%1/live").arg(port.serverPort());
+    port.close();
+    QProcess receiver;
+    const auto stopReceiver = qScopeGuard([&] {
+        if (receiver.state() != QProcess::NotRunning) {
+            receiver.kill();
+            receiver.waitForFinished(3000);
+        }
+    });
+    receiver.start(QDir(QFileInfo(QStringLiteral(OPENLIVE_FFPROBE)).absolutePath()).filePath("ffmpeg"),
+                   {"-hide_banner", "-loglevel", "error", "-listen", "1", "-i", server + "/camera",
+                    "-c", "copy", "-f", "flv", directory.filePath("received.flv")});
+    QVERIFY(receiver.waitForStarted(5000));
+    QVERIFY(recording->startRecording(directory.filePath("camera.mp4")));
+    QVERIFY(streaming->startStreaming(server, "camera"));
+    QTRY_VERIFY_WITH_TIMEOUT(streaming->state() == "live" || receiver.state() == QProcess::NotRunning, 15000);
+    QVERIFY2(streaming->state() == "live",
+             qPrintable(streaming->lastError() + QString::fromUtf8(receiver.readAllStandardError())));
+    const auto generation = camera->m_entries.at(id).generation;
+    camera->failTransfer(id, generation, "Injected camera outage during output");
+    QCOMPARE(recording->state(), QString("recording"));
+    QCOMPARE(streaming->state(), QString("live"));
+    QTRY_COMPARE_WITH_TIMEOUT(model->sourceRuntime(id).state(), VideoSourceState::Capturing, 15000);
+    QTRY_VERIFY_WITH_TIMEOUT(recording->durationMs() >= 1500, 10000);
+    recording->stopRecording();
+    QTRY_VERIFY_WITH_TIMEOUT(!recording->busy(), 15000);
+    QVERIFY2(recording->fileComplete(), qPrintable(recording->lastError()));
+    QCOMPARE(streaming->state(), QString("live"));
+    QVERIFY(recording->startRecording(directory.filePath("camera-second.mp4")));
+    QTRY_COMPARE_WITH_TIMEOUT(recording->state(), QString("recording"), 10000);
+    streaming->stopStreaming();
+    QTRY_VERIFY_WITH_TIMEOUT(!streaming->busy(), 15000);
+    QCOMPARE(recording->state(), QString("recording"));
+    recording->stopRecording();
+    QTRY_VERIFY_WITH_TIMEOUT(!recording->busy(), 15000);
+    QVERIFY(recording->fileComplete());
+    QTRY_VERIFY_WITH_TIMEOUT(receiver.state() == QProcess::NotRunning, 10000);
+    QVERIFY(QFileInfo(directory.filePath("received.flv")).size() > 1000);
+    QProcess probe;
+    probe.start(QStringLiteral(OPENLIVE_FFPROBE), {"-v", "error", "-select_streams", "v:0",
+                "-show_entries", "stream=codec_name,width,height,avg_frame_rate", "-of", "json",
+                directory.filePath("camera.mp4")});
+    QVERIFY(probe.waitForFinished(10000));
+    QCOMPARE(probe.exitCode(), 0);
+    const auto video = QJsonDocument::fromJson(probe.readAllStandardOutput()).object()
+                           .value("streams").toArray().at(0).toObject();
+    QCOMPARE(video.value("codec_name").toString(), QString("h264"));
+    QCOMPARE(video.value("width").toInt(), 1920);
+    QCOMPARE(video.value("height").toInt(), 1080);
+    QCOMPARE(video.value("avg_frame_rate").toString(), QString("30/1"));
 }
 
 void MainWindowTest::recordingControlsAndGracefulClose()

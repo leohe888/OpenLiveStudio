@@ -3,6 +3,7 @@
 #include <QScopeGuard>
 #include <QUuid>
 #include <algorithm>
+#include "util/mediaclock.h"
 
 namespace {
 void setRuntimeStatus(VideoSourceManager &manager, const QString &sourceId,
@@ -119,15 +120,16 @@ bool CameraSourceController::retry(const QString &sourceId)
     auto it = m_entries.find(sourceId);
     if (it == m_entries.end())
         return false;
-    retireWorker(it->second);
+    retireWorker(it->second, false);
     it->second.failed = false;
+    it->second.retryAtNs = 0;
     synchronizeSources();
     return true;
 }
 
-void CameraSourceController::retireWorker(Entry &entry)
+void CameraSourceController::retireWorker(Entry &entry, bool clearFrame)
 {
-    entry.frame.reset();
+    if (clearFrame) entry.frame.reset();
     if (entry.worker) {
         entry.worker->stop();
         m_retiringWorkers.push_back(std::move(entry.worker));
@@ -166,11 +168,13 @@ void CameraSourceController::synchronizeSources()
             retireWorker(entry);
             entry.config = config;
             entry.failed = false;
+            entry.retryAtNs = 0;
         }
         if (!item.visible()) {
             retireWorker(entry);
-            setRuntimeStatus(m_sourceManager, id, VideoSourceState::Paused,
-                             entry.failed ? m_sourceManager.sourceRuntime(id).error() : QString());
+            entry.failed = false;
+            entry.retryAtNs = 0;
+            setRuntimeStatus(m_sourceManager, id, VideoSourceState::Paused, {});
         } else if (!entry.worker && !entry.failed) {
             // 旧会话尚未退出时不能重新打开同一摄像头，否则驱动可能拒绝访问。
             const bool retiring = std::any_of(
@@ -205,14 +209,22 @@ void CameraSourceController::collectCaptureUpdates()
     if (m_updatingSources)
         return;
     bool captureUpdated = false;
+    bool retryDue = false;
     m_updatingSources = true;
     for (auto &[id, entry] : m_entries) {
-        if (!entry.worker)
+        if (!entry.worker) {
+            if (entry.failed && entry.retryAtNs && MediaClock::nowNs() >= entry.retryAtNs) {
+                entry.failed = false;
+                entry.retryAtNs = 0;
+                retryDue = true;
+            }
             continue;
+        }
         const QString error = entry.worker->lastError();
         if (!error.isEmpty()) {
-            retireWorker(entry);
+            retireWorker(entry, false);
             entry.failed = true;
+            entry.retryAtNs = MediaClock::nowNs() + 2000000000LL;
             setRuntimeStatus(m_sourceManager, id, VideoSourceState::Error, error);
             emit sourceFailed(id, error);
             captureUpdated = true;
@@ -243,7 +255,7 @@ void CameraSourceController::collectCaptureUpdates()
                                    }),
                     m_queryThreads.end());
     m_updatingSources = false;
-    if (hadRetiringWorkers)
+    if (hadRetiringWorkers || retryDue)
         synchronizeSources();
     else if (captureUpdated)
         publishRenderSources();
@@ -286,12 +298,16 @@ int CameraSourceController::activeWorkerCount() const
 }
 
 void CameraSourceController::failTransfer(const QString &sourceId, quint64 generation,
-                                          const QString &)
+                                          const QString &message)
 {
     const auto it = m_entries.find(sourceId);
     if (it == m_entries.end() || it->second.generation != generation || !it->second.worker)
         return;
-    it->second.worker->useSoftwareDecoder();
-    it->second.frame.reset();
+    auto &entry = it->second;
+    retireWorker(entry, false);
+    entry.failed = true;
+    entry.retryAtNs = MediaClock::nowNs() + 2000000000LL;
+    setRuntimeStatus(m_sourceManager, sourceId, VideoSourceState::Error, message);
+    emit sourceFailed(sourceId, message);
     publishRenderSources();
 }

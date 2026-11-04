@@ -163,7 +163,7 @@ public:
                 modeInput->clear();
                 CameraMode deviceDefault;
                 deviceDefault.subtype = format;
-                modeInput->addItem(tr("设备默认"), QVariant::fromValue(deviceDefault));
+                modeInput->addItem(tr("自动选择"), QVariant::fromValue(deviceDefault));
                 QList<CameraMode> added;
                 int selected = 0;
                 for (auto entry : cameras->modes(deviceInput->currentData().toString())) {

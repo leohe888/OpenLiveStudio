@@ -55,7 +55,6 @@ struct CameraFrame
     std::shared_ptr<const CaptureFrame> renderFrame;
     QString status;
     qint64 timestampNs = 0;
-    qint64 deviceTimestamp100ns = 0;
     quint64 sequence = 0, generation = 0;
     int frameRateNumerator = 0, frameRateDenominator = 1;
 };
@@ -63,19 +62,7 @@ struct CameraFrame
 struct AVFrame;
 std::shared_ptr<const PixelFrame> cameraPixels(const AVFrame *frame, bool &inferred);
 
-#ifdef Q_OS_WIN
-struct IMFSample;
-struct IMFMediaType;
-struct AVCodecParameters;
-struct AVPacket;
-std::shared_ptr<const PixelFrame> cameraMfPixels(IMFSample *sample, IMFMediaType *type,
-                                                 bool &inferred);
-// 输出参数对象必须为空；保留 H.264 初始化数据及 MF 色彩元数据。
-void cameraMfParameters(IMFMediaType *type, AVCodecParameters *parameters);
-void cameraMfPacket(IMFSample *sample, AVPacket *packet, qint64 timestamp100ns, bool intraFrame);
-#endif
-
-// Media Foundation 的设备和原生模式查询在后台线程执行。
+// V4L2 设备和原生模式查询在后台线程执行。
 QList<CameraDevice> cameraDevices(QString *error = nullptr);
 QList<CameraMode> cameraModes(const QString &deviceId, QString *error = nullptr);
 
@@ -87,11 +74,6 @@ public:
     void stop();
     std::shared_ptr<const CameraFrame> takeLatest();
     QString lastError() const;
-
-    void useSoftwareDecoder()
-    {
-        m_forceSoftware.store(true);
-    }
 
     const QString &deviceId() const
     {
@@ -105,7 +87,7 @@ private:
     void fail(const QString &error);
     CameraSourceConfig m_config;
     quint64 m_generation;
-    std::atomic_bool m_stop{false}, m_forceSoftware{false};
+    std::atomic_bool m_stop{false};
     mutable QMutex m_mutex;
     std::shared_ptr<const CameraFrame> m_latest;
     QString m_error;

@@ -1,6 +1,6 @@
 # OpenLive Studio
 
-基于 Qt6 的桌面录制与直播工具。当前分支正在向 Linux 移植，采集后端尚未实现；范围与验收标准见 [Linux 移植规格](docs/linux-port-spec.md)。
+基于 Qt6 的桌面录制与直播工具。当前分支正在向 Linux 移植，已接入 V4L2 USB 摄像头；显示器和音频采集后端仍待实现。
 
 ## MVP 功能
 
@@ -49,6 +49,6 @@ cmake --build build/linux --parallel 2
 ctest --test-dir build/linux --output-on-failure
 ```
 
-这里只说明 Linux 构建依赖接入，不表示显示器、摄像头和音频采集已经支持 Linux。真实 GPU、采集和系统授权测试需要图形桌面与实际设备。
+V4L2 摄像头使用系统内核接口，支持离散模式的单平面 USB 视频采集，无需安装 libv4l。显示器和音频采集仍待 Linux 后端接入。真实 GPU、采集和系统授权测试需要图形桌面与实际设备。
 
 测试按 `smoke`、`gpu`、`audio`、`output` 等标签组织，可以用 `ctest --test-dir build/linux -L smoke --output-on-failure` 先验证基础行为。GPU、采集设备和直播集成测试依赖实际运行环境，阅读测试结果时也应检查跳过项。

@@ -125,7 +125,7 @@ inline void run(MainWindow &window)
     audio->refreshDevices();
     QTRY_VERIFY_WITH_TIMEOUT(!camera->refreshing() && !audio->refreshing(), 10000);
     QVERIFY2(!camera->devices().isEmpty(),
-             "A Media Foundation camera is required for comprehensive acceptance");
+             "A V4L2 camera is required for comprehensive acceptance");
     QString microphoneId, systemId;
     for (const auto &value : audio->devices()) {
         const auto &device = value;

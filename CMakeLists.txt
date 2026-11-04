@@ -40,6 +40,8 @@ qt_add_executable(OpenLiveStudio
     src/video/image/imagesourcecontroller.h
     src/video/camera/cameracaptureworker.h
     src/video/camera/cameracaptureworker.cpp
+    src/video/camera/v4l2camera.cpp
+    src/video/camera/v4l2camera.h
     src/video/camera/camerasourcecontroller.h
     src/video/camera/camerasourcecontroller.cpp
     src/graphics/captureframe.h
@@ -137,7 +139,7 @@ target_link_libraries(OpenLiveStudio
 if(WIN32)
     target_compile_definitions(OpenLiveStudio PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
     target_link_libraries(OpenLiveStudio PRIVATE
-        d3d11 dxgi windowsapp opengl32 mfplat mfreadwrite mfuuid mf ole32 uuid)
+        d3d11 dxgi windowsapp opengl32 ole32 uuid)
 endif()
 
 install(TARGETS OpenLiveStudio

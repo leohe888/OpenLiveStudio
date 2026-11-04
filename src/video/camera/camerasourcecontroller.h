@@ -57,6 +57,7 @@ private:
     {
         CameraSourceConfig config;
         bool failed = false;
+        qint64 retryAtNs = 0;
         quint64 generation = 0;
         std::unique_ptr<CameraCaptureWorker> worker;
         std::shared_ptr<const CameraFrame> frame;
@@ -65,7 +66,7 @@ private:
     void synchronizeSources();
     void collectCaptureUpdates();
     void publishRenderSources();
-    void retireWorker(Entry &entry);
+    void retireWorker(Entry &entry, bool clearFrame = true);
     VideoSourceManager &m_sourceManager;
     QList<CameraDevice> m_devices;
     QHash<QString, QList<CameraMode>> m_deviceModes;
