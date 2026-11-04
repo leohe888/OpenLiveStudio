@@ -1,6 +1,6 @@
 # OpenLive Studio
 
-基于 Qt6 的 Windows 桌面录制与直播工具。
+基于 Qt6 的桌面录制与直播工具。当前分支正在向 Linux 移植，采集后端尚未实现；范围与验收标准见 [Linux 移植规格](docs/linux-port-spec.md)。
 
 ## MVP 功能
 
@@ -25,13 +25,30 @@
 
 ## 构建与验证
 
-Windows 开发环境需要 MSVC、CMake、Qt 6.5+ 和共享版 FFmpeg 开发包（含 include、lib、bin）。开启测试时还需要 Qt Test 和 ffprobe。
-在已配置 MSVC 的终端执行，替换下面的依赖路径：
+构建需要 C++ 编译器、CMake 3.19+、pkg-config、Qt 6.5+（Core、Network、Widgets、Svg、OpenGL、OpenGLWidgets）和 FFmpeg 开发库。FFmpeg 以 6.1 系列为基线；开启测试时还需要 Qt Test 和 ffprobe。Ubuntu 22.04 自带的 FFmpeg 4.4 不满足要求，配置阶段会拒绝旧版库。
 
-```powershell
-cmake -S . -B build/local -G Ninja -DCMAKE_PREFIX_PATH="<Qt目录>" -DFFmpeg_ROOT="<FFmpeg目录>" -DBUILD_TESTING=ON
-cmake --build build/local --parallel
-ctest --test-dir build/local --output-on-failure
+FFmpeg 通过 pkg-config 查找，不再使用 `FFmpeg_ROOT`。使用系统开发包时通常无需额外配置；使用用户目录内编译的 FFmpeg 时，在同一个终端先启用对应环境。以下示例对应安装在 `~/.local/ffmpeg-6.1` 的版本：
+
+```bash
+export PATH="$HOME/.local/ffmpeg-6.1/bin:$PATH"
+export PKG_CONFIG_PATH="$HOME/.local/ffmpeg-6.1/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+export LD_LIBRARY_PATH="$HOME/.local/ffmpeg-6.1/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+pkg-config --modversion libavformat libavcodec libavutil libswresample libswscale
+pkg-config --variable=prefix libavcodec
+ffprobe -version
 ```
 
-测试按 `smoke`、`gpu`、`audio`、`output` 等标签组织，可以用 `ctest --test-dir build/local -L smoke --output-on-failure` 先验证基础行为。GPU、采集设备和直播集成测试依赖实际运行环境，阅读测试结果时也应检查跳过项。
+如果安装时已生成 `~/.local/ffmpeg-6.1/env.sh`，也可用 `source ~/.local/ffmpeg-6.1/env.sh` 代替上述三个 export。运行程序和测试时也应启用同一套动态库环境，不要混用不同安装位置的头文件和库。
+
+指定 Qt 安装前缀后配置、构建和测试；Qt 位于系统搜索路径时可省略 `CMAKE_PREFIX_PATH`：
+
+```bash
+cmake -S . -B build/linux -DCMAKE_PREFIX_PATH="<Qt安装前缀>" -DBUILD_TESTING=ON
+cmake --build build/linux --parallel 2
+ctest --test-dir build/linux --output-on-failure
+```
+
+这里只说明 Linux 构建依赖接入，不表示显示器、摄像头和音频采集已经支持 Linux。真实 GPU、采集和系统授权测试需要图形桌面与实际设备。
+
+测试按 `smoke`、`gpu`、`audio`、`output` 等标签组织，可以用 `ctest --test-dir build/linux -L smoke --output-on-failure` 先验证基础行为。GPU、采集设备和直播集成测试依赖实际运行环境，阅读测试结果时也应检查跳过项。

@@ -1,6 +1,14 @@
 find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
 
-find_program(OPENLIVE_FFPROBE NAMES ffprobe HINTS "${FFmpeg_RUNTIME_DIR}" REQUIRED)
+# Linux 继承当前环境；不要用 Windows 的分号拼接 PATH，也不要覆盖系统 Qt 插件路径。
+set(OPENLIVE_TEST_ENV)
+if(WIN32)
+    list(APPEND OPENLIVE_TEST_ENV
+        "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;${OPENLIVE_FFMPEG_PREFIX}/bin\;$ENV{PATH}"
+        "QT_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../plugins")
+endif()
+
+find_program(OPENLIVE_FFPROBE NAMES ffprobe HINTS "${OPENLIVE_FFMPEG_PREFIX}/bin" REQUIRED)
 qt_add_executable(tst_streaming output/tst_streaming.cpp
     ../src/video/videosourcetransform.cpp
     ../src/video/videosourcefilter.cpp
@@ -37,7 +45,7 @@ qt_add_executable(tst_streaming output/tst_streaming.cpp
 target_include_directories(tst_streaming PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_streaming PRIVATE
     Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::Network Qt6::Test
-    FFmpeg::swresample FFmpeg::avutil FFmpeg::avcodec FFmpeg::avformat FFmpeg::swscale)
+    PkgConfig::swresample PkgConfig::avutil PkgConfig::avcodec PkgConfig::avformat PkgConfig::swscale)
 if(WIN32)
     target_compile_definitions(tst_streaming PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
     target_link_libraries(tst_streaming PRIVATE d3d11 dxgi opengl32 ole32 uuid)
@@ -47,8 +55,7 @@ target_compile_definitions(tst_streaming PRIVATE OPENLIVE_FFPROBE="${OPENLIVE_FF
 qt_add_resources(tst_streaming "streaming_shaders" PREFIX "/" BASE "${PROJECT_SOURCE_DIR}"
     FILES ${OPENLIVE_STUDIO_SHADER_FILES})
 add_test(NAME output.streaming COMMAND "${CMAKE_COMMAND}" -E env
-    "PATH=$<TARGET_FILE_DIR:Qt6::Core>;${FFmpeg_RUNTIME_DIR};$ENV{PATH}"
-    "QT_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../plugins"
+    ${OPENLIVE_TEST_ENV}
     "$<TARGET_FILE:tst_streaming>" -o "${CMAKE_CURRENT_BINARY_DIR}/streaming-results.txt,txt")
 set_tests_properties(output.streaming PROPERTIES LABELS "output;gpu;network" TIMEOUT 60)
 
@@ -88,7 +95,7 @@ qt_add_executable(tst_recording output/tst_recording.cpp
 target_include_directories(tst_recording PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_recording PRIVATE
     Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::Network Qt6::Test
-    FFmpeg::swresample FFmpeg::avutil FFmpeg::avcodec FFmpeg::avformat FFmpeg::swscale)
+    PkgConfig::swresample PkgConfig::avutil PkgConfig::avcodec PkgConfig::avformat PkgConfig::swscale)
 if(WIN32)
     target_compile_definitions(tst_recording PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
     target_link_libraries(tst_recording PRIVATE d3d11 dxgi opengl32 ole32 uuid)
@@ -98,8 +105,7 @@ target_compile_definitions(tst_recording PRIVATE OPENLIVE_FFPROBE="${OPENLIVE_FF
 qt_add_resources(tst_recording "recording_shaders" PREFIX "/" BASE "${PROJECT_SOURCE_DIR}"
     FILES ${OPENLIVE_STUDIO_SHADER_FILES})
 add_test(NAME output.recording COMMAND "${CMAKE_COMMAND}" -E env
-    "PATH=$<TARGET_FILE_DIR:Qt6::Core>;${FFmpeg_RUNTIME_DIR};$ENV{PATH}"
-    "QT_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../plugins"
+    ${OPENLIVE_TEST_ENV}
     "$<TARGET_FILE:tst_recording>" -o "${CMAKE_CURRENT_BINARY_DIR}/recording-results.txt,txt")
 set_tests_properties(output.recording PROPERTIES LABELS "output;gpu" TIMEOUT 60)
 
@@ -117,14 +123,14 @@ qt_add_executable(tst_audio audio/tst_audio.cpp
 target_include_directories(tst_audio PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_audio PRIVATE
     Qt6::Core Qt6::Gui Qt6::Test
-    FFmpeg::swresample FFmpeg::avutil)
+    PkgConfig::swresample PkgConfig::avutil)
 if(WIN32)
     target_compile_definitions(tst_audio PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
     target_link_libraries(tst_audio PRIVATE ole32 uuid)
 endif()
 
 add_test(NAME audio.sources COMMAND "${CMAKE_COMMAND}" -E env
-    "PATH=$<TARGET_FILE_DIR:Qt6::Core>;${FFmpeg_RUNTIME_DIR};$ENV{PATH}"
+    ${OPENLIVE_TEST_ENV}
     "$<TARGET_FILE:tst_audio>" -o "${CMAKE_CURRENT_BINARY_DIR}/audio-results.txt,txt")
 set_tests_properties(audio.sources PROPERTIES LABELS "audio" TIMEOUT 30)
 
@@ -152,8 +158,7 @@ endif()
 qt_add_resources(tst_canvasrenderer "compositor_shaders" PREFIX "/" BASE "${PROJECT_SOURCE_DIR}"
     FILES ${OPENLIVE_STUDIO_SHADER_FILES})
 add_test(NAME gpu.compositor COMMAND "${CMAKE_COMMAND}" -E env
-    "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
-    "QT_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../plugins"
+    ${OPENLIVE_TEST_ENV}
     "$<TARGET_FILE:tst_canvasrenderer>" -o "${CMAKE_CURRENT_BINARY_DIR}/compositor-results.txt,txt")
 set_tests_properties(gpu.compositor PROPERTIES LABELS "gpu" TIMEOUT 30)
 
@@ -192,8 +197,7 @@ endif()
 qt_add_resources(tst_captureinterop "capture_shaders" PREFIX "/" BASE "${PROJECT_SOURCE_DIR}"
     FILES ${OPENLIVE_STUDIO_SHADER_FILES})
 add_test(NAME capture.interop COMMAND "${CMAKE_COMMAND}" -E env
-    "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
-    "QT_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../plugins"
+    ${OPENLIVE_TEST_ENV}
     "$<TARGET_FILE:tst_captureinterop>" -o "${CMAKE_CURRENT_BINARY_DIR}/captureinterop-results.txt,txt")
 set_tests_properties(capture.interop PROPERTIES LABELS "capture;gpu" TIMEOUT 30)
 
@@ -207,7 +211,7 @@ qt_add_executable(tst_videosource
 target_include_directories(tst_videosource PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_videosource PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
 add_test(NAME core.videosource COMMAND "${CMAKE_COMMAND}" -E env
-    "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
+    ${OPENLIVE_TEST_ENV}
     "$<TARGET_FILE:tst_videosource>" -o "-,txt")
 set_tests_properties(core.videosource PROPERTIES LABELS "core;smoke" TIMEOUT 10)
 
@@ -220,7 +224,7 @@ qt_add_executable(tst_videosourcefilter
 target_include_directories(tst_videosourcefilter PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_videosourcefilter PRIVATE Qt6::Core Qt6::Test)
 add_test(NAME core.videosourcefilter COMMAND "${CMAKE_COMMAND}" -E env
-    "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
+    ${OPENLIVE_TEST_ENV}
     "$<TARGET_FILE:tst_videosourcefilter>" -o "-,txt")
 set_tests_properties(core.videosourcefilter PROPERTIES LABELS "core;smoke" TIMEOUT 10)
 
@@ -240,7 +244,7 @@ target_include_directories(tst_videosourcemanager PRIVATE
 target_link_libraries(tst_videosourcemanager PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
 add_test(NAME core.videosourcemanager
     COMMAND "${CMAKE_COMMAND}" -E env
-        "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
+        ${OPENLIVE_TEST_ENV}
         "$<TARGET_FILE:tst_videosourcemanager>"
         -o "-,txt"
 )
@@ -259,7 +263,7 @@ qt_add_executable(tst_videosourceaggregator
 target_include_directories(tst_videosourceaggregator PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_videosourceaggregator PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
 add_test(NAME video.sourceaggregator COMMAND "${CMAKE_COMMAND}" -E env
-    "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
+    ${OPENLIVE_TEST_ENV}
     "$<TARGET_FILE:tst_videosourceaggregator>" -o "-,txt")
 set_tests_properties(video.sourceaggregator PROPERTIES LABELS "video;smoke" TIMEOUT 10)
 
@@ -330,7 +334,7 @@ qt_add_executable(tst_mainwindow
 target_include_directories(tst_mainwindow PRIVATE "${PROJECT_SOURCE_DIR}/src" "${PROJECT_SOURCE_DIR}/tests")
 target_link_libraries(tst_mainwindow PRIVATE
     Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::Network Qt6::Widgets Qt6::Test Qt6::Svg Qt6::OpenGLWidgets
-    FFmpeg::swresample FFmpeg::avutil FFmpeg::avcodec FFmpeg::avformat FFmpeg::swscale)
+    PkgConfig::swresample PkgConfig::avutil PkgConfig::avcodec PkgConfig::avformat PkgConfig::swscale)
 if(WIN32)
     target_compile_definitions(tst_mainwindow PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
     target_link_libraries(tst_mainwindow PRIVATE d3d11 dxgi windowsapp opengl32 mfplat mfreadwrite mfuuid mf ole32 uuid psapi)
@@ -353,8 +357,7 @@ qt_add_resources(tst_mainwindow "test_icons"
 # 此测试以离屏平台验证界面结构；需要原生 GL 的子项会按条件跳过。
 add_test(NAME ui.mainwindow
     COMMAND "${CMAKE_COMMAND}" -E env
-        "PATH=$<TARGET_FILE_DIR:Qt6::Core>;${FFmpeg_RUNTIME_DIR};$ENV{PATH}"
-        "QT_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../plugins"
+        ${OPENLIVE_TEST_ENV}
         "QT_QPA_PLATFORM=offscreen"
         "$<TARGET_FILE:tst_mainwindow>"
         -o "${CMAKE_CURRENT_BINARY_DIR}/mainwindow-results.txt,txt"
@@ -400,8 +403,7 @@ qt_add_resources(tst_previewwidget "preview_shaders"
 # 依赖桌面 OpenGL 上下文；平台无法创建时明确跳过，避免误报逻辑失败。
 add_test(NAME ui.previewwidget
     COMMAND "${CMAKE_COMMAND}" -E env
-        "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
-        "QT_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../plugins"
+        ${OPENLIVE_TEST_ENV}
         "$<TARGET_FILE:tst_previewwidget>" -o "${CMAKE_CURRENT_BINARY_DIR}/previewwidget-results.txt,txt"
 )
 set_tests_properties(ui.previewwidget PROPERTIES
@@ -425,8 +427,7 @@ target_include_directories(tst_imagesourcecontroller PRIVATE
 target_link_libraries(tst_imagesourcecontroller PRIVATE Qt6::Widgets Qt6::Test)
 add_test(NAME core.imagesourcecontroller
     COMMAND "${CMAKE_COMMAND}" -E env
-        "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
-        "QT_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::Core>/../plugins"
+        ${OPENLIVE_TEST_ENV}
         "QT_QPA_PLATFORM=offscreen"
         "$<TARGET_FILE:tst_imagesourcecontroller>" -o "-,txt")
 set_tests_properties(core.imagesourcecontroller PROPERTIES LABELS "core;smoke" TIMEOUT 30)
@@ -453,7 +454,7 @@ if(WIN32)
 endif()
 
 add_test(NAME capture.camera COMMAND "${CMAKE_COMMAND}" -E env
-    "PATH=$<TARGET_FILE_DIR:Qt6::Core>;${FFmpeg_RUNTIME_DIR};$ENV{PATH}"
+    ${OPENLIVE_TEST_ENV}
     "$<TARGET_FILE:tst_cameracapture>" -o "-,txt")
 set_tests_properties(capture.camera PROPERTIES LABELS "capture;camera" TIMEOUT 60)
 
@@ -464,5 +465,5 @@ qt_add_resources(tst_mainwindow "style"
 )
 
 foreach(camera_target tst_cameracapture tst_mainwindow)
-    target_link_libraries(${camera_target} PRIVATE FFmpeg::avcodec FFmpeg::avutil)
+    target_link_libraries(${camera_target} PRIVATE PkgConfig::avcodec PkgConfig::avutil)
 endforeach()

@@ -1,3 +1,4 @@
 .qtcreator/
+.vscode/settings.json
 build/
 .workbuddy/
