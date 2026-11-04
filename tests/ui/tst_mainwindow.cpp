@@ -91,6 +91,7 @@ private slots:
     void cameraHardwarePreview();
     void cameraHardwareOutputs();
     void cameraFormatSelectionFiltersModes();
+    void cameraDefaultSettingsCanBeConfirmed();
     void recordingControlsAndGracefulClose();
     void streamingControlsAndGracefulClose();
 };
@@ -738,6 +739,33 @@ void MainWindowTest::cameraFormatSelectionFiltersModes()
     dialog->reject();
 }
 
+void MainWindowTest::cameraDefaultSettingsCanBeConfirmed()
+{
+    MainWindow window;
+    auto *cameras = window.findChild<CameraSourceController *>();
+    auto *manager = window.findChild<VideoSourceManager *>();
+    cameras->m_refreshing = true;
+    cameras->m_devices = {{"missing-camera", "Test camera"}};
+    cameras->m_deviceModes.insert("missing-camera", {{1280, 720, 30, 1, "mjpeg"}});
+    window.findChild<QToolButton *>("addSourceButton")->click();
+    auto *dialog = window.findChild<QDialog *>("sourceAddDialog");
+    QVERIFY(dialog);
+    dialog->findChild<QComboBox *>("sourceTypeInput")->setCurrentIndex(1);
+    auto *confirm = dialog->findChild<QPushButton *>("confirmSourceAddButton");
+    QVERIFY(confirm->isEnabled());
+    confirm->click();
+    QCOMPARE(dialog->result(), int(QDialog::Accepted));
+    QCOMPARE(manager->sources().size(), 1);
+    const QString id = manager->sources().first().id();
+    const auto *config = std::get_if<CameraSourceConfig>(manager->sourceConfig(id));
+    QVERIFY(config);
+    QVERIFY(config->pixelFormat().isEmpty());
+    QVERIFY(config->resolution().isEmpty());
+    QCOMPARE(config->frameRateNumerator(), 0);
+    QTRY_COMPARE_WITH_TIMEOUT(manager->sourceRuntime(id).state(), VideoSourceState::Error, 5000);
+    QVERIFY(!manager->sourceRuntime(id).error().isEmpty());
+}
+
 void MainWindowTest::cameraHardwarePreview()
 {
     if (!qEnvironmentVariableIsSet("OPENLIVE_CAMERA_HARDWARE"))
@@ -758,7 +786,16 @@ void MainWindowTest::cameraHardwarePreview()
     const auto devices = controller->devices();
     QVERIFY(!devices.isEmpty());
     QSignalSpy failures(preview, &PreviewWidget::sourceFailed);
-    const QString id = controller->addCamera("Camera", CameraSourceConfig{devices[0].id});
+    window.findChild<QToolButton *>("addSourceButton")->click();
+    auto *dialog = window.findChild<QDialog *>("sourceAddDialog");
+    QVERIFY(dialog);
+    dialog->findChild<QComboBox *>("sourceTypeInput")->setCurrentIndex(1);
+    auto *confirm = dialog->findChild<QPushButton *>("confirmSourceAddButton");
+    QTRY_VERIFY_WITH_TIMEOUT(confirm->isEnabled(), 10000);
+    confirm->click();
+    QCOMPARE(dialog->result(), int(QDialog::Accepted));
+    QCOMPARE(model->sources().size(), 1);
+    const QString id = model->sources().first().id();
     QVERIFY(!id.isEmpty());
     QTRY_COMPARE_WITH_TIMEOUT(model->sourceRuntime(id).state(), VideoSourceState::Capturing,
                               15000);
