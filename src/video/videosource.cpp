@@ -278,7 +278,7 @@ bool CameraSourceConfig::isValid() const
 
 bool CameraSourceConfig::operator==(const CameraSourceConfig &other) const
 {
-    return m_deviceId == other.m_deviceId && m_resolution == other.m_resolution &&
+    return m_pixelFormat == other.m_pixelFormat && m_deviceId == other.m_deviceId && m_resolution == other.m_resolution &&
            m_frameRateNumerator == other.m_frameRateNumerator &&
            m_frameRateDenominator == other.m_frameRateDenominator;
 }
@@ -303,4 +303,24 @@ VideoSourceType VideoSource::type() const
             }
         },
         m_config);
+}
+
+const QString &CameraSourceConfig::pixelFormat() const
+{
+    return m_pixelFormat;
+}
+
+void CameraSourceConfig::setPixelFormat(const QString &format)
+{
+    m_pixelFormat = format;
+}
+
+const QString &VideoSourceRuntime::cameraStatus() const
+{
+    return m_cameraStatus;
+}
+
+void VideoSourceRuntime::setCameraStatus(const QString &status)
+{
+    m_cameraStatus = status;
 }

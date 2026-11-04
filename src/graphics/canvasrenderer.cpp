@@ -1,6 +1,7 @@
 #include "graphics/canvasrenderer.h"
 #include <QOpenGLBuffer>
 #include <QOpenGLContext>
+#include <QOpenGLExtraFunctions>
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLShaderProgram>
 #include <QOpenGLTexture>
@@ -32,9 +33,9 @@ bool CanvasRenderer::initialize()
 
     m_program = std::make_unique<QOpenGLShaderProgram>();
     if (!m_program->addShaderFromSourceFile(QOpenGLShader::Vertex,
-                                            QStringLiteral(":/assets/shaders/texture.vert")) ||
+                                            QStringLiteral(":/assets/shaders/texture_draw.vert")) ||
         !m_program->addShaderFromSourceFile(QOpenGLShader::Fragment,
-                                            QStringLiteral(":/assets/shaders/texture.frag")) ||
+                                            QStringLiteral(":/assets/shaders/texture_draw.frag")) ||
         !m_program->link() || !m_program->bind()) {
         reportError(tr("无法初始化合成着色器：%1").arg(m_program->log()));
         return false;
@@ -171,7 +172,15 @@ bool CanvasRenderer::render(const QList<RenderSourceSnapshot> &sources)
                 resource.texture->setMinMagFilters(QOpenGLTexture::Linear, QOpenGLTexture::Linear);
                 resource.texture->setWrapMode(QOpenGLTexture::ClampToEdge);
             }
-            if (source.frame && source.frame->gpu) {
+            if (source.frame && source.frame->pixels) {
+                resource.interop.reset();
+                if (!uploadPixels(*source.frame, resource.texture->textureId(),
+                                  resource.pixelPlanes)) {
+                    resource.uploadError = tr("无法上传或转换摄像头像素帧。");
+                    emit sourceFailed(source.id, resource.uploadError);
+                    continue;
+                }
+            } else if (source.frame && source.frame->gpu) {
                 if (resource.transferFailed)
                     continue;
                 if (!resource.interop)
@@ -259,9 +268,17 @@ GLuint CanvasRenderer::filterTexture(const RenderSourceSnapshot &source, GLuint 
     for (const auto &filter : source.filters) {
         if (!filter.enabled())
             continue;
-        if (!std::visit([](const auto &config) { return config.isValid(); }, filter.config()))
+        if (!std::visit(
+                [](const auto &config) {
+                    return config.isValid();
+                },
+                filter.config()))
             return fail(tr("滤镜参数无效，已使用原图。"));
-        if (std::visit([](const auto &config) { return config.isIdentity(); }, filter.config()))
+        if (std::visit(
+                [](const auto &config) {
+                    return config.isIdentity();
+                },
+                filter.config()))
             continue;
         auto &target = m_filterFbos[pass % 2];
         if (!target || target->size() != source.pixelSize()) {
@@ -285,13 +302,15 @@ GLuint CanvasRenderer::filterTexture(const RenderSourceSnapshot &source, GLuint 
         glDisable(GL_BLEND);
         m_program->setUniformValue("vertexTransform", QMatrix4x4());
         m_program->setUniformValue("flipY", pass > 0);
-        std::visit([&](const auto &config) {
-            using Config = std::decay_t<decltype(config)>;
-            static_assert(std::is_same_v<Config, ColorCorrectionConfig>);
-            m_program->setUniformValue("colorCorrection", true);
-            m_program->setUniformValue("correction", config.brightness(), config.contrast(),
-                                       config.saturation());
-        }, filter.config());
+        std::visit(
+            [&](const auto &config) {
+                using Config = std::decay_t<decltype(config)>;
+                static_assert(std::is_same_v<Config, ColorCorrectionConfig>);
+                m_program->setUniformValue("colorCorrection", true);
+                m_program->setUniformValue("correction", config.brightness(), config.contrast(),
+                                           config.saturation());
+            },
+            filter.config());
         glBindTexture(GL_TEXTURE_2D, input);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         if (glGetError() != GL_NO_ERROR)
@@ -306,6 +325,7 @@ GLuint CanvasRenderer::filterTexture(const RenderSourceSnapshot &source, GLuint 
 
 void CanvasRenderer::cleanup()
 {
+    m_pixelProgram.reset();
     m_initialized = false;
     m_canvasFbo.reset();
     for (auto &fbo : m_filterFbos)
@@ -322,8 +342,8 @@ bool CanvasRenderer::drawable(const RenderSourceSnapshot &source) const
     if (it == m_textures.end())
         return false;
     const auto &resource = it->second;
-    return source.visible && source.hasFrame() && source.transform.isValid() &&
-           resource.ready && resource.texture &&
+    return source.visible && source.hasFrame() && source.transform.isValid() && resource.ready &&
+           resource.texture &&
            (source.frame
                 ? resource.generation == source.frame->generation &&
                       resource.sequence == source.frame->sequence
@@ -343,4 +363,103 @@ void CanvasRenderer::reportError(const QString &message)
 {
     m_lastError = message;
     emit renderingFailed(message);
+}
+
+bool CanvasRenderer::uploadPixels(const CaptureFrame &frame, GLuint destination,
+                                  std::array<std::unique_ptr<QOpenGLTexture>, 3> &planes)
+{
+    const auto &pixels = *frame.pixels;
+    if (!m_pixelProgram) {
+        m_pixelProgram = std::make_unique<QOpenGLShaderProgram>();
+        if (!m_pixelProgram->addShaderFromSourceFile(
+                QOpenGLShader::Vertex, QStringLiteral(":/assets/shaders/video_convert.vert")) ||
+            !m_pixelProgram->addShaderFromSourceFile(
+                QOpenGLShader::Fragment, QStringLiteral(":/assets/shaders/video_convert.frag")) ||
+            !m_pixelProgram->link()) {
+            m_pixelProgram.reset();
+            return false;
+        }
+    }
+    auto *gl = QOpenGLContext::currentContext()->extraFunctions();
+    GLint oldDraw = 0, oldRead = 0, alignment = 0, rowLength = 0;
+    GLint viewport[4];
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &oldDraw);
+    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &oldRead);
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    glGetIntegerv(GL_UNPACK_ALIGNMENT, &alignment);
+    glGetIntegerv(GL_UNPACK_ROW_LENGTH, &rowLength);
+    GLuint framebuffer = 0;
+    gl->glGenFramebuffers(1, &framebuffer);
+    const auto restore = qScopeGuard([&] {
+        gl->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, GLuint(oldDraw));
+        gl->glBindFramebuffer(GL_READ_FRAMEBUFFER, GLuint(oldRead));
+        gl->glDeleteFramebuffers(1, &framebuffer);
+        glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, alignment);
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, rowLength);
+        for (int i = 2; i >= 0; --i) {
+            glActiveTexture(GL_TEXTURE0 + i);
+            glBindTexture(GL_TEXTURE_2D, 0);
+        }
+        m_pixelProgram->release();
+        m_vertexArray->release();
+    });
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    gl->glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+    gl->glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, destination, 0);
+    if (gl->glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        return false;
+    if (!m_pixelProgram->bind())
+        return false;
+    m_vertexArray->bind();
+    for (int i = 0; i < 3; ++i) {
+        if (pixels.planes[i].isEmpty())
+            continue;
+        int width = pixels.planeSizes[i].width(), height = pixels.planeSizes[i].height(),
+            channels = 1;
+        if (pixels.layout == PixelFrame::NV12 && i == 1)
+            channels = 2;
+        else if (pixels.layout == PixelFrame::YUY2 || pixels.layout == PixelFrame::UYVY) {
+            width = (width + 1) / 2;
+            channels = 4;
+        } else if (pixels.layout == PixelFrame::RGB || pixels.layout == PixelFrame::BGR)
+            channels = 3;
+        else if (pixels.layout == PixelFrame::RGBA || pixels.layout == PixelFrame::BGRA)
+            channels = 4;
+        if (width <= 0 || height <= 0 ||
+            pixels.planes[i].size() != qsizetype(width) * height * channels)
+            return false;
+        const QOpenGLTexture::PixelFormat formats[] = {QOpenGLTexture::Red, QOpenGLTexture::RG,
+                                                       QOpenGLTexture::RGB, QOpenGLTexture::RGBA};
+        const QOpenGLTexture::TextureFormat internal[] = {
+            QOpenGLTexture::R8_UNorm, QOpenGLTexture::RG8_UNorm, QOpenGLTexture::RGB8_UNorm,
+            QOpenGLTexture::RGBA8_UNorm};
+        glActiveTexture(GL_TEXTURE0 + i);
+        auto &texture = planes[i];
+        if (!texture || texture->width() != width || texture->height() != height ||
+            texture->format() != internal[channels - 1]) {
+            texture = std::make_unique<QOpenGLTexture>(QOpenGLTexture::Target2D);
+            texture->setSize(width, height);
+            texture->setFormat(internal[channels - 1]);
+            texture->allocateStorage(formats[channels - 1], QOpenGLTexture::UInt8);
+            texture->setMinMagFilters(QOpenGLTexture::Nearest, QOpenGLTexture::Nearest);
+            texture->setWrapMode(QOpenGLTexture::ClampToEdge);
+        }
+        glActiveTexture(GL_TEXTURE0 + i);
+        texture->bind();
+        const GLenum glFormats[] = {GL_RED, GL_RG, GL_RGB, GL_RGBA};
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, glFormats[channels - 1],
+                        GL_UNSIGNED_BYTE, pixels.planes[i].constData());
+    }
+    m_pixelProgram->setUniformValue("plane0", 0);
+    m_pixelProgram->setUniformValue("plane1", 1);
+    m_pixelProgram->setUniformValue("plane2", 2);
+    m_pixelProgram->setUniformValue("layoutType", int(pixels.layout));
+    m_pixelProgram->setUniformValue("fullRange", pixels.fullRange);
+    m_pixelProgram->setUniformValue("bt709", pixels.bt709);
+    m_pixelProgram->setUniformValue("imageWidth", float(frame.size.width()));
+    glViewport(0, 0, frame.size.width(), frame.size.height());
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    return glGetError() == GL_NO_ERROR;
 }

@@ -221,7 +221,8 @@ void CameraSourceController::collectCaptureUpdates()
                 continue;
             entry.frame = std::move(frame);
             auto runtime = m_sourceManager.sourceRuntime(id);
-            runtime.setPixelSize(entry.frame->image.size());
+            runtime.setPixelSize(entry.frame->renderFrame->size);
+            runtime.setCameraStatus(entry.frame->status);
             runtime.setActualFrameRateNumerator(entry.frame->frameRateNumerator);
             runtime.setActualFrameRateDenominator(entry.frame->frameRateDenominator);
             runtime.setState(VideoSourceState::Capturing);
@@ -262,7 +263,7 @@ void CameraSourceController::publishRenderSources()
         if (camera == m_entries.end())
             continue;
         if (camera->second.frame)
-            source.image = camera->second.frame->image;
+            source.frame = camera->second.frame->renderFrame;
         source.visible = item.visible();
         source.locked = item.locked();
         source.transform = item.transform();
@@ -282,4 +283,15 @@ int CameraSourceController::activeWorkerCount() const
         if (!worker->isFinished())
             ++count;
     return count;
+}
+
+void CameraSourceController::failTransfer(const QString &sourceId, quint64 generation,
+                                          const QString &)
+{
+    const auto it = m_entries.find(sourceId);
+    if (it == m_entries.end() || it->second.generation != generation || !it->second.worker)
+        return;
+    it->second.worker->useSoftwareDecoder();
+    it->second.frame.reset();
+    publishRenderSources();
 }

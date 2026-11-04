@@ -167,9 +167,9 @@ void PreviewWidget::initializeGL()
 
     m_program = std::make_unique<QOpenGLShaderProgram>();
     if (!m_program->addShaderFromSourceFile(QOpenGLShader::Vertex,
-                                            QStringLiteral(":/assets/shaders/texture.vert")) ||
+                                            QStringLiteral(":/assets/shaders/texture_draw.vert")) ||
         !m_program->addShaderFromSourceFile(QOpenGLShader::Fragment,
-                                            QStringLiteral(":/assets/shaders/texture.frag")) ||
+                                            QStringLiteral(":/assets/shaders/texture_draw.frag")) ||
         !m_program->link() || !m_program->bind()) {
         reportError(tr("无法初始化预览着色器：%1").arg(m_program->log()));
         return;

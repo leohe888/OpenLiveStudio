@@ -2,6 +2,7 @@
 #define CAMERACAPTUREWORKER_H
 
 #include "video/videosource.h"
+#include "graphics/captureframe.h"
 #include <QImage>
 #include <QMutex>
 #include <QThread>
@@ -29,33 +30,41 @@ struct CameraMode
         return width > 0 && height > 0 && frameRateNumerator > 0 && frameRateDenominator > 0;
     }
 
-    // 配置只指定分辨率和帧率，设备子类型统一转为 RGB32，因此不参与模式去重。
+    bool supported = true;
+
     bool sameFormat(const CameraMode &other) const
     {
-        return width == other.width && height == other.height &&
+        return subtype == other.subtype && width == other.width && height == other.height &&
                qint64(frameRateNumerator) * other.frameRateDenominator ==
                    qint64(other.frameRateNumerator) * frameRateDenominator;
     }
 
     CameraSourceConfig config(const QString &deviceId) const
     {
-        return width > 0 ? CameraSourceConfig{deviceId, QSize(width, height), frameRateNumerator,
-                                              frameRateDenominator}
-                         : CameraSourceConfig{deviceId};
+        auto result = width > 0 ? CameraSourceConfig{deviceId, QSize(width, height),
+                                                     frameRateNumerator, frameRateDenominator}
+                                : CameraSourceConfig{deviceId};
+        result.setPixelFormat(subtype);
+        return result;
     }
 };
 Q_DECLARE_METATYPE(CameraMode)
 
 struct CameraFrame
 {
-    QImage image;
+    std::shared_ptr<const CaptureFrame> renderFrame;
+    QString status;
     qint64 timestampNs = 0;
     qint64 deviceTimestamp100ns = 0;
     quint64 sequence = 0, generation = 0;
     int frameRateNumerator = 0, frameRateDenominator = 1;
 };
 
-// 查询函数在调用它的后台线程内成对初始化和关闭 COM/MF，不复用其他线程的运行环境。
+QPair<int, int> cameraFrameRateFromInterval(qint64 interval);
+struct AVFrame;
+std::shared_ptr<const PixelFrame> cameraPixels(const AVFrame *frame, bool &inferred);
+
+// DirectShow 设备和模式查询在后台线程执行，FFmpeg 负责实际采集。
 QList<CameraDevice> cameraDevices(QString *error = nullptr);
 QList<CameraMode> cameraModes(const QString &deviceId, QString *error = nullptr);
 
@@ -67,6 +76,11 @@ public:
     void stop();
     std::shared_ptr<const CameraFrame> takeLatest();
     QString lastError() const;
+
+    void useSoftwareDecoder()
+    {
+        m_forceSoftware.store(true);
+    }
 
     const QString &deviceId() const
     {
@@ -80,7 +94,7 @@ private:
     void fail(const QString &error);
     CameraSourceConfig m_config;
     quint64 m_generation;
-    std::atomic_bool m_stop{false};
+    std::atomic_bool m_stop{false}, m_forceSoftware{false};
     mutable QMutex m_mutex;
     std::shared_ptr<const CameraFrame> m_latest;
     QString m_error;

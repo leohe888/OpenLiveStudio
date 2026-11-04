@@ -325,7 +325,7 @@ bool VideoSourceManager::setSourceRuntime(const QString &sourceId, const VideoSo
         return false;
     const auto previous = m_sources.at(row).runtime();
     const bool sizeChanged = previous.pixelSize() != runtime.pixelSize();
-    const bool changed = sizeChanged || previous.state() != runtime.state() ||
+    const bool changed = previous.cameraStatus() != runtime.cameraStatus() || sizeChanged || previous.state() != runtime.state() ||
                          previous.error() != runtime.error() ||
                          previous.actualFrameRateNumerator() != runtime.actualFrameRateNumerator() ||
                          previous.actualFrameRateDenominator() != runtime.actualFrameRateDenominator();

@@ -59,12 +59,16 @@ public:
     int frameRateDenominator() const;
     void setFrameRateDenominator(int frameRateDenominator);
 
+    const QString &pixelFormat() const;
+    void setPixelFormat(const QString &format);
+
     bool isValid() const;
     bool operator==(const CameraSourceConfig &other) const;
     bool operator!=(const CameraSourceConfig &other) const;
 
 private:
     QString m_deviceId;
+    QString m_pixelFormat; // 空字符串为自动；raw 使用 FFmpeg 像素格式名，压缩输入使用编码名。
     QSize m_resolution;
     int m_frameRateNumerator = 0;
     int m_frameRateDenominator = 1;
@@ -100,6 +104,9 @@ public:
     void setState(VideoSourceState state);
     const QString &error() const;
     void setError(const QString &error);
+    // 摄像头实际采集格式、解码路径和色彩推定信息。
+    const QString &cameraStatus() const;
+    void setCameraStatus(const QString &status);
     // 仅摄像头来源提供实际帧率。
     int actualFrameRateNumerator() const;
     void setActualFrameRateNumerator(int actualFrameRateNumerator);
@@ -110,6 +117,7 @@ private:
     QSize m_pixelSize;
     VideoSourceState m_state = VideoSourceState::Idle;
     QString m_error;
+    QString m_cameraStatus;
     int m_actualFrameRateNumerator = 0;
     int m_actualFrameRateDenominator = 1;
 };
@@ -121,9 +129,8 @@ public:
     VideoSource(const QString &id, const QString &name);
     VideoSource(const QString &id, const QString &name, const VideoSourceConfig &config);
     VideoSource(const QString &id, const QString &name, bool visible, bool locked,
-                const VideoSourceTransform &transform,
-                const QList<VideoSourceFilter> &filters, const VideoSourceRuntime &runtime,
-                const VideoSourceConfig &config);
+                const VideoSourceTransform &transform, const QList<VideoSourceFilter> &filters,
+                const VideoSourceRuntime &runtime, const VideoSourceConfig &config);
 
     const QString &id() const;
     void setId(const QString &id);

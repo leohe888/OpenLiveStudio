@@ -88,6 +88,7 @@ private slots:
     void keepsOutputStatusVisibleWhenResized();
     void recordingAcceptance();
     void cameraHardwarePreview();
+    void cameraFormatSelectionFiltersModes();
     void recordingControlsAndGracefulClose();
     void streamingControlsAndGracefulClose();
 };
@@ -696,6 +697,43 @@ void MainWindowTest::recordingAcceptance()
         QSKIP("Explicit real-time recording acceptance only");
     MainWindow window;
     RecordingAcceptance::run(window);
+}
+
+void MainWindowTest::cameraFormatSelectionFiltersModes()
+{
+    MainWindow window;
+    auto *cameras = window.findChild<CameraSourceController *>();
+    cameras->m_refreshing = true; // 阻止真实设备查询覆盖这个确定的能力列表。
+    cameras->m_devices = {{"test-camera", "Test camera"}};
+    CameraMode mjpeg{1280, 720, 30, 1, "mjpeg", "1280 × 720 · 30 FPS"};
+    CameraMode yuy2{640, 480, 30, 1, "yuyv422", "640 × 480 · 30 FPS"};
+    CameraMode unsupported{1920, 1080, 30, 1, "p010le", "1920 × 1080 · 30 FPS"};
+    unsupported.supported = false;
+    cameras->m_deviceModes.insert("test-camera", {mjpeg, yuy2, unsupported});
+    window.findChild<QToolButton *>("addSourceButton")->click();
+    auto *dialog = window.findChild<QDialog *>("sourceAddDialog");
+    QVERIFY(dialog);
+    dialog->findChild<QComboBox *>("sourceTypeInput")->setCurrentIndex(1);
+    auto *format = dialog->findChild<QComboBox *>("cameraFormatInput");
+    auto *mode = dialog->findChild<QComboBox *>("cameraModeInput");
+    QVERIFY(format && mode);
+    QCOMPARE(format->currentData().toString(), QString());
+    QCOMPARE(mode->count(), 3);
+    format->setCurrentIndex(format->findData("mjpeg"));
+    QCOMPARE(mode->count(), 2);
+    mode->setCurrentIndex(1);
+    QCOMPARE(mode->currentData().value<CameraMode>().config("test-camera").pixelFormat(),
+             QString("mjpeg"));
+    format->setCurrentIndex(format->findData("yuyv422"));
+    QCOMPARE(mode->currentIndex(), 0);
+    QCOMPARE(mode->count(), 2);
+    QCOMPARE(mode->currentData().value<CameraMode>().config("test-camera").pixelFormat(),
+             QString("yuyv422"));
+    QVERIFY(mode->currentData().value<CameraMode>().config("test-camera").resolution().isEmpty());
+    const int row = format->findData("p010le");
+    QVERIFY(row >= 0);
+    QVERIFY(!(format->model()->flags(format->model()->index(row, 0)) & Qt::ItemIsEnabled));
+    dialog->reject();
 }
 
 void MainWindowTest::cameraHardwarePreview()

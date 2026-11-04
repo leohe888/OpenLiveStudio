@@ -55,6 +55,9 @@ signals:
 
 private:
     friend class CanvasRendererTest;
+    bool uploadPixels(const CaptureFrame &frame, GLuint destination,
+                      std::array<std::unique_ptr<QOpenGLTexture>, 3> &planes);
+    std::unique_ptr<QOpenGLShaderProgram> m_pixelProgram;
     bool drawable(const RenderSourceSnapshot &source) const;
     GLuint filterTexture(const RenderSourceSnapshot &source, GLuint original, bool &flipY);
     void reportError(const QString &message);
@@ -68,6 +71,7 @@ private:
     {
         qint64 imageKey = 0;
         std::unique_ptr<QOpenGLTexture> texture;
+        std::array<std::unique_ptr<QOpenGLTexture>, 3> pixelPlanes;
         QString filterError;
         QString uploadError;
         std::unique_ptr<GpuInterop> interop;

@@ -79,6 +79,89 @@ private slots:
         QCOMPARE(gl->glGetError(), GLenum(GL_NO_ERROR));
     }
 
+    void yuvConversionPreservesColorRangeAndOrientation()
+    {
+        CanvasRenderer renderer;
+        QVERIFY(renderer.initialize());
+        RenderSourceSnapshot source;
+        source.id = "camera";
+        source.transform = VideoSourceTransform(QSize(1920, 1080));
+        quint64 sequence = 0;
+        for (auto layout :
+             {PixelFrame::Planar, PixelFrame::NV12, PixelFrame::YUY2, PixelFrame::UYVY}) {
+            for (bool full : {false, true})
+                for (bool bt709 : {false, true}) {
+                    auto pixels = std::make_shared<PixelFrame>();
+                    pixels->layout = layout;
+                    pixels->fullRange = full;
+                    pixels->bt709 = bt709;
+                    const uchar y = bt709 ? (full ? 54 : 63) : (full ? 76 : 81);
+                    const uchar u = bt709 ? (full ? 99 : 102) : (full ? 85 : 90);
+                    const uchar v = full ? 255 : 240;
+                    pixels->planeSizes[0] = QSize(4, 4);
+                    if (layout == PixelFrame::Planar || layout == PixelFrame::NV12) {
+                        pixels->planes[0] = QByteArray(16, char(y));
+                        pixels->planes[0].replace(8, 8, QByteArray(8, full ? char(0) : char(16)));
+                        pixels->planeSizes[1] = QSize(2, 2);
+                        if (layout == PixelFrame::Planar) {
+                            pixels->planeSizes[2] = QSize(2, 2);
+                            pixels->planes[1] = QByteArray(4, char(u));
+                            pixels->planes[2] = QByteArray(4, char(v));
+                            pixels->planes[1][2] = pixels->planes[1][3] = char(128);
+                            pixels->planes[2][2] = pixels->planes[2][3] = char(128);
+                        } else {
+                            for (int i = 0; i < 4; ++i) {
+                                pixels->planes[1].append(char(i < 2 ? u : 128));
+                                pixels->planes[1].append(char(i < 2 ? v : 128));
+                            }
+                        }
+                    } else {
+                        for (int row = 0; row < 4; ++row)
+                            for (int pair = 0; pair < 2; ++pair) {
+                                const char yy = row < 2 ? char(y) : full ? char(0) : char(16);
+                                const char uu = row < 2 ? char(u) : char(128),
+                                           vv = row < 2 ? char(v) : char(128);
+                                if (layout == PixelFrame::YUY2)
+                                    pixels->planes[0].append(
+                                        QByteArray().append(yy).append(uu).append(yy).append(vv));
+                                else
+                                    pixels->planes[0].append(
+                                        QByteArray().append(uu).append(yy).append(vv).append(yy));
+                            }
+                    }
+                    auto frame = std::make_shared<CaptureFrame>();
+                    frame->size = QSize(4, 4);
+                    frame->generation = 1;
+                    frame->sequence = ++sequence;
+                    frame->pixels = pixels;
+                    source.frame = frame;
+                    QVERIFY(renderer.render({source}));
+                    const auto image = renderer.canvas()->toImage();
+                    const auto red = image.pixelColor(960, 200), black = image.pixelColor(960, 850);
+                    QVERIFY2(red.red() > 245 && red.green() < 6 && red.blue() < 6,
+                             qPrintable(red.name()));
+                    QVERIFY2(black.red() < 3 && black.green() < 3 && black.blue() < 3,
+                             qPrintable(black.name()));
+                }
+        }
+        // 不同亮度的相邻像素验证 YUY2 打包分量的奇偶选择。
+        auto pixels = std::make_shared<PixelFrame>();
+        pixels->layout = PixelFrame::YUY2;
+        pixels->planeSizes[0] = QSize(2, 1);
+        pixels->planes[0] =
+            QByteArray().append(char(16)).append(char(128)).append(char(235)).append(char(128));
+        auto frame = std::make_shared<CaptureFrame>();
+        frame->size = QSize(2, 1);
+        frame->pixels = pixels;
+        frame->sequence = ++sequence;
+        frame->generation = 1;
+        source.frame = frame;
+        QVERIFY(renderer.render({source}));
+        auto image = renderer.canvas()->toImage();
+        QVERIFY(image.pixelColor(100, 540).red() < 3);
+        QVERIFY(image.pixelColor(1800, 540).red() > 252);
+    }
+
     void textureReuseFilterAlphaAndRemoval()
     {
         CanvasRenderer renderer;

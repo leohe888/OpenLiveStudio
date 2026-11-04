@@ -99,8 +99,10 @@ qt_add_resources(OpenLiveStudio "icons"
 )
 
 set(OPENLIVE_STUDIO_SHADER_FILES
-    "${PROJECT_SOURCE_DIR}/assets/shaders/texture.vert"
-    "${PROJECT_SOURCE_DIR}/assets/shaders/texture.frag"
+    "${PROJECT_SOURCE_DIR}/assets/shaders/texture_draw.vert"
+    "${PROJECT_SOURCE_DIR}/assets/shaders/texture_draw.frag"
+    "${PROJECT_SOURCE_DIR}/assets/shaders/video_convert.vert"
+    "${PROJECT_SOURCE_DIR}/assets/shaders/video_convert.frag"
 )
 qt_add_resources(OpenLiveStudio "shaders"
     PREFIX "/"
@@ -131,7 +133,7 @@ target_link_libraries(OpenLiveStudio
 if(WIN32)
     target_compile_definitions(OpenLiveStudio PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
     target_link_libraries(OpenLiveStudio PRIVATE
-        d3d11 dxgi windowsapp opengl32 mfplat mfreadwrite mfuuid mf ole32 uuid)
+        d3d11 dxgi windowsapp opengl32 mfplat mfreadwrite mfuuid mf ole32 oleaut32 strmiids uuid)
 endif()
 
 # 同时复制共享库的间接 DLL 依赖，避免开发环境能启动而部署目录缺少运行库。

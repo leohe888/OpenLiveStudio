@@ -313,6 +313,8 @@ void MainWindow::setupPreview()
             &PreviewWidget::setSources);
     connect(preview, &PreviewWidget::gpuTransferFailed, m_displaySourceController,
             &DisplaySourceController::failTransfer, Qt::QueuedConnection);
+    connect(preview, &PreviewWidget::gpuTransferFailed, m_cameraSourceController,
+            &CameraSourceController::failTransfer, Qt::QueuedConnection);
     connect(preview, &PreviewWidget::selectionRequested, m_videoSourceManager,
             &VideoSourceManager::selectSource);
     connect(preview, &PreviewWidget::transformRequested, m_videoSourceManager,

@@ -9,7 +9,7 @@
 #include <QList>
 #include <QString>
 
-// 图片和摄像头使用 CPU 图像，显示器采集使用 GPU 帧；frame 非空时优先采用它。
+// 图片使用 QImage，采集来源使用 CPU 像素帧或 GPU 纹理。
 struct RenderSourceSnapshot
 {
     QString id;
@@ -27,7 +27,7 @@ struct RenderSourceSnapshot
 
     bool hasFrame() const
     {
-        return frame ? bool(frame->gpu) : !image.isNull();
+        return frame ? (bool(frame->gpu) || bool(frame->pixels)) : !image.isNull();
     }
 };
 

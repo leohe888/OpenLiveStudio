@@ -453,7 +453,7 @@ if(WIN32)
 endif()
 
 add_test(NAME capture.camera COMMAND "${CMAKE_COMMAND}" -E env
-    "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}"
+    "PATH=$<TARGET_FILE_DIR:Qt6::Core>;${FFmpeg_RUNTIME_DIR};$ENV{PATH}"
     "$<TARGET_FILE:tst_cameracapture>" -o "-,txt")
 set_tests_properties(capture.camera PROPERTIES LABELS "capture;camera" TIMEOUT 60)
 
@@ -462,3 +462,10 @@ qt_add_resources(tst_mainwindow "style"
     BASE "${PROJECT_SOURCE_DIR}"
     FILES "${PROJECT_SOURCE_DIR}/assets/styles/style.qss"
 )
+
+foreach(camera_target tst_cameracapture tst_mainwindow)
+    target_link_libraries(${camera_target} PRIVATE FFmpeg::avdevice FFmpeg::avformat FFmpeg::avcodec FFmpeg::avutil)
+    if(WIN32)
+        target_link_libraries(${camera_target} PRIVATE oleaut32 strmiids)
+    endif()
+endforeach()

@@ -42,6 +42,7 @@ public:
 
     QString addCamera(const QString &name, const CameraSourceConfig &config);
     bool retry(const QString &sourceId);
+    void failTransfer(const QString &sourceId, quint64 generation, const QString &message);
     int activeWorkerCount() const;
 signals:
     void devicesChanged();
@@ -50,6 +51,8 @@ signals:
     void sourceFailed(const QString &sourceId, const QString &message);
 
 private:
+    friend class MainWindowTest;
+
     struct Entry
     {
         CameraSourceConfig config;
