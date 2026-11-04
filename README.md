@@ -25,21 +25,21 @@
 
 ## 构建与验证
 
-构建需要 C++ 编译器、CMake 3.19+、pkg-config、Qt 6.5+（Core、Network、Widgets、Svg、OpenGL、OpenGLWidgets）和 FFmpeg 开发库。FFmpeg 以 6.1 系列为基线；开启测试时还需要 Qt Test 和 ffprobe。Ubuntu 22.04 自带的 FFmpeg 4.4 不满足要求，配置阶段会拒绝旧版库。
+构建需要 C++ 编译器、CMake 3.19+、pkg-config、Qt 6.5+（Core、Network、Widgets、Svg、OpenGL、OpenGLWidgets）和 FFmpeg 开发库。FFmpeg 以 7.1 系列为基线；开启测试时还需要 Qt Test 和 ffprobe。FFmpeg 6.1 及更早版本不满足要求，配置阶段会拒绝旧版库。
 
-FFmpeg 通过 pkg-config 查找，不再使用 `FFmpeg_ROOT`。使用系统开发包时通常无需额外配置；使用用户目录内编译的 FFmpeg 时，在同一个终端先启用对应环境。以下示例对应安装在 `~/.local/ffmpeg-6.1` 的版本：
+FFmpeg 通过 pkg-config 查找，不再使用 `FFmpeg_ROOT`。使用系统开发包时通常无需额外配置；使用用户目录内编译的 FFmpeg 时，在同一个终端先启用对应环境。以下示例对应安装在 `~/.local/ffmpeg-7.1` 的版本：
 
 ```bash
-export PATH="$HOME/.local/ffmpeg-6.1/bin:$PATH"
-export PKG_CONFIG_PATH="$HOME/.local/ffmpeg-6.1/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-export LD_LIBRARY_PATH="$HOME/.local/ffmpeg-6.1/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export PATH="$HOME/.local/ffmpeg-7.1/bin:$PATH"
+export PKG_CONFIG_PATH="$HOME/.local/ffmpeg-7.1/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+export LD_LIBRARY_PATH="$HOME/.local/ffmpeg-7.1/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 pkg-config --modversion libavformat libavcodec libavutil libswresample libswscale
 pkg-config --variable=prefix libavcodec
 ffprobe -version
 ```
 
-如果安装时已生成 `~/.local/ffmpeg-6.1/env.sh`，也可用 `source ~/.local/ffmpeg-6.1/env.sh` 代替上述三个 export。运行程序和测试时也应启用同一套动态库环境，不要混用不同安装位置的头文件和库。
+如果安装时已生成 `~/.local/ffmpeg-7.1/env.sh`，也可用 `source ~/.local/ffmpeg-7.1/env.sh` 代替上述三个 export。运行程序和测试时也应启用同一套动态库环境，不要混用不同安装位置的头文件和库。
 
 指定 Qt 安装前缀后配置、构建和测试；Qt 位于系统搜索路径时可省略 `CMAKE_PREFIX_PATH`：
 

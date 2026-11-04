@@ -2,12 +2,11 @@ cmake_minimum_required(VERSION 3.19)
 project(OpenLiveStudio LANGUAGES CXX)
 
 find_package(PkgConfig REQUIRED)
-# FFmpeg 6.1 API：声道布局和新版重采样接口。
-pkg_check_modules(avformat REQUIRED IMPORTED_TARGET libavformat>=60.16)
-pkg_check_modules(avcodec REQUIRED IMPORTED_TARGET libavcodec>=60.31)
-pkg_check_modules(avutil REQUIRED IMPORTED_TARGET libavutil>=58.29)
-pkg_check_modules(swresample REQUIRED IMPORTED_TARGET libswresample>=4.12)
-pkg_check_modules(swscale REQUIRED IMPORTED_TARGET libswscale>=7.5)
+pkg_check_modules(avformat REQUIRED IMPORTED_TARGET libavformat>=61.7)
+pkg_check_modules(avcodec REQUIRED IMPORTED_TARGET libavcodec>=61.19)
+pkg_check_modules(avutil REQUIRED IMPORTED_TARGET libavutil>=59.39)
+pkg_check_modules(swresample REQUIRED IMPORTED_TARGET libswresample>=5.3)
+pkg_check_modules(swscale REQUIRED IMPORTED_TARGET libswscale>=8.3)
 pkg_get_variable(OPENLIVE_FFMPEG_PREFIX libavcodec prefix)
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Network Widgets Svg OpenGL OpenGLWidgets)
 

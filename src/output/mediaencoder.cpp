@@ -57,7 +57,7 @@ int MediaEncoder::write(void *opaque, const unsigned char *data, int size)
     return count == size ? size : AVERROR(EIO);
 }
 
-qint64 MediaEncoder::seek(void *opaque, qint64 offset, int whence)
+std::int64_t MediaEncoder::seek(void *opaque, std::int64_t offset, int whence)
 {
     auto &file = static_cast<MediaEncoder *>(opaque)->m_file;
     if (whence == AVSEEK_SIZE)

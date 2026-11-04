@@ -3,6 +3,7 @@
 #include <QFile>
 #include <QImage>
 #include <QVector>
+#include <cstdint>
 #include <functional>
 
 struct StreamFailure
@@ -60,7 +61,7 @@ private:
     void encode(AVCodecContext *codec, AVStream *stream, AVFrame *frame);
     void encodeAudio(int count);
     static int write(void *opaque, const unsigned char *data, int size);
-    static qint64 seek(void *opaque, qint64 offset, int whence);
+    static std::int64_t seek(void *opaque, std::int64_t offset, int whence);
     QFile m_file;
     AVFormatContext *m_format = nullptr;
     AVIOContext *m_io = nullptr;
