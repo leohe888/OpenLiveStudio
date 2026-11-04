@@ -60,11 +60,10 @@ struct CameraFrame
     int frameRateNumerator = 0, frameRateDenominator = 1;
 };
 
-QPair<int, int> cameraFrameRateFromInterval(qint64 interval);
 struct AVFrame;
 std::shared_ptr<const PixelFrame> cameraPixels(const AVFrame *frame, bool &inferred);
 
-// DirectShow 设备和模式查询在后台线程执行，FFmpeg 负责实际采集。
+// Media Foundation 的设备和原生模式查询在后台线程执行。
 QList<CameraDevice> cameraDevices(QString *error = nullptr);
 QList<CameraMode> cameraModes(const QString &deviceId, QString *error = nullptr);
 

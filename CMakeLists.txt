@@ -35,6 +35,8 @@ qt_add_executable(OpenLiveStudio
     src/video/image/imagesourcecontroller.h
     src/video/camera/cameracaptureworker.h
     src/video/camera/cameracaptureworker.cpp
+    src/video/camera/cameramfinput.h
+    src/video/camera/cameramfinput.cpp
     src/video/camera/camerasourcecontroller.h
     src/video/camera/camerasourcecontroller.cpp
     src/graphics/captureframe.h
@@ -122,7 +124,6 @@ target_link_libraries(OpenLiveStudio
         Qt::OpenGL
         Qt::OpenGLWidgets
         Qt::Network
-        FFmpeg::avdevice
         FFmpeg::avformat
         FFmpeg::avcodec
         FFmpeg::avutil
@@ -133,7 +134,7 @@ target_link_libraries(OpenLiveStudio
 if(WIN32)
     target_compile_definitions(OpenLiveStudio PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
     target_link_libraries(OpenLiveStudio PRIVATE
-        d3d11 dxgi windowsapp opengl32 mfplat mfreadwrite mfuuid mf ole32 oleaut32 strmiids uuid)
+        d3d11 dxgi windowsapp opengl32 mfplat mfreadwrite mfuuid mf ole32 uuid)
 endif()
 
 # 同时复制共享库的间接 DLL 依赖，避免开发环境能启动而部署目录缺少运行库。

@@ -1,16 +1,21 @@
 #include "videosourcetesthelpers.h"
 #include "video/camera/camerasourcecontroller.h"
+#include "video/camera/cameramfinput.h"
 #include "video/videosourcemanager.h"
 extern "C" {
 #include <libavutil/frame.h>
 #include <libavutil/pixfmt.h>
+#include <libavcodec/avcodec.h>
 }
 #include <QSignalSpy>
 #include <QElapsedTimer>
+#include <QScopeGuard>
 #include <QtTest/QTest>
 #ifdef Q_OS_WIN
 #include <windows.h>
 #include <psapi.h>
+#include <mfapi.h>
+#include <wrl/client.h>
 #endif
 
 class CameraCaptureTest : public QObject
@@ -19,7 +24,8 @@ class CameraCaptureTest : public QObject
 private slots:
     void typedModesPreserveDefaultsAndFrameRates();
     void configUpdatesPreserveTransformAndAspectRatio();
-    void directShowFrameIntervalsPreserveStandardRates();
+    void mediaFoundationSamplesPreserveLayout();
+    void mediaFoundationCompressedSamplesPreserveTimingAndHeaders();
     void pixelFormatsParticipateInModeAndConfigIdentity();
     void preservesYuvPlanesStrideAndColorMetadata();
     void unavailableDeviceAndLifecycle();
@@ -51,14 +57,153 @@ void CameraCaptureTest::typedModesPreserveDefaultsAndFrameRates()
     QVERIFY(!invalid.config("camera").isValid());
 }
 
-void CameraCaptureTest::directShowFrameIntervalsPreserveStandardRates()
+void CameraCaptureTest::mediaFoundationSamplesPreserveLayout()
 {
-    QCOMPARE(cameraFrameRateFromInterval(333333), qMakePair(30, 1));
-    QCOMPARE(cameraFrameRateFromInterval(333334), qMakePair(30, 1));
-    QCOMPARE(cameraFrameRateFromInterval(333667), qMakePair(30000, 1001));
-    QCOMPARE(cameraFrameRateFromInterval(166833), qMakePair(60000, 1001));
-    QCOMPARE(cameraFrameRateFromInterval(1333333), qMakePair(15, 2));
-    QCOMPARE(cameraFrameRateFromInterval(0), qMakePair(0, 1));
+#ifdef Q_OS_WIN
+    using Microsoft::WRL::ComPtr;
+    QVERIFY(SUCCEEDED(MFStartup(MF_VERSION)));
+    const auto shutdown = qScopeGuard([] {
+        MFShutdown();
+    });
+    ComPtr<IMFMediaType> type;
+    QVERIFY(SUCCEEDED(MFCreateMediaType(&type)));
+    QVERIFY(SUCCEEDED(type->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video)));
+    QVERIFY(SUCCEEDED(type->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_NV12)));
+    QVERIFY(SUCCEEDED(MFSetAttributeSize(type.Get(), MF_MT_FRAME_SIZE, 4, 4)));
+    QVERIFY(SUCCEEDED(MFSetAttributeRatio(type.Get(), MF_MT_FRAME_RATE, 30000, 1001)));
+    QVERIFY(SUCCEEDED(type->SetUINT32(MF_MT_YUV_MATRIX, MFVideoTransferMatrix_BT709)));
+    QVERIFY(SUCCEEDED(type->SetUINT32(MF_MT_VIDEO_NOMINAL_RANGE, MFNominalRange_16_235)));
+    ComPtr<IMFMediaBuffer> buffer;
+    QVERIFY(SUCCEEDED(MFCreate2DMediaBuffer(4, 4, MFVideoFormat_NV12.Data1, FALSE, &buffer)));
+    ComPtr<IMF2DBuffer2> plane;
+    QVERIFY(SUCCEEDED(buffer.As(&plane)));
+    BYTE *data = nullptr, *start = nullptr;
+    LONG pitch = 0;
+    DWORD length = 0;
+    QVERIFY(
+        SUCCEEDED(plane->Lock2DSize(MF2DBuffer_LockFlags_Write, &data, &pitch, &start, &length)));
+    QVERIFY(pitch >= 4);
+    for (int y = 0; y < 4; ++y)
+        memset(data + y * pitch, 20 + y, 4);
+    for (int y = 0; y < 2; ++y)
+        memset(data + (4 + y) * pitch, 130 + y, 4);
+    QVERIFY(SUCCEEDED(plane->Unlock2D()));
+    ComPtr<IMFSample> sample;
+    QVERIFY(SUCCEEDED(MFCreateSample(&sample)));
+    QVERIFY(SUCCEEDED(sample->AddBuffer(buffer.Get())));
+    bool inferred = true;
+    auto pixels = cameraMfPixels(sample.Get(), type.Get(), inferred);
+    QVERIFY(pixels);
+    QVERIFY(!inferred);
+    QVERIFY(pixels->bt709);
+    QVERIFY(!pixels->fullRange);
+    QCOMPARE(pixels->planes[0].size(), 16);
+    QCOMPARE(uchar(pixels->planes[0][12]), uchar(23));
+    QCOMPARE(uchar(pixels->planes[1][4]), uchar(131));
+
+    // YV12 的物理 V/U 顺序必须转换为着色器约定的 Y/U/V 顺序。
+    QVERIFY(SUCCEEDED(type->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_YV12)));
+    QVERIFY(SUCCEEDED(type->SetUINT32(MF_MT_DEFAULT_STRIDE, 4)));
+    buffer.Reset();
+    QVERIFY(SUCCEEDED(MFCreateMemoryBuffer(24, &buffer)));
+    QVERIFY(SUCCEEDED(buffer->Lock(&data, nullptr, nullptr)));
+    memset(data, 16, 16);
+    memset(data + 16, 200, 4);
+    memset(data + 20, 40, 4);
+    buffer->Unlock();
+    QVERIFY(SUCCEEDED(buffer->SetCurrentLength(24)));
+    sample->RemoveAllBuffers();
+    sample->AddBuffer(buffer.Get());
+    pixels = cameraMfPixels(sample.Get(), type.Get(), inferred);
+    QCOMPARE(uchar(pixels->planes[1][0]), uchar(40));
+    QCOMPARE(uchar(pixels->planes[2][0]), uchar(200));
+    QVERIFY(SUCCEEDED(buffer->SetCurrentLength(23)));
+    QVERIFY_EXCEPTION_THROWN(cameraMfPixels(sample.Get(), type.Get(), inferred), HRESULT);
+
+    // 负 stride 的 RGB 缓冲保持显示方向，且 BGR0 的空字节不会作为透明度。
+    QVERIFY(SUCCEEDED(type->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32)));
+    QVERIFY(SUCCEEDED(MFSetAttributeSize(type.Get(), MF_MT_FRAME_SIZE, 2, 2)));
+    QVERIFY(SUCCEEDED(type->SetUINT32(MF_MT_DEFAULT_STRIDE, UINT32(LONG(-8)))));
+    QVERIFY(SUCCEEDED(buffer->Lock(&data, nullptr, nullptr)));
+    memset(data, 30, 8);
+    memset(data + 8, 60, 8);
+    buffer->Unlock();
+    buffer->SetCurrentLength(16);
+    pixels = cameraMfPixels(sample.Get(), type.Get(), inferred);
+    QCOMPARE(uchar(pixels->planes[0][0]), uchar(60));
+    QCOMPARE(uchar(pixels->planes[0][8]), uchar(30));
+    QCOMPARE(uchar(pixels->planes[0][3]), uchar(255));
+    type->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_P010);
+    QVERIFY_EXCEPTION_THROWN(cameraMfPixels(sample.Get(), type.Get(), inferred), HRESULT);
+#else
+    QSKIP("Media Foundation requires Windows");
+#endif
+}
+
+void CameraCaptureTest::mediaFoundationCompressedSamplesPreserveTimingAndHeaders()
+{
+#ifdef Q_OS_WIN
+    using Microsoft::WRL::ComPtr;
+    QVERIFY(SUCCEEDED(MFStartup(MF_VERSION)));
+    const auto shutdown = qScopeGuard([] {
+        MFShutdown();
+    });
+    ComPtr<IMFMediaType> type;
+    QVERIFY(SUCCEEDED(MFCreateMediaType(&type)));
+    type->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_H264);
+    MFSetAttributeSize(type.Get(), MF_MT_FRAME_SIZE, 640, 480);
+    MFSetAttributeRatio(type.Get(), MF_MT_FRAME_RATE, 30000, 1001);
+    type->SetUINT32(MF_MT_YUV_MATRIX, MFVideoTransferMatrix_BT709);
+    type->SetUINT32(MF_MT_VIDEO_NOMINAL_RANGE, MFNominalRange_16_235);
+    const auto headers = QByteArray::fromHex("000000016742001e0000000168ce06e2");
+    QVERIFY(SUCCEEDED(type->SetBlob(MF_MT_MPEG_SEQUENCE_HEADER,
+                                    reinterpret_cast<const UINT8 *>(headers.constData()),
+                                    UINT32(headers.size()))));
+    AVCodecParameters *parameters = avcodec_parameters_alloc();
+    AVPacket *packet = av_packet_alloc();
+    QVERIFY(parameters && packet);
+    const auto freeCodec = qScopeGuard([&] {
+        avcodec_parameters_free(&parameters);
+        av_packet_free(&packet);
+    });
+    cameraMfParameters(type.Get(), parameters);
+    QCOMPARE(parameters->codec_id, AV_CODEC_ID_H264);
+    QCOMPARE(parameters->width, 640);
+    QCOMPARE(parameters->height, 480);
+    QCOMPARE(parameters->color_space, AVCOL_SPC_BT709);
+    QCOMPARE(parameters->color_range, AVCOL_RANGE_MPEG);
+    QCOMPARE(QByteArray(reinterpret_cast<const char *>(parameters->extradata),
+                        parameters->extradata_size),
+             headers);
+    for (int i = 0; i < AV_INPUT_BUFFER_PADDING_SIZE; ++i)
+        QCOMPARE(parameters->extradata[parameters->extradata_size + i], uint8_t(0));
+    const auto bytes = QByteArray::fromHex("0000000165881234000001411234");
+    ComPtr<IMFSample> sample;
+    ComPtr<IMFMediaBuffer> buffer;
+    QVERIFY(SUCCEEDED(MFCreateSample(&sample)));
+    QVERIFY(SUCCEEDED(MFCreateMemoryBuffer(DWORD(bytes.size()), &buffer)));
+    BYTE *data = nullptr;
+    buffer->Lock(&data, nullptr, nullptr);
+    memcpy(data, bytes.constData(), size_t(bytes.size()));
+    buffer->Unlock();
+    buffer->SetCurrentLength(DWORD(bytes.size()));
+    sample->AddBuffer(buffer.Get());
+    sample->SetSampleDuration(333667);
+    cameraMfPacket(sample.Get(), packet, 12345678, false);
+    QCOMPARE(packet->pts, int64_t(12345678));
+    QCOMPARE(packet->dts, int64_t(AV_NOPTS_VALUE));
+    QCOMPARE(packet->duration, int64_t(333667));
+    QVERIFY(packet->flags & AV_PKT_FLAG_KEY); // 缺少 CleanPoint 时识别 Annex B IDR。
+    QCOMPARE(QByteArray(reinterpret_cast<const char *>(packet->data), packet->size), bytes);
+    for (int i = 0; i < AV_INPUT_BUFFER_PADDING_SIZE; ++i)
+        QCOMPARE(packet->data[packet->size + i], uint8_t(0));
+    av_packet_unref(packet);
+    sample->SetUINT64(MFSampleExtension_DecodeTimestamp, 12000000);
+    cameraMfPacket(sample.Get(), packet, 12345678, false);
+    QCOMPARE(packet->dts, int64_t(12000000));
+#else
+    QSKIP("Media Foundation requires Windows");
+#endif
 }
 
 void CameraCaptureTest::pixelFormatsParticipateInModeAndConfigIdentity()
@@ -190,7 +335,7 @@ void CameraCaptureTest::capturesHardwareCameraAndSupportedModes()
     QString error;
     const auto devices = cameraDevices(&error);
     QVERIFY2(error.isEmpty(), qPrintable(error));
-    QVERIFY2(!devices.isEmpty(), "No DirectShow cameras available");
+    QVERIFY2(!devices.isEmpty(), "No Media Foundation cameras available");
     VideoSourceManager model;
     CameraSourceController controller(model);
     QStringList ids;
@@ -199,7 +344,7 @@ void CameraCaptureTest::capturesHardwareCameraAndSupportedModes()
         const auto &device = item;
         const QString deviceId = device.id;
         const auto modes = cameraModes(deviceId, &error);
-        qInfo().noquote() << "FFmpeg/DirectShow device:" << device.name << "modes:" << modes.size();
+        qInfo().noquote() << "Media Foundation device:" << device.name << "modes:" << modes.size();
         QVERIFY2(error.isEmpty(), qPrintable(error));
         QVERIFY(!modes.isEmpty());
         catalogs.insert(deviceId, modes);

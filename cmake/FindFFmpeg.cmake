@@ -4,16 +4,16 @@ set(FFmpeg_ROOT "" CACHE PATH "FFmpeg development package root")
 
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)
-    pkg_check_modules(PC_FFmpeg QUIET libavdevice libavformat libavcodec libavutil libswresample libswscale)
+    pkg_check_modules(PC_FFmpeg QUIET libavformat libavcodec libavutil libswresample libswscale)
 endif()
 
 find_path(FFmpeg_INCLUDE_DIR
-    NAMES libavdevice/avdevice.h
+    NAMES libavcodec/avcodec.h
     HINTS "${FFmpeg_ROOT}/include" ${PC_FFmpeg_INCLUDE_DIRS}
 )
 
 set(_FFmpeg_required_vars FFmpeg_INCLUDE_DIR)
-foreach(_component avdevice avformat avcodec avutil swresample swscale)
+foreach(_component avformat avcodec avutil swresample swscale)
     find_library(FFmpeg_${_component}_LIBRARY
         NAMES ${_component}
         HINTS "${FFmpeg_ROOT}/lib" ${PC_FFmpeg_LIBRARY_DIRS}
@@ -27,8 +27,8 @@ if(WIN32)
     set(FFmpeg_RUNTIME_DIR "" CACHE PATH "FFmpeg shared runtime directory")
     if(NOT FFmpeg_RUNTIME_DIR)
         foreach(_bin "${FFmpeg_ROOT}/bin" "${FFmpeg_INCLUDE_DIR}/../bin")
-            file(GLOB _avdevice_dlls "${_bin}/avdevice-*.dll")
-            if(_avdevice_dlls)
+            file(GLOB _avcodec_dlls "${_bin}/avcodec-*.dll")
+            if(_avcodec_dlls)
                 get_filename_component(_bin "${_bin}" ABSOLUTE)
                 set(FFmpeg_RUNTIME_DIR "${_bin}" CACHE PATH
                     "FFmpeg shared runtime directory" FORCE)
@@ -47,7 +47,7 @@ find_package_handle_standard_args(FFmpeg
 )
 
 if(FFmpeg_FOUND)
-    foreach(_component avdevice avformat avcodec avutil swresample swscale)
+    foreach(_component avformat avcodec avutil swresample swscale)
         if(NOT TARGET FFmpeg::${_component})
             add_library(FFmpeg::${_component} UNKNOWN IMPORTED)
             set_target_properties(FFmpeg::${_component} PROPERTIES
@@ -63,5 +63,5 @@ if(FFmpeg_FOUND)
 endif()
 
 mark_as_advanced(FFmpeg_INCLUDE_DIR FFmpeg_RUNTIME_DIR
-    FFmpeg_avdevice_LIBRARY FFmpeg_avformat_LIBRARY
+    FFmpeg_avformat_LIBRARY
     FFmpeg_avcodec_LIBRARY FFmpeg_avutil_LIBRARY FFmpeg_swresample_LIBRARY FFmpeg_swscale_LIBRARY)

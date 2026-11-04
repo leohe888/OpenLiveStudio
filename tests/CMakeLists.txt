@@ -464,8 +464,6 @@ qt_add_resources(tst_mainwindow "style"
 )
 
 foreach(camera_target tst_cameracapture tst_mainwindow)
-    target_link_libraries(${camera_target} PRIVATE FFmpeg::avdevice FFmpeg::avformat FFmpeg::avcodec FFmpeg::avutil)
-    if(WIN32)
-        target_link_libraries(${camera_target} PRIVATE oleaut32 strmiids)
-    endif()
+    target_sources(${camera_target} PRIVATE ../src/video/camera/cameramfinput.h ../src/video/camera/cameramfinput.cpp)
+    target_link_libraries(${camera_target} PRIVATE FFmpeg::avcodec FFmpeg::avutil)
 endforeach()
