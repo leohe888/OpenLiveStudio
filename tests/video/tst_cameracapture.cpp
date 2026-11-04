@@ -1,6 +1,5 @@
 #include "videosourcetesthelpers.h"
 #include "video/camera/camerasourcecontroller.h"
-#include "video/camera/cameramfinput.h"
 #include "video/videosourcemanager.h"
 extern "C" {
 #include <libavutil/frame.h>

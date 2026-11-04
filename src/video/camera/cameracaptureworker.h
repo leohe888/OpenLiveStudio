@@ -63,6 +63,18 @@ struct CameraFrame
 struct AVFrame;
 std::shared_ptr<const PixelFrame> cameraPixels(const AVFrame *frame, bool &inferred);
 
+#ifdef Q_OS_WIN
+struct IMFSample;
+struct IMFMediaType;
+struct AVCodecParameters;
+struct AVPacket;
+std::shared_ptr<const PixelFrame> cameraMfPixels(IMFSample *sample, IMFMediaType *type,
+                                                 bool &inferred);
+// 输出参数对象必须为空；保留 H.264 初始化数据及 MF 色彩元数据。
+void cameraMfParameters(IMFMediaType *type, AVCodecParameters *parameters);
+void cameraMfPacket(IMFSample *sample, AVPacket *packet, qint64 timestamp100ns, bool intraFrame);
+#endif
+
 // Media Foundation 的设备和原生模式查询在后台线程执行。
 QList<CameraDevice> cameraDevices(QString *error = nullptr);
 QList<CameraMode> cameraModes(const QString &deviceId, QString *error = nullptr);

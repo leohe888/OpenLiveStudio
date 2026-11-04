@@ -35,8 +35,6 @@ qt_add_executable(OpenLiveStudio
     src/video/image/imagesourcecontroller.h
     src/video/camera/cameracaptureworker.h
     src/video/camera/cameracaptureworker.cpp
-    src/video/camera/cameramfinput.h
-    src/video/camera/cameramfinput.cpp
     src/video/camera/camerasourcecontroller.h
     src/video/camera/camerasourcecontroller.cpp
     src/graphics/captureframe.h

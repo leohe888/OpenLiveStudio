@@ -52,7 +52,7 @@
 
 ## 摄像头采集与 YUV 渲染
 
-Windows 摄像头使用 Media Foundation 枚举设备、查询原生模式并异步采集。`MfCameraInput` 禁用 Source Reader 的格式转换器，输出设备原生数据；设备标识采用 MF symbolic link。设备列表以 MF 能枚举的设备为准，DirectShow 专用虚拟摄像头不保证可见。添加界面按设备、格式、分辨率与帧率联动；每个源的配置只保存在内存中，格式为空表示自动。手动格式或模式协商失败时报告错误，不静默改用其他采集格式。
+Windows 摄像头使用 Media Foundation 枚举设备、查询原生模式并异步采集。`CameraCaptureWorker` 内部禁用 Source Reader 的格式转换器，输出设备原生数据；设备标识采用 MF symbolic link。设备列表以 MF 能枚举的设备为准，DirectShow 专用虚拟摄像头不保证可见。添加界面按设备、格式、分辨率与帧率联动；每个源的配置只保存在内存中，格式为空表示自动。手动格式或模式协商失败时报告错误，不静默改用其他采集格式。
 
 未压缩输入直接绕过 FFmpeg 解码器；MF 的 2D 缓冲和普通内存缓冲按实际步长与内存边界读取，YV12 的 V/U 顺序整理为 Y/U/V。未压缩输入及软件解码帧保持 YUV 原布局，通过 `CaptureFrame::pixels` 传给 OpenGL。`CanvasRenderer` 复用各源的平面纹理，在 GPU 中转换为合成所需的 RGB。支持 NV12、YUY2、UYVY、8 位平面 YUV 420/422/444 及常见 RGB；MJPEG 和 H.264 交给 `libavcodec` 解码。HDR、10 位和未支持的色彩矩阵会明确报错。
 
