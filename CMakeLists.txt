@@ -13,6 +13,7 @@ pkg_check_modules(swresample REQUIRED IMPORTED_TARGET libswresample>=5.3)
 pkg_check_modules(swscale REQUIRED IMPORTED_TARGET libswscale>=8.3)
 pkg_get_variable(OPENLIVE_FFMPEG_PREFIX libavcodec prefix)
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Network Widgets Svg OpenGL OpenGLWidgets DBus)
+pkg_check_modules(pulse REQUIRED IMPORTED_TARGET libpulse>=13.0)
 pkg_check_modules(pipewire REQUIRED IMPORTED_TARGET libpipewire-0.3>=0.3.48)
 
 qt_standard_project_setup()
@@ -132,6 +133,7 @@ target_link_libraries(OpenLiveStudio
         PkgConfig::avcodec
         PkgConfig::avutil
         PkgConfig::swresample
+        PkgConfig::pulse
         PkgConfig::swscale
 )
 

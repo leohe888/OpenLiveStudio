@@ -31,7 +31,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential cmake ninja-build pkg-config curl xz-utils \
-            libpipewire-0.3-dev libx264-dev libgl1-mesa-dev libegl1-mesa-dev \
+            libpipewire-0.3-dev libpulse-dev pulseaudio pulseaudio-utils libx264-dev libgl1-mesa-dev libegl1-mesa-dev \
             libxcb-cursor0 libxkbcommon-x11-0 libxcb-icccm4 libxcb-keysyms1 \
             libxcb-image0 libxcb-render-util0 xvfb xauth dbus-x11
 

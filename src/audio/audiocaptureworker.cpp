@@ -1,330 +1,271 @@
 #include "audio/audiocaptureworker.h"
 
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QMap>
 #include <QScopeGuard>
-#include <pipewire/pipewire.h>
-#include <pipewire/extensions/metadata.h>
-#include <spa/param/audio/format-utils.h>
-#include <spa/buffer/meta.h>
-#include <cerrno>
+#include <pulse/pulseaudio.h>
 #include <cstring>
 
 namespace {
-QString nodeDeviceId(AudioSourceType type, const QString &name)
+QString deviceId(AudioSourceType type, const QString &name)
 {
-    return QStringLiteral("pipewire:%1:%2").arg(toString(type), name);
+    return QStringLiteral("pulse:%1:%2").arg(toString(type), name);
 }
 
-struct AudioNode
+struct CaptureDevice
 {
-    QString name;
-    QString description;
-    AudioSourceType type = AudioSourceType::Microphone;
+    AudioDevice device;
+    QString sourceName;
+    uint32_t sourceIndex = PA_INVALID_INDEX;
 };
 
-// Each instance belongs entirely to the querying/capture thread. Process callbacks
-// run on this loop too (no RT_PROCESS), so Qt allocations and the queue are safe.
+// Context, queries and stream callbacks all run on the owning worker thread.
 class AudioSession
 {
 public:
     ~AudioSession()
     {
         closeStream();
-        if (metadata) {
-            spa_hook_remove(&metadataListener);
-            pw_proxy_destroy(reinterpret_cast<pw_proxy *>(metadata));
+        if (context) {
+            pa_context_set_subscribe_callback(context, nullptr, nullptr);
+            pa_context_disconnect(context);
+            pa_context_unref(context);
         }
-        if (registry) {
-            spa_hook_remove(&registryListener);
-            pw_proxy_destroy(reinterpret_cast<pw_proxy *>(registry));
-        }
-        if (core) {
-            spa_hook_remove(&coreListener);
-            pw_core_disconnect(core);
-        }
-        if (context)
-            pw_context_destroy(context);
         if (loop)
-            pw_main_loop_destroy(loop);
+            pa_mainloop_free(loop);
     }
 
     bool open()
     {
-        static std::once_flag init;
-        std::call_once(init, [] { pw_init(nullptr, nullptr); });
-        loop = pw_main_loop_new(nullptr);
+        loop = pa_mainloop_new();
         if (loop)
-            context = pw_context_new(pw_main_loop_get_loop(loop), nullptr, 0);
-        if (context)
-            core = pw_context_connect(context, pw_properties_new(
-                PW_KEY_APP_NAME, "OpenLive Studio", nullptr), 0);
-        if (!core) {
-            error = QStringLiteral("无法连接 PipeWire 音频服务：%1").arg(
-                QString::fromLocal8Bit(strerror(errno)));
+            context = pa_context_new(pa_mainloop_get_api(loop), "OpenLive Studio");
+        if (!context) {
+            error = QStringLiteral("无法创建 PulseAudio 音频连接。");
             return false;
         }
-        coreEvents.version = PW_VERSION_CORE_EVENTS;
-        coreEvents.error = [](void *data, uint32_t id, int, int, const char *message) {
-            auto &self = *static_cast<AudioSession *>(data);
-            const auto text = QStringLiteral("PipeWire 音频连接错误：%1").arg(
-                QString::fromUtf8(message ? message : ""));
-            if (id == PW_ID_CORE)
-                self.error = text;
-            else
-                self.streamError = text;
-        };
-        coreEvents.done = [](void *data, uint32_t id, int seq) {
-            auto &self = *static_cast<AudioSession *>(data);
-            if (id == PW_ID_CORE && seq == self.syncSequence)
-                self.synced = true;
-        };
-        pw_core_add_listener(core, &coreListener, &coreEvents, this);
-        registry = pw_core_get_registry(core, PW_VERSION_REGISTRY, 0);
-        if (!registry) {
-            error = QStringLiteral("无法查询 PipeWire 音频设备。");
+        if (pa_context_connect(context, nullptr, PA_CONTEXT_NOAUTOSPAWN, nullptr) < 0) {
+            fail(QStringLiteral("无法连接 PulseAudio 音频服务"));
             return false;
         }
-        registryEvents.version = PW_VERSION_REGISTRY_EVENTS;
-        registryEvents.global = [](void *data, uint32_t id, uint32_t, const char *type,
-                                   uint32_t version, const spa_dict *props) {
-            auto &self = *static_cast<AudioSession *>(data);
-            if (!props)
-                return;
-            if (strcmp(type, PW_TYPE_INTERFACE_Node) == 0) {
-                const char *mediaClass = spa_dict_lookup(props, PW_KEY_MEDIA_CLASS);
-                const char *name = spa_dict_lookup(props, PW_KEY_NODE_NAME);
-                if (!mediaClass || !name)
-                    return;
-                AudioSourceType sourceType;
-                if (strcmp(mediaClass, "Audio/Source") == 0 ||
-                    strcmp(mediaClass, "Audio/Source/Virtual") == 0)
-                    sourceType = AudioSourceType::Microphone;
-                else if (strcmp(mediaClass, "Audio/Sink") == 0)
-                    sourceType = AudioSourceType::SystemAudio;
-                else
-                    return;
-                const char *description = spa_dict_lookup(props, PW_KEY_NODE_DESCRIPTION);
-                self.nodes.insert(id, {QString::fromUtf8(name),
-                    QString::fromUtf8(description ? description : name), sourceType});
-            } else if (strcmp(type, PW_TYPE_INTERFACE_Metadata) == 0 && !self.metadata) {
-                const char *name = spa_dict_lookup(props, PW_KEY_METADATA_NAME);
-                if (!name || strcmp(name, "default") != 0)
-                    return;
-                self.metadata = static_cast<pw_metadata *>(pw_registry_bind(self.registry,
-                    id, type, std::min(version, uint32_t(PW_VERSION_METADATA)), 0));
-                if (!self.metadata)
-                    return;
-                self.metadataId = id;
-                self.metadataEvents.version = PW_VERSION_METADATA_EVENTS;
-                self.metadataEvents.property = [](void *data, uint32_t subject, const char *key,
-                                                   const char *, const char *value) {
-                    auto &session = *static_cast<AudioSession *>(data);
-                    if (subject != PW_ID_CORE)
-                        return 0;
-                    if (!key) {
-                        session.defaultSource.clear();
-                        session.defaultSink.clear();
-                    } else {
-                        const auto name = QJsonDocument::fromJson(value ? value : "null")
-                                              .object().value("name").toString();
-                        if (strcmp(key, "default.audio.source") == 0)
-                            session.defaultSource = name;
-                        else if (strcmp(key, "default.audio.sink") == 0)
-                            session.defaultSink = name;
-                    }
-                    return 0;
-                };
-                pw_metadata_add_listener(self.metadata, &self.metadataListener,
-                                         &self.metadataEvents, &self);
-            }
-        };
-        registryEvents.global_remove = [](void *data, uint32_t id) {
-            auto &self = *static_cast<AudioSession *>(data);
-            self.nodes.remove(id);
-            if (self.metadata && id == self.metadataId) {
-                spa_hook_remove(&self.metadataListener);
-                pw_proxy_destroy(reinterpret_cast<pw_proxy *>(self.metadata));
-                self.metadata = nullptr;
-                self.defaultSource.clear();
-                self.defaultSink.clear();
-            }
-        };
-        pw_registry_add_listener(registry, &registryListener, &registryEvents, this);
+        const auto deadline = audioClockNs() + 3000000000LL;
+        while (pa_context_get_state(context) != PA_CONTEXT_READY &&
+               audioClockNs() < deadline && iterate()) {}
+        if (pa_context_get_state(context) != PA_CONTEXT_READY) {
+            if (error.isEmpty())
+                error = QStringLiteral("连接 PulseAudio 音频服务超时，请检查桌面音频服务。");
+            return false;
+        }
+        pa_context_set_subscribe_callback(context,
+            [](pa_context *, pa_subscription_event_type_t, uint32_t, void *data) {
+                static_cast<AudioSession *>(data)->catalogDirty = true;
+            }, this);
+        auto *operation = pa_context_subscribe(context, pa_subscription_mask_t(
+            PA_SUBSCRIPTION_MASK_SERVER | PA_SUBSCRIPTION_MASK_SOURCE | PA_SUBSCRIPTION_MASK_SINK),
+            [](pa_context *, int success, void *data) {
+                if (!success)
+                    static_cast<AudioSession *>(data)->fail(QStringLiteral("无法监听音频设备变化"));
+            }, this);
+        releaseOperation(operation);
+        return error.isEmpty() && refresh();
+    }
+
+    bool iterate()
+    {
+        if (QThread::currentThread()->isInterruptionRequested())
+            return false;
+        if (pa_mainloop_prepare(loop, 20) < 0 || pa_mainloop_poll(loop) < 0 ||
+            pa_mainloop_dispatch(loop) < 0) {
+            error = QStringLiteral("PulseAudio 音频事件循环失败。");
+            return false;
+        }
+        const auto state = pa_context_get_state(context);
+        if (state == PA_CONTEXT_FAILED || state == PA_CONTEXT_TERMINATED)
+            fail(QStringLiteral("PulseAudio 音频服务已断开"));
+        return error.isEmpty();
+    }
+
+    bool refresh()
+    {
+        catalogDirty = false;
+        pendingDevices.clear();
+        remainingQueries = 3;
+        releaseOperation(pa_context_get_server_info(context,
+            [](pa_context *, const pa_server_info *info, void *data) {
+                auto &self = *static_cast<AudioSession *>(data);
+                if (info) {
+                    self.defaultSource = QString::fromUtf8(info->default_source_name);
+                    self.defaultSink = QString::fromUtf8(info->default_sink_name);
+                } else
+                    self.fail(QStringLiteral("无法读取默认音频设备"));
+                --self.remainingQueries;
+            }, this));
+        releaseOperation(pa_context_get_source_info_list(context,
+            [](pa_context *, const pa_source_info *info, int end, void *data) {
+                auto &self = *static_cast<AudioSession *>(data);
+                if (end) {
+                    if (end < 0)
+                        self.fail(QStringLiteral("无法枚举麦克风"));
+                    --self.remainingQueries;
+                } else if (info && info->name && info->monitor_of_sink == PA_INVALID_INDEX) {
+                    const auto name = QString::fromUtf8(info->name);
+                    self.pendingDevices.append({{deviceId(AudioSourceType::Microphone, name),
+                        QString::fromUtf8(info->description ? info->description : info->name),
+                        AudioSourceType::Microphone}, name, info->index});
+                }
+            }, this));
+        releaseOperation(pa_context_get_sink_info_list(context,
+            [](pa_context *, const pa_sink_info *info, int end, void *data) {
+                auto &self = *static_cast<AudioSession *>(data);
+                if (end) {
+                    if (end < 0)
+                        self.fail(QStringLiteral("无法枚举输出设备"));
+                    --self.remainingQueries;
+                } else if (info && info->name && info->monitor_source_name &&
+                           info->monitor_source != PA_INVALID_INDEX) {
+                    const auto name = QString::fromUtf8(info->name);
+                    self.pendingDevices.append({{deviceId(AudioSourceType::SystemAudio, name),
+                        QString::fromUtf8(info->description ? info->description : info->name),
+                        AudioSourceType::SystemAudio}, QString::fromUtf8(info->monitor_source_name),
+                        info->monitor_source});
+                }
+            }, this));
+        const auto deadline = audioClockNs() + 2000000000LL;
+        while (remainingQueries && error.isEmpty() && audioClockNs() < deadline && iterate()) {}
+        if (remainingQueries && error.isEmpty())
+            error = QStringLiteral("查询 PulseAudio 音频设备超时。");
+        if (!error.isEmpty())
+            return false;
+        devices = std::move(pendingDevices);
         return true;
     }
 
-    bool iterate(int timeoutMs)
+    CaptureDevice target(const QString &id, AudioSourceType type) const
     {
-        if (pw_loop_iterate(pw_main_loop_get_loop(loop), timeoutMs) < 0 && error.isEmpty())
-            error = QStringLiteral("PipeWire 音频事件循环失败。");
-        return error.isEmpty();
+        const bool followDefault = id == defaultAudioDeviceId(type);
+        const auto desiredId = followDefault
+            ? deviceId(type, type == AudioSourceType::Microphone ? defaultSource : defaultSink) : id;
+        for (const auto &entry : devices)
+            if (entry.device.type == type && entry.device.id == desiredId)
+                return entry;
+        return {};
     }
 
-    bool roundtrip()
-    {
-        synced = false;
-        syncSequence = pw_core_sync(core, PW_ID_CORE, syncSequence);
-        const auto deadline = audioClockNs() + 2000000000LL;
-        while (!synced && error.isEmpty() && audioClockNs() < deadline)
-            iterate(20);
-        if (!synced && error.isEmpty())
-            error = QStringLiteral("查询 PipeWire 音频设备超时。");
-        return error.isEmpty();
-    }
-
-    uint32_t target(const QString &deviceId, AudioSourceType type) const
-    {
-        const bool followDefault = deviceId == defaultAudioDeviceId(type);
-        const auto defaultName = type == AudioSourceType::Microphone ? defaultSource : defaultSink;
-        for (auto it = nodes.cbegin(); it != nodes.cend(); ++it) {
-            if (it->type == type && (followDefault ? it->name == defaultName
-                                                  : nodeDeviceId(type, it->name) == deviceId))
-                return it.key();
-        }
-        return PW_ID_ANY;
-    }
-
-    bool startStream(uint32_t targetId, AudioPacketQueue *destination)
+    void startStream(const CaptureDevice &device, AudioPacketQueue *destination)
     {
         queue = destination;
         streamError.clear();
-        const auto node = nodes.value(targetId);
-        const auto targetName = node.name.toUtf8();
-        // PipeWire 0.3.48 media-session still routes streams via node.target.
-        const auto legacyTarget = QByteArray::number(targetId);
-        auto *props = pw_properties_new(PW_KEY_MEDIA_TYPE, "Audio",
-            PW_KEY_MEDIA_CATEGORY, "Capture", PW_KEY_MEDIA_ROLE, "Production",
-            PW_KEY_TARGET_OBJECT, targetName.constData(),
-            PW_KEY_NODE_TARGET, legacyTarget.constData(),
-            PW_KEY_NODE_DONT_RECONNECT, "true", "node.dont-fallback", "true",
-            "node.dont-move", "true", "state.restore-props", "false",
-            PW_KEY_NODE_LATENCY, "480/48000",
-            PW_KEY_NODE_WANT_DRIVER, "true",
-            PW_KEY_STREAM_CAPTURE_SINK, node.type == AudioSourceType::SystemAudio ? "true" : "false",
-            nullptr);
-        stream = pw_stream_new(core, "OpenLive audio capture", props);
+        const pa_sample_spec format{PA_SAMPLE_FLOAT32NE, AudioFormat::rate, AudioFormat::channels};
+        pa_channel_map channels;
+        pa_channel_map_init_stereo(&channels);
+        stream = pa_stream_new(context, "OpenLive audio capture", &format, &channels);
         if (!stream) {
-            streamError = QStringLiteral("无法创建 PipeWire 音频流。");
-            return false;
+            streamError = message(QStringLiteral("无法创建音频采集流"));
+            return;
         }
-        streamEvents = {};
-        streamEvents.version = PW_VERSION_STREAM_EVENTS;
-        streamEvents.state_changed = [](void *data, pw_stream_state, pw_stream_state state,
-                                        const char *message) {
+        pa_stream_set_state_callback(stream, [](pa_stream *stream, void *data) {
             auto &self = *static_cast<AudioSession *>(data);
-            self.streamState = state;
-            if (state == PW_STREAM_STATE_ERROR || state == PW_STREAM_STATE_UNCONNECTED)
-                self.streamError = QStringLiteral("音频设备已断开：%1").arg(
-                    QString::fromUtf8(message ? message : ""));
-        };
-        streamEvents.param_changed = [](void *data, uint32_t id, const spa_pod *param) {
+            const auto state = pa_stream_get_state(stream);
+            if (state == PA_STREAM_FAILED || state == PA_STREAM_TERMINATED)
+                self.streamError = self.message(QStringLiteral("音频设备采集已断开"));
+        }, this);
+        pa_stream_set_read_callback(stream, [](pa_stream *, size_t, void *data) {
+            static_cast<AudioSession *>(data)->read();
+        }, this);
+        pa_stream_set_overflow_callback(stream, [](pa_stream *, void *data) {
             auto &self = *static_cast<AudioSession *>(data);
-            if (id != SPA_PARAM_Format || !param)
-                return;
-            spa_audio_info_raw format{};
-            self.formatReady = spa_format_audio_raw_parse(param, &format) >= 0 &&
-                format.format == SPA_AUDIO_FORMAT_F32 && format.rate == AudioFormat::rate &&
-                format.channels == AudioFormat::channels;
-            if (!self.formatReady)
-                self.streamError = QStringLiteral("PipeWire 未提供 48 kHz 双声道浮点音频。");
-        };
-        streamEvents.process = [](void *data) { static_cast<AudioSession *>(data)->process(); };
-        pw_stream_add_listener(stream, &streamListener, &streamEvents, this);
-        uint8_t storage[512];
-        spa_pod_builder builder = SPA_POD_BUILDER_INIT(storage, sizeof(storage));
-        spa_audio_info_raw format{};
-        format.format = SPA_AUDIO_FORMAT_F32;
-        format.rate = AudioFormat::rate;
-        format.channels = AudioFormat::channels;
-        format.position[0] = SPA_AUDIO_CHANNEL_FL;
-        format.position[1] = SPA_AUDIO_CHANNEL_FR;
-        const spa_pod *params[]{spa_format_audio_raw_build(&builder, SPA_PARAM_EnumFormat, &format)};
-        const int result = pw_stream_connect(stream, PW_DIRECTION_INPUT, PW_ID_ANY,
-            pw_stream_flags(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS), params, 1);
-        if (result < 0)
-            streamError = QStringLiteral("无法启动音频采集：%1").arg(
-                QString::fromLocal8Bit(strerror(-result)));
-        return streamError.isEmpty();
+            self.queue->clear();
+            self.nextTimestamp = 0;
+        }, this);
+        pa_buffer_attr buffer{};
+        buffer.maxlength = uint32_t(pa_usec_to_bytes(100000, &format));
+        buffer.fragsize = uint32_t(pa_usec_to_bytes(10000, &format));
+        buffer.tlength = buffer.prebuf = buffer.minreq = uint32_t(-1);
+        const auto sourceName = device.sourceName.toUtf8();
+        // Resolve defaults ourselves; fixed devices must never follow server fallback policy.
+        if (pa_stream_connect_record(stream, sourceName.constData(), &buffer,
+                pa_stream_flags_t(PA_STREAM_ADJUST_LATENCY | PA_STREAM_AUTO_TIMING_UPDATE |
+                                  PA_STREAM_INTERPOLATE_TIMING | PA_STREAM_DONT_MOVE)) < 0)
+            streamError = message(QStringLiteral("无法启动音频采集"));
     }
 
     void closeStream()
     {
         if (stream) {
-            spa_hook_remove(&streamListener);
-            pw_stream_destroy(stream);
+            pa_stream_set_state_callback(stream, nullptr, nullptr);
+            pa_stream_set_read_callback(stream, nullptr, nullptr);
+            pa_stream_set_overflow_callback(stream, nullptr, nullptr);
+            pa_stream_disconnect(stream);
+            pa_stream_unref(stream);
             stream = nullptr;
         }
-        streamState = PW_STREAM_STATE_UNCONNECTED;
-        formatReady = false;
-        nextTimestamp = 0;
-        lastPacketNs = 0;
+        nextTimestamp = lastPacketNs = 0;
         if (queue)
             queue->clear();
     }
 
+    QList<CaptureDevice> devices;
     QString error, streamError;
-    QMap<uint32_t, AudioNode> nodes;
-    pw_stream *stream = nullptr;
-    pw_stream_state streamState = PW_STREAM_STATE_UNCONNECTED;
+    pa_stream *stream = nullptr;
+    bool catalogDirty = true;
     qint64 lastPacketNs = 0;
 
 private:
-    void process()
+    QString message(const QString &operation) const
     {
-        while (auto *buffer = pw_stream_dequeue_buffer(stream)) {
-            const auto recycle = qScopeGuard([&] { pw_stream_queue_buffer(stream, buffer); });
-            const auto *buf = buffer->buffer;
-            if (!formatReady || !buf || buf->n_datas != 1)
-                continue;
-            const auto &data = buf->datas[0];
-            if (!data.data || !data.chunk || !data.maxsize ||
-                (data.chunk->flags & SPA_CHUNK_FLAG_CORRUPTED))
-                continue;
-            constexpr uint32_t frameBytes = sizeof(float) * AudioFormat::channels;
-            const auto size = data.chunk->size;
-            if (!size)
-                continue;
-            if (size > data.maxsize || size % frameBytes ||
-                size / frameBytes > uint32_t(AudioPacketQueue::maxFrames) ||
-                (data.chunk->stride != 0 && data.chunk->stride != int32_t(frameBytes))) {
-                streamError = QStringLiteral("PipeWire 返回了无效的音频缓冲。");
+        return operation + QStringLiteral("：%1").arg(
+            QString::fromUtf8(pa_strerror(pa_context_errno(context))));
+    }
+
+    void fail(const QString &operation) { error = message(operation); }
+
+    void releaseOperation(pa_operation *operation)
+    {
+        if (operation)
+            pa_operation_unref(operation);
+        else
+            fail(QStringLiteral("无法查询或订阅 PulseAudio 设备"));
+    }
+
+    void read()
+    {
+        while (true) {
+            const void *data = nullptr;
+            size_t bytes = 0;
+            if (pa_stream_peek(stream, &data, &bytes) < 0) {
+                streamError = message(QStringLiteral("无法读取音频采样"));
                 return;
             }
-            const auto *header = static_cast<const spa_meta_header *>(
-                spa_buffer_find_meta_data(buf, SPA_META_Header, sizeof(spa_meta_header)));
-            if (header && (header->flags & SPA_META_HEADER_FLAG_CORRUPTED))
-                continue;
-            const auto duration = AudioFormat::framesToNs(size / frameBytes);
+            if (!bytes)
+                return;
+            const auto drop = qScopeGuard([&] {
+                if (pa_stream_drop(stream) < 0)
+                    streamError = message(QStringLiteral("无法归还音频缓冲"));
+            });
+            constexpr size_t frameBytes = sizeof(float) * AudioFormat::channels;
+            if (bytes % frameBytes || bytes / frameBytes > size_t(AudioPacketQueue::maxFrames)) {
+                streamError = QStringLiteral("PulseAudio 返回了无效的音频缓冲。");
+                return;
+            }
             const auto now = audioClockNs();
             lastPacketNs = now;
+            const auto duration = AudioFormat::framesToNs(qint64(bytes / frameBytes));
             qint64 timestamp = now - duration;
-            pw_time time{};
-            if (pw_stream_get_time(stream, &time) >= 0 && time.now > 0 && time.rate.denom) {
-                // PipeWire's graph clock uses CLOCK_MONOTONIC, like MediaClock.
-                timestamp = time.now - qint64(double(time.delay) * time.rate.num *
-                    1000000000.0 / time.rate.denom) -
-                    AudioFormat::framesToNs(qint64(time.queued)) - duration;
-            }
-            if (header && header->pts > now - 1000000000LL && header->pts <= now)
-                timestamp = header->pts;
-            if (timestamp < now - 1000000000LL || timestamp > now)
-                timestamp = now - duration;
-            if (!nextTimestamp || std::abs(timestamp - nextTimestamp) > 50000000LL ||
-                (header && (header->flags & SPA_META_HEADER_FLAG_DISCONT))) {
+            pa_usec_t latency = 0;
+            int negative = 0;
+            // A sink monitor can report negative latency for audio queued for playback.
+            // Anchor that available audio to arrival time instead of publishing far ahead.
+            if (pa_stream_get_latency(stream, &latency, &negative) >= 0 && !negative &&
+                latency <= 1000000)
+                timestamp = now - qint64(latency) * 1000;
+            if (!nextTimestamp || std::abs(timestamp - nextTimestamp) > 50000000LL) {
                 queue->clear();
                 nextTimestamp = timestamp;
             }
             AudioBlock block;
             block.timestampNs = nextTimestamp;
-            block.samples.resize(size / sizeof(float));
-            const auto offset = data.chunk->offset % data.maxsize;
-            const auto first = std::min(size, data.maxsize - offset);
-            const auto *bytes = static_cast<const uint8_t *>(data.data);
-            memcpy(block.samples.data(), bytes + offset, first);
-            if (first < size)
-                memcpy(reinterpret_cast<uint8_t *>(block.samples.data()) + first, bytes, size - first);
+            block.samples.fill(0, qsizetype(bytes / sizeof(float)));
+            // A PulseAudio hole has a nonzero length and null data: publish silence.
+            if (data)
+                memcpy(block.samples.data(), data, bytes);
             for (auto &sample : block.samples)
                 if (!std::isfinite(sample))
                     sample = 0;
@@ -333,20 +274,11 @@ private:
         }
     }
 
-    pw_main_loop *loop = nullptr;
-    pw_context *context = nullptr;
-    pw_core *core = nullptr;
-    pw_registry *registry = nullptr;
-    pw_metadata *metadata = nullptr;
-    uint32_t metadataId = PW_ID_ANY;
-    spa_hook coreListener{}, registryListener{}, metadataListener{}, streamListener{};
-    pw_core_events coreEvents{};
-    pw_registry_events registryEvents{};
-    pw_metadata_events metadataEvents{};
-    pw_stream_events streamEvents{};
-    int syncSequence = 0;
-    bool synced = false, formatReady = false;
+    pa_mainloop *loop = nullptr;
+    pa_context *context = nullptr;
+    QList<CaptureDevice> pendingDevices;
     QString defaultSource, defaultSink;
+    int remainingQueries = 0;
     AudioPacketQueue *queue = nullptr;
     qint64 nextTimestamp = 0;
 };
@@ -354,27 +286,30 @@ private:
 
 QString defaultAudioDeviceId(AudioSourceType type)
 {
-    return QStringLiteral("pipewire:default:%1").arg(toString(type));
+    return QStringLiteral("pulse:default:%1").arg(toString(type));
 }
 
 QList<AudioDevice> audioDevices(QString *error)
 {
     AudioSession session;
-    // The second roundtrip includes the default metadata bound during the first.
-    if (!session.open() || !session.roundtrip() || !session.roundtrip()) {
+    if (!session.open()) {
         if (error)
             *error = session.error;
         return {};
     }
+    QList<AudioDevice> result;
+    for (const auto type : {AudioSourceType::Microphone, AudioSourceType::SystemAudio}) {
+        if (std::any_of(session.devices.cbegin(), session.devices.cend(), [=](const auto &entry) {
+                return entry.device.type == type;
+            }))
+            result.append({defaultAudioDeviceId(type), type == AudioSourceType::Microphone
+                ? QStringLiteral("跟随系统默认输入设备") : QStringLiteral("跟随系统默认输出设备"), type});
+    }
+    for (const auto &entry : session.devices)
+        result.append(entry.device);
     if (error)
-        error->clear();
-    QList<AudioDevice> result{
-        {defaultAudioDeviceId(AudioSourceType::Microphone),
-         QStringLiteral("跟随系统默认输入设备"), AudioSourceType::Microphone},
-        {defaultAudioDeviceId(AudioSourceType::SystemAudio),
-         QStringLiteral("跟随系统默认输出设备"), AudioSourceType::SystemAudio}};
-    for (const auto &node : session.nodes)
-        result.append({nodeDeviceId(node.type, node.name), node.description, node.type});
+        *error = result.isEmpty() ? QStringLiteral("PulseAudio 未发现可用的音频输入或输出设备。")
+                                 : QString();
     return result;
 }
 
@@ -391,10 +326,7 @@ AudioCaptureWorker::~AudioCaptureWorker()
     wait();
 }
 
-void AudioCaptureWorker::stop()
-{
-    requestInterruption();
-}
+void AudioCaptureWorker::stop() { requestInterruption(); }
 
 AudioCaptureWorker::Status AudioCaptureWorker::status() const
 {
@@ -414,21 +346,26 @@ void AudioCaptureWorker::run()
         {
             AudioSession session;
             if (session.open()) {
-                uint32_t activeTarget = PW_ID_ANY;
+                uint32_t activeIndex = PA_INVALID_INDEX;
+                QString activeName;
                 qint64 retryAt = 0, connectingSince = 0;
-                while (!isInterruptionRequested() && session.iterate(20)) {
+                while (!isInterruptionRequested() && session.iterate()) {
+                    if (session.catalogDirty && !session.refresh())
+                        break;
                     const auto now = audioClockNs();
                     const auto target = session.target(m_deviceId, m_type);
                     const bool forcedFailure =
                         qEnvironmentVariable("OPENLIVE_FORCE_AUDIO_DEVICE_FAILURE") == m_deviceId;
-                    if (target != activeTarget || target == PW_ID_ANY || forcedFailure) {
+                    if (target.sourceIndex != activeIndex || target.sourceName != activeName ||
+                        target.sourceIndex == PA_INVALID_INDEX || forcedFailure) {
                         session.closeStream();
-                        if (target != activeTarget)
+                        if (target.sourceIndex != activeIndex || target.sourceName != activeName)
                             retryAt = 0;
-                        activeTarget = target;
-                        if (target == PW_ID_ANY || forcedFailure) {
+                        activeIndex = target.sourceIndex;
+                        activeName = target.sourceName;
+                        if (target.sourceIndex == PA_INVALID_INDEX || forcedFailure) {
                             setStatus("error", forcedFailure ? QStringLiteral("音频设备测试故障。")
-                                : QStringLiteral("音频设备不可用，正在等待设备恢复。"));
+                                : QStringLiteral("PulseAudio 中未找到所选音频设备，正在等待设备恢复。"));
                             continue;
                         }
                         setStatus("starting");
@@ -437,13 +374,11 @@ void AudioCaptureWorker::run()
                         session.startStream(target, m_queue.get());
                         connectingSince = now;
                     }
-                    if (session.streamState == PW_STREAM_STATE_STREAMING)
+                    if (session.stream && pa_stream_get_state(session.stream) == PA_STREAM_READY)
                         setStatus("capturing");
                     else if (session.stream && now - connectingSince > 5000000000LL &&
                              session.streamError.isEmpty())
                         session.streamError = QStringLiteral("等待音频设备连接超时，将自动重试。");
-                    // A live microphone produces PCM even in silence. STREAMING alone
-                    // does not prove the graph is still delivering data after hotplug.
                     if (session.stream && m_type == AudioSourceType::Microphone &&
                         now - std::max(connectingSince, session.lastPacketNs) > 3000000000LL &&
                         session.streamError.isEmpty())

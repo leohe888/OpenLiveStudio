@@ -3,9 +3,6 @@
 #include <QDataStream>
 #include <QDir>
 #include <QFile>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QProcess>
 #include <QScopeGuard>
 #include <QStandardPaths>
@@ -15,11 +12,12 @@
 #include <cstring>
 
 // An isolated daemon with generated audio: never enumerates or records host devices.
-class PipeWireTest : public QObject
+class PulseAudioTest : public QObject
 {
     Q_OBJECT
     QTemporaryDir directory;
-    QProcess daemon, policy, playback;
+    QProcess daemon, playback, micPlaybackA, micPlaybackB;
+    bool lastCommandSucceeded = false;
     QMap<QByteArray, QByteArray> previousEnvironment;
     bool configured = false;
 
@@ -38,57 +36,61 @@ class PipeWireTest : public QObject
     {
         QProcess process;
         process.start(program, arguments);
-        if (!process.waitForFinished(3000) || process.exitCode())
-            return {};
-        return process.readAllStandardOutput();
+        lastCommandSucceeded = process.waitForFinished(3000) && process.exitCode() == 0;
+        if (!lastCommandSucceeded)
+            qWarning().noquote() << program << arguments << process.readAllStandardError();
+        return lastCommandSucceeded ? process.readAllStandardOutput() : QByteArray{};
     }
 
     bool setDefault(AudioSourceType type, const QString &name)
     {
-        const auto key = type == AudioSourceType::Microphone ? "default.audio.source"
-                                                           : "default.audio.sink";
-        return !command("pw-metadata", {"-n", "default", "0", key,
-            QString::fromUtf8(QJsonDocument(QJsonObject{{"name", name}})
-                                  .toJson(QJsonDocument::Compact)), "Spa:String:JSON"}).isEmpty();
+        command("pactl", {type == AudioSourceType::Microphone ? "set-default-source"
+                                                            : "set-default-sink", name});
+        return lastCommandSucceeded;
     }
 
-    int nodeId(const QString &name)
+    int moduleId(const QString &name)
     {
-        for (const auto &value : QJsonDocument::fromJson(command("pw-dump", {})).array()) {
-            const auto object = value.toObject();
-            const auto props = object["info"].toObject()["props"].toObject();
-            if (props["node.name"].toString() == name)
-                return object["id"].toInt(-1);
+        for (const auto &line : command("pactl", {"list", "short", "modules"}).split('\n')) {
+            const auto fields = line.split('\t');
+            if (fields.size() < 3)
+                continue;
+            const auto args = fields[2].split(' ');
+            if (args.contains("source_name=" + name.toUtf8()) ||
+                args.contains("sink_name=" + name.toUtf8()))
+                return fields[0].toInt();
         }
         return -1;
     }
 
     bool startServer()
     {
-        daemon.start("pipewire", {"-c", directory.filePath("pipewire.conf")});
+        daemon.start("pulseaudio", {"-n", "--daemonize=no", "--use-pid-file=no",
+            "--exit-idle-time=-1", "--log-target=stderr", "--file=" + directory.filePath("pulse.pa")});
         if (!daemon.waitForStarted(2000))
             return false;
         const auto deadline = audioClockNs() + 3000000000LL;
-        while (!QFile::exists(directory.filePath("openlive-test")) && audioClockNs() < deadline)
+        while (!QFile::exists(directory.filePath("native")) && audioClockNs() < deadline)
             QTest::qWait(20);
-        if (!QFile::exists(directory.filePath("openlive-test"))) {
+        if (!QFile::exists(directory.filePath("native"))) {
             qWarning().noquote() << daemon.readAllStandardError();
             return false;
         }
-        policy.start("pipewire-media-session", QStringList{});
-        if (!policy.waitForStarted(2000))
+        const bool ready = setDefault(AudioSourceType::Microphone, "test-mic-a") &&
+                           setDefault(AudioSourceType::SystemAudio, "test-sink-a");
+        if (!ready) {
+            daemon.waitForReadyRead(200);
+            qWarning().noquote() << daemon.readAllStandardError();
+        }
+        if (!ready)
             return false;
-        QTest::qWait(150);
-        return setDefault(AudioSourceType::Microphone, "test-mic-a") &&
-               setDefault(AudioSourceType::SystemAudio, "test-sink-a");
+        micPlaybackA.start("paplay", {"--device=test-mic-carrier-a", directory.filePath("tone.wav")});
+        micPlaybackB.start("paplay", {"--device=test-mic-carrier-b", directory.filePath("tone.wav")});
+        return micPlaybackA.waitForStarted(2000) && micPlaybackB.waitForStarted(2000);
     }
 
-    bool playTone(const QString &name)
+    bool makeToneFile()
     {
-        stopProcess(playback);
-        const auto id = nodeId(name);
-        if (id < 0)
-            return false;
         QFile wave(directory.filePath("tone.wav"));
         if (!wave.open(QIODevice::WriteOnly))
             return false;
@@ -108,7 +110,13 @@ class PipeWireTest : public QObject
             output << .15f * tone << .3f * tone;
         }
         wave.close();
-        playback.start("pw-cat", {"--playback", "--target", QString::number(id), wave.fileName()});
+        return output.status() == QDataStream::Ok;
+    }
+
+    bool playTone(const QString &name)
+    {
+        stopProcess(playback);
+        playback.start("paplay", {"--device=" + name, directory.filePath("tone.wav")});
         return playback.waitForStarted(2000);
     }
 
@@ -150,70 +158,29 @@ class PipeWireTest : public QObject
 private slots:
     void initTestCase()
     {
-        for (const char *program : {"pipewire", "pipewire-media-session", "pw-metadata",
-                                    "pw-cli", "pw-dump", "pw-cat"})
+        for (const char *program : {"pulseaudio", "pactl", "paplay"})
             if (QStandardPaths::findExecutable(program).isEmpty())
-                QSKIP("Isolated integration requires PipeWire tools and pipewire-media-session");
+                QSKIP("Isolated integration requires PulseAudio and pulseaudio-utils");
         QVERIFY(directory.isValid());
-        QFile config(directory.filePath("pipewire.conf"));
+        QFile config(directory.filePath("pulse.pa"));
         QVERIFY(config.open(QIODevice::WriteOnly));
-        // Pause idle generated sources immediately: the 0.3.48 live test source
-        // otherwise exhausts its buffers between capture clients and stops its timer.
+        config.write(("load-module module-native-protocol-unix auth-anonymous=1 socket=" +
+                      directory.filePath("native") + "\n").toUtf8());
         config.write(R"(
-context.properties = {
- core.daemon = true
- core.name = openlive-test
- support.dbus = false
- default.clock.rate = 48000
- default.clock.quantum = 480
- default.clock.min-quantum = 480
- default.clock.max-quantum = 480
-}
-context.spa-libs = {
- audio.convert.* = audioconvert/libspa-audioconvert
- support.* = support/libspa-support
- audiotestsrc = audiotestsrc/libspa-audiotestsrc
-}
-context.modules = [
- { name = libpipewire-module-protocol-native }
- { name = libpipewire-module-metadata }
- { name = libpipewire-module-spa-node-factory }
- { name = libpipewire-module-client-node }
- { name = libpipewire-module-adapter }
- { name = libpipewire-module-link-factory }
- { name = libpipewire-module-access }
-]
-context.objects = [
- { factory = metadata args = { metadata.name = default } }
- { factory = spa-node-factory args = { factory.name = support.node.driver node.name = Dummy-Driver priority.driver = 20000 } }
- { factory = adapter args = { factory.name = audiotestsrc node.name = test-mic-a node.description = MicA media.class = Audio/Source node.pause-on-idle = true node.suspend-on-idle = true audio.position = [ FL FR ] } }
- { factory = adapter args = { factory.name = audiotestsrc node.name = test-mic-b node.description = MicB media.class = Audio/Source node.pause-on-idle = true node.suspend-on-idle = true audio.position = [ FL FR ] } }
- { factory = adapter args = { factory.name = support.null-audio-sink node.name = test-sink-a node.description = SinkA media.class = Audio/Sink audio.position = [ FL FR ] } }
- { factory = adapter args = { factory.name = support.null-audio-sink node.name = test-sink-b node.description = SinkB media.class = Audio/Sink audio.position = [ FL FR ] } }
-]
+load-module module-null-sink sink_name=test-mic-carrier-a rate=44100 channels=2
+load-module module-null-sink sink_name=test-mic-carrier-b rate=48000 channels=2
+load-module module-remap-source source_name=test-mic-a master=test-mic-carrier-a.monitor
+load-module module-remap-source source_name=test-mic-b master=test-mic-carrier-b.monitor
+load-module module-null-sink sink_name=test-sink-a rate=48000 channels=2
+load-module module-null-sink sink_name=test-sink-b rate=48000 channels=2
 )");
         config.close();
-        QVERIFY(QDir().mkpath(directory.filePath("pipewire/media-session.d")));
-        QFile session(directory.filePath("pipewire/media-session.d/media-session.conf"));
-        QVERIFY(session.open(QIODevice::WriteOnly));
-        session.write(R"(
-context.properties = { support.dbus = false }
-context.modules = [
- { name = libpipewire-module-protocol-native }
- { name = libpipewire-module-client-node }
- { name = libpipewire-module-adapter }
- { name = libpipewire-module-session-manager }
- { name = libpipewire-module-metadata }
-]
-session.modules = { default = [ flatpak portal suspend-node policy-node ] }
-)");
-        session.close();
+        QVERIFY(makeToneFile());
         const QMap<QByteArray, QByteArray> environment{
             {"XDG_RUNTIME_DIR", directory.path().toUtf8()},
-            {"PIPEWIRE_RUNTIME_DIR", directory.path().toUtf8()},
-            {"PIPEWIRE_REMOTE", "openlive-test"},
-            {"XDG_CONFIG_HOME", directory.path().toUtf8()},
-            {"XDG_STATE_HOME", directory.path().toUtf8()}};
+            {"PULSE_RUNTIME_PATH", directory.path().toUtf8()},
+            {"PULSE_STATE_PATH", directory.path().toUtf8()},
+            {"PULSE_SERVER", "unix:" + directory.filePath("native").toUtf8()}};
         for (auto it = environment.cbegin(); it != environment.cend(); ++it) {
             previousEnvironment.insert(it.key(), qgetenv(it.key()));
             qputenv(it.key(), it.value());
@@ -227,7 +194,7 @@ session.modules = { default = [ flatpak portal suspend-node policy-node ] }
         QString error;
         const auto devices = audioDevices(&error);
         QVERIFY2(error.isEmpty(), qPrintable(error));
-        QCOMPARE(devices.size(), 6);
+        QCOMPARE(devices.size(), 8);
         QCOMPARE(devices[0].id, defaultAudioDeviceId(AudioSourceType::Microphone));
         QCOMPARE(devices[1].id, defaultAudioDeviceId(AudioSourceType::SystemAudio));
         auto micQueue = std::make_shared<AudioPacketQueue>();
@@ -239,7 +206,7 @@ session.modules = { default = [ flatpak portal suspend-node policy-node ] }
         QTRY_VERIFY_WITH_TIMEOUT((micPeak = std::max(micPeak, peak(micQueue))) > .01f, 3000);
 
         auto systemQueue = std::make_shared<AudioPacketQueue>();
-        AudioCaptureWorker system("pipewire:system:test-sink-a", AudioSourceType::SystemAudio,
+        AudioCaptureWorker system("pulse:system:test-sink-a", AudioSourceType::SystemAudio,
                                   systemQueue);
         system.start();
         QTRY_COMPARE_WITH_TIMEOUT(system.status().state, QString("capturing"), 5000);
@@ -274,7 +241,7 @@ session.modules = { default = [ flatpak portal suspend-node policy-node ] }
         QFETCH(QString, prefix);
         QVERIFY(setDefault(type, prefix + "a"));
         AudioSourceManager manager;
-        const auto fixedId = QString("pipewire:%1:%2a").arg(toString(type), prefix);
+        const auto fixedId = QString("pulse:%1:%2a").arg(toString(type), prefix);
         const auto fixed = manager.addSource("Fixed", type, fixedId);
         const auto follow = manager.addSource("Default", type, defaultAudioDeviceId(type));
         QVERIFY(!fixed.isEmpty() && !follow.isEmpty());
@@ -284,22 +251,24 @@ session.modules = { default = [ flatpak portal suspend-node policy-node ] }
         QVERIFY(manager.setMuted(fixed, true));
         QVERIFY(setDefault(type, prefix + "b"));
         QTest::qWait(300);
-        const auto id = nodeId(prefix + "a");
+        const auto id = moduleId(prefix + "a");
         QVERIFY(id >= 0);
-        command("pw-cli", {"destroy", QString::number(id)});
+        command("pactl", {"unload-module", QString::number(id)});
+        QVERIFY(lastCommandSucceeded);
         QTRY_COMPARE_WITH_TIMEOUT(manager.source(fixed)->state, QString("error"), 5000);
         QTest::qWait(300);
         QCOMPARE(manager.source(follow)->state, QString("capturing"));
         const auto before = manager.mixer()->latestBlock()->sequence;
         QTest::qWait(150);
         QVERIFY(manager.mixer()->latestBlock()->sequence > before);
-        const auto factory = type == AudioSourceType::Microphone ? "audiotestsrc"
-                                                               : "support.null-audio-sink";
-        const auto mediaClass = type == AudioSourceType::Microphone ? "Audio/Source" : "Audio/Sink";
-        command("pw-cli", {"create-node", "adapter", QString(
-            "{ factory.name = %1 node.name = %2a media.class = %3 audio.position = [ FL FR ] object.linger = true %4 }")
-            .arg(factory, prefix, mediaClass, type == AudioSourceType::Microphone
-                ? "node.pause-on-idle = true node.suspend-on-idle = true" : "")});
+        const auto module = type == AudioSourceType::Microphone ? "module-remap-source"
+                                                              : "module-null-sink";
+        const auto argument = type == AudioSourceType::Microphone ? "source_name=" : "sink_name=";
+        QStringList arguments{"load-module", module, argument + prefix + "a"};
+        if (type == AudioSourceType::Microphone)
+            arguments.append("master=test-mic-carrier-a.monitor");
+        command("pactl", arguments);
+        QVERIFY(lastCommandSucceeded);
         QTRY_COMPARE_WITH_TIMEOUT(manager.source(fixed)->state, QString("capturing"), 5000);
         QCOMPARE(manager.source(fixed)->deviceId, fixedId);
         QCOMPARE(manager.source(fixed)->volume, .4f);
@@ -317,7 +286,8 @@ session.modules = { default = [ flatpak portal suspend-node policy-node ] }
                                          defaultAudioDeviceId(AudioSourceType::Microphone));
         QTRY_COMPARE_WITH_TIMEOUT(manager.source(id)->state, QString("capturing"), 5000);
         stopProcess(playback);
-        stopProcess(policy);
+        stopProcess(micPlaybackA);
+        stopProcess(micPlaybackB);
         stopProcess(daemon);
         QTRY_COMPARE_WITH_TIMEOUT(manager.source(id)->state, QString("error"), 5000);
         QVERIFY(startServer());
@@ -399,15 +369,32 @@ session.modules = { default = [ flatpak portal suspend-node policy-node ] }
         QVERIFY(receiver.waitForFinished(5000));
         QCOMPARE(recordingTap->dropped(), quint64(0));
         QCOMPARE(streamingTap->dropped(), quint64(0));
+        qInfo() << "Captured microphone/system mixed energy:" << energy[0] << energy[1];
         QVERIFY(energy[0] > 1 && energy[1] > 1);
         QVERIFY(hasDecodedAudio(recorded));
         QVERIFY(hasDecodedAudio(received));
     }
 
+    void emptyCatalogDoesNotOfferPhantomDefaults()
+    {
+        stopProcess(playback);
+        for (const auto &name : {"test-mic-a", "test-mic-b", "test-sink-a", "test-sink-b",
+                                  "test-mic-carrier-a", "test-mic-carrier-b"}) {
+            const auto module = moduleId(name);
+            QVERIFY(module >= 0);
+            command("pactl", {"unload-module", QString::number(module)});
+            QVERIFY(lastCommandSucceeded);
+        }
+        QString error;
+        QVERIFY(audioDevices(&error).isEmpty());
+        QVERIFY(error.contains("未发现"));
+    }
+
     void cleanupTestCase()
     {
         stopProcess(playback);
-        stopProcess(policy);
+        stopProcess(micPlaybackA);
+        stopProcess(micPlaybackB);
         stopProcess(daemon);
         if (configured) {
             for (auto it = previousEnvironment.cbegin(); it != previousEnvironment.cend(); ++it) {
@@ -420,5 +407,5 @@ session.modules = { default = [ flatpak portal suspend-node policy-node ] }
     }
 };
 
-QTEST_GUILESS_MAIN(PipeWireTest)
-#include "tst_pipewire.moc"
+QTEST_GUILESS_MAIN(PulseAudioTest)
+#include "tst_pulseaudio.moc"
