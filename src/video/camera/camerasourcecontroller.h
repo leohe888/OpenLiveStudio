@@ -40,7 +40,7 @@ public:
         return m_deviceModes.value(deviceId);
     }
 
-    QString addCamera(const QString &name, const CameraSourceConfig &config);
+    QString addCamera(const QString &name, const QString &deviceId, const CameraMode &mode = {});
     bool retry(const QString &sourceId);
     void reportCaptureFailure(const QString &sourceId, quint64 generation, const QString &message);
     int activeWorkerCount() const;
@@ -56,7 +56,7 @@ private:
 
     struct Entry
     {
-        CameraSourceConfig config;
+        CameraSource source{{}, {}, {}};
         bool failed = false;
         qint64 retryAtNs = 0;
         quint64 generation = 0;

@@ -7,6 +7,8 @@
 #include <QHash>
 #include <QObject>
 #include <QString>
+#include <memory>
+#include <vector>
 
 class VideoSourceManager : public QObject
 {
@@ -15,12 +17,12 @@ class VideoSourceManager : public QObject
 public:
     explicit VideoSourceManager(QObject *parent = nullptr);
 
-    const QList<VideoSource> &sources() const
-    {
-        return m_sources;
-    }
+    // 只读视图；指针在来源移除后失效，不可跨信号回调持有。
+    QList<const VideoSource *> sources() const;
+    QStringList sourceIds() const;
+    const VideoSource *source(const QString &sourceId) const;
     QString suggestedSourceName(const QString &baseName) const;
-    bool addSource(const VideoSource &source);
+    bool addSource(std::unique_ptr<VideoSource> source);
     // 仅移除来源，不删除其引用的本地文件。
     bool removeSource(const QString &sourceId);
 
@@ -66,18 +68,25 @@ public:
     bool canMoveFilterDown(const QString &sourceId, const QString &filterId) const;
     bool moveFilter(const QString &sourceId, const QString &filterId, int offset);
 
-    VideoSourceRuntime sourceRuntime(const QString &sourceId) const;
-    bool setSourceRuntime(const QString &sourceId, const VideoSourceRuntime &runtime);
+    VideoSourceState sourceState(const QString &sourceId) const;
+    QString sourceError(const QString &sourceId) const;
+    QSize sourcePixelSize(const QString &sourceId) const;
+    bool updateSourceStatus(const QString &sourceId, const QSize &pixelSize, VideoSourceState state,
+                            const QString &error = {});
+    bool setSourceState(const QString &sourceId, VideoSourceState state, const QString &error = {});
+    bool setSourcePixelSize(const QString &sourceId, const QSize &pixelSize);
+    bool updateCameraCapture(const QString &sourceId, const QSize &pixelSize, int numerator,
+                             int denominator, const QString &description = {});
 
-    // 指针仅在下一次修改前有效，修改来源后必须重新查询。
-    const VideoSourceConfig *sourceConfig(const QString &sourceId) const;
-    bool setSourceConfig(const QString &sourceId, const VideoSourceConfig &config);
+    bool setCameraCaptureSettings(const QString &sourceId, const CameraSource &requested);
+    bool setDisplayCaptureCursor(const QString &sourceId, bool captureCursor);
+    bool setImageFilePath(const QString &sourceId, const QString &filePath);
 
 signals:
     // 结构变化通知用于重建列表；单个来源的变化通知用于更新已有行。
     void sourcesChanged();
     void sourceChanged(const QString &sourceId);
-    void sourceRuntimeChanged(const QString &sourceId);
+    void sourceStatusChanged(const QString &sourceId);
     void currentSourceIdChanged();
     void currentSourceMoveAvailabilityChanged();
     void sourceFiltersChanged(const QString &sourceId);
@@ -89,7 +98,8 @@ private:
     int filterRow(int sourceRow, const QString &filterId) const;
     void notifyFiltersChanged(int row);
 
-    QList<VideoSource> m_sources;
+    void notifySourceStatusChanged(const QString &sourceId, const QSize &previousPixelSize);
+    std::vector<std::unique_ptr<VideoSource>> m_sources;
     QString m_currentSourceId;
     QHash<QString, QString> m_currentFilterIds;
 };

@@ -11,7 +11,7 @@ struct AVFrame;
 class V4l2Camera
 {
 public:
-    explicit V4l2Camera(const CameraSourceConfig &config);
+    explicit V4l2Camera(const CameraSource &source);
     ~V4l2Camera();
     V4l2Camera(const V4l2Camera &) = delete;
     V4l2Camera &operator=(const V4l2Camera &) = delete;
@@ -30,7 +30,7 @@ private:
 };
 
 // 返回最接近 1080p30 的支持模式，同时考虑画幅比例而非只比较像素数。
-CameraMode preferredCameraMode(const QList<CameraMode> &modes, const CameraSourceConfig &config);
+CameraMode preferredCameraMode(const QList<CameraMode> &modes, const CameraSource &source);
 // 单平面原始缓冲的行布局和长度检查，供采集和测试共用。
 void cameraRawFrame(AVFrame *frame, const v4l2_pix_format &format, unsigned char *data, size_t size);
 #endif

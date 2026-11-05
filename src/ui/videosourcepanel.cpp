@@ -72,8 +72,8 @@ VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent)
         const auto name = manager->sourceName(sourceId);
         if (name.isNull())
             return;
-        const auto *config = manager->sourceConfig(sourceId);
-        const bool image = config && std::holds_alternative<ImageSourceConfig>(*config);
+        const auto *source = manager->source(sourceId);
+        const bool image = source && source->type() == VideoSourceType::Image;
         QListWidgetItem *item = nullptr;
         for (int row = 0; row < list->count(); ++row) {
             if (list->item(row)->data(Qt::UserRole).toString() == sourceId) {
@@ -84,15 +84,15 @@ VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent)
         if (!item)
             return;
         auto *widget = list->itemWidget(item);
-        const auto runtime = manager->sourceRuntime(sourceId);
-        const auto state = image ? VideoSourceState::Idle : runtime.state();
-        const QString error = image ? QString() : runtime.error();
+        const auto state = image ? VideoSourceState::Idle : source->state();
+        const QString error = image ? QString() : source->error();
+        const auto *camera = dynamic_cast<const CameraSource *>(source);
+        const auto description = camera ? camera->captureDescription() : QString();
         auto *text = widget->findChild<QLabel *>();
         text->setText(name + (state == VideoSourceState::Error ? tr(" · 采集失败") : QString()));
-        text->setToolTip(error.isEmpty() ? name + (runtime.cameraStatus().isEmpty()
-                                                       ? QString()
-                                                       : "\n" + runtime.cameraStatus())
-                                         : error);
+        text->setToolTip(error.isEmpty()
+                             ? name + (description.isEmpty() ? QString() : "\n" + description)
+                             : error);
         item->setData(Qt::AccessibleTextRole, name);
         item->setData(Qt::AccessibleDescriptionRole, error);
 
@@ -102,7 +102,7 @@ VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent)
                                                                    : ":/assets/icons/eye-off.svg"));
         auto *retry = widget->findChild<QPushButton *>("retryDisplayButton");
         if (retry)
-            retry->setVisible(config && std::holds_alternative<DisplaySourceConfig>(*config) &&
+            retry->setVisible(source && source->type() == VideoSourceType::DisplayCapture &&
                               state == VideoSourceState::Error);
         auto *lock = widget->findChild<QToolButton *>("sourceLockButton");
         lock->setChecked(manager->sourceLocked(sourceId));
@@ -114,7 +114,7 @@ VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent)
         QSignalBlocker block(list);
         list->clear();
         for (const auto &source : manager->sources()) {
-            const auto id = source.id();
+            const auto id = source->id();
             auto *item = new QListWidgetItem(list);
             item->setData(Qt::UserRole, id);
             item->setSizeHint(QSize(180, 34));
@@ -158,13 +158,13 @@ VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent)
         }
         empty->setVisible(manager->sources().isEmpty());
         for (const auto &source : manager->sources())
-            updateRow(source.id());
+            updateRow(source->id());
         selection();
     };
 
     connect(manager, &VideoSourceManager::sourcesChanged, this, rebuild);
     connect(manager, &VideoSourceManager::sourceChanged, this, updateRow);
-    connect(manager, &VideoSourceManager::sourceRuntimeChanged, this, updateRow);
+    connect(manager, &VideoSourceManager::sourceStatusChanged, this, updateRow);
     connect(manager, &VideoSourceManager::currentSourceIdChanged, this, selection);
     connect(manager, &VideoSourceManager::currentSourceMoveAvailabilityChanged, this, selection);
     connect(list, &QListWidget::currentRowChanged, this, [=](int row) {

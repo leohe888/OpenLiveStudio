@@ -158,28 +158,28 @@ private slots:
             if (removeOnFailure)
                 connect(&controller, &DisplaySourceController::sourceFailed, &manager,
                         [&](const QString &id, const QString &) { manager.removeSource(id); });
-            QVERIFY(manager.addSource({"screen", "Screen", DisplaySourceConfig{}}));
+            QVERIFY(manager.addSource(std::make_unique<DisplaySource>("screen", "Screen", true)));
             QTRY_COMPARE(failures.count(), 1);
             QTRY_COMPARE(controller.activeWorkerCount(), 0);
             if (removeOnFailure) {
                 QVERIFY(manager.sources().isEmpty());
                 QVERIFY(!controller.retry("screen"));
             } else {
-                QCOMPARE(manager.sourceRuntime("screen").state(), VideoSourceState::Error);
+                QCOMPARE(manager.sourceState("screen"), VideoSourceState::Error);
                 QTest::qWait(150);
                 QCOMPARE(portal.methods.count("Start"), 1);
                 QVERIFY(manager.setSourceVisible("screen", false));
                 QVERIFY(controller.retry("screen"));
-                QCOMPARE(manager.sourceRuntime("screen").state(), VideoSourceState::Paused);
+                QCOMPARE(manager.sourceState("screen"), VideoSourceState::Paused);
                 QCOMPARE(controller.activeWorkerCount(), 0);
                 QVERIFY(manager.setSourceVisible("screen", true));
                 QTRY_COMPARE(failures.count(), 2);
                 QCOMPARE(portal.methods.count("Start"), 2);
-                const auto transform = manager.sources()[0].transform();
-                QVERIFY(manager.setSourceConfig("screen", DisplaySourceConfig{false}));
+                const auto transform = manager.sources()[0]->transform();
+                QVERIFY(manager.setDisplayCaptureCursor("screen", false));
                 QTRY_COMPARE(failures.count(), 3);
                 QCOMPARE(portal.selection.value("cursor_mode").toUInt(), 1u);
-                QCOMPARE(manager.sources()[0].transform(), transform);
+                QCOMPARE(manager.sources()[0]->transform(), transform);
                 QVERIFY(manager.removeSource("screen"));
                 QTRY_COMPARE(controller.activeWorkerCount(), 0);
             }

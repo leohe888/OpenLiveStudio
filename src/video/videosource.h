@@ -6,7 +6,6 @@
 
 #include <QSize>
 #include <QString>
-#include <variant>
 
 enum class VideoSourceType {
     DisplayCapture,
@@ -24,111 +23,14 @@ enum class VideoSourceState {
     Error
 };
 
-class DisplaySourceConfig
-{
-public:
-    DisplaySourceConfig() = default;
-    explicit DisplaySourceConfig(bool captureCursor);
-    bool captureCursor() const;
-    void setCaptureCursor(bool captureCursor);
-
-private:
-    bool m_captureCursor = true;
-};
-
-class CameraSourceConfig
-{
-public:
-    CameraSourceConfig();
-    CameraSourceConfig(const QString &deviceId);
-    CameraSourceConfig(const QString &deviceId, const QSize &resolution, int frameRateNumerator,
-                       int frameRateDenominator);
-
-    const QString &deviceId() const;
-    void setDeviceId(const QString &deviceId);
-    // 空分辨率和零帧率表示采用设备默认模式，不代表配置无效。
-    const QSize &resolution() const;
-    void setResolution(const QSize &resolution);
-    int frameRateNumerator() const;
-    void setFrameRateNumerator(int frameRateNumerator);
-    int frameRateDenominator() const;
-    void setFrameRateDenominator(int frameRateDenominator);
-
-    const QString &pixelFormat() const;
-    void setPixelFormat(const QString &format);
-
-    bool isValid() const;
-    bool operator==(const CameraSourceConfig &other) const;
-    bool operator!=(const CameraSourceConfig &other) const;
-
-private:
-    QString m_deviceId;
-    QString m_pixelFormat; // 空字符串为自动；raw 使用 FFmpeg 像素格式名，压缩输入使用编码名。
-    QSize m_resolution;
-    int m_frameRateNumerator = 0;
-    int m_frameRateDenominator = 1;
-};
-
-class ImageSourceConfig
-{
-public:
-    ImageSourceConfig();
-    ImageSourceConfig(const QString &filePath);
-
-    const QString &filePath() const;
-    void setFilePath(const QString &filePath);
-
-private:
-    QString m_filePath;
-};
-
-// 来源类型由配置的 variant 分支决定，避免另存一份类型字段后出现不一致。
-using VideoSourceConfig = std::variant<DisplaySourceConfig, CameraSourceConfig, ImageSourceConfig>;
-
-class VideoSourceRuntime
-{
-public:
-    VideoSourceRuntime();
-    VideoSourceRuntime(const QSize &pixelSize, VideoSourceState state, const QString &error);
-    VideoSourceRuntime(const QSize &pixelSize, VideoSourceState state, const QString &error,
-                       int actualFrameRateNumerator, int actualFrameRateDenominator);
-
-    const QSize &pixelSize() const;
-    void setPixelSize(const QSize &pixelSize);
-    VideoSourceState state() const;
-    void setState(VideoSourceState state);
-    const QString &error() const;
-    void setError(const QString &error);
-    // 摄像头实际采集格式、解码路径和色彩推定信息。
-    const QString &cameraStatus() const;
-    void setCameraStatus(const QString &status);
-    // 仅摄像头来源提供实际帧率。
-    int actualFrameRateNumerator() const;
-    void setActualFrameRateNumerator(int actualFrameRateNumerator);
-    int actualFrameRateDenominator() const;
-    void setActualFrameRateDenominator(int actualFrameRateDenominator);
-
-private:
-    QSize m_pixelSize;
-    VideoSourceState m_state = VideoSourceState::Idle;
-    QString m_error;
-    QString m_cameraStatus;
-    int m_actualFrameRateNumerator = 0;
-    int m_actualFrameRateDenominator = 1;
-};
-
+// 来源是模型对象，采集设备、线程与帧仍由控制器持有。
 class VideoSource
 {
 public:
-    VideoSource();
-    VideoSource(const QString &id, const QString &name);
-    VideoSource(const QString &id, const QString &name, const VideoSourceConfig &config);
-    VideoSource(const QString &id, const QString &name, bool visible, bool locked,
-                const VideoSourceTransform &transform, const QList<VideoSourceFilter> &filters,
-                const VideoSourceRuntime &runtime, const VideoSourceConfig &config);
+    virtual ~VideoSource() = default;
+    virtual VideoSourceType type() const = 0;
 
     const QString &id() const;
-    void setId(const QString &id);
     const QString &name() const;
     void setName(const QString &name);
     bool visible() const;
@@ -139,12 +41,15 @@ public:
     void setTransform(const VideoSourceTransform &transform);
     const QList<VideoSourceFilter> &filters() const;
     void setFilters(const QList<VideoSourceFilter> &filters);
-    const VideoSourceRuntime &runtime() const;
-    void setRuntime(const VideoSourceRuntime &runtime);
-    const VideoSourceConfig &config() const;
-    void setConfig(const VideoSourceConfig &config);
 
-    VideoSourceType type() const;
+    QSize pixelSize() const;
+    VideoSourceState state() const;
+    const QString &error() const;
+    // 状态及错误作为同一次更新发布，不暴露独立的状态/错误 setter。
+    void updateStatus(const QSize &pixelSize, VideoSourceState state, const QString &error = {});
+
+protected:
+    VideoSource(const QString &id, const QString &name);
 
 private:
     QString m_id;
@@ -153,8 +58,73 @@ private:
     bool m_locked = false;
     VideoSourceTransform m_transform;
     QList<VideoSourceFilter> m_filters;
-    VideoSourceRuntime m_runtime;
-    VideoSourceConfig m_config = DisplaySourceConfig{};
+    QSize m_pixelSize;
+    VideoSourceState m_state = VideoSourceState::Idle;
+    QString m_error;
+};
+
+class DisplaySource final : public VideoSource
+{
+public:
+    DisplaySource(const QString &id, const QString &name, bool captureCursor = true);
+    VideoSourceType type() const override;
+    bool captureCursor() const;
+    void setCaptureCursor(bool captureCursor);
+
+private:
+    bool m_captureCursor = true;
+};
+
+class CameraSource final : public VideoSource
+{
+public:
+    CameraSource(const QString &id, const QString &name, const QString &deviceId,
+                 const QSize &resolution = {}, int frameRateNumerator = 0,
+                 int frameRateDenominator = 1, const QString &pixelFormat = {});
+    VideoSourceType type() const override;
+
+    const QString &deviceId() const;
+    void setDeviceId(const QString &deviceId);
+    const QString &pixelFormat() const;
+    void setPixelFormat(const QString &format);
+    // 空分辨率与零帧率表示自动选择设备模式。
+    const QSize &resolution() const;
+    void setResolution(const QSize &resolution);
+    int frameRateNumerator() const;
+    void setFrameRateNumerator(int numerator);
+    int frameRateDenominator() const;
+    void setFrameRateDenominator(int denominator);
+    bool hasValidCaptureSettings() const;
+    bool hasSameCaptureSettings(const CameraSource &other) const;
+    void copyCaptureSettings(const CameraSource &other);
+
+    int negotiatedFrameRateNumerator() const;
+    int negotiatedFrameRateDenominator() const;
+    const QString &captureDescription() const;
+    void updateCapture(const QSize &pixelSize, int numerator, int denominator,
+                       const QString &description = {});
+
+private:
+    QString m_deviceId;
+    QString m_pixelFormat;
+    QSize m_resolution;
+    int m_frameRateNumerator = 0;
+    int m_frameRateDenominator = 1;
+    int m_negotiatedFrameRateNumerator = 0;
+    int m_negotiatedFrameRateDenominator = 1;
+    QString m_captureDescription;
+};
+
+class ImageSource final : public VideoSource
+{
+public:
+    ImageSource(const QString &id, const QString &name, const QString &filePath);
+    VideoSourceType type() const override;
+    const QString &filePath() const;
+    void setFilePath(const QString &filePath);
+
+private:
+    QString m_filePath;
 };
 
 #endif

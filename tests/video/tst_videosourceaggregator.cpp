@@ -6,11 +6,11 @@
 #include <QtTest/QTest>
 
 namespace {
-QList<VideoSource> mixedSources()
+QList<SourceFixture> mixedSources()
 {
-    return {{"camera", "Camera", CameraSourceConfig{"device"}},
-            {"image", "Image", ImageSourceConfig{"image.png"}},
-            {"display", "Display", DisplaySourceConfig{}}};
+    return {{"camera", "Camera", cameraRequest("device")},
+            {"image", "Image", "image.png"},
+            {"display", "Display", true}};
 }
 
 QImage image(Qt::GlobalColor color)
@@ -54,7 +54,7 @@ void VideoSourceAggregatorTest::publishesInitialAndPendingSnapshots()
     QTRY_COMPARE(changes.count(), 1);
     QVERIFY(output.isEmpty());
 
-    QVERIFY(model.addSource({"image", "Image", ImageSourceConfig{"pending.png"}}));
+    QVERIFY(addSource(model, {"image", "Image", "pending.png"}));
     aggregator.setImageSources({RenderSourceSnapshot{"image", {}}});
     QTRY_COMPARE(output.size(), 1);
     QVERIFY(!output[0].hasFrame()); // 尚未出帧或加载失败的来源也应保留在快照中。
@@ -130,8 +130,7 @@ void VideoSourceAggregatorTest::replacesOnlyTheUpdatedType()
 void VideoSourceAggregatorTest::usesModelPropertiesWithoutNewFrames()
 {
     VideoSourceManager model;
-    QVERIFY(addSources(model, {{"image", "Image",
-          ImageSourceConfig{"image.png"}}}));
+    QVERIFY(addSources(model, {{"image", "Image", "image.png"}}));
     setSourcePixelSize(model, "image", {40, 20});
     VideoSourceAggregator aggregator(model);
     QList<RenderSourceSnapshot> output;

@@ -56,11 +56,13 @@ void VideoSourceAggregator::publishRenderSources()
 {
     QList<RenderSourceSnapshot> result;
     QSet<QString> retainedSourceIds;
-    const auto sourceEntries = m_sourceManager.sources();
-    for (const auto &item : sourceEntries) {
-        const auto id = item.id();
+    const auto sourceIds = m_sourceManager.sourceIds();
+    for (const auto &id : sourceIds) {
+        const auto *item = m_sourceManager.source(id);
+        if (!item)
+            continue;
         retainedSourceIds.insert(id);
-        const auto type = item.type();
+        const auto type = item->type();
         const Snapshot *snapshot = nullptr;
         if (type == VideoSourceType::Image)
             snapshot = &m_imageSources;
@@ -75,10 +77,10 @@ void VideoSourceAggregator::publishRenderSources()
             continue;
 
         RenderSourceSnapshot source = *entry;
-        source.visible = item.visible();
-        source.locked = item.locked();
-        source.transform = item.transform();
-        source.filters = item.filters();
+        source.visible = item->visible();
+        source.locked = item->locked();
+        source.transform = item->transform();
+        source.filters = item->filters();
         result.append(std::move(source));
     }
     // 控制器可能不再发出更新，这里也要释放已移除来源的帧，归还其纹理槽。

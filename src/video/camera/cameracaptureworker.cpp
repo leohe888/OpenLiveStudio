@@ -105,8 +105,8 @@ std::shared_ptr<const PixelFrame> cameraPixels(const AVFrame *frame, bool &infer
     return pixels;
 }
 
-CameraCaptureWorker::CameraCaptureWorker(CameraSourceConfig config, quint64 generation)
-    : m_config(std::move(config)), m_generation(generation)
+CameraCaptureWorker::CameraCaptureWorker(CameraSource source, quint64 generation)
+    : m_source(std::move(source)), m_generation(generation)
 {
 }
 
@@ -145,8 +145,9 @@ void CameraCaptureWorker::fail(const QString &error)
 void CameraCaptureWorker::run()
 {
     try {
-        if (!m_config.isValid()) throw QStringLiteral("摄像头配置无效。");
-        V4l2Camera input(m_config);
+        if (!m_source.hasValidCaptureSettings())
+            throw QStringLiteral("摄像头配置无效。");
+        V4l2Camera input(m_source);
         const auto mode = input.mode();
         const bool compressed = mode.subtype == "mjpeg" || mode.subtype == "h264";
         AVCodecContext *decoder = nullptr;

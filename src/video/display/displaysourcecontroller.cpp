@@ -5,17 +5,6 @@
 #include <QUuid>
 #include <algorithm>
 
-namespace {
-void setRuntimeStatus(VideoSourceManager &manager, const QString &sourceId,
-                      VideoSourceState state, const QString &error)
-{
-    auto runtime = manager.sourceRuntime(sourceId);
-    runtime.setState(state);
-    runtime.setError(error);
-    manager.setSourceRuntime(sourceId, runtime);
-}
-}
-
 DisplaySourceController::DisplaySourceController(VideoSourceManager &manager, QObject *parent)
     : QObject(parent), m_sourceManager(manager)
 {
@@ -111,33 +100,36 @@ void DisplaySourceController::synchronizeSources()
         m_updatingSources = false;
     });
     QSet<QString> retainedSourceIds;
-    const auto sourceEntries = m_sourceManager.sources();
-    for (const auto &item : sourceEntries) {
-        if (item.type() != VideoSourceType::DisplayCapture)
+    const auto sourceIds = m_sourceManager.sourceIds();
+    for (const auto &id : sourceIds) {
+        const auto *item = m_sourceManager.source(id);
+        if (!item)
             continue;
-        const QString id = item.id();
-        const auto &config = std::get<DisplaySourceConfig>(item.config());
+        if (item->type() != VideoSourceType::DisplayCapture)
+            continue;
+        const auto *display = static_cast<const DisplaySource *>(item);
         retainedSourceIds.insert(id);
         auto &entry = m_entries[id];
-        const bool captureCursor = config.captureCursor();
+        const bool captureCursor = display->captureCursor();
         if (entry.captureCursor != captureCursor) {
             retireWorker(entry);
             entry.captureCursor = captureCursor;
             entry.failed = false;
         }
-        if (!item.visible()) {
+        if (!item->visible()) {
             retireWorker(entry);
-            setRuntimeStatus(m_sourceManager, id, VideoSourceState::Paused,
-                             entry.failed ? m_sourceManager.sourceRuntime(id).error() : QString());
+            m_sourceManager.setSourceState(id, VideoSourceState::Paused,
+                                           entry.failed ? m_sourceManager.sourceError(id)
+                                                        : QString());
         } else if (!entry.worker && !entry.failed) {
             entry.generation = ++m_generation;
             entry.worker =
                 std::make_unique<DisplayCaptureWorker>(captureCursor, entry.generation);
             entry.worker->start();
-            setRuntimeStatus(m_sourceManager, id, VideoSourceState::Starting, {});
+            m_sourceManager.setSourceState(id, VideoSourceState::Starting, {});
         } else if (entry.failed) {
-            setRuntimeStatus(m_sourceManager, id, VideoSourceState::Error,
-                             m_sourceManager.sourceRuntime(id).error());
+            m_sourceManager.setSourceState(id, VideoSourceState::Error,
+                                           m_sourceManager.sourceError(id));
         }
     }
     for (auto it = m_entries.begin(); it != m_entries.end();) {
@@ -180,8 +172,8 @@ bool DisplaySourceController::completePendingAdds()
             continue;
         }
         const auto id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-        if (!m_sourceManager.addSource({id, pending.name,
-                DisplaySourceConfig{pending.cursor}})) {
+        if (!m_sourceManager.addSource(
+                std::make_unique<DisplaySource>(id, pending.name, pending.cursor))) {
             pending.worker->stop();
             m_retiringWorkers.push_back(std::move(pending.worker));
             QMetaObject::invokeMethod(this, [this, requester = pending.requester] {
@@ -195,11 +187,7 @@ bool DisplaySourceController::completePendingAdds()
         entry.generation = pending.worker->generation();
         entry.worker = std::move(pending.worker);
         entry.frame = std::move(frame);
-        auto runtime = m_sourceManager.sourceRuntime(id);
-        runtime.setPixelSize(entry.frame->size);
-        runtime.setState(VideoSourceState::Capturing);
-        runtime.setError({});
-        m_sourceManager.setSourceRuntime(id, runtime);
+        m_sourceManager.updateSourceStatus(id, entry.frame->size, VideoSourceState::Capturing);
         captureUpdated = true;
         QMetaObject::invokeMethod(this, [this, requester = pending.requester] {
             if (requester)
@@ -225,18 +213,14 @@ void DisplaySourceController::collectCaptureUpdates()
         if (!error.isEmpty()) {
             entry.failed = true;
             retireWorker(entry);
-            setRuntimeStatus(m_sourceManager, id, VideoSourceState::Error, error);
+            m_sourceManager.setSourceState(id, VideoSourceState::Error, error);
             emit sourceFailed(id, error);
             captureUpdated = true;
         } else if (auto frame = entry.worker->takeLatest()) {
             if (frame->generation != entry.generation)
                 continue;
             entry.frame = std::move(frame);
-            auto runtime = m_sourceManager.sourceRuntime(id);
-            runtime.setPixelSize(entry.frame->size);
-            runtime.setState(VideoSourceState::Capturing);
-            runtime.setError({});
-            m_sourceManager.setSourceRuntime(id, runtime);
+            m_sourceManager.updateSourceStatus(id, entry.frame->size, VideoSourceState::Capturing);
             captureUpdated = true;
         }
     }
@@ -252,21 +236,23 @@ void DisplaySourceController::collectCaptureUpdates()
 void DisplaySourceController::publishRenderSources()
 {
     QList<RenderSourceSnapshot> result;
-    const auto sourceEntries = m_sourceManager.sources();
-    for (const auto &item : sourceEntries) {
-        if (item.type() != VideoSourceType::DisplayCapture)
+    const auto sourceIds = m_sourceManager.sourceIds();
+    for (const auto &id : sourceIds) {
+        const auto *item = m_sourceManager.source(id);
+        if (!item)
             continue;
-        const QString id = item.id();
+        if (item->type() != VideoSourceType::DisplayCapture)
+            continue;
         RenderSourceSnapshot source;
         source.id = id;
         const auto captureEntry = m_entries.find(id);
         if (captureEntry == m_entries.end())
             continue;
         source.frame = captureEntry->second.frame;
-        source.visible = item.visible();
-        source.locked = item.locked();
-        source.transform = item.transform();
-        source.filters = item.filters();
+        source.visible = item->visible();
+        source.locked = item->locked();
+        source.transform = item->transform();
+        source.filters = item->filters();
         result.append(std::move(source));
     }
     emit renderSourcesChanged(result);

@@ -5,17 +5,6 @@
 #include <algorithm>
 #include "util/mediaclock.h"
 
-namespace {
-void setRuntimeStatus(VideoSourceManager &manager, const QString &sourceId,
-                      VideoSourceState state, const QString &error)
-{
-    auto runtime = manager.sourceRuntime(sourceId);
-    runtime.setState(state);
-    runtime.setError(error);
-    manager.setSourceRuntime(sourceId, runtime);
-}
-}
-
 CameraSourceController::CameraSourceController(VideoSourceManager &manager, QObject *parent)
     : QObject(parent), m_sourceManager(manager)
 {
@@ -51,7 +40,7 @@ void CameraSourceController::refreshDevices()
     for (auto it = m_deviceModes.begin(); it != m_deviceModes.end();) {
         const bool deviceHasActiveWorker =
             std::any_of(m_entries.cbegin(), m_entries.cend(), [&](const auto &entry) {
-                return entry.second.worker && entry.second.config.deviceId() == it.key();
+                return entry.second.worker && entry.second.source.deviceId() == it.key();
             });
         if (!deviceHasActiveWorker)
             it = m_deviceModes.erase(it);
@@ -105,12 +94,15 @@ void CameraSourceController::requestModes(const QString &deviceId)
     m_queryThreads.push_back(std::move(query));
 }
 
-QString CameraSourceController::addCamera(const QString &name, const CameraSourceConfig &config)
+QString CameraSourceController::addCamera(const QString &name, const QString &deviceId,
+                                          const CameraMode &mode)
 {
-    if (name.trimmed().isEmpty() || !config.isValid())
+    if (name.trimmed().isEmpty())
         return {};
     const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    if (!m_sourceManager.addSource({id, name.trimmed(), config}))
+    auto source = std::make_unique<CameraSource>(id, name.trimmed(), deviceId);
+    mode.applyTo(*source);
+    if (!source->hasValidCaptureSettings() || !m_sourceManager.addSource(std::move(source)))
         return {};
     return id;
 }
@@ -156,42 +148,44 @@ void CameraSourceController::synchronizeSources()
         m_updatingSources = false;
     });
     QSet<QString> retainedSourceIds;
-    const auto sourceEntries = m_sourceManager.sources();
-    for (const auto &item : sourceEntries) {
-        if (item.type() != VideoSourceType::Camera)
+    const auto sourceIds = m_sourceManager.sourceIds();
+    for (const auto &id : sourceIds) {
+        const auto *item = m_sourceManager.source(id);
+        if (!item)
             continue;
-        const QString id = item.id();
+        if (item->type() != VideoSourceType::Camera)
+            continue;
         retainedSourceIds.insert(id);
         auto &entry = m_entries[id];
-        const auto &config = std::get<CameraSourceConfig>(item.config());
-        if (!(entry.config == config)) {
+        const auto &requested = *static_cast<const CameraSource *>(item);
+        if (!entry.source.hasSameCaptureSettings(requested)) {
             retireWorker(entry);
-            entry.config = config;
+            entry.source.copyCaptureSettings(requested);
             entry.failed = false;
             entry.retryAtNs = 0;
         }
-        if (!item.visible()) {
+        if (!item->visible()) {
             retireWorker(entry);
             entry.failed = false;
             entry.retryAtNs = 0;
-            setRuntimeStatus(m_sourceManager, id, VideoSourceState::Paused, {});
+            m_sourceManager.setSourceState(id, VideoSourceState::Paused, {});
         } else if (!entry.worker && !entry.failed) {
             // 旧会话尚未退出时不能重新打开同一摄像头，否则驱动可能拒绝访问。
             const bool retiring = std::any_of(
                 m_retiringWorkers.cbegin(), m_retiringWorkers.cend(), [&](const auto &worker) {
-                    return worker->deviceId() == config.deviceId() && !worker->isFinished();
+                    return worker->deviceId() == requested.deviceId() && !worker->isFinished();
                 });
             if (retiring) {
-                setRuntimeStatus(m_sourceManager, id, VideoSourceState::Starting, {});
+                m_sourceManager.setSourceState(id, VideoSourceState::Starting, {});
                 continue;
             }
             entry.generation = ++m_generation;
-            entry.worker = std::make_unique<CameraCaptureWorker>(config, entry.generation);
+            entry.worker = std::make_unique<CameraCaptureWorker>(requested, entry.generation);
             entry.worker->start();
-            setRuntimeStatus(m_sourceManager, id, VideoSourceState::Starting, {});
+            m_sourceManager.setSourceState(id, VideoSourceState::Starting, {});
         } else if (entry.failed) {
-            setRuntimeStatus(m_sourceManager, id, VideoSourceState::Error,
-                             m_sourceManager.sourceRuntime(id).error());
+            m_sourceManager.setSourceState(id, VideoSourceState::Error,
+                                           m_sourceManager.sourceError(id));
         }
     }
     for (auto it = m_entries.begin(); it != m_entries.end();) {
@@ -225,21 +219,16 @@ void CameraSourceController::collectCaptureUpdates()
             retireWorker(entry, false);
             entry.failed = true;
             entry.retryAtNs = MediaClock::nowNs() + 2000000000LL;
-            setRuntimeStatus(m_sourceManager, id, VideoSourceState::Error, error);
+            m_sourceManager.setSourceState(id, VideoSourceState::Error, error);
             emit sourceFailed(id, error);
             captureUpdated = true;
         } else if (auto frame = entry.worker->takeLatest()) {
             if (frame->generation != entry.generation)
                 continue;
             entry.frame = std::move(frame);
-            auto runtime = m_sourceManager.sourceRuntime(id);
-            runtime.setPixelSize(entry.frame->renderFrame->size);
-            runtime.setCameraStatus(entry.frame->status);
-            runtime.setActualFrameRateNumerator(entry.frame->frameRateNumerator);
-            runtime.setActualFrameRateDenominator(entry.frame->frameRateDenominator);
-            runtime.setState(VideoSourceState::Capturing);
-            runtime.setError({});
-            m_sourceManager.setSourceRuntime(id, runtime);
+            m_sourceManager.updateCameraCapture(
+                id, entry.frame->renderFrame->size, entry.frame->frameRateNumerator,
+                entry.frame->frameRateDenominator, entry.frame->status);
             captureUpdated = true;
         }
     }
@@ -264,10 +253,12 @@ void CameraSourceController::collectCaptureUpdates()
 void CameraSourceController::publishRenderSources()
 {
     QList<RenderSourceSnapshot> result;
-    const auto sourceEntries = m_sourceManager.sources();
-    for (const auto &item : sourceEntries) {
-        const QString id = item.id();
-        if (item.type() != VideoSourceType::Camera)
+    const auto sourceIds = m_sourceManager.sourceIds();
+    for (const auto &id : sourceIds) {
+        const auto *item = m_sourceManager.source(id);
+        if (!item)
+            continue;
+        if (item->type() != VideoSourceType::Camera)
             continue;
         RenderSourceSnapshot source;
         source.id = id;
@@ -276,10 +267,10 @@ void CameraSourceController::publishRenderSources()
             continue;
         if (camera->second.frame)
             source.frame = camera->second.frame->renderFrame;
-        source.visible = item.visible();
-        source.locked = item.locked();
-        source.transform = item.transform();
-        source.filters = item.filters();
+        source.visible = item->visible();
+        source.locked = item->locked();
+        source.transform = item->transform();
+        source.filters = item->filters();
         result.append(std::move(source));
     }
     emit renderSourcesChanged(result);
@@ -307,7 +298,7 @@ void CameraSourceController::reportCaptureFailure(const QString &sourceId, quint
     retireWorker(entry, false);
     entry.failed = true;
     entry.retryAtNs = MediaClock::nowNs() + 2000000000LL;
-    setRuntimeStatus(m_sourceManager, sourceId, VideoSourceState::Error, message);
+    m_sourceManager.setSourceState(sourceId, VideoSourceState::Error, message);
     emit sourceFailed(sourceId, message);
     publishRenderSources();
 }

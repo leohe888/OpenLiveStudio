@@ -10,17 +10,6 @@
 #include <QUuid>
 #include <QWidget>
 
-namespace {
-void setRuntimeStatus(VideoSourceManager &manager, const QString &sourceId,
-                      VideoSourceState state, const QString &error)
-{
-    auto runtime = manager.sourceRuntime(sourceId);
-    runtime.setState(state);
-    runtime.setError(error);
-    manager.setSourceRuntime(sourceId, runtime);
-}
-}
-
 ImageSourceController::ImageSourceController(VideoSourceManager &manager, QObject *parent)
     : QObject(parent), m_sourceManager(manager)
 {
@@ -94,9 +83,9 @@ void ImageSourceController::addImage(const QString &name, const QString &path, Q
                   }
                   const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
                   m_images.insert(id, {absolutePath, image, ++m_generation});
-                  VideoSource source{id, name.trimmed(), ImageSourceConfig{absolutePath}};
-                  source.setRuntime({image.size(), VideoSourceState::Ready, {}});
-                  if (!m_sourceManager.addSource(source)) {
+                  auto source = std::make_unique<ImageSource>(id, name.trimmed(), absolutePath);
+                  source->updateStatus(image.size(), VideoSourceState::Ready);
+                  if (!m_sourceManager.addSource(std::move(source))) {
                       m_images.remove(id);
                       emit addFailed(owner, tr("无法添加图片来源。"));
                       return;
@@ -124,35 +113,43 @@ void ImageSourceController::synchronizeSources()
 {
     QSet<QString> retainedSourceIds;
     QList<RenderSourceSnapshot> sources;
-    const auto sourceEntries = m_sourceManager.sources();
-    for (const auto &item : sourceEntries) {
-        if (item.type() != VideoSourceType::Image)
+    const auto sourceIds = m_sourceManager.sourceIds();
+    for (const auto &id : sourceIds) {
+        const auto *item = m_sourceManager.source(id);
+        if (!item)
             continue;
-        const QString id = item.id();
-        const QString path = std::get<ImageSourceConfig>(item.config()).filePath();
+        if (item->type() != VideoSourceType::Image)
+            continue;
+        const QString path = static_cast<const ImageSource *>(item)->filePath();
+        RenderSourceSnapshot snapshot{
+            id, {}, item->visible(), item->transform(), item->locked(), item->filters()};
         retainedSourceIds.insert(id);
         auto it = m_images.find(id);
         if (it == m_images.end() || it->path != path) {
             const quint64 generation = ++m_generation;
             it = m_images.insert(id, {path, {}, generation});
-            setRuntimeStatus(m_sourceManager, id, VideoSourceState::Loading, {});
+            m_sourceManager.setSourceState(id, VideoSourceState::Loading, {});
             loadImage(path, [this, id, generation](QImage image, QString error) {
                 auto entry = m_images.find(id);
                 // 来源删除或配置已变更时，不能用旧任务的结果覆盖当前图像。
                 if (entry == m_images.end() || entry->generation != generation)
                     return;
                 entry->image = image;
-                auto runtime = m_sourceManager.sourceRuntime(id);
-                runtime.setPixelSize(image.size());
-                runtime.setState(error.isEmpty() ? VideoSourceState::Ready : VideoSourceState::Error);
-                runtime.setError(error);
-                m_sourceManager.setSourceRuntime(id, runtime);
+                m_sourceManager.updateSourceStatus(
+                    id, image.size(),
+                    error.isEmpty() ? VideoSourceState::Ready : VideoSourceState::Error, error);
                 if (!error.isEmpty())
                     emit sourceFailed(id, error);
                 synchronizeSources();
             });
         }
-        sources.append({id, it->image, item.visible(), item.transform(), item.locked(), item.filters()});
+        // 状态通知可能同步删除来源和缓存，不能继续使用通知前取得的迭代器。
+        it = m_images.find(id);
+        if (it == m_images.end())
+            continue;
+        snapshot.image = it->image;
+        if (m_sourceManager.source(id))
+            sources.append(snapshot);
     }
     for (auto it = m_images.begin(); it != m_images.end();) {
         if (!retainedSourceIds.contains(it.key()))

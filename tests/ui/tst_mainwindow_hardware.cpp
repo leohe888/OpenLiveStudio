@@ -98,9 +98,9 @@ void MainWindowHardwareTest::cameraHardwarePreview()
     confirm->click();
     QCOMPARE(dialog->result(), int(QDialog::Accepted));
     QCOMPARE(model->sources().size(), 1);
-    const QString id = model->sources().first().id();
+    const QString id = model->sources().first()->id();
     QVERIFY(!id.isEmpty());
-    QTRY_COMPARE_WITH_TIMEOUT(model->sourceRuntime(id).state(), VideoSourceState::Capturing, 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(model->sourceState(id), VideoSourceState::Capturing, 15000);
 
     const auto filter = model->addFilter(id);
     QVERIFY(setFilterConfig(*model, id, filter, ColorCorrectionConfig{0, 1, 0}));
@@ -147,7 +147,7 @@ void MainWindowHardwareTest::cameraHardwarePreview()
         QTest::qWait(150);
         mouse(QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
 
-        const auto actual = model->sources().at(0).transform();
+        const auto actual = model->sources().at(0)->transform();
         if (operation == 0)
             QVERIFY(QLineF(actual.center(), QPointF(1080, 600)).length() < 0.001);
         else if (operation == 1) {
@@ -190,9 +190,9 @@ void MainWindowHardwareTest::cameraHardwareOutputs()
     QVERIFY(recording && streaming);
     const auto devices = cameraDevices();
     QVERIFY(!devices.isEmpty());
-    const auto id = camera->addCamera("USB camera", CameraSourceConfig{devices[0].id});
+    const auto id = addCamera(*camera, "USB camera", cameraRequest(devices[0].id));
     QVERIFY(!id.isEmpty());
-    QTRY_COMPARE_WITH_TIMEOUT(model->sourceRuntime(id).state(), VideoSourceState::Capturing, 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(model->sourceState(id), VideoSourceState::Capturing, 15000);
     QTRY_VERIFY_WITH_TIMEOUT(recording->ready() && streaming->ready(), 10000);
 
     QTemporaryDir directory;
@@ -225,7 +225,7 @@ void MainWindowHardwareTest::cameraHardwareOutputs()
     camera->reportCaptureFailure(id, generation, "Injected camera outage during output");
     QCOMPARE(recording->state(), RecordingState::Recording);
     QCOMPARE(streaming->state(), StreamingState::Live);
-    QTRY_COMPARE_WITH_TIMEOUT(model->sourceRuntime(id).state(), VideoSourceState::Capturing, 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(model->sourceState(id), VideoSourceState::Capturing, 15000);
     QTRY_VERIFY_WITH_TIMEOUT(recording->durationMs() >= 1500, 10000);
     recording->stopRecording();
     QTRY_VERIFY_WITH_TIMEOUT(!recording->busy(), 15000);

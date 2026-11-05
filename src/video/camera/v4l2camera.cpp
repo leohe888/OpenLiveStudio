@@ -141,17 +141,21 @@ QList<CameraMode> cameraModes(const QString &deviceId, QString *error)
         return {};
     }
 }
-CameraMode preferredCameraMode(const QList<CameraMode> &modes, const CameraSourceConfig &config)
+
+CameraMode preferredCameraMode(const QList<CameraMode> &modes, const CameraSource &source)
 {
     CameraMode selected;
     double best = 1e100;
     for (const auto &m : modes) {
         if (!m.supported || !m.isValid()) continue;
-        if (!config.pixelFormat().isEmpty() && m.subtype != config.pixelFormat()) continue;
-        if (!config.resolution().isEmpty() && QSize(m.width, m.height) != config.resolution()) continue;
-        if (config.frameRateNumerator() > 0 &&
-            qint64(m.frameRateNumerator) * config.frameRateDenominator() !=
-            qint64(config.frameRateNumerator()) * m.frameRateDenominator) continue;
+        if (!source.pixelFormat().isEmpty() && m.subtype != source.pixelFormat())
+            continue;
+        if (!source.resolution().isEmpty() && QSize(m.width, m.height) != source.resolution())
+            continue;
+        if (source.frameRateNumerator() > 0 &&
+            qint64(m.frameRateNumerator) * source.frameRateDenominator() !=
+                qint64(source.frameRateNumerator()) * m.frameRateDenominator)
+            continue;
         const double fps = double(m.frameRateNumerator) / m.frameRateDenominator;
         const double score = 8 * std::abs(std::log((double(m.width) / m.height) / (16.0 / 9))) +
             4 * std::abs(std::log(fps / 30)) +
@@ -201,13 +205,13 @@ void cameraRawFrame(AVFrame *frame, const v4l2_pix_format &f, unsigned char *dat
         f.ycbcr_enc == V4L2_YCBCR_ENC_601 ? AVCOL_SPC_SMPTE170M : AVCOL_SPC_UNSPECIFIED;
 }
 
-V4l2Camera::V4l2Camera(const CameraSourceConfig &config)
+V4l2Camera::V4l2Camera(const CameraSource &source)
 {
     try {
-        m_fd = openDevice(config.deviceId());
+        m_fd = openDevice(source.deviceId());
         v4l2_capability cap{};
         if (!captureDevice(m_fd, cap)) throw QStringLiteral("设备不支持单平面 V4L2 streaming。");
-        m_mode = preferredCameraMode(enumerateModes(m_fd), config);
+        m_mode = preferredCameraMode(enumerateModes(m_fd), source);
         if (!m_mode.isValid()) throw QStringLiteral("摄像头不支持请求的格式、分辨率或帧率。");
         v4l2_format format{};
         format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;

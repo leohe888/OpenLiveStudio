@@ -17,10 +17,11 @@ class CameraCaptureTest : public QObject
     Q_OBJECT
 private slots:
     void typedModesPreserveDefaultsAndFrameRates();
+    void workerOwnsCaptureSettingsSnapshot();
     void automaticModePrefersAspectRatioAndFrameRate();
     void rawFramesValidateStrideBoundsAndPlaneOrder();
-    void configUpdatesPreserveTransformAndAspectRatio();
-    void pixelFormatsParticipateInModeAndConfigIdentity();
+    void captureSettingUpdatesPreserveTransformAndAspectRatio();
+    void pixelFormatsParticipateInCaptureSettings();
     void preservesYuvPlanesStrideAndColorMetadata();
     void unavailableDeviceAndLifecycle();
     void capturesHardwareCameraAndSupportedModes();
@@ -31,14 +32,14 @@ void CameraCaptureTest::automaticModePrefersAspectRatioAndFrameRate()
     const QList<CameraMode> modes{
         {2560, 720, 30, 1, "mjpeg"}, {1280, 720, 30, 1, "mjpeg"},
         {1280, 720, 15, 2, "yuyv422"}, {640, 480, 30, 1, "yuyv422"}};
-    const auto selected = preferredCameraMode(modes, CameraSourceConfig{"camera"});
+    const auto selected = preferredCameraMode(modes, cameraRequest("camera"));
     QCOMPARE(selected.width, 1280);
     QCOMPARE(selected.subtype, QString("mjpeg"));
     QCOMPARE(selected.frameRateNumerator, 30);
-    const auto manual = modes[3].config("camera");
+    const auto manual = cameraForMode(modes[3], "camera");
     QVERIFY(preferredCameraMode(modes, manual).sameFormat(modes[3]));
-    QVERIFY(!preferredCameraMode(modes, CameraSourceConfig{"camera", {1920, 1080}, 30, 1}).isValid());
-    QVERIFY(!preferredCameraMode({}, CameraSourceConfig{"camera"}).isValid());
+    QVERIFY(!preferredCameraMode(modes, cameraRequest("camera", {1920, 1080}, 30, 1)).isValid());
+    QVERIFY(!preferredCameraMode({}, cameraRequest("camera")).isValid());
 }
 
 void CameraCaptureTest::rawFramesValidateStrideBoundsAndPlaneOrder()
@@ -78,8 +79,8 @@ void CameraCaptureTest::typedModesPreserveDefaultsAndFrameRates()
 {
     const CameraMode deviceDefault;
     QVERIFY(!deviceDefault.isValid());
-    const auto automatic = deviceDefault.config("camera");
-    QVERIFY(automatic.isValid());
+    const auto automatic = cameraForMode(deviceDefault, "camera");
+    QVERIFY(automatic.hasValidCaptureSettings());
     QVERIFY(automatic.resolution().isEmpty());
     QCOMPARE(automatic.frameRateNumerator(), 0);
 
@@ -89,26 +90,26 @@ void CameraCaptureTest::typedModesPreserveDefaultsAndFrameRates()
     QVERIFY(selected.isValid());
     QVERIFY(selected.sameFormat(equivalent));
     QVERIFY(!selected.sameFormat(different));
-    const auto config = selected.config("camera");
+    const auto config = cameraForMode(selected, "camera");
     QCOMPARE(config.deviceId(), QString("camera"));
     QCOMPARE(config.resolution(), QSize(1280, 720));
     QCOMPARE(config.frameRateNumerator(), 30000);
     QCOMPARE(config.frameRateDenominator(), 1001);
     const CameraMode invalid{640, 480, 30, 0};
     QVERIFY(!invalid.isValid());
-    QVERIFY(!invalid.config("camera").isValid());
+    QVERIFY(!cameraForMode(invalid, "camera").hasValidCaptureSettings());
 }
 
-void CameraCaptureTest::pixelFormatsParticipateInModeAndConfigIdentity()
+void CameraCaptureTest::pixelFormatsParticipateInCaptureSettings()
 {
     CameraMode yuy2{1280, 720, 30, 1, "yuyv422"}, nv12{1280, 720, 30, 1, "nv12"};
     QVERIFY(!yuy2.sameFormat(nv12));
-    QVERIFY(yuy2.config("camera") != nv12.config("camera"));
-    QCOMPARE(yuy2.config("camera").pixelFormat(), QString("yuyv422"));
+    QVERIFY(!cameraForMode(yuy2, "camera").hasSameCaptureSettings(cameraForMode(nv12, "camera")));
+    QCOMPARE(cameraForMode(yuy2, "camera").pixelFormat(), QString("yuyv422"));
     CameraMode formatDefault;
     formatDefault.subtype = "mjpeg";
-    const auto config = formatDefault.config("camera");
-    QVERIFY(config.isValid());
+    const auto config = cameraForMode(formatDefault, "camera");
+    QVERIFY(config.hasValidCaptureSettings());
     QVERIFY(config.resolution().isEmpty());
     QCOMPARE(config.pixelFormat(), QString("mjpeg"));
 }
@@ -157,14 +158,14 @@ void CameraCaptureTest::preservesYuvPlanesStrideAndColorMetadata()
     av_frame_free(&frame);
 }
 
-void CameraCaptureTest::configUpdatesPreserveTransformAndAspectRatio()
+void CameraCaptureTest::captureSettingUpdatesPreserveTransformAndAspectRatio()
 {
     VideoSourceManager model;
     CameraSourceController controller(model);
     const CameraMode mode{1280, 720, 30000, 1001};
-    const QString id = controller.addCamera("Camera", mode.config("missing-device"));
+    const QString id = addCamera(controller, "Camera", cameraForMode(mode, "missing-device"));
     QVERIFY(!id.isEmpty());
-    QVERIFY(controller.addCamera("Duplicate", CameraSourceConfig{"missing-device"}).isEmpty());
+    QVERIFY(addCamera(controller, "Duplicate", cameraRequest("missing-device")).isEmpty());
     QCOMPARE(cameraSource(model, id)->frameRateDenominator(), 1001);
     QVERIFY(model.canFilterCurrentSource());
     setCameraActualMode(model, id, {1280, 720}, 30000, 1001);
@@ -174,12 +175,12 @@ void CameraCaptureTest::configUpdatesPreserveTransformAndAspectRatio()
     const QString filter = model.addFilter(id);
     QVERIFY(!filter.isEmpty());
     setCameraActualMode(model, id, {640, 480}, 30, 1);
-    const auto adjusted = model.sources().at(0).transform();
+    const auto adjusted = model.sources().at(0)->transform();
     QCOMPARE(adjusted.center(), transform.center());
     QCOMPARE(adjusted.rotationDegrees(), transform.rotationDegrees());
     QCOMPARE(adjusted.size(), QSizeF(600, 450));
     QCOMPARE(model.sourceFilters(id)[0].id(), filter);
-    QVERIFY(!setCameraConfig(model, id, CameraSourceConfig{"missing-device", {1280, 720}, 30, 0}));
+    QVERIFY(!setCameraSettings(model, id, cameraRequest("missing-device", {1280, 720}, 30, 0)));
     QVERIFY(model.removeSource(id));
     QTRY_COMPARE_WITH_TIMEOUT(controller.activeWorkerCount(), 0, 10000);
 }
@@ -196,11 +197,11 @@ void CameraCaptureTest::unavailableDeviceAndLifecycle()
             });
     QImage image(8, 8, QImage::Format_RGB32);
     image.fill(Qt::red);
-    QVERIFY(model.addSource({"image", "Image", ImageSourceConfig{"unused"}}));
-    const QString id = controller.addCamera("Camera", CameraSourceConfig{"missing-device"});
+    QVERIFY(addSource(model, {"image", "Image", "unused"}));
+    const QString id = addCamera(controller, "Camera", cameraRequest("missing-device"));
     QVERIFY(!id.isEmpty());
-    QTRY_COMPARE_WITH_TIMEOUT(model.sourceRuntime(id).state(), VideoSourceState::Error, 10000);
-    QVERIFY(!model.sourceRuntime(id).error().isEmpty());
+    QTRY_COMPARE_WITH_TIMEOUT(model.sourceState(id), VideoSourceState::Error, 10000);
+    QVERIFY(!model.sourceError(id).isEmpty());
     QVERIFY(!errors.isEmpty());
     const auto firstErrors = errors.count();
     QTRY_VERIFY_WITH_TIMEOUT(errors.count() > firstErrors, 6000); // 自动恢复，不依赖手动 retry。
@@ -208,12 +209,12 @@ void CameraCaptureTest::unavailableDeviceAndLifecycle()
     QCOMPARE(output[0].id, id);
     QVERIFY(output[0].image.isNull());
     QVERIFY(model.setSourceVisible(id, false));
-    QCOMPARE(model.sourceRuntime(id).state(), VideoSourceState::Paused);
+    QCOMPARE(model.sourceState(id), VideoSourceState::Paused);
     QTRY_COMPARE_WITH_TIMEOUT(controller.activeWorkerCount(), 0, 10000);
     const int before = errors.count();
     QVERIFY(model.setSourceVisible(id, true));
     QTRY_VERIFY_WITH_TIMEOUT(errors.count() > before, 5000);
-    QTRY_COMPARE_WITH_TIMEOUT(model.sourceRuntime(id).state(), VideoSourceState::Error, 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(model.sourceState(id), VideoSourceState::Error, 5000);
     QVERIFY(controller.retry(id));
     QVERIFY(model.removeSource(id));
     QTRY_COMPARE_WITH_TIMEOUT(controller.activeWorkerCount(), 0, 10000);
@@ -248,17 +249,17 @@ void CameraCaptureTest::capturesHardwareCameraAndSupportedModes()
         QVERIFY2(error.isEmpty(), qPrintable(error));
         QVERIFY(!modes.isEmpty());
         catalogs.insert(deviceId, modes);
-        const QString id = controller.addCamera(device.name, CameraSourceConfig{deviceId});
+        const QString id = addCamera(controller, device.name, cameraRequest(deviceId));
         QVERIFY(!id.isEmpty());
         ids.append(id);
     }
     for (const auto &id : ids) {
-        QTRY_VERIFY_WITH_TIMEOUT(model.sourceRuntime(id).state() == VideoSourceState::Capturing ||
-                                     model.sourceRuntime(id).state() == VideoSourceState::Error,
+        QTRY_VERIFY_WITH_TIMEOUT(model.sourceState(id) == VideoSourceState::Capturing ||
+                                     model.sourceState(id) == VideoSourceState::Error,
                                  15000);
-        QVERIFY2(model.sourceRuntime(id).state() == VideoSourceState::Capturing,
-                 qPrintable(model.sourceRuntime(id).error()));
-        qInfo() << "Actual mode:" << model.sourceRuntime(id).pixelSize();
+        QVERIFY2(model.sourceState(id) == VideoSourceState::Capturing,
+                 qPrintable(model.sourceError(id)));
+        qInfo() << "Actual mode:" << model.sourcePixelSize(id);
     }
     QTest::qWait(2000);
     QElapsedTimer interval;
@@ -280,9 +281,9 @@ void CameraCaptureTest::capturesHardwareCameraAndSupportedModes()
     const auto frozen = latest.value(ids[0]);
     QVERIFY(frozen);
     controller.reportCaptureFailure(ids[0], frozen->generation, "Injected capture interruption");
-    QCOMPARE(model.sourceRuntime(ids[0]).state(), VideoSourceState::Error);
+    QCOMPARE(model.sourceState(ids[0]), VideoSourceState::Error);
     QCOMPARE(latest.value(ids[0]), frozen);
-    QTRY_COMPARE_WITH_TIMEOUT(model.sourceRuntime(ids[0]).state(), VideoSourceState::Capturing, 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(model.sourceState(ids[0]), VideoSourceState::Capturing, 15000);
     QVERIFY(latest.value(ids[0]));
     QVERIFY(latest.value(ids[0])->generation > frozen->generation);
     QCOMPARE(controller.activeWorkerCount(), ids.size());
@@ -292,8 +293,7 @@ void CameraCaptureTest::capturesHardwareCameraAndSupportedModes()
     for (const auto &id : ids)
         QVERIFY(model.setSourceVisible(id, true));
     for (const auto &id : ids)
-        QTRY_COMPARE_WITH_TIMEOUT(model.sourceRuntime(id).state(), VideoSourceState::Capturing,
-                                  15000);
+        QTRY_COMPARE_WITH_TIMEOUT(model.sourceState(id), VideoSourceState::Capturing, 15000);
     // 先打开并释放两个设备，再指定原生模式，验证模式切换不受旧会话影响。
     const auto deviceId = devices[0].id;
     const auto modes = catalogs.value(deviceId);
@@ -306,21 +306,21 @@ void CameraCaptureTest::capturesHardwareCameraAndSupportedModes()
     QVERIFY(selected != modes.cend());
     const auto mode = *selected;
     qInfo() << "Selected mode:" << mode.name << mode.subtype;
-    QVERIFY(model.setSourceConfig(ids[0], mode.config(deviceId)));
-    QTRY_VERIFY_WITH_TIMEOUT(model.sourceRuntime(ids[0]).state() == VideoSourceState::Capturing ||
-                             model.sourceRuntime(ids[0]).state() == VideoSourceState::Error, 15000);
-    QVERIFY2(model.sourceRuntime(ids[0]).state() == VideoSourceState::Capturing,
-             qPrintable(model.sourceRuntime(ids[0]).error()));
-    QCOMPARE(model.sourceRuntime(ids[0]).pixelSize().width(), mode.width);
-    QCOMPARE(model.sourceRuntime(ids[0]).pixelSize().height(), mode.height);
+    QVERIFY(model.setCameraCaptureSettings(ids[0], cameraForMode(mode, deviceId)));
+    QTRY_VERIFY_WITH_TIMEOUT(model.sourceState(ids[0]) == VideoSourceState::Capturing ||
+                                 model.sourceState(ids[0]) == VideoSourceState::Error,
+                             15000);
+    QVERIFY2(model.sourceState(ids[0]) == VideoSourceState::Capturing,
+             qPrintable(model.sourceError(ids[0])));
+    QCOMPARE(model.sourcePixelSize(ids[0]).width(), mode.width);
+    QCOMPARE(model.sourcePixelSize(ids[0]).height(), mode.height);
     // 不支持的模式应报告失败并保留请求配置，便于用户修正。
     const CameraMode unsupported{9999, 9999, 30, 1};
-    QVERIFY(model.setSourceConfig(ids[0], unsupported.config(deviceId)));
-    QTRY_COMPARE_WITH_TIMEOUT(model.sourceRuntime(ids[0]).state(), VideoSourceState::Error, 15000);
+    QVERIFY(model.setCameraCaptureSettings(ids[0], cameraForMode(unsupported, deviceId)));
+    QTRY_COMPARE_WITH_TIMEOUT(model.sourceState(ids[0]), VideoSourceState::Error, 15000);
     QCOMPARE(cameraSource(model, ids[0])->resolution().width(), 9999);
-    QVERIFY(model.setSourceConfig(ids[0], mode.config(deviceId)));
-    QTRY_COMPARE_WITH_TIMEOUT(model.sourceRuntime(ids[0]).state(), VideoSourceState::Capturing,
-                              15000);
+    QVERIFY(model.setCameraCaptureSettings(ids[0], cameraForMode(mode, deviceId)));
+    QTRY_COMPARE_WITH_TIMEOUT(model.sourceState(ids[0]), VideoSourceState::Capturing, 15000);
     QSet<QString> checkedFormats;
     for (const auto &available : modes) {
         if (!available.supported || checkedFormats.contains(available.subtype))
@@ -330,15 +330,14 @@ void CameraCaptureTest::capturesHardwareCameraAndSupportedModes()
                    m.frameRateNumerator == 30 && m.frameRateDenominator == 1;
         });
         const auto selectedMode = preferred == modes.cend() ? available : *preferred;
-        QVERIFY(model.setSourceConfig(ids[0], selectedMode.config(deviceId)));
-        QTRY_VERIFY_WITH_TIMEOUT(model.sourceRuntime(ids[0]).state() ==
-                                         VideoSourceState::Capturing ||
-                                     model.sourceRuntime(ids[0]).state() == VideoSourceState::Error,
+        QVERIFY(model.setCameraCaptureSettings(ids[0], cameraForMode(selectedMode, deviceId)));
+        QTRY_VERIFY_WITH_TIMEOUT(model.sourceState(ids[0]) == VideoSourceState::Capturing ||
+                                     model.sourceState(ids[0]) == VideoSourceState::Error,
                                  15000);
-        QVERIFY2(model.sourceRuntime(ids[0]).state() == VideoSourceState::Capturing,
-                 qPrintable(model.sourceRuntime(ids[0]).error()));
-        QVERIFY(model.sourceRuntime(ids[0]).cameraStatus().startsWith(available.subtype));
-        qInfo() << "Verified native format:" << model.sourceRuntime(ids[0]).cameraStatus();
+        QVERIFY2(model.sourceState(ids[0]) == VideoSourceState::Capturing,
+                 qPrintable(model.sourceError(ids[0])));
+        QVERIFY(cameraSource(model, ids[0])->captureDescription().startsWith(available.subtype));
+        qInfo() << "Verified native format:" << cameraSource(model, ids[0])->captureDescription();
         checkedFormats.insert(available.subtype);
     }
     for (const auto &id : ids)
@@ -347,3 +346,13 @@ void CameraCaptureTest::capturesHardwareCameraAndSupportedModes()
 }
 QTEST_GUILESS_MAIN(CameraCaptureTest)
 #include "tst_cameracapture.moc"
+
+void CameraCaptureTest::workerOwnsCaptureSettingsSnapshot()
+{
+    CameraSource source{"camera", "Camera", "original-device", {640, 480}, 30, 1, "mjpeg"};
+    CameraCaptureWorker worker(source, 1);
+    source.setDeviceId("another-device");
+    source.setPixelFormat("yuyv422");
+    QCOMPARE(worker.deviceId(), QString("original-device"));
+    QVERIFY(!worker.isRunning());
+}

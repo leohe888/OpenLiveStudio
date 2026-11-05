@@ -1,4 +1,4 @@
-#include "video/videosource.h"
+#include "videosourcetesthelpers.h"
 
 #include <QtTest/QTest>
 #include <limits>
@@ -9,24 +9,42 @@ class VideoSourceTest : public QObject
 
 private slots:
     void shortConstructorsPreserveMemberDefaults();
-    void typeFollowsConfig();
-    void configEditsAndSourceCopiesAreIndependent();
+    void concreteTypesOwnTheirConfig();
+    void captureSettingEditsAndSourceCopiesAreIndependent();
     void transformConstructionAndAngles();
-    void cameraConfigValidation_data();
-    void cameraConfigValidation();
-    void cameraConfigComparison();
+    void cameraSettingsValidation_data();
+    void cameraSettingsValidation();
+    void cameraSettingsComparison();
 };
 
-void VideoSourceTest::typeFollowsConfig()
+void VideoSourceTest::concreteTypesOwnTheirConfig()
 {
-    VideoSource source;
-    QCOMPARE(source.type(), VideoSourceType::DisplayCapture);
-    source.setConfig(CameraSourceConfig{"camera"});
-    QCOMPARE(source.type(), VideoSourceType::Camera);
-    source.setConfig(ImageSourceConfig{"image.png"});
-    QCOMPARE(source.type(), VideoSourceType::Image);
-    source.setConfig(DisplaySourceConfig{false});
-    QCOMPARE(source.type(), VideoSourceType::DisplayCapture);
+    static_assert(std::is_abstract_v<VideoSource>);
+    static_assert(std::has_virtual_destructor_v<VideoSource>);
+    static_assert(!std::is_convertible_v<ImageSource, CameraSource>);
+    DisplaySource display{"display", "Display", false};
+    CameraSource camera{"camera", "Camera", "device"};
+    ImageSource image{"image", "Image", "image.png"};
+    const VideoSource *sources[]{&display, &camera, &image};
+    QCOMPARE(sources[0]->type(), VideoSourceType::DisplayCapture);
+    QCOMPARE(sources[1]->type(), VideoSourceType::Camera);
+    QCOMPARE(sources[2]->type(), VideoSourceType::Image);
+    QVERIFY(!display.captureCursor());
+    QCOMPARE(camera.deviceId(), QString("device"));
+    QCOMPARE(image.filePath(), QString("image.png"));
+    camera.setDeviceId("another-device");
+    QCOMPARE(camera.type(), VideoSourceType::Camera);
+    QCOMPARE(camera.deviceId(), QString("another-device"));
+    camera.updateCapture({1280, 720}, 30000, 1001, "MJPEG");
+    QCOMPARE(sources[1]->pixelSize(), QSize(1280, 720));
+    QCOMPARE(sources[1]->state(), VideoSourceState::Capturing);
+    QCOMPARE(camera.captureDescription(), QString("MJPEG"));
+    camera.updateStatus(camera.pixelSize(), VideoSourceState::Error, "Disconnected");
+    QCOMPARE(camera.error(), QString("Disconnected"));
+    QCOMPARE(camera.pixelSize(), QSize(1280, 720));
+    camera.updateCapture({640, 480}, 30, 1, "YUYV");
+    QVERIFY(camera.error().isEmpty());
+    QCOMPARE(camera.captureDescription(), QString("YUYV"));
 }
 
 void VideoSourceTest::transformConstructionAndAngles()
@@ -72,7 +90,7 @@ void VideoSourceTest::transformConstructionAndAngles()
     QVERIFY(editable.isValid());
 }
 
-void VideoSourceTest::cameraConfigValidation_data()
+void VideoSourceTest::cameraSettingsValidation_data()
 {
     QTest::addColumn<QString>("deviceId");
     QTest::addColumn<QSize>("resolution");
@@ -96,7 +114,7 @@ void VideoSourceTest::cameraConfigValidation_data()
     QTest::newRow("negative-rate") << QString("camera") << QSize(1280, 720) << -30 << 1 << false;
 }
 
-void VideoSourceTest::cameraConfigValidation()
+void VideoSourceTest::cameraSettingsValidation()
 {
     QFETCH(QString, deviceId);
     QFETCH(QSize, resolution);
@@ -104,67 +122,68 @@ void VideoSourceTest::cameraConfigValidation()
     QFETCH(int, frameRateDenominator);
     QFETCH(bool, valid);
 
-    const CameraSourceConfig config{deviceId, resolution, frameRateNumerator, frameRateDenominator};
-    QCOMPARE(config.isValid(), valid);
+    const CameraSource config{
+        {}, {}, deviceId, resolution, frameRateNumerator, frameRateDenominator};
+    QCOMPARE(config.hasValidCaptureSettings(), valid);
 }
 
-void VideoSourceTest::cameraConfigComparison()
+void VideoSourceTest::cameraSettingsComparison()
 {
-    const CameraSourceConfig config{"camera", {1280, 720}, 30000, 1001};
+    const CameraSource config{{}, {}, "camera", {1280, 720}, 30000, 1001};
     const auto copy = config;
-    QVERIFY(config == copy);
-    QVERIFY(!(config != copy));
+    QVERIFY(config.hasSameCaptureSettings(copy));
 
-    const CameraSourceConfig different[] = {
-        {"another-camera", {1280, 720}, 30000, 1001},
-        {"camera", {1920, 1080}, 30000, 1001},
-        {"camera", {1280, 720}, 60000, 1001},
-        {"camera", {1280, 720}, 30000, 2002},
+    const CameraSource different[] = {
+        {{}, {}, "another-camera", {1280, 720}, 30000, 1001},
+        {{}, {}, "camera", {1920, 1080}, 30000, 1001},
+        {{}, {}, "camera", {1280, 720}, 60000, 1001},
+        {{}, {}, "camera", {1280, 720}, 30000, 2002},
     };
     for (const auto &other : different) {
-        QVERIFY(!(config == other));
-        QVERIFY(!(other == config));
-        QVERIFY(config != other);
-        QVERIFY(other != config);
+        QVERIFY(!config.hasSameCaptureSettings(other));
+        QVERIFY(!other.hasSameCaptureSettings(config));
     }
 }
 
-void VideoSourceTest::configEditsAndSourceCopiesAreIndependent()
+void VideoSourceTest::captureSettingEditsAndSourceCopiesAreIndependent()
 {
-    CameraSourceConfig camera;
-    QVERIFY(!camera.isValid());
+    CameraSource camera{{}, {}, {}};
+    QVERIFY(!camera.hasValidCaptureSettings());
     camera.setDeviceId("camera");
-    QVERIFY(camera.isValid());
+    QVERIFY(camera.hasValidCaptureSettings());
     camera.setResolution(QSize(1280, 720));
-    QVERIFY(!camera.isValid());
+    QVERIFY(!camera.hasValidCaptureSettings());
     camera.setFrameRateNumerator(30000);
     camera.setFrameRateDenominator(1001);
-    QVERIFY(camera.isValid());
-    QVERIFY((camera == CameraSourceConfig{"camera", {1280, 720}, 30000, 1001}));
+    QVERIFY(camera.hasValidCaptureSettings());
+    QVERIFY(camera.hasSameCaptureSettings(cameraRequest("camera", {1280, 720}, 30000, 1001)));
 
-    VideoSource original{"source", "Original", camera};
-    original.setRuntime(VideoSourceRuntime{{1280, 720}, VideoSourceState::Capturing, {}, 30000, 1001});
+    CameraSource original{"source",
+                          "Original",
+                          camera.deviceId(),
+                          camera.resolution(),
+                          camera.frameRateNumerator(),
+                          camera.frameRateDenominator()};
+    original.updateCapture({1280, 720}, 30000, 1001, "MJPEG");
     original.setFilters({VideoSourceFilter{"filter"}});
     auto copy = original;
-    auto runtime = copy.runtime();
-    runtime.setState(VideoSourceState::Error);
-    runtime.setError("Disconnected");
-    copy.setRuntime(runtime);
+    copy.updateStatus(copy.pixelSize(), VideoSourceState::Error, "Disconnected");
     auto filters = copy.filters();
     filters[0].setEnabled(false);
     copy.setFilters(filters);
-    copy.setId("copy");
     copy.setName("Copy");
-    copy.setConfig(ImageSourceConfig{"image.png"});
+    copy.setDeviceId("other-device");
     copy.setVisible(false);
     copy.setLocked(true);
     copy.setTransform(VideoSourceTransform(QSizeF(640, 360)));
-    QCOMPARE(copy.type(), VideoSourceType::Image);
+    QCOMPARE(copy.type(), VideoSourceType::Camera);
+    QCOMPARE(original.deviceId(), QString("camera"));
+    QCOMPARE(original.captureDescription(), QString("MJPEG"));
     QCOMPARE(original.type(), VideoSourceType::Camera);
     QCOMPARE(original.id(), QString("source"));
     QCOMPARE(original.name(), QString("Original"));
-    QCOMPARE(original.runtime().state(), VideoSourceState::Capturing);
-    QVERIFY(original.runtime().error().isEmpty());
+    QCOMPARE(original.state(), VideoSourceState::Capturing);
+    QVERIFY(original.error().isEmpty());
     QVERIFY(original.filters()[0].enabled());
     QVERIFY(original.visible());
     QVERIFY(!original.locked());
@@ -173,26 +192,21 @@ void VideoSourceTest::configEditsAndSourceCopiesAreIndependent()
 
 void VideoSourceTest::shortConstructorsPreserveMemberDefaults()
 {
-    DisplaySourceConfig display;
-    const DisplaySourceConfig constructedDisplay;
+    DisplaySource display{{}, {}};
+    const DisplaySource constructedDisplay{{}, {}};
     QCOMPARE(constructedDisplay.captureCursor(), display.captureCursor());
 
-    CameraSourceConfig camera;
+    CameraSource camera{{}, {}, {}};
     camera.setDeviceId("camera");
-    QVERIFY(camera == CameraSourceConfig{"camera"});
+    QVERIFY(camera.hasSameCaptureSettings(cameraRequest("camera")));
 
-    VideoSourceRuntime runtime;
-    QCOMPARE(runtime.state(), VideoSourceState::Idle);
-    runtime.setPixelSize(QSize(1280, 720));
-    runtime.setState(VideoSourceState::Ready);
-    const VideoSourceRuntime constructedRuntime{{1280, 720}, VideoSourceState::Ready, {}};
-    QCOMPARE(constructedRuntime.pixelSize(), runtime.pixelSize());
-    QCOMPARE(constructedRuntime.state(), runtime.state());
-    QCOMPARE(constructedRuntime.error(), runtime.error());
-    QCOMPARE(constructedRuntime.actualFrameRateNumerator(), runtime.actualFrameRateNumerator());
-    QCOMPARE(constructedRuntime.actualFrameRateDenominator(), runtime.actualFrameRateDenominator());
+    CameraSource automatic{{}, {}, "camera"};
+    QCOMPARE(automatic.state(), VideoSourceState::Idle);
+    QCOMPARE(automatic.negotiatedFrameRateNumerator(), 0);
+    QCOMPARE(automatic.negotiatedFrameRateDenominator(), 1);
+    QVERIFY(automatic.captureDescription().isEmpty());
 
-    const VideoSource source{"source", "Source"};
+    const DisplaySource source{"source", "Source"};
     QCOMPARE(source.id(), QString("source"));
     QCOMPARE(source.name(), QString("Source"));
     QCOMPARE(source.type(), VideoSourceType::DisplayCapture);
@@ -200,8 +214,8 @@ void VideoSourceTest::shortConstructorsPreserveMemberDefaults()
     QVERIFY(!source.locked());
     QVERIFY(source.transform().size().isEmpty());
     QVERIFY(source.filters().isEmpty());
-    QVERIFY(source.runtime().pixelSize().isEmpty());
-    const VideoSource image{"image", "Image", ImageSourceConfig{"image.png"}};
+    QVERIFY(source.pixelSize().isEmpty());
+    const ImageSource image{"image", "Image", "image.png"};
     QCOMPARE(image.type(), VideoSourceType::Image);
     QVERIFY(image.visible());
     QVERIFY(!image.locked());

@@ -14,6 +14,28 @@ class ImageSourceControllerTest : public QObject
 {
     Q_OBJECT
 private slots:
+
+    void removalDuringStatusNotificationDoesNotKeepBorrowedObjects()
+    {
+        VideoSourceManager model;
+        QVERIFY(model.addSource(
+            std::make_unique<ImageSource>("second", "Second", "missing-second.png")));
+        QVERIFY(
+            model.addSource(std::make_unique<ImageSource>("first", "First", "missing-first.png")));
+        ImageSourceController controller(model);
+        int loadingNotifications = 0;
+        connect(&model, &VideoSourceManager::sourceStatusChanged, this, [&](const QString &id) {
+            if (model.sourceState(id) != VideoSourceState::Loading)
+                return;
+            ++loadingNotifications;
+            QVERIFY(model.removeSource(id));
+            if (model.source("second"))
+                QVERIFY(model.removeSource("second"));
+        });
+        QTRY_VERIFY(model.sourceIds().isEmpty());
+        QVERIFY(loadingNotifications > 0);
+    }
+
     void loadsAddsAndSynchronizes()
     {
         QTemporaryDir dir;
@@ -38,21 +60,20 @@ private slots:
         QCOMPARE(model.sources().size(), 1);
         QCOMPARE(snapshot.size(), 1);
         QCOMPARE(snapshot[0].image.pixelColor(0, 0), QColor(255, 0, 0, 128));
-        QCOMPARE(model.sources().at(0).name(), QString("First"));
-        QCOMPARE(model.sourceRuntime(model.sources().at(0).id()).state(),
-                 VideoSourceState::Ready);
-        QVERIFY(std::holds_alternative<ImageSourceConfig>(model.sources().at(0).config()));
-        QCOMPARE(model.sourceRuntime(model.sources().at(0).id()).pixelSize(), image.size());
+        QCOMPARE(model.sources().at(0)->name(), QString("First"));
+        QCOMPARE(model.sourceState(model.sources().at(0)->id()), VideoSourceState::Ready);
+        QVERIFY(dynamic_cast<const ImageSource *>(model.sources().at(0)) != nullptr);
+        QCOMPARE(model.sourcePixelSize(model.sources().at(0)->id()), image.size());
         QVERIFY(
-            QFileInfo(std::get<ImageSourceConfig>(model.sources().at(0).config()).filePath())
-                .isAbsolute());
+            QFileInfo(imageSource(model, model.sources().at(0)->id())->filePath()).isAbsolute());
         const QString first = snapshot[0].id;
         const auto key = snapshot[0].image.cacheKey();
         const auto filter = model.addFilter(first);
         QVERIFY(setFilterConfig(model, first, filter, ColorCorrectionConfig{.3f, .7f, 1.2f}));
         QCOMPARE(snapshot[0].filters.size(), 1);
         QCOMPARE(snapshot[0].filters[0].id(), filter);
-        QCOMPARE(std::get<ColorCorrectionConfig>(snapshot[0].filters[0].config()).brightness(), .3f);
+        QCOMPARE(std::get<ColorCorrectionConfig>(snapshot[0].filters[0].config()).brightness(),
+                 .3f);
         QCOMPARE(snapshot[0].image.cacheKey(), key);
         controller.addImage("Second", path, &owner);
         QTRY_COMPARE(added.count(), 2);
@@ -116,7 +137,7 @@ private slots:
         controller.addImage("Kept", path, &owner);
         QTRY_COMPARE(added.count(), 1);
         QCOMPARE(model.sources().size(), 1);
-        QCOMPARE(model.sources().at(0).name(), QString("Kept"));
+        QCOMPARE(model.sources().at(0)->name(), QString("Kept"));
         QCOMPARE(errors.count(), 4);
     }
 
@@ -143,7 +164,7 @@ private slots:
         QObject owner;
         controller.addImage("Rotated", path, &owner);
         QTRY_COMPARE(model.sources().size(), 1);
-        QCOMPARE(model.sourceRuntime(model.sources().at(0).id()).pixelSize(), QSize(20, 40));
+        QCOMPARE(model.sourcePixelSize(model.sources().at(0)->id()), QSize(20, 40));
     }
 
     void readsOnlyFirstAnimationFrame()
@@ -200,15 +221,14 @@ private slots:
         const QString path = dir.filePath("valid.png");
         QVERIFY(image.save(path));
         VideoSourceManager model;
-        QVERIFY(addSources(model,
-                           {{"valid", "Valid", ImageSourceConfig{path}},
-                            {"bad", "Bad", ImageSourceConfig{dir.filePath("missing.png")}}}));
+        QVERIFY(addSources(
+            model, {{"valid", "Valid", path}, {"bad", "Bad", dir.filePath("missing.png")}}));
         ImageSourceController controller(model);
         QSignalSpy errors(&controller, &ImageSourceController::sourceFailed);
         QList<VideoSourceState> loadStates;
-        connect(&model, &VideoSourceManager::sourceRuntimeChanged, this,
+        connect(&model, &VideoSourceManager::sourceStatusChanged, this,
                 [&](const QString &sourceId) {
-                    loadStates.append(model.sourceRuntime(sourceId).state());
+                    loadStates.append(model.sourceState(sourceId));
                 });
         QList<RenderSourceSnapshot> snapshot;
         connect(&controller, &ImageSourceController::renderSourcesChanged, this,
@@ -218,12 +238,10 @@ private slots:
         QTRY_COMPARE(errors.count(), 1);
         QTRY_VERIFY(snapshot.size() == 2 && !snapshot[0].image.isNull());
         QVERIFY(snapshot[1].image.isNull());
-        QCOMPARE(model.sourceRuntime(model.sources().at(0).id()).pixelSize(), image.size());
-        QCOMPARE(model.sourceRuntime(model.sources().at(0).id()).state(),
-                 VideoSourceState::Ready);
-        QCOMPARE(model.sourceRuntime(model.sources().at(1).id()).state(),
-                 VideoSourceState::Error);
-        QVERIFY(!model.sourceRuntime(model.sources().at(1).id()).error().isEmpty());
+        QCOMPARE(model.sourcePixelSize(model.sources().at(0)->id()), image.size());
+        QCOMPARE(model.sourceState(model.sources().at(0)->id()), VideoSourceState::Ready);
+        QCOMPARE(model.sourceState(model.sources().at(1)->id()), VideoSourceState::Error);
+        QVERIFY(!model.sourceError(model.sources().at(1)->id()).isEmpty());
         QVERIFY(loadStates.contains(VideoSourceState::Loading));
         QVERIFY(loadStates.contains(VideoSourceState::Ready));
         QVERIFY(loadStates.contains(VideoSourceState::Error));

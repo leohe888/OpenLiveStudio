@@ -406,13 +406,12 @@ QDialog *createSourceAddDialog(QWidget *parent, VideoSourceManager *manager,
             displays->requestAdd(name->text(), display->captureCursorInput->isChecked(), dialog);
             return;
         }
-        const auto id = cameras->addCamera(
-            name->text(), cameraPage->findChild<QComboBox *>("cameraModeInput")
+        const auto deviceId =
+            cameraPage->findChild<QComboBox *>("cameraDeviceInput")->currentData().toString();
+        const auto mode = cameraPage->findChild<QComboBox *>("cameraModeInput")
                               ->currentData()
-                              .value<CameraMode>()
-                              .config(cameraPage->findChild<QComboBox *>("cameraDeviceInput")
-                                          ->currentData()
-                                          .toString()));
+                              .value<CameraMode>();
+        const auto id = cameras->addCamera(name->text(), deviceId, mode);
         if (!id.isEmpty())
             dialog->accept();
         else

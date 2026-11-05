@@ -166,19 +166,19 @@ void MainWindowGpuTest::previewDisplaysImageSources()
     };
     click(lock);
     click(visibility);
-    QTRY_VERIFY(!sources->sources().at(0).visible());
+    QTRY_VERIFY(!sources->sources().at(0)->visible());
     QTRY_COMPARE(sampleCanvas(.6, .6), QColor(Qt::white));
     click(visibility);
-    QTRY_VERIFY(sources->sources().at(0).visible());
+    QTRY_VERIFY(sources->sources().at(0)->visible());
     QTRY_COMPARE(sampleCanvas(.6, .6), QColor(Qt::yellow));
     click(down);
-    QTRY_COMPARE(sources->sources().at(1).id(), overlayId);
+    QTRY_COMPARE(sources->sources().at(1)->id(), overlayId);
     QTRY_COMPARE(sampleCanvas(.6, .6), QColor(Qt::white));
     QVERIFY(sources->moveSource(overlayId, -1));
     QTRY_COMPARE(sampleCanvas(.6, .6), QColor(Qt::yellow));
     QVERIFY(sources->removeSource(overlayId));
     verifyFrame();
-    QVERIFY(sources->removeSource(sources->sources().at(0).id()));
+    QVERIFY(sources->removeSource(sources->sources().at(0)->id()));
     QTRY_COMPARE(sampleCanvas(.6, .6), QColor(Qt::black));
     QVERIFY(window.close());
 }
@@ -212,7 +212,7 @@ void MainWindowGpuTest::previewEditsModelAndSynchronizesSelection()
     const QString frontId = model->currentSourceId();
 
     const auto currentTransform = [&] {
-        return model->sources().at(0).transform();
+        return model->sources().at(0)->transform();
     };
 
     const auto canvasPoint = [&](const QPointF &point) {
@@ -303,7 +303,7 @@ void MainWindowGpuTest::previewShowsRenderingError()
     QVERIFY(pages && error);
 
     auto *model = window.findChild<VideoSourceManager *>();
-    QVERIFY(model->addSource({"example", "Logo"}));
+    QVERIFY(addSource(*model, {"example", "Logo"}));
     preview->sourceFailed("example", "Texture upload failed");
     QTRY_VERIFY(window.statusBar()->currentMessage().contains("Logo"));
     QVERIFY(window.statusBar()->currentMessage().contains("Texture upload failed"));

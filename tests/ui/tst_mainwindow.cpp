@@ -151,8 +151,8 @@ void MainWindowTest::sourceActionsAndSelection()
     auto *panel = window.findChild<VideoSourcePanel *>();
     auto *list = panel->findChild<QListWidget *>("sourceList");
     QVERIFY(!panel->findChild<QToolButton *>("removeSourceButton")->isEnabled());
-    QVERIFY(model->addSource({"one", "One"}));
-    QVERIFY(model->addSource({"two", "Two"}));
+    QVERIFY(addSource(*model, {"one", "One"}));
+    QVERIFY(addSource(*model, {"two", "Two"}));
     QCOMPARE(list->count(), 2);
     QVERIFY(model->selectSource("one"));
     QCOMPARE(list->currentItem()->data(Qt::UserRole).toString(), QString("one"));
@@ -171,11 +171,11 @@ void MainWindowTest::sourceActionsAndSelection()
     QCOMPARE(model->currentSourceId(), id);
 
     row->findChild<QToolButton *>("sourceVisibilityButton")->click();
-    QCOMPARE(model->sources().at(0).visible(), false);
+    QCOMPARE(model->sources().at(0)->visible(), false);
     row->findChild<QToolButton *>("sourceLockButton")->click();
-    QCOMPARE(model->sources().at(0).locked(), true);
+    QCOMPARE(model->sources().at(0)->locked(), true);
     panel->findChild<QToolButton *>("moveSourceDownButton")->click();
-    QCOMPARE(model->sources().at(1).id(), id);
+    QCOMPARE(model->sources().at(1)->id(), id);
     QCOMPARE(list->currentRow(), 1);
     QVERIFY(model->removeSource(id));
     QCOMPARE(list->count(), 1);
@@ -229,7 +229,7 @@ void MainWindowTest::removalAndFilters()
     window.show();
 
     auto *model = window.findChild<VideoSourceManager *>();
-    QVERIFY(model->addSource({"one", "<b>Literal</b>"}));
+    QVERIFY(addSource(*model, {"one", "<b>Literal</b>"}));
     QVERIFY(model->selectSource("one"));
     window.findChild<QToolButton *>("removeSourceButton")->click();
     QPointer<QDialog> removal = window.findChild<QDialog *>("sourceRemovalDialog");
@@ -376,7 +376,7 @@ void MainWindowTest::scrollingAndKeyboard()
     panel.resize(240, 160);
     panel.show();
     for (int n = 0; n < 30; ++n)
-        QVERIFY(model.addSource({QString::number(n), QString::number(n)}));
+        QVERIFY(addSource(model, {QString::number(n), QString::number(n)}));
 
     auto *list = panel.findChild<QListWidget *>();
     QTRY_VERIFY(list->verticalScrollBar()->maximum() > 0);
@@ -428,13 +428,13 @@ void MainWindowTest::aggregatesIndependentSourceControllers()
 
     const auto path = directory.filePath("image.png");
     QVERIFY(pixels.save(path));
-    QVERIFY(model->addSource({"image", "Image", ImageSourceConfig{path}}));
-    VideoSource screen{"display", "Display", DisplaySourceConfig{}};
+    QVERIFY(addSource(*model, {"image", "Image", path}));
+    DisplaySource screen{"display", "Display", true};
     screen.setVisible(false); // 隐藏来源以验证信号连接，同时避免打开实际设备。
-    QVERIFY(model->addSource(screen));
-    VideoSource webcam{"camera", "Camera", CameraSourceConfig{"missing-camera"}};
+    QVERIFY(addSource(*model, screen));
+    CameraSource webcam{"camera", "Camera", "missing-camera"};
     webcam.setVisible(false);
-    QVERIFY(model->addSource(webcam));
+    QVERIFY(addSource(*model, webcam));
     QTRY_COMPARE(output.size(), 3);
     QCOMPARE(imageOutput.size(), 1);
     QCOMPARE(displayOutput.size(), 1);
@@ -549,14 +549,16 @@ void MainWindowTest::cameraFormatSelectionFiltersModes()
     format->setCurrentIndex(format->findData("mjpeg"));
     QCOMPARE(mode->count(), 2);
     mode->setCurrentIndex(1);
-    QCOMPARE(mode->currentData().value<CameraMode>().config("test-camera").pixelFormat(),
+    QCOMPARE(cameraForMode(mode->currentData().value<CameraMode>(), "test-camera").pixelFormat(),
              QString("mjpeg"));
     format->setCurrentIndex(format->findData("yuyv422"));
     QCOMPARE(mode->currentIndex(), 0);
     QCOMPARE(mode->count(), 2);
-    QCOMPARE(mode->currentData().value<CameraMode>().config("test-camera").pixelFormat(),
+    QCOMPARE(cameraForMode(mode->currentData().value<CameraMode>(), "test-camera").pixelFormat(),
              QString("yuyv422"));
-    QVERIFY(mode->currentData().value<CameraMode>().config("test-camera").resolution().isEmpty());
+    QVERIFY(cameraForMode(mode->currentData().value<CameraMode>(), "test-camera")
+                .resolution()
+                .isEmpty());
     const int row = format->findData("p010le");
     QVERIFY(row >= 0);
     QVERIFY(!(format->model()->flags(format->model()->index(row, 0)) & Qt::ItemIsEnabled));
@@ -580,14 +582,14 @@ void MainWindowTest::cameraDefaultSettingsCanBeConfirmed()
     confirm->click();
     QCOMPARE(dialog->result(), int(QDialog::Accepted));
     QCOMPARE(manager->sources().size(), 1);
-    const QString id = manager->sources().first().id();
-    const auto *config = std::get_if<CameraSourceConfig>(manager->sourceConfig(id));
+    const QString id = manager->sources().first()->id();
+    const auto *config = cameraSource(*manager, id);
     QVERIFY(config);
     QVERIFY(config->pixelFormat().isEmpty());
     QVERIFY(config->resolution().isEmpty());
     QCOMPARE(config->frameRateNumerator(), 0);
-    QTRY_COMPARE_WITH_TIMEOUT(manager->sourceRuntime(id).state(), VideoSourceState::Error, 5000);
-    QVERIFY(!manager->sourceRuntime(id).error().isEmpty());
+    QTRY_COMPARE_WITH_TIMEOUT(manager->sourceState(id), VideoSourceState::Error, 5000);
+    QVERIFY(!manager->sourceError(id).isEmpty());
 }
 
 int main(int argc, char **argv)

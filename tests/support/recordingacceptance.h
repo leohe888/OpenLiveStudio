@@ -124,13 +124,14 @@ inline void run(MainWindow &window)
     display->requestAdd("Screen", true, &window);
     QTRY_COMPARE_WITH_TIMEOUT(screenAdded.count(), 1, 120000);
     const auto screen = model->currentSourceId();
-    const auto cameraSourceId = camera->addCamera("Camera", CameraSourceConfig{camera->devices()[0].id});
-    const auto microphoneSourceId = audio->addSource("Microphone", AudioSourceType::Microphone, microphoneId);
+    const auto cameraSourceId =
+        addCamera(*camera, "Camera", cameraRequest(camera->devices()[0].id));
+    const auto microphoneSourceId =
+        audio->addSource("Microphone", AudioSourceType::Microphone, microphoneId);
     QString system = audio->addSource("System", AudioSourceType::SystemAudio, systemId);
     QVERIFY(!screen.isEmpty() && !cameraSourceId.isEmpty() && !microphoneSourceId.isEmpty() && !system.isEmpty());
-    QTRY_COMPARE_WITH_TIMEOUT(model->sourceRuntime(screen).state(),
-                              VideoSourceState::Capturing, 15000);
-    QTRY_COMPARE_WITH_TIMEOUT(model->sourceRuntime(cameraSourceId).state(), VideoSourceState::Capturing,
+    QTRY_COMPARE_WITH_TIMEOUT(model->sourceState(screen), VideoSourceState::Capturing, 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(model->sourceState(cameraSourceId), VideoSourceState::Capturing,
                               15000);
     QTRY_COMPARE_WITH_TIMEOUT(audio->source(microphoneSourceId)->state, QString("capturing"), 5000);
     QTRY_COMPARE_WITH_TIMEOUT(audio->source(system)->state, QString("capturing"), 5000);
@@ -262,7 +263,7 @@ inline void run(MainWindow &window)
         if (pausedAt >= 0 && now - pausedAt > std::min(1500, seconds * 20)) {
             pausedAt = -1;
             QVERIFY(model->setSourceVisible(cameraSourceId, true));
-            QTRY_COMPARE_WITH_TIMEOUT(model->sourceRuntime(cameraSourceId).state(),
+            QTRY_COMPARE_WITH_TIMEOUT(model->sourceState(cameraSourceId),
                                       VideoSourceState::Capturing, 10000);
             event("camera-restored");
         }

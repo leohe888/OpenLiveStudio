@@ -39,13 +39,12 @@ struct CameraMode
                    qint64(other.frameRateNumerator) * frameRateDenominator;
     }
 
-    CameraSourceConfig config(const QString &deviceId) const
+    void applyTo(CameraSource &source) const
     {
-        auto result = width > 0 ? CameraSourceConfig{deviceId, QSize(width, height),
-                                                     frameRateNumerator, frameRateDenominator}
-                                : CameraSourceConfig{deviceId};
-        result.setPixelFormat(subtype);
-        return result;
+        source.setResolution(width > 0 ? QSize(width, height) : QSize());
+        source.setFrameRateNumerator(width > 0 ? frameRateNumerator : 0);
+        source.setFrameRateDenominator(width > 0 ? frameRateDenominator : 1);
+        source.setPixelFormat(subtype);
     }
 };
 Q_DECLARE_METATYPE(CameraMode)
@@ -72,7 +71,7 @@ QList<CameraMode> cameraModes(const QString &deviceId, QString *error = nullptr)
 class CameraCaptureWorker : public QThread
 {
 public:
-    CameraCaptureWorker(CameraSourceConfig config, quint64 generation);
+    CameraCaptureWorker(CameraSource source, quint64 generation);
     ~CameraCaptureWorker() override;
     void stop();
     std::shared_ptr<const CameraFrame> takeLatest();
@@ -80,7 +79,7 @@ public:
 
     const QString &deviceId() const
     {
-        return m_config.deviceId();
+        return m_source.deviceId();
     }
 
 protected:
@@ -88,7 +87,7 @@ protected:
 
 private:
     void fail(const QString &error);
-    CameraSourceConfig m_config;
+    const CameraSource m_source; // 不可变的值副本，与界面线程的来源独立。
     quint64 m_generation;
     std::atomic_bool m_stop{false};
     mutable QMutex m_mutex;
