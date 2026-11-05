@@ -1,5 +1,4 @@
 #include "ui/previewwidget.h"
-#include "graphics/gpuframeresource.h"
 
 #include <QApplication>
 #include <QOpenGLContext>
@@ -195,7 +194,6 @@ private slots:
         PreviewWidget widget;
         widget.resize(240, 200);
         widget.show();
-        // Windows 启动器可能让首次 ShowWindow 隐藏窗口；再次显示，避免把可用桌面误判为不可测试。
         widget.hide();
         widget.show();
         if (!QTest::qWaitForWindowExposed(&widget) || !widget.isValid())
@@ -825,75 +823,42 @@ private slots:
     void captureFramesDoNotInterruptEditing_data()
     {
         QTest::addColumn<int>("operation");
-        QTest::addColumn<bool>("gpu");
-        QTest::newRow("cpu-move") << 0 << false;
-        QTest::newRow("cpu-resize") << 1 << false;
-        QTest::newRow("cpu-rotate") << 2 << false;
-        QTest::newRow("gpu-move") << 0 << true;
-        QTest::newRow("gpu-resize") << 1 << true;
-        QTest::newRow("gpu-rotate") << 2 << true;
+        QTest::newRow("cpu-move") << 0;
+        QTest::newRow("cpu-resize") << 1;
+        QTest::newRow("cpu-rotate") << 2;
     }
 
     void captureFramesDoNotInterruptEditing()
     {
         QFETCH(int, operation);
-        QFETCH(bool, gpu);
         PreviewWidget widget;
         widget.resize(640, 480);
         wireEditor(widget);
         QImage image(200, 100, QImage::Format_RGBA8888);
         image.fill(Qt::green);
-        auto resource = std::make_shared<GpuFrameResource>();
-        if (gpu) {
-#ifdef Q_OS_WIN
-            QVERIFY(SUCCEEDED(D3D11CreateDevice(
-                nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, D3D11_CREATE_DEVICE_BGRA_SUPPORT,
-                nullptr, 0, D3D11_SDK_VERSION, &resource->device, nullptr, nullptr)));
-            D3D11_TEXTURE2D_DESC desc{};
-            desc.Width = UINT(image.width());
-            desc.Height = UINT(image.height());
-            desc.MipLevels = 1;
-            desc.ArraySize = 1;
-            desc.SampleDesc.Count = 1;
-            desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-            desc.Usage = D3D11_USAGE_DEFAULT;
-            desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
-            D3D11_SUBRESOURCE_DATA pixels{image.constBits(), UINT(image.bytesPerLine()), 0};
-            QVERIFY(
-                SUCCEEDED(resource->device->CreateTexture2D(&desc, &pixels, &resource->texture)));
-#else
-            QSKIP("Capture frames require Windows D3D11");
-#endif
-        }
         const VideoSourceTransform start{{960, 540}, {600, 300}, 0};
         quint64 sequence = 0;
         const auto publish = [&] {
             auto sources = widget.m_sources;
             if (sources.isEmpty())
                 sources.append({"dynamic", {}, true, start});
-            if (gpu) {
-                auto frame = std::make_shared<CaptureFrame>();
-                frame->size = image.size();
-                frame->gpu = resource;
-                frame->generation = 1;
-                frame->sequence = ++sequence;
-                sources[0].frame = frame;
-            } else {
-                // 每个摄像头帧都使用新图像，模拟真实采集时不断变化的缓存键。
-                sources[0].image = image.copy();
-            }
+            auto pixels = std::make_shared<PixelFrame>();
+            pixels->layout = PixelFrame::RGBA;
+            pixels->planeSizes[0] = image.size();
+            pixels->planes[0] = QByteArray(reinterpret_cast<const char *>(image.constBits()),
+                                         image.sizeInBytes());
+            auto frame = std::make_shared<CaptureFrame>();
+            frame->size = image.size();
+            frame->pixels = std::move(pixels);
+            frame->generation = 1;
+            frame->sequence = ++sequence;
+            sources[0].frame = std::move(frame);
             widget.setSources(sources);
         };
         publish();
-        QSignalSpy transferErrors(&widget, &PreviewWidget::gpuTransferFailed);
         widget.show();
-        QVERIFY(QTest::qWaitForWindowActive(&widget));
+        QVERIFY(QTest::qWaitForWindowExposed(&widget));
         grabPreview(widget);
-        if (!transferErrors.isEmpty()) {
-            QVERIFY2(!qEnvironmentVariableIsSet("OPENLIVE_REQUIRE_GPU_INTEROP"),
-                     "GPU interop required");
-            QSKIP("GPU interop unavailable for capture editing test");
-        }
         const auto display = widget.canvasToWidget();
         const auto handles = widget.selectionHandles(widget.m_sources[0]);
         const auto center = display.map(start.center());
@@ -903,8 +868,7 @@ private slots:
         // 先接收新帧但暂不上传，验证编辑行为不依赖新纹理已呈现。
         const auto pixelsPresented = [&] {
             const auto &ready = widget.m_presentedFrame->sources[QStringLiteral("dynamic")];
-            return gpu ? ready.sequence == sequence
-                       : ready.imageKey == widget.m_sources[0].image.cacheKey();
+            return ready.sequence == sequence;
         };
         publish();
         QVERIFY(!pixelsPresented());
@@ -952,7 +916,7 @@ private slots:
         wireEditor(widget);
         QImage image(100, 100, QImage::Format_RGBA8888);
         image.fill(Qt::green);
-        // 后续直接注入手势和失活事件，无需争取前台焦点，避免依赖 Windows 的焦点分配。
+        // 后续直接注入手势和失活事件，无需争取前台焦点，避免依赖桌面的焦点分配。
         widget.show();
         QVERIFY(QTest::qWaitForWindowExposed(&widget));
         QSignalSpy geometries(&widget, &PreviewWidget::transformRequested);

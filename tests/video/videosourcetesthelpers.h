@@ -53,9 +53,9 @@ inline bool setCameraActualMode(VideoSourceManager &manager, const QString &id, 
 }
 
 inline bool setDisplayConfig(VideoSourceManager &manager, const QString &id,
-                              const QString &displayId, bool cursor)
+                              bool cursor)
 {
-    return manager.setSourceConfig(id, DisplaySourceConfig{displayId, cursor});
+    return manager.setSourceConfig(id, DisplaySourceConfig{cursor});
 }
 
 inline bool setCameraConfig(VideoSourceManager &manager, const QString &id,

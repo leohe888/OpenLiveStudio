@@ -297,7 +297,7 @@ int CameraSourceController::activeWorkerCount() const
     return count;
 }
 
-void CameraSourceController::failTransfer(const QString &sourceId, quint64 generation,
+void CameraSourceController::reportCaptureFailure(const QString &sourceId, quint64 generation,
                                           const QString &message)
 {
     const auto it = m_entries.find(sourceId);

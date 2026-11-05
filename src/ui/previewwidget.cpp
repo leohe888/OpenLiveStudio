@@ -89,8 +89,7 @@ PreviewWidget::PreviewWidget(QWidget *parent) : QOpenGLWidget(parent)
             Qt::QueuedConnection);
     connect(&m_compositor, &Compositor::renderingFailed, this, &PreviewWidget::reportError,
             Qt::QueuedConnection);
-    connect(&m_compositor, &Compositor::gpuTransferFailed, this, &PreviewWidget::gpuTransferFailed,
-            Qt::QueuedConnection);
+
     m_framePollTimer.setInterval(16);
     m_framePollTimer.setTimerType(Qt::PreciseTimer);
     connect(&m_framePollTimer, &QTimer::timeout, this, [this] {

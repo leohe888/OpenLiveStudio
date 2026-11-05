@@ -22,10 +22,6 @@
 #include <QUuid>
 #include <atomic>
 #include <numeric>
-#ifdef Q_OS_WIN
-#include <windows.h>
-#include <psapi.h>
-#endif
 
 namespace RecordingAcceptance {
 inline bool saveJson(const QString &path, const QJsonObject &data)
@@ -38,15 +34,6 @@ inline bool saveJson(const QString &path, const QJsonObject &data)
 inline QJsonObject collectProcessMetrics(qint64 elapsedMs)
 {
     QJsonObject value{{"elapsedMs", elapsedMs}};
-#ifdef Q_OS_WIN
-    PROCESS_MEMORY_COUNTERS_EX memory{};
-    DWORD handles = 0;
-    if (GetProcessMemoryInfo(GetCurrentProcess(),
-                             reinterpret_cast<PROCESS_MEMORY_COUNTERS *>(&memory), sizeof(memory)))
-        value["privateBytes"] = qint64(memory.PrivateUsage);
-    if (GetProcessHandleCount(GetCurrentProcess(), &handles))
-        value["handles"] = int(handles);
-#endif
     return value;
 }
 
@@ -119,8 +106,6 @@ inline void run(MainWindow &window)
     QVERIFY(QDir().mkpath(directory));
     qInfo() << "Acceptance artifacts:" << directory;
     QVERIFY(settings->apply(directory, 12000, "", ""));
-    display->refreshDisplayDevices();
-    QVERIFY(!display->displayDevices().isEmpty());
     camera->refreshDevices();
     audio->refreshDevices();
     QTRY_VERIFY_WITH_TIMEOUT(!camera->refreshing() && !audio->refreshing(), 10000);
@@ -135,7 +120,10 @@ inline void run(MainWindow &window)
             systemId = device.id;
     }
     QVERIFY(!microphoneId.isEmpty() && !systemId.isEmpty());
-    const auto screen = display->addDisplay("Screen", display->displayDevices()[0].id, true);
+    QSignalSpy screenAdded(display, &DisplaySourceController::displayAdded);
+    display->requestAdd("Screen", true, &window);
+    QTRY_COMPARE_WITH_TIMEOUT(screenAdded.count(), 1, 120000);
+    const auto screen = model->currentSourceId();
     const auto cameraSourceId = camera->addCamera("Camera", CameraSourceConfig{camera->devices()[0].id});
     const auto microphoneSourceId = audio->addSource("Microphone", AudioSourceType::Microphone, microphoneId);
     QString system = audio->addSource("System", AudioSourceType::SystemAudio, systemId);
@@ -370,7 +358,7 @@ inline void run(MainWindow &window)
     window.hide();
     QString error;
     const auto tools = QFileInfo(QStringLiteral(OPENLIVE_FFPROBE)).absolutePath();
-    const auto ffmpeg = QDir(tools).filePath(QStringLiteral("ffmpeg.exe"));
+    const auto ffmpeg = QDir(tools).filePath(QStringLiteral("ffmpeg"));
     saveJson(QDir(directory).filePath("progress.json"),
              {{"phase", "decoding-video"}, {"file", movie}, {"elapsedMs", elapsed.elapsed()}});
     const auto info = QJsonDocument::fromJson(

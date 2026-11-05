@@ -1,3 +1,4 @@
+#include <QStandardPaths>
 #include "output/mediaencoder.h"
 #include "output/recordingcontroller.h"
 #include "output/outputsettings.h"
@@ -144,8 +145,8 @@ private slots:
                 QFAIL(qPrintable(error));
             }
             QProcess decoder;
-            decoder.start(QDir(QFileInfo(QStringLiteral(OPENLIVE_FFPROBE)).absolutePath())
-                              .filePath("ffmpeg.exe"),
+            decoder.start(QStandardPaths::findExecutable("ffmpeg",
+                {QFileInfo(QStringLiteral(OPENLIVE_FFPROBE)).absolutePath()}),
                           {"-v", "error", "-threads", "1", "-filter_threads", "1", "-i", path,
                            "-frames:v", "1", "-vf", "scale=1:1", "-pix_fmt", "rgb24", "-f",
                            "rawvideo", "pipe:1"});

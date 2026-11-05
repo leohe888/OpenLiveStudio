@@ -25,7 +25,7 @@ void VideoSourceTest::typeFollowsConfig()
     QCOMPARE(source.type(), VideoSourceType::Camera);
     source.setConfig(ImageSourceConfig{"image.png"});
     QCOMPARE(source.type(), VideoSourceType::Image);
-    source.setConfig(DisplaySourceConfig{"display", false});
+    source.setConfig(DisplaySourceConfig{false});
     QCOMPARE(source.type(), VideoSourceType::DisplayCapture);
 }
 
@@ -174,9 +174,7 @@ void VideoSourceTest::configEditsAndSourceCopiesAreIndependent()
 void VideoSourceTest::shortConstructorsPreserveMemberDefaults()
 {
     DisplaySourceConfig display;
-    display.setDisplayId("monitor");
-    const DisplaySourceConfig constructedDisplay{"monitor"};
-    QCOMPARE(constructedDisplay.displayId(), display.displayId());
+    const DisplaySourceConfig constructedDisplay;
     QCOMPARE(constructedDisplay.captureCursor(), display.captureCursor());
 
     CameraSourceConfig camera;

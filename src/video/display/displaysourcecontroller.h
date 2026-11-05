@@ -4,8 +4,8 @@
 #include "video/display/displaycaptureworker.h"
 #include "graphics/rendersourcesnapshot.h"
 #include <QObject>
+#include <QPointer>
 #include <QTimer>
-#include "video/display/displaydevices.h"
 #include <map>
 #include <vector>
 
@@ -18,25 +18,19 @@ public:
     explicit DisplaySourceController(VideoSourceManager &manager, QObject *parent = nullptr);
     ~DisplaySourceController() override;
 
-    QList<DisplayDevice> displayDevices() const
-    {
-        return m_devices;
-    }
-
-    void refreshDisplayDevices();
-    QString addDisplay(const QString &name, const QString &displayId, bool captureCursor);
+    void requestAdd(const QString &name, bool captureCursor, QObject *requester);
+    void cancelAdd(QObject *requester);
     bool retry(const QString &sourceId);
-    void failTransfer(const QString &sourceId, quint64 generation, const QString &reason);
     int activeWorkerCount() const;
 signals:
-    void displayDevicesChanged();
+    void displayAdded(QObject *requester);
+    void addFailed(QObject *requester, const QString &message);
     void renderSourcesChanged(const QList<RenderSourceSnapshot> &sources);
     void sourceFailed(const QString &sourceId, const QString &message);
 
 private:
     struct Entry
     {
-        QString displayId;
         bool captureCursor = true, failed = false;
         quint64 generation = 0;
         std::unique_ptr<DisplayCaptureWorker> worker;
@@ -44,13 +38,20 @@ private:
     };
 
     void synchronizeSources();
+    bool completePendingAdds();
     void collectCaptureUpdates();
     void publishRenderSources();
     void retireWorker(Entry &entry);
     VideoSourceManager &m_sourceManager;
-    QList<DisplayDevice> m_devices;
     std::map<QString, Entry> m_entries;
     std::vector<std::unique_ptr<DisplayCaptureWorker>> m_retiringWorkers;
+    struct PendingAdd {
+        QString name;
+        bool cursor;
+        QPointer<QObject> requester;
+        std::unique_ptr<DisplayCaptureWorker> worker;
+    };
+    std::vector<PendingAdd> m_pendingAdds;
     QTimer m_framePollTimer;
     quint64 m_generation = 0;
     bool m_updatingSources = false;

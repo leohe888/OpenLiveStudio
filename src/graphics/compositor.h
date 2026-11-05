@@ -54,7 +54,6 @@ public:
 signals:
     void sourceFailed(const QString &sourceId, const QString &message);
     void renderingFailed(const QString &message);
-    void gpuTransferFailed(const QString &sourceId, quint64 generation, const QString &message);
 
 protected:
     void run() override;

@@ -102,7 +102,7 @@ void VideoSourceManagerTest::exposesTypedSourcesAndRejectsMissingIds()
 void VideoSourceManagerTest::supportsAllSourceConfigs()
 {
     QList<VideoSource> entries{
-        {"display", "Display", DisplaySourceConfig{"monitor-1", false}},
+        {"display", "Display", DisplaySourceConfig{false}},
         {"camera", "Camera", CameraSourceConfig{"camera-1", QSize(1280, 720), 30, 1}},
         {"image", "Image",
          ImageSourceConfig{"fixture.png"}}};
@@ -637,7 +637,7 @@ void VideoSourceManagerTest::configUpdatesPreserveSourceState()
 {
     VideoSourceManager model;
     QVERIFY(addSources(model, QList<VideoSource>{
-        {"screen", "Screen", DisplaySourceConfig{"physical-path", true}},
+        {"screen", "Screen", DisplaySourceConfig{true}},
         {"image", "Image", ImageSourceConfig{"a.png"}},
         {"camera", "Camera", CameraSourceConfig{"device"}}}));
     QSignalSpy changed(&model, &VideoSourceManager::sourceChanged);
@@ -652,16 +652,14 @@ void VideoSourceManagerTest::configUpdatesPreserveSourceState()
     const auto filter = model.addFilter("screen");
     QVERIFY(model.setSourceLocked("screen", true));
     const int before = changed.count();
-    QVERIFY(!setDisplayConfig(model, "screen", " ", true));
-    QVERIFY(!setDisplayConfig(model, "image", "another", true));
-    QVERIFY(!setDisplayConfig(model, "missing", "another", true));
-    QVERIFY(setDisplayConfig(model, "screen", "physical-path", true));
+    QVERIFY(!setDisplayConfig(model, "image", true));
+    QVERIFY(!setDisplayConfig(model, "missing", true));
+    QVERIFY(setDisplayConfig(model, "screen", true));
     QCOMPARE(changed.count(), before);
-    QVERIFY(setDisplayConfig(model, "screen", "another-physical-path", false));
+    QVERIFY(setDisplayConfig(model, "screen", false));
     QCOMPARE(changed.last().at(0).toString(), QString("screen"));
     QCOMPARE(model.sources().at(0).transform(), transform);
     QCOMPARE(model.sourceFilters("screen")[0].id(), filter);
-    QCOMPARE(displaySource(model, "screen")->displayId(), QString("another-physical-path"));
     QVERIFY(!displaySource(model, "screen")->captureCursor());
     QVERIFY(setSourceStatus(model, "screen", VideoSourceState::Error, "Disconnected"));
     QCOMPARE(status.count(), 1);
@@ -734,7 +732,7 @@ void VideoSourceManagerTest::topLevelProperties()
     QVERIFY(!manager.sourceConfig("missing"));
     QVERIFY(!manager.setSourceConfig("missing", ImageSourceConfig{"other.png"}));
     QVERIFY(!manager.setSourceConfig("a", ImageSourceConfig{}));
-    QVERIFY(!manager.setSourceConfig("a", DisplaySourceConfig{"screen"}));
+    QVERIFY(!manager.setSourceConfig("a", DisplaySourceConfig{}));
     QVERIFY(manager.setSourceConfig("a", ImageSourceConfig{"other.png"}));
     QCOMPARE(std::get<ImageSourceConfig>(*manager.sourceConfig("a")).filePath(), QString("other.png"));
 

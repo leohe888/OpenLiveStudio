@@ -2,25 +2,8 @@
 
 #include <type_traits>
 
-DisplaySourceConfig::DisplaySourceConfig() = default;
-
-DisplaySourceConfig::DisplaySourceConfig(const QString &displayId) : m_displayId(displayId)
+DisplaySourceConfig::DisplaySourceConfig(bool captureCursor) : m_captureCursor(captureCursor)
 {
-}
-
-DisplaySourceConfig::DisplaySourceConfig(const QString &displayId, bool captureCursor)
-    : m_displayId(displayId), m_captureCursor(captureCursor)
-{
-}
-
-const QString &DisplaySourceConfig::displayId() const
-{
-    return m_displayId;
-}
-
-void DisplaySourceConfig::setDisplayId(const QString &displayId)
-{
-    m_displayId = displayId;
 }
 
 bool DisplaySourceConfig::captureCursor() const

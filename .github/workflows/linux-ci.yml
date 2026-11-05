@@ -1,0 +1,82 @@
+name: Linux CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Linux GCC Debug
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build pkg-config curl xz-utils \
+            libpipewire-0.3-dev libx264-dev libgl1-mesa-dev libegl1-mesa-dev \
+            libxcb-cursor0 libxkbcommon-x11-0 libxcb-icccm4 libxcb-keysyms1 \
+            libxcb-image0 libxcb-render-util0 xvfb xauth dbus-x11
+
+      - name: Build FFmpeg 7.1
+        run: |
+          curl --fail --location --retry 3 https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz -o "$RUNNER_TEMP/ffmpeg.tar.xz"
+          tar -xf "$RUNNER_TEMP/ffmpeg.tar.xz" -C "$RUNNER_TEMP"
+          cd "$RUNNER_TEMP/ffmpeg-7.1"
+          ./configure --prefix="$RUNNER_TEMP/ffmpeg" --enable-shared --disable-static \
+            --disable-doc --disable-autodetect --disable-x86asm --enable-gpl --enable-libx264
+          make -j2
+          make install
+          echo "$RUNNER_TEMP/ffmpeg/bin" >> "$GITHUB_PATH"
+          echo "PKG_CONFIG_PATH=$RUNNER_TEMP/ffmpeg/lib/pkgconfig" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/ffmpeg/lib" >> "$GITHUB_ENV"
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
+        with:
+          version: '6.8.3'
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          cache: true
+
+      - name: Configure
+        run: cmake -S . -B build/ci -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
+
+      - name: Build
+        run: cmake --build build/ci --parallel 2
+
+      - name: Test
+        env:
+          QT_QPA_PLATFORM: xcb
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: xvfb-run -a dbus-run-session -- ctest --test-dir build/ci --output-on-failure --no-tests=error --output-junit test-results.xml
+
+      - name: Upload test logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: linux-debug-test-logs
+          path: |
+            build/ci/Testing/Temporary/
+            build/ci/test-results.xml
+            build/ci/CMakeFiles/CMakeConfigureLog.yaml
+          if-no-files-found: warn
+          retention-days: 7

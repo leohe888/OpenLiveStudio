@@ -27,17 +27,12 @@ enum class VideoSourceState {
 class DisplaySourceConfig
 {
 public:
-    DisplaySourceConfig();
-    DisplaySourceConfig(const QString &displayId);
-    DisplaySourceConfig(const QString &displayId, bool captureCursor);
-
-    const QString &displayId() const;
-    void setDisplayId(const QString &displayId);
+    DisplaySourceConfig() = default;
+    explicit DisplaySourceConfig(bool captureCursor);
     bool captureCursor() const;
     void setCaptureCursor(bool captureCursor);
 
 private:
-    QString m_displayId;
     bool m_captureCursor = true;
 };
 

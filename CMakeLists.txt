@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.19)
 project(OpenLiveStudio LANGUAGES CXX)
 
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    message(FATAL_ERROR "OpenLive Studio supports Linux only.")
+endif()
+
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(avformat REQUIRED IMPORTED_TARGET libavformat>=61.7)
 pkg_check_modules(avcodec REQUIRED IMPORTED_TARGET libavcodec>=61.19)
@@ -8,12 +12,12 @@ pkg_check_modules(avutil REQUIRED IMPORTED_TARGET libavutil>=59.39)
 pkg_check_modules(swresample REQUIRED IMPORTED_TARGET libswresample>=5.3)
 pkg_check_modules(swscale REQUIRED IMPORTED_TARGET libswscale>=8.3)
 pkg_get_variable(OPENLIVE_FFMPEG_PREFIX libavcodec prefix)
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Network Widgets Svg OpenGL OpenGLWidgets)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Network Widgets Svg OpenGL OpenGLWidgets DBus)
+pkg_check_modules(pipewire REQUIRED IMPORTED_TARGET libpipewire-0.3>=0.3.48)
 
 qt_standard_project_setup()
 
 qt_add_executable(OpenLiveStudio
-    WIN32 MACOSX_BUNDLE
     src/main.cpp
     src/ui/mainwindow.cpp
     src/ui/outputwidgets.cpp
@@ -45,13 +49,8 @@ qt_add_executable(OpenLiveStudio
     src/video/camera/camerasourcecontroller.h
     src/video/camera/camerasourcecontroller.cpp
     src/graphics/captureframe.h
-    src/graphics/gpuframeresource.h
-    src/video/display/displaydevices.h
-    src/video/display/displaydevices.cpp
     src/video/display/displaycaptureworker.h
     src/video/display/displaycaptureworker.cpp
-    src/graphics/gpuinterop.h
-    src/graphics/gpuinterop.cpp
     src/video/display/displaysourcecontroller.h
     src/video/display/displaysourcecontroller.cpp
     src/graphics/canvasrenderer.h
@@ -136,11 +135,10 @@ target_link_libraries(OpenLiveStudio
         PkgConfig::swscale
 )
 
-if(WIN32)
-    target_compile_definitions(OpenLiveStudio PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
-    target_link_libraries(OpenLiveStudio PRIVATE
-        d3d11 dxgi windowsapp opengl32 ole32 uuid)
-endif()
+target_sources(OpenLiveStudio PRIVATE src/video/display/waylanddisplaycapture.cpp
+    src/video/display/waylanddisplaycapture.h)
+target_link_libraries(OpenLiveStudio PRIVATE Qt6::DBus PkgConfig::pipewire)
+
 
 install(TARGETS OpenLiveStudio
     BUNDLE  DESTINATION .

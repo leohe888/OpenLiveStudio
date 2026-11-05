@@ -4,6 +4,7 @@
 #include "video/display/displaysourcecontroller.h"
 #include "video/camera/camerasourcecontroller.h"
 
+#include "video/display/waylanddisplaycapture.h"
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
@@ -76,18 +77,50 @@ void fillDevices(QComboBox *combo, const QList<Device> &entries, const QString &
     combo->setPlaceholderText(QObject::tr("暂无可用设备"));
 }
 
-class CaptureSettingsWidget : public QWidget
+class DisplaySettingsWidget : public QWidget
+{
+public:
+    QCheckBox *captureCursorInput;
+    QPushButton *selectButton;
+
+    explicit DisplaySettingsWidget(QWidget *parent) : QWidget(parent)
+    {
+        auto *layout = new QVBoxLayout(this);
+        layout->setContentsMargins(0, 0, 0, 0);
+        selectButton = new QPushButton(tr("选择显示器…"), this);
+        selectButton->setObjectName("selectDisplayButton");
+        layout->addWidget(selectButton);
+        captureCursorInput = new QCheckBox(tr("采集鼠标光标"), this);
+        captureCursorInput->setObjectName("captureCursorInput");
+        captureCursorInput->setChecked(true);
+        layout->addWidget(captureCursorInput);
+        layout->addWidget(createPlainLabel(this, "displayCaptureHint",
+                                           tr("原始分辨率 · 最高 30 FPS · SDR")));
+        layout->addWidget(createPlainLabel(this, "portalCaptureHint",
+            tr("由系统选择要共享的显示器；隐藏来源会停止共享，再次显示需重新选择。")));
+        const uint modes = WaylandDisplayCapture::cursorModes();
+        if ((modes & 3) != 3) {
+            const bool embedded = modes & 2;
+            captureCursorInput->setChecked(embedded);
+            captureCursorInput->setEnabled(false);
+            const auto hint = embedded ? tr("系统仅支持显示鼠标。")
+                                       : tr("系统不支持将鼠标嵌入画面。");
+            captureCursorInput->setToolTip(hint);
+            layout->addWidget(createPlainLabel(this, "cursorModeHint", hint));
+        }
+    }
+};
+
+class CameraSettingsWidget : public QWidget
 {
 public:
     QComboBox *deviceInput, *modeInput = nullptr, *formatInput = nullptr;
-    QCheckBox *captureCursorInput = nullptr;
     QPushButton *refreshButton;
     QLabel *errorLabel;
     bool modesLoading = false;
     std::function<void()> onSettingsChanged;
 
-    CaptureSettingsWidget(QWidget *parent, DisplaySourceController *displays,
-                          CameraSourceController *cameras, bool isCamera)
+    CameraSettingsWidget(QWidget *parent, CameraSourceController *cameras)
         : QWidget(parent)
     {
         auto *layout = new QVBoxLayout(this);
@@ -98,145 +131,126 @@ public:
         deviceInput = new QComboBox(this);
         deviceInput->setMinimumWidth(0);
         deviceInput->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
-        deviceInput->setObjectName(isCamera ? "cameraDeviceInput" : "displayTargetInput");
+        deviceInput->setObjectName("cameraDeviceInput");
         row->addWidget(deviceInput, 1);
         refreshButton = new QPushButton(tr("刷新"), this);
-        refreshButton->setObjectName(isCamera ? "refreshCamerasButton" : "refreshDisplaysButton");
+        refreshButton->setObjectName("refreshCamerasButton");
         row->addWidget(refreshButton);
         errorLabel = createPlainLabel(this, "deviceCatalogError");
         errorLabel->setProperty("uiError", true);
-        if (!isCamera) {
-            captureCursorInput = new QCheckBox(tr("采集鼠标光标"), this);
-            captureCursorInput->setObjectName("captureCursorInput");
-            captureCursorInput->setChecked(true);
-            layout->addWidget(captureCursorInput);
-            layout->addWidget(
-                createPlainLabel(this, "displayCaptureHint", tr("原始分辨率 · 最高 30 FPS · SDR")));
-            fillDevices(deviceInput, displays->displayDevices(), {});
-            connect(displays, &DisplaySourceController::displayDevicesChanged, this, [=] {
-                fillDevices(deviceInput, displays->displayDevices(),
-                            deviceInput->currentData().toString());
-                if (onSettingsChanged)
-                    onSettingsChanged();
-            });
-            connect(refreshButton, &QPushButton::clicked, displays,
-                    &DisplaySourceController::refreshDisplayDevices);
-            displays->refreshDisplayDevices();
-        } else {
-            layout->addWidget(createPlainLabel(this, "cameraFormatLabel", tr("像素格式")));
-            formatInput = new QComboBox(this);
-            formatInput->setObjectName("cameraFormatInput");
-            formatInput->addItem(tr("自动"), QString());
-            layout->addWidget(formatInput);
-            layout->addWidget(createPlainLabel(this, "cameraModeLabel", tr("分辨率 × 帧率")));
-            modeInput = new QComboBox(this);
-            modeInput->setObjectName("cameraModeInput");
-            layout->addWidget(modeInput);
-            fillDevices(deviceInput, cameras->devices(), {});
+        layout->addWidget(createPlainLabel(this, "cameraFormatLabel", tr("像素格式")));
+        formatInput = new QComboBox(this);
+        formatInput->setObjectName("cameraFormatInput");
+        formatInput->addItem(tr("自动"), QString());
+        layout->addWidget(formatInput);
+        layout->addWidget(createPlainLabel(this, "cameraModeLabel", tr("分辨率 × 帧率")));
+        modeInput = new QComboBox(this);
+        modeInput->setObjectName("cameraModeInput");
+        layout->addWidget(modeInput);
+        fillDevices(deviceInput, cameras->devices(), {});
 
-            const auto loadModes = [=] {
-                const auto id = deviceInput->currentData().toString();
-                modesLoading = !id.isEmpty();
-                modeInput->setEnabled(!modesLoading);
-                formatInput->setEnabled(!modesLoading);
-                errorLabel->clear();
-                if (onSettingsChanged)
-                    onSettingsChanged();
-                if (modesLoading)
-                    cameras->requestModes(id);
-            };
+        const auto loadModes = [=] {
+            const auto id = deviceInput->currentData().toString();
+            modesLoading = !id.isEmpty();
+            modeInput->setEnabled(!modesLoading);
+            formatInput->setEnabled(!modesLoading);
+            errorLabel->clear();
+            if (onSettingsChanged)
+                onSettingsChanged();
+            if (modesLoading)
+                cameras->requestModes(id);
+        };
 
-            connect(cameras, &CameraSourceController::devicesChanged, this, [=] {
-                const auto previousDeviceId = deviceInput->currentData().toString();
-                fillDevices(deviceInput, cameras->devices(), previousDeviceId);
-                refreshButton->setEnabled(!cameras->refreshing());
-                errorLabel->setText(cameras->catalogError());
-                if (previousDeviceId != deviceInput->currentData().toString())
-                    loadModes();
-                if (onSettingsChanged)
-                    onSettingsChanged();
-            });
-            const auto fillModes = [=] {
-                const auto previous = modeInput->currentData().value<CameraMode>();
-                const QString format = formatInput->currentData().toString();
-                QSignalBlocker blocker(modeInput);
-                modeInput->clear();
-                CameraMode deviceDefault;
-                deviceDefault.subtype = format;
-                modeInput->addItem(tr("自动选择"), QVariant::fromValue(deviceDefault));
-                QList<CameraMode> added;
-                int selected = 0;
-                for (auto entry : cameras->modes(deviceInput->currentData().toString())) {
-                    if (!entry.supported || (!format.isEmpty() && entry.subtype != format))
-                        continue;
-                    entry.subtype = format;
-                    if (std::any_of(added.cbegin(), added.cend(), [&](const auto &m) {
-                            return m.sameFormat(entry);
-                        }))
-                        continue;
-                    added.append(entry);
-                    modeInput->addItem(entry.name, QVariant::fromValue(entry));
-                    if (entry.sameFormat(previous))
-                        selected = modeInput->count() - 1;
-                }
-                modeInput->setCurrentIndex(selected);
-                if (onSettingsChanged)
-                    onSettingsChanged();
-            };
-            connect(formatInput, &QComboBox::currentIndexChanged, this, fillModes);
-            connect(modeInput, &QComboBox::currentIndexChanged, this, [=] {
-                if (onSettingsChanged)
-                    onSettingsChanged();
-            });
-            connect(cameras, &CameraSourceController::modesChanged, this,
-                    [=](const QString &deviceId, const QString &message) {
-                        if (deviceId != deviceInput->currentData().toString())
-                            return;
-                        const auto previous = formatInput->currentData().toString();
-                        {
-                            QSignalBlocker blocker(formatInput);
-                            formatInput->clear();
-                            formatInput->addItem(tr("自动"), QString());
-                            QSet<QString> added;
-                            for (const auto &entry : cameras->modes(deviceId)) {
-                                if (added.contains(entry.subtype))
-                                    continue;
-                                added.insert(entry.subtype);
-                                const auto label =
-                                    entry.subtype == "mjpeg"     ? QStringLiteral("MJPEG")
-                                    : entry.subtype == "yuyv422" ? QStringLiteral("YUY2")
-                                                                 : entry.subtype.toUpper();
-                                formatInput->addItem(
-                                    label + (entry.supported ? QString() : tr("（暂不支持）")),
-                                    entry.subtype);
-                                if (!entry.supported) {
-                                    const int row = formatInput->count() - 1;
-                                    auto *model =
-                                        qobject_cast<QStandardItemModel *>(formatInput->model());
-                                    model->item(row)->setEnabled(false);
-                                    model->item(row)->setToolTip(tr("当前版本不支持此采集格式。"));
-                                }
+        connect(cameras, &CameraSourceController::devicesChanged, this, [=] {
+            const auto previousDeviceId = deviceInput->currentData().toString();
+            fillDevices(deviceInput, cameras->devices(), previousDeviceId);
+            refreshButton->setEnabled(!cameras->refreshing());
+            errorLabel->setText(cameras->catalogError());
+            if (previousDeviceId != deviceInput->currentData().toString())
+                loadModes();
+            if (onSettingsChanged)
+                onSettingsChanged();
+        });
+        const auto fillModes = [=] {
+            const auto previous = modeInput->currentData().value<CameraMode>();
+            const QString format = formatInput->currentData().toString();
+            QSignalBlocker blocker(modeInput);
+            modeInput->clear();
+            CameraMode deviceDefault;
+            deviceDefault.subtype = format;
+            modeInput->addItem(tr("自动选择"), QVariant::fromValue(deviceDefault));
+            QList<CameraMode> added;
+            int selected = 0;
+            for (auto entry : cameras->modes(deviceInput->currentData().toString())) {
+                if (!entry.supported || (!format.isEmpty() && entry.subtype != format))
+                    continue;
+                entry.subtype = format;
+                if (std::any_of(added.cbegin(), added.cend(), [&](const auto &m) {
+                        return m.sameFormat(entry);
+                    }))
+                    continue;
+                added.append(entry);
+                modeInput->addItem(entry.name, QVariant::fromValue(entry));
+                if (entry.sameFormat(previous))
+                    selected = modeInput->count() - 1;
+            }
+            modeInput->setCurrentIndex(selected);
+            if (onSettingsChanged)
+                onSettingsChanged();
+        };
+        connect(formatInput, &QComboBox::currentIndexChanged, this, fillModes);
+        connect(modeInput, &QComboBox::currentIndexChanged, this, [=] {
+            if (onSettingsChanged)
+                onSettingsChanged();
+        });
+        connect(cameras, &CameraSourceController::modesChanged, this,
+                [=](const QString &deviceId, const QString &message) {
+                    if (deviceId != deviceInput->currentData().toString())
+                        return;
+                    const auto previous = formatInput->currentData().toString();
+                    {
+                        QSignalBlocker blocker(formatInput);
+                        formatInput->clear();
+                        formatInput->addItem(tr("自动"), QString());
+                        QSet<QString> added;
+                        for (const auto &entry : cameras->modes(deviceId)) {
+                            if (added.contains(entry.subtype))
+                                continue;
+                            added.insert(entry.subtype);
+                            const auto label =
+                                entry.subtype == "mjpeg"     ? QStringLiteral("MJPEG")
+                                : entry.subtype == "yuyv422" ? QStringLiteral("YUY2")
+                                                             : entry.subtype.toUpper();
+                            formatInput->addItem(
+                                label + (entry.supported ? QString() : tr("（暂不支持）")),
+                                entry.subtype);
+                            if (!entry.supported) {
+                                const int row = formatInput->count() - 1;
+                                auto *model =
+                                    qobject_cast<QStandardItemModel *>(formatInput->model());
+                                model->item(row)->setEnabled(false);
+                                model->item(row)->setToolTip(tr("当前版本不支持此采集格式。"));
                             }
-                            formatInput->setCurrentIndex(qMax(0, formatInput->findData(previous)));
                         }
-                        modesLoading = false;
-                        modeInput->setEnabled(message.isEmpty());
-                        formatInput->setEnabled(message.isEmpty());
-                        errorLabel->setText(message);
-                        fillModes();
-                    });
-            connect(deviceInput, &QComboBox::activated, this, [=] {
-                modeInput->clear();
-                formatInput->setCurrentIndex(0);
-                loadModes();
-            });
-            connect(refreshButton, &QPushButton::clicked, this, [=] {
-                cameras->refreshDevices();
-                loadModes();
-            });
+                        formatInput->setCurrentIndex(qMax(0, formatInput->findData(previous)));
+                    }
+                    modesLoading = false;
+                    modeInput->setEnabled(message.isEmpty());
+                    formatInput->setEnabled(message.isEmpty());
+                    errorLabel->setText(message);
+                    fillModes();
+                });
+        connect(deviceInput, &QComboBox::activated, this, [=] {
+            modeInput->clear();
+            formatInput->setCurrentIndex(0);
+            loadModes();
+        });
+        connect(refreshButton, &QPushButton::clicked, this, [=] {
             cameras->refreshDevices();
             loadModes();
-        }
+        });
+        cameras->refreshDevices();
+        loadModes();
         layout->addWidget(errorLabel);
         connect(deviceInput, &QComboBox::currentIndexChanged, this, [this] {
             if (onSettingsChanged)
@@ -244,11 +258,6 @@ public:
         });
     }
 
-    bool ready() const
-    {
-        return !deviceInput->currentData().toString().isEmpty() && !modesLoading &&
-               (!modeInput || modeInput->isEnabled());
-    }
 };
 }
 
@@ -342,6 +351,10 @@ VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent)
         visibility->setChecked(manager->sourceVisible(sourceId));
         visibility->setIcon(QIcon(manager->sourceVisible(sourceId) ? ":/assets/icons/eye.svg"
                                                                    : ":/assets/icons/eye-off.svg"));
+        auto *retry = widget->findChild<QPushButton *>("retryDisplayButton");
+        if (retry)
+            retry->setVisible(config && std::holds_alternative<DisplaySourceConfig>(*config) &&
+                              state == VideoSourceState::Error);
         auto *lock = widget->findChild<QToolButton *>("sourceLockButton");
         lock->setChecked(manager->sourceLocked(sourceId));
         lock->setIcon(QIcon(manager->sourceLocked(sourceId) ? ":/assets/icons/lock.svg"
@@ -370,6 +383,12 @@ VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent)
             text->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
             text->setAttribute(Qt::WA_TransparentForMouseEvents);
             rowLayout->addWidget(text, 1);
+
+            auto *retry = new QPushButton(tr("重试"), widget);
+            retry->setObjectName("retryDisplayButton");
+            retry->hide();
+            rowLayout->addWidget(retry);
+            connect(retry, &QPushButton::clicked, this, [this, id] { emit retryRequested(id); });
 
             auto *visible =
                 createActionButton(widget, "sourceVisibilityButton", tr("显示/隐藏来源"), "eye");
@@ -477,7 +496,7 @@ QDialog *createSourceAddDialog(QWidget *parent, VideoSourceManager *manager,
     auto *pages = new QStackedWidget(dialog);
     layout->addWidget(pages);
 
-    auto *display = new CaptureSettingsWidget(pages, displays, cameras, false);
+    auto *display = new DisplaySettingsWidget(pages);
     pages->addWidget(display);
     // 切到摄像头页面后才查询设备，避免添加图片时也访问摄像头。
     auto *cameraPage = new QWidget(pages);
@@ -516,21 +535,18 @@ QDialog *createSourceAddDialog(QWidget *parent, VideoSourceManager *manager,
         const bool busy = dialog->property("loading").toBool();
 
         auto *camera = cameraPage->findChild<QComboBox *>("cameraDeviceInput");
-        ok->setEnabled(
-            !busy &&
-            (type->currentIndex() == 2 ||
-             (type->currentIndex() == 0
-                  ? display->ready()
-                  : camera && !camera->currentData().toString().isEmpty() &&
-                        cameraPage->findChild<QComboBox *>("cameraModeInput")->isEnabled())));
+        const bool cameraReady = camera && !camera->currentData().toString().isEmpty() &&
+            cameraPage->findChild<QComboBox *>("cameraModeInput")->isEnabled();
+        ok->setEnabled(!busy && (type->currentIndex() != 1 || cameraReady));
         ok->setText(busy ? QObject::tr("加载中…") : QObject::tr("确定"));
         type->setEnabled(!busy);
         name->setEnabled(!busy);
         path->setEnabled(!busy);
         browse->setEnabled(!busy);
+        display->setEnabled(!busy);
     };
-    display->onSettingsChanged = refresh;
 
+    QObject::connect(display->selectButton, &QPushButton::clicked, ok, &QPushButton::click);
     QObject::connect(name, &QLineEdit::textEdited, dialog, [=] {
         dialog->setProperty("nameEdited", true);
         error->clear();
@@ -542,7 +558,7 @@ QDialog *createSourceAddDialog(QWidget *parent, VideoSourceManager *manager,
         if (!dialog->property("nameEdited").toBool())
             name->setText(manager->suggestedSourceName(type->currentText()));
         if (index == 1 && !cameraPage->findChild<QComboBox *>("cameraDeviceInput")) {
-            auto *camera = new CaptureSettingsWidget(cameraPage, displays, cameras, true);
+            auto *camera = new CameraSettingsWidget(cameraPage, cameras);
             cameraLayout->addWidget(camera);
             camera->onSettingsChanged = refresh;
         }
@@ -571,6 +587,22 @@ QDialog *createSourceAddDialog(QWidget *parent, VideoSourceManager *manager,
                          error->setText(message);
                          refresh();
                      });
+    QObject::connect(dialog, &QDialog::finished, displays, [=] {
+        displays->cancelAdd(dialog);
+    });
+    QObject::connect(displays, &DisplaySourceController::displayAdded, dialog,
+                     [=](QObject *requester) {
+        if (requester == dialog)
+            dialog->accept();
+    });
+    QObject::connect(displays, &DisplaySourceController::addFailed, dialog,
+                     [=](QObject *requester, const QString &message) {
+        if (requester != dialog)
+            return;
+        dialog->setProperty("loading", false);
+        error->setText(message);
+        refresh();
+    });
     QObject::connect(buttons, &QDialogButtonBox::accepted, dialog, [=] {
         if (!ok->isEnabled())
             return;
@@ -581,12 +613,14 @@ QDialog *createSourceAddDialog(QWidget *parent, VideoSourceManager *manager,
             images->addImage(name->text(), path->text(), dialog);
             return;
         }
-        QString id;
-        if (type->currentIndex() == 0)
-            id = displays->addDisplay(name->text(), display->deviceInput->currentData().toString(),
-                                      display->captureCursorInput->isChecked());
-        else
-            id = cameras->addCamera(
+        if (type->currentIndex() == 0) {
+            dialog->setProperty("loading", true);
+            error->clear();
+            refresh();
+            displays->requestAdd(name->text(), display->captureCursorInput->isChecked(), dialog);
+            return;
+        }
+        const auto id = cameras->addCamera(
                 name->text(), cameraPage->findChild<QComboBox *>("cameraModeInput")
                                   ->currentData()
                                   .value<CameraMode>()

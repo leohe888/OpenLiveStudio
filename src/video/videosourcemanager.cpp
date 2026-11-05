@@ -369,11 +369,8 @@ bool VideoSourceManager::setSourceConfig(const QString &sourceId, const VideoSou
             return false;
         unchanged = std::get<CameraSourceConfig>(previous) == *camera;
     } else if (const auto *display = std::get_if<DisplaySourceConfig>(&config)) {
-        if (display->displayId().trimmed().isEmpty())
-            return false;
         const auto &old = std::get<DisplaySourceConfig>(previous);
-        unchanged = old.displayId() == display->displayId() &&
-                    old.captureCursor() == display->captureCursor();
+        unchanged = old.captureCursor() == display->captureCursor();
     } else {
         const auto &image = std::get<ImageSourceConfig>(config);
         if (image.filePath().trimmed().isEmpty())

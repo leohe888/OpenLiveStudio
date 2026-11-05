@@ -173,27 +173,13 @@ bool CanvasRenderer::render(const QList<RenderSourceSnapshot> &sources)
                 resource.texture->setWrapMode(QOpenGLTexture::ClampToEdge);
             }
             if (source.frame && source.frame->pixels) {
-                resource.interop.reset();
                 if (!uploadPixels(*source.frame, resource.texture->textureId(),
                                   resource.pixelPlanes)) {
-                    resource.uploadError = tr("无法上传或转换摄像头像素帧。");
+                    resource.uploadError = tr("无法上传或转换采集像素帧。");
                     emit sourceFailed(source.id, resource.uploadError);
                     continue;
                 }
-            } else if (source.frame && source.frame->gpu) {
-                if (resource.transferFailed)
-                    continue;
-                if (!resource.interop)
-                    resource.interop = std::make_unique<GpuInterop>();
-                QString reason;
-                if (!resource.interop->copy(*source.frame, resource.texture->textureId(),
-                                            &reason)) {
-                    resource.transferFailed = true;
-                    emit gpuTransferFailed(source.id, source.frame->generation, reason);
-                    continue;
-                }
             } else {
-                resource.interop.reset();
                 const auto image = source.image.convertToFormat(QImage::Format_RGBA8888);
                 resource.texture->setData(QOpenGLTexture::RGBA, QOpenGLTexture::UInt8,
                                           image.constBits());

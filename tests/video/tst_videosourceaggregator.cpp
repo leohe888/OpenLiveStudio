@@ -10,7 +10,7 @@ QList<VideoSource> mixedSources()
 {
     return {{"camera", "Camera", CameraSourceConfig{"device"}},
             {"image", "Image", ImageSourceConfig{"image.png"}},
-            {"display", "Display", DisplaySourceConfig{"monitor"}}};
+            {"display", "Display", DisplaySourceConfig{}}};
 }
 
 QImage image(Qt::GlobalColor color)

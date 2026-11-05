@@ -1,6 +1,6 @@
 # OpenLive Studio
 
-基于 Qt6 的桌面录制与直播工具。当前分支正在向 Linux 移植，已接入 V4L2 USB 摄像头；显示器和音频采集后端仍待实现。
+仅面向 Linux 的 Qt6 桌面录制与直播工具。已接入 V4L2 USB 摄像头和 Wayland 显示器采集；音频采集后端仍待实现。
 
 ## MVP 功能
 
@@ -18,14 +18,14 @@
 
 - `src/ui`：窗口、面板和用户操作。
 - `src/video`：视频来源状态、采集控制和渲染快照聚合。
-- `src/graphics`：GPU 资源互操作、画布渲染与合成。
+- `src/graphics`：OpenGL 画布渲染、像素转换与合成。
 - `src/audio`：设备采集、重采样和混音。
 - `src/output`：音画时间对齐、编码、录制与直播生命周期。
 - `src/util`：媒体时钟和输出订阅队列。
 
 ## 构建与验证
 
-构建需要 C++ 编译器、CMake 3.19+、pkg-config、Qt 6.5+（Core、Network、Widgets、Svg、OpenGL、OpenGLWidgets）和 FFmpeg 开发库。FFmpeg 以 7.1 系列为基线；开启测试时还需要 Qt Test 和 ffprobe。FFmpeg 6.1 及更早版本不满足要求，配置阶段会拒绝旧版库。
+构建需要 C++ 编译器、CMake 3.19+、pkg-config、Qt 6.5+（Core、Network、Widgets、Svg、OpenGL、OpenGLWidgets）和 FFmpeg 开发库。Linux 显示器采集另需 Qt DBus 和 PipeWire 0.3.48+ 开发包（Ubuntu：`libpipewire-0.3-dev`，包含 SPA 头文件依赖）。FFmpeg 以 7.1 系列为基线；开启测试时还需要 Qt Test 和 ffprobe。FFmpeg 6.1 及更早版本不满足要求，配置阶段会拒绝旧版库。
 
 FFmpeg 通过 pkg-config 查找，不再使用 `FFmpeg_ROOT`。使用系统开发包时通常无需额外配置；使用用户目录内编译的 FFmpeg 时，在同一个终端先启用对应环境。以下示例对应安装在 `~/.local/ffmpeg-7.1` 的版本：
 
@@ -49,6 +49,12 @@ cmake --build build/linux --parallel 2
 ctest --test-dir build/linux --output-on-failure
 ```
 
-V4L2 摄像头使用系统内核接口，支持离散模式的单平面 USB 视频采集，无需安装 libv4l。显示器和音频采集仍待 Linux 后端接入。真实 GPU、采集和系统授权测试需要图形桌面与实际设备。
+V4L2 摄像头使用系统内核接口，支持离散模式的单平面 USB 视频采集，无需安装 libv4l。音频采集仍待 Linux 后端接入。真实 GPU、采集和系统授权测试需要图形桌面与实际设备。
+
+Wayland 显示器采集依赖运行中的 PipeWire、`xdg-desktop-portal` 及与当前桌面匹配的 ScreenCast 后端。添加来源时点击“选择显示器…”（或“确定”），在系统弹窗选择一台显示器并授权；收到首帧后才创建来源，取消不会留下空来源。画面以原始分辨率、SDR、最高 30 FPS 通过 CPU 像素帧进入现有合成链路，预览、滤镜、变换、录制和推流共用同一来源。首版性能目标为单显示器 1080p，不承诺更高分辨率的帧率。
+
+鼠标默认开启，系统不支持的模式会禁用并说明实际状态。隐藏来源会释放共享会话，再次显示重新选择；删除来源或退出会关闭会话。系统停止共享、视频连接错误会清空该来源画面，并显示“重试”按钮；不自动弹窗重试。不保存屏幕授权，不实现跨重启恢复、窗口采集、区域裁剪、X11 专用后端或 GPU 零拷贝。
+
+`capture.portal` 测试通过 `dbus-run-session`（测试依赖）运行模拟系统服务，验证授权请求、取消和资源释放。真实 Wayland 桌面的多屏选择、鼠标、显隐和删除，以及 1080p 录制/推流仍需实机验收；模拟服务和离屏测试不能替代这些检查。
 
 测试按 `smoke`、`gpu`、`audio`、`output` 等标签组织，可以用 `ctest --test-dir build/linux -L smoke --output-on-failure` 先验证基础行为。GPU、采集设备和直播集成测试依赖实际运行环境，阅读测试结果时也应检查跳过项。

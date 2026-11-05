@@ -1,7 +1,5 @@
 #include "video/display/displaysourcecontroller.h"
-#include "video/display/displaydevices.h"
 #include "video/videosourcemanager.h"
-#include <QDebug>
 #include <QScopeGuard>
 #include <QSet>
 #include <QUuid>
@@ -21,7 +19,6 @@ void setRuntimeStatus(VideoSourceManager &manager, const QString &sourceId,
 DisplaySourceController::DisplaySourceController(VideoSourceManager &manager, QObject *parent)
     : QObject(parent), m_sourceManager(manager)
 {
-    refreshDisplayDevices();
     const auto synchronizeSourcesFromManager = [this] {
         synchronizeSources();
     };
@@ -38,6 +35,10 @@ DisplaySourceController::DisplaySourceController(VideoSourceManager &manager, QO
 DisplaySourceController::~DisplaySourceController()
 {
     m_framePollTimer.stop();
+    for (auto &pending : m_pendingAdds) {
+        pending.worker->stop();
+        m_retiringWorkers.push_back(std::move(pending.worker));
+    }
     for (auto &entry : m_entries)
         retireWorker(entry.second);
     // 仅应用退出时等待；正常移除来源时把线程转入退出队列，避免阻塞界面。
@@ -45,26 +46,29 @@ DisplaySourceController::~DisplaySourceController()
         worker->wait();
 }
 
-void DisplaySourceController::refreshDisplayDevices()
+void DisplaySourceController::requestAdd(const QString &name, bool captureCursor, QObject *requester)
 {
-    const auto devices = ::displayDevices();
-    if (devices != m_devices) {
-        m_devices = devices;
-        emit displayDevicesChanged();
+    cancelAdd(requester);
+    if (!requester || name.trimmed().isEmpty()) {
+        emit addFailed(requester, tr("请输入来源名称。"));
+        return;
     }
+    PendingAdd pending{name.trimmed(), captureCursor, requester,
+        std::make_unique<DisplayCaptureWorker>(captureCursor, ++m_generation)};
+    pending.worker->start();
+    m_pendingAdds.push_back(std::move(pending));
 }
 
-QString DisplaySourceController::addDisplay(const QString &name, const QString &displayId,
-                                            bool captureCursor)
+void DisplaySourceController::cancelAdd(QObject *requester)
 {
-    if (name.trimmed().isEmpty() || displayId.trimmed().isEmpty())
-        return {};
-    const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    // 即使后续打开设备失败，也保留来源配置，方便用户查看错误或重试。
-    if (!m_sourceManager.addSource(
-            {id, name.trimmed(), DisplaySourceConfig{displayId, captureCursor}}))
-        return {};
-    return id;
+    for (auto it = m_pendingAdds.begin(); it != m_pendingAdds.end();) {
+        if (!it->requester || it->requester == requester) {
+            it->worker->stop();
+            m_retiringWorkers.push_back(std::move(it->worker));
+            it = m_pendingAdds.erase(it);
+        } else
+            ++it;
+    }
 }
 
 bool DisplaySourceController::retry(const QString &sourceId)
@@ -115,11 +119,9 @@ void DisplaySourceController::synchronizeSources()
         const auto &config = std::get<DisplaySourceConfig>(item.config());
         retainedSourceIds.insert(id);
         auto &entry = m_entries[id];
-        const QString displayId = config.displayId();
         const bool captureCursor = config.captureCursor();
-        if (entry.displayId != displayId || entry.captureCursor != captureCursor) {
+        if (entry.captureCursor != captureCursor) {
             retireWorker(entry);
-            entry.displayId = displayId;
             entry.captureCursor = captureCursor;
             entry.failed = false;
         }
@@ -130,7 +132,7 @@ void DisplaySourceController::synchronizeSources()
         } else if (!entry.worker && !entry.failed) {
             entry.generation = ++m_generation;
             entry.worker =
-                std::make_unique<DisplayCaptureWorker>(displayId, captureCursor, entry.generation);
+                std::make_unique<DisplayCaptureWorker>(captureCursor, entry.generation);
             entry.worker->start();
             setRuntimeStatus(m_sourceManager, id, VideoSourceState::Starting, {});
         } else if (entry.failed) {
@@ -148,21 +150,63 @@ void DisplaySourceController::synchronizeSources()
     publishRenderSources();
 }
 
-void DisplaySourceController::failTransfer(const QString &sourceId, quint64 generation,
-                                           const QString &reason)
+bool DisplaySourceController::completePendingAdds()
 {
-    const auto it = m_entries.find(sourceId);
-    if (it == m_entries.end() || it->second.generation != generation || !it->second.worker ||
-        it->second.failed)
-        return;
-    auto &entry = it->second;
-    entry.failed = true;
-    retireWorker(entry);
-    const QString message = tr("GPU 画面传输失败，已停止采集。请检查显卡驱动后重新添加来源。");
-    setRuntimeStatus(m_sourceManager, sourceId, VideoSourceState::Error, message);
-    qWarning().noquote() << "Display GPU transfer failed:" << sourceId << reason;
-    emit sourceFailed(sourceId, message);
-    publishRenderSources();
+    bool captureUpdated = false;
+    // Complete adds only after receiving a real frame. Transfer the authorized
+    // worker into the source entry so adding does not open a second picker.
+    for (auto it = m_pendingAdds.begin(); it != m_pendingAdds.end();) {
+        if (!it->requester) {
+            it->worker->stop();
+            m_retiringWorkers.push_back(std::move(it->worker));
+            it = m_pendingAdds.erase(it);
+            continue;
+        }
+        const auto error = it->worker->lastError();
+        auto frame = it->worker->takeLatest();
+        if (error.isEmpty() && !frame) {
+            ++it;
+            continue;
+        }
+        auto pending = std::move(*it);
+        it = m_pendingAdds.erase(it);
+        if (!error.isEmpty()) {
+            pending.worker->stop();
+            m_retiringWorkers.push_back(std::move(pending.worker));
+            QMetaObject::invokeMethod(this, [this, requester = pending.requester, error] {
+                if (requester)
+                    emit addFailed(requester, error);
+            }, Qt::QueuedConnection);
+            continue;
+        }
+        const auto id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        if (!m_sourceManager.addSource({id, pending.name,
+                DisplaySourceConfig{pending.cursor}})) {
+            pending.worker->stop();
+            m_retiringWorkers.push_back(std::move(pending.worker));
+            QMetaObject::invokeMethod(this, [this, requester = pending.requester] {
+                if (requester)
+                    emit addFailed(requester, tr("无法添加显示器来源。"));
+            }, Qt::QueuedConnection);
+            continue;
+        }
+        auto &entry = m_entries[id];
+        entry.captureCursor = pending.cursor;
+        entry.generation = pending.worker->generation();
+        entry.worker = std::move(pending.worker);
+        entry.frame = std::move(frame);
+        auto runtime = m_sourceManager.sourceRuntime(id);
+        runtime.setPixelSize(entry.frame->size);
+        runtime.setState(VideoSourceState::Capturing);
+        runtime.setError({});
+        m_sourceManager.setSourceRuntime(id, runtime);
+        captureUpdated = true;
+        QMetaObject::invokeMethod(this, [this, requester = pending.requester] {
+            if (requester)
+                emit displayAdded(requester);
+        }, Qt::QueuedConnection);
+    }
+    return captureUpdated;
 }
 
 void DisplaySourceController::collectCaptureUpdates()
@@ -173,7 +217,7 @@ void DisplaySourceController::collectCaptureUpdates()
     const auto clearUpdateGuard = qScopeGuard([this] {
         m_updatingSources = false;
     });
-    bool captureUpdated = false;
+    bool captureUpdated = completePendingAdds();
     for (auto &[id, entry] : m_entries) {
         if (!entry.worker)
             continue;
@@ -231,6 +275,9 @@ void DisplaySourceController::publishRenderSources()
 int DisplaySourceController::activeWorkerCount() const
 {
     int count = 0;
+    for (const auto &pending : m_pendingAdds)
+        if (!pending.worker->isFinished())
+            ++count;
     for (const auto &entry : m_entries)
         if (entry.second.worker && !entry.second.worker->isFinished())
             ++count;

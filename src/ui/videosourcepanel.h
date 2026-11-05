@@ -19,6 +19,7 @@ public:
 
 signals:
     void addRequested();
+    void retryRequested(const QString &sourceId);
     void removalRequested(const QString &sourceId);
     void filtersRequested(const QString &sourceId);
 };

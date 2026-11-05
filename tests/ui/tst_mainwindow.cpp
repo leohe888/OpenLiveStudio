@@ -455,7 +455,7 @@ void MainWindowTest::aggregatesIndependentSourceControllers()
     const auto path = directory.filePath("image.png");
     QVERIFY(pixels.save(path));
     QVERIFY(model->addSource({"image", "Image", ImageSourceConfig{path}}));
-    VideoSource screen{"display", "Display", DisplaySourceConfig{"missing-display"}};
+    VideoSource screen{"display", "Display", DisplaySourceConfig{}};
     screen.setVisible(false); // 隐藏来源以验证信号连接，同时避免打开实际设备。
     QVERIFY(model->addSource(screen));
     VideoSource webcam{"camera", "Camera", CameraSourceConfig{"missing-camera"}};
@@ -917,7 +917,7 @@ void MainWindowTest::cameraHardwareOutputs()
     QVERIFY2(streaming->state() == "live",
              qPrintable(streaming->lastError() + QString::fromUtf8(receiver.readAllStandardError())));
     const auto generation = camera->m_entries.at(id).generation;
-    camera->failTransfer(id, generation, "Injected camera outage during output");
+    camera->reportCaptureFailure(id, generation, "Injected camera outage during output");
     QCOMPARE(recording->state(), QString("recording"));
     QCOMPARE(streaming->state(), QString("live"));
     QTRY_COMPARE_WITH_TIMEOUT(model->sourceRuntime(id).state(), VideoSourceState::Capturing, 15000);

@@ -4,8 +4,7 @@
 #include "audio/audiosource.h"
 #include <QThread>
 #include <QList>
-#include <atomic>
-#include <condition_variable>
+#include <mutex>
 
 struct AudioDevice
 {
@@ -41,14 +40,10 @@ protected:
     void run() override;
 
 private:
-    QString capture();
     void setStatus(const QString &state, const QString &error = {});
     QString m_deviceId;
-    AudioSourceType m_type = AudioSourceType::Microphone;
     std::shared_ptr<AudioPacketQueue> m_queue;
-    std::atomic_bool m_stop{false};
     mutable std::mutex m_mutex;
-    std::condition_variable m_wake;
     Status m_status;
 };
 #endif

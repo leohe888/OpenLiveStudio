@@ -158,8 +158,7 @@ void Compositor::run()
         CanvasRenderer renderer;
         connect(&renderer, &CanvasRenderer::sourceFailed, this, &Compositor::sourceFailed,
                 Qt::DirectConnection);
-        connect(&renderer, &CanvasRenderer::gpuTransferFailed, this, &Compositor::gpuTransferFailed,
-                Qt::DirectConnection);
+
         // 致命错误由下面的统一路径处理，确保等待读回的调用方也被唤醒。
         if (!renderer.initialize()) {
             fail(renderer.lastError());

@@ -27,7 +27,7 @@ struct RenderSourceSnapshot
 
     bool hasFrame() const
     {
-        return frame ? (bool(frame->gpu) || bool(frame->pixels)) : !image.isNull();
+        return frame ? bool(frame->pixels) : !image.isNull();
     }
 };
 

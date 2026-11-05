@@ -311,10 +311,8 @@ void MainWindow::setupPreview()
     connect(preview, &PreviewWidget::renderingFailed, pages, showError, Qt::QueuedConnection);
     connect(m_videoSourceAggregator, &VideoSourceAggregator::renderSourcesChanged, preview,
             &PreviewWidget::setSources);
-    connect(preview, &PreviewWidget::gpuTransferFailed, m_displaySourceController,
-            &DisplaySourceController::failTransfer, Qt::QueuedConnection);
-    connect(preview, &PreviewWidget::gpuTransferFailed, m_cameraSourceController,
-            &CameraSourceController::failTransfer, Qt::QueuedConnection);
+
+
     connect(preview, &PreviewWidget::selectionRequested, m_videoSourceManager,
             &VideoSourceManager::selectSource);
     connect(preview, &PreviewWidget::transformRequested, m_videoSourceManager,
@@ -348,6 +346,8 @@ void MainWindow::setupVideoSourcesDock()
 
     auto *panel = new VideoSourcePanel(m_videoSourceManager, m_videoSourceDock);
     m_videoSourceDock->setWidget(panel);
+    connect(panel, &VideoSourcePanel::retryRequested, m_displaySourceController,
+            &DisplaySourceController::retry);
     connect(panel, &VideoSourcePanel::addRequested, this, &MainWindow::showSourceAddDialog);
     connect(panel, &VideoSourcePanel::removalRequested, this, &MainWindow::showSourceRemovalDialog);
     connect(panel, &VideoSourcePanel::filtersRequested, this, &MainWindow::showSourceFiltersDialog);

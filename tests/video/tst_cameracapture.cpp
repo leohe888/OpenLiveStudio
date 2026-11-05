@@ -279,7 +279,7 @@ void CameraCaptureTest::capturesHardwareCameraAndSupportedModes()
     // 注入一次来源失败，验证最后画面保留、自动新会话和 generation 隔离。
     const auto frozen = latest.value(ids[0]);
     QVERIFY(frozen);
-    controller.failTransfer(ids[0], frozen->generation, "Injected capture interruption");
+    controller.reportCaptureFailure(ids[0], frozen->generation, "Injected capture interruption");
     QCOMPARE(model.sourceRuntime(ids[0]).state(), VideoSourceState::Error);
     QCOMPARE(latest.value(ids[0]), frozen);
     QTRY_COMPARE_WITH_TIMEOUT(model.sourceRuntime(ids[0]).state(), VideoSourceState::Capturing, 15000);

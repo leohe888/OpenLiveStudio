@@ -248,7 +248,7 @@ private slots:
         QVERIFY(streaming.startStreaming(server, "transient-recovery"));
         QTRY_COMPARE_WITH_TIMEOUT(streaming.state(), QString("live"), 6000);
         const auto ffmpeg =
-            QDir(QFileInfo(QStringLiteral(OPENLIVE_FFPROBE)).absolutePath()).filePath("ffmpeg.exe");
+            QDir(QFileInfo(QStringLiteral(OPENLIVE_FFPROBE)).absolutePath()).filePath("ffmpeg");
         QUrl playback(server);
         playback.setScheme("http");
         playback.setPort(8080);
@@ -484,7 +484,7 @@ private slots:
         const auto http = qEnvironmentVariable("OPENLIVE_SRS_HTTP");
         QVERIFY(!http.isEmpty());
         const auto ffmpeg =
-            QDir(QFileInfo(QStringLiteral(OPENLIVE_FFPROBE)).absolutePath()).filePath("ffmpeg.exe");
+            QDir(QFileInfo(QStringLiteral(OPENLIVE_FFPROBE)).absolutePath()).filePath("ffmpeg");
         decoder.start(ffmpeg, {"-v",
                                "error",
                                "-fflags",

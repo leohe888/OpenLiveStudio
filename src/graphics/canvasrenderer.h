@@ -2,7 +2,6 @@
 #define CANVASRENDERER_H
 
 #include "graphics/rendersourcesnapshot.h"
-#include "graphics/gpuinterop.h"
 #include <QHash>
 #include <QObject>
 #include <QOpenGLFunctions>
@@ -51,7 +50,7 @@ public:
 signals:
     void sourceFailed(const QString &sourceId, const QString &message);
     void renderingFailed(const QString &message);
-    void gpuTransferFailed(const QString &sourceId, quint64 generation, const QString &message);
+
 
 private:
     friend class CanvasRendererTest;
@@ -74,10 +73,8 @@ private:
         std::array<std::unique_ptr<QOpenGLTexture>, 3> pixelPlanes;
         QString filterError;
         QString uploadError;
-        std::unique_ptr<GpuInterop> interop;
         quint64 generation = 0, sequence = 0;
         bool ready = false;
-        bool transferFailed = false;
     };
 
     std::map<QString, TextureResource> m_textures;
