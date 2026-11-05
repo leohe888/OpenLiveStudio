@@ -1,6 +1,6 @@
 # OpenLive Studio
 
-仅面向 Linux 的 Qt6 桌面录制与直播工具。已接入 V4L2 USB 摄像头和 Wayland 显示器采集；音频采集后端仍待实现。
+仅面向 Linux 的 Qt6 桌面录制与直播工具。已接入 V4L2 USB 摄像头、Wayland 显示器，以及 PipeWire 麦克风和系统声音采集。
 
 ## MVP 功能
 
@@ -25,7 +25,7 @@
 
 ## 构建与验证
 
-构建需要 C++ 编译器、CMake 3.19+、pkg-config、Qt 6.5+（Core、Network、Widgets、Svg、OpenGL、OpenGLWidgets）和 FFmpeg 开发库。Linux 显示器采集另需 Qt DBus 和 PipeWire 0.3.48+ 开发包（Ubuntu：`libpipewire-0.3-dev`，包含 SPA 头文件依赖）。FFmpeg 以 7.1 系列为基线；开启测试时还需要 Qt Test 和 ffprobe。FFmpeg 6.1 及更早版本不满足要求，配置阶段会拒绝旧版库。
+构建需要 C++ 编译器、CMake 3.19+、pkg-config、Qt 6.5+（Core、Network、Widgets、Svg、OpenGL、OpenGLWidgets）和 FFmpeg 开发库。Linux 显示器采集另需 Qt DBus；显示器和音频采集需要 PipeWire 0.3.48+ 开发包（Ubuntu：`libpipewire-0.3-dev`，包含 SPA 头文件依赖）。FFmpeg 以 7.1 系列为基线；开启测试时还需要 Qt Test 和 ffprobe。FFmpeg 6.1 及更早版本不满足要求，配置阶段会拒绝旧版库。
 
 FFmpeg 通过 pkg-config 查找，不再使用 `FFmpeg_ROOT`。使用系统开发包时通常无需额外配置；使用用户目录内编译的 FFmpeg 时，在同一个终端先启用对应环境。以下示例对应安装在 `~/.local/ffmpeg-7.1` 的版本：
 
@@ -49,11 +49,22 @@ cmake --build build/linux --parallel 2
 ctest --test-dir build/linux --output-on-failure
 ```
 
-V4L2 摄像头使用系统内核接口，支持离散模式的单平面 USB 视频采集，无需安装 libv4l。音频采集仍待 Linux 后端接入。真实 GPU、采集和系统授权测试需要图形桌面与实际设备。
+V4L2 摄像头使用系统内核接口，支持离散模式的单平面 USB 视频采集，无需安装 libv4l。音频采集要求桌面使用 PipeWire 管理音频设备，并运行会话管理器（如 WirePlumber）；仅 PulseAudio 管理音频的桌面不在首版支持范围。真实 GPU、采集和系统授权测试需要图形桌面与实际设备。
 
 Wayland 显示器采集依赖运行中的 PipeWire、`xdg-desktop-portal` 及与当前桌面匹配的 ScreenCast 后端。添加来源时点击“选择显示器…”（或“确定”），在系统弹窗选择一台显示器并授权；收到首帧后才创建来源，取消不会留下空来源。画面以原始分辨率、SDR、最高 30 FPS 通过 CPU 像素帧进入现有合成链路，预览、滤镜、变换、录制和推流共用同一来源。首版性能目标为单显示器 1080p，不承诺更高分辨率的帧率。
 
 鼠标默认开启，系统不支持的模式会禁用并说明实际状态。隐藏来源会释放共享会话，再次显示重新选择；删除来源或退出会关闭会话。系统停止共享、视频连接错误会清空该来源画面，并显示“重试”按钮；不自动弹窗重试。不保存屏幕授权，不实现跨重启恢复、窗口采集、区域裁剪、X11 专用后端或 GPU 零拷贝。
+
+在混音面板添加“麦克风”或“系统声音”后立即开始采集。设备列表默认选择“跟随系统默认输入/输出设备”，也可固定选择某个设备；系统声音采集该输出设备播放的全部声音。默认设备变化后自动切换，固定设备断开则等待原设备恢复；设备或 PipeWire 服务恢复后自动重连，期间混音补静音，录制和直播继续。每路音量、静音和电平沿用现有混音链路，不提供麦克风监听，也不保存跨重启来源配置。
+
+`audio.sources` 验证重采样、混音和来源管理。`audio.pipewire` 使用独立的 PipeWire 服务、虚拟麦克风和输出设备验证真实采样接口、默认设备切换、设备删除/重建、服务重启，以及 MP4 和本机 RTMP 接收文件中可解码的非静音音频；它不访问桌面音频设备。该测试需要 `pipewire`、`pipewire-media-session`、`pw-cli`、`pw-dump`、`pw-metadata` 和 `pw-cat`，缺少工具时跳过；测试用的 media-session 不影响应用运行时采用的会话管理器。
+
+```bash
+ctest --test-dir build/linux-ffmpeg71 -L audio --output-on-failure
+OPENLIVE_AUDIO_HARDWARE=1 build/linux-ffmpeg71/tests/tst_audio capturesHardwareMicrophoneAndSystemAudio hardwareFaultRecoveryAndIndependentSources
+```
+
+第二条命令需要实际 PipeWire 音频设备。虚拟设备测试与注入故障不能替代真实麦克风收音、耳机/蓝牙切换、物理拔插及长期音画同步验收。
 
 `capture.portal` 测试通过 `dbus-run-session`（测试依赖）运行模拟系统服务，验证授权请求、取消和资源释放。真实 Wayland 桌面的多屏选择、鼠标、显隐和删除，以及 1080p 录制/推流仍需实机验收；模拟服务和离屏测试不能替代这些检查。
 

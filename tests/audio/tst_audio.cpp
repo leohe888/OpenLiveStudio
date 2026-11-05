@@ -322,7 +322,7 @@ private slots:
     void capturesHardwareMicrophoneAndSystemAudio()
     {
         if (!qEnvironmentVariableIsSet("OPENLIVE_AUDIO_HARDWARE"))
-            QSKIP("Requires explicit WASAPI hardware validation");
+            QSKIP("Requires explicit PipeWire hardware validation");
         QString error;
         const auto devices = audioDevices(&error);
         QVERIFY2(error.isEmpty(), qPrintable(error));
@@ -366,7 +366,7 @@ private slots:
     void hardwareFaultRecoveryAndIndependentSources()
     {
         if (!qEnvironmentVariableIsSet("OPENLIVE_AUDIO_HARDWARE"))
-            QSKIP("Requires explicit WASAPI hardware validation");
+            QSKIP("Requires explicit PipeWire hardware validation");
         AudioSourceManager manager;
         manager.refreshDevices();
         QTRY_VERIFY(!manager.refreshing());

@@ -34,7 +34,7 @@ qt_add_executable(tst_streaming output/tst_streaming.cpp
 target_include_directories(tst_streaming PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_streaming PRIVATE
     Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::Network Qt6::Test
-    PkgConfig::swresample PkgConfig::avutil PkgConfig::avcodec PkgConfig::avformat PkgConfig::swscale)
+    PkgConfig::swresample PkgConfig::avutil PkgConfig::avcodec PkgConfig::avformat PkgConfig::swscale PkgConfig::pipewire)
 
 target_compile_definitions(tst_streaming PRIVATE OPENLIVE_FFPROBE="${OPENLIVE_FFPROBE}")
 qt_add_resources(tst_streaming "streaming_shaders" PREFIX "/" BASE "${PROJECT_SOURCE_DIR}"
@@ -76,7 +76,7 @@ qt_add_executable(tst_recording output/tst_recording.cpp
 target_include_directories(tst_recording PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_recording PRIVATE
     Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::Network Qt6::Test
-    PkgConfig::swresample PkgConfig::avutil PkgConfig::avcodec PkgConfig::avformat PkgConfig::swscale)
+    PkgConfig::swresample PkgConfig::avutil PkgConfig::avcodec PkgConfig::avformat PkgConfig::swscale PkgConfig::pipewire)
 
 target_compile_definitions(tst_recording PRIVATE OPENLIVE_FFPROBE="${OPENLIVE_FFPROBE}")
 qt_add_resources(tst_recording "recording_shaders" PREFIX "/" BASE "${PROJECT_SOURCE_DIR}"
@@ -99,11 +99,26 @@ qt_add_executable(tst_audio audio/tst_audio.cpp
 target_include_directories(tst_audio PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(tst_audio PRIVATE
     Qt6::Core Qt6::Gui Qt6::Test
-    PkgConfig::swresample PkgConfig::avutil)
+    PkgConfig::swresample PkgConfig::avutil PkgConfig::pipewire)
 
 add_test(NAME audio.sources COMMAND
     "$<TARGET_FILE:tst_audio>" -o "${CMAKE_CURRENT_BINARY_DIR}/audio-results.txt,txt")
 set_tests_properties(audio.sources PROPERTIES LABELS "audio" TIMEOUT 30)
+
+qt_add_executable(tst_pipewire audio/tst_pipewire.cpp
+    ../src/audio/audiocaptureworker.cpp
+    ../src/audio/audiocaptureworker.h
+    ../src/audio/audiomixer.cpp
+    ../src/audio/audiosourcemanager.cpp
+    ../src/audio/audiosourcemanager.h
+    ../src/output/mediaencoder.cpp)
+target_include_directories(tst_pipewire PRIVATE "${PROJECT_SOURCE_DIR}/src")
+target_link_libraries(tst_pipewire PRIVATE Qt6::Core Qt6::Gui Qt6::Network Qt6::Test
+    PkgConfig::pipewire PkgConfig::avformat PkgConfig::avcodec PkgConfig::avutil
+    PkgConfig::swresample PkgConfig::swscale)
+target_compile_definitions(tst_pipewire PRIVATE OPENLIVE_FFPROBE="${OPENLIVE_FFPROBE}")
+add_test(NAME audio.pipewire COMMAND "$<TARGET_FILE:tst_pipewire>")
+set_tests_properties(audio.pipewire PROPERTIES LABELS "audio;integration" TIMEOUT 60)
 
 qt_add_executable(tst_canvasrenderer graphics/tst_canvasrenderer.cpp
     ../src/video/videosourcetransform.cpp
@@ -258,7 +273,7 @@ qt_add_executable(tst_mainwindow
 target_include_directories(tst_mainwindow PRIVATE "${PROJECT_SOURCE_DIR}/src" "${PROJECT_SOURCE_DIR}/tests")
 target_link_libraries(tst_mainwindow PRIVATE
     Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::Network Qt6::Widgets Qt6::Test Qt6::Svg Qt6::OpenGLWidgets
-    PkgConfig::swresample PkgConfig::avutil PkgConfig::avcodec PkgConfig::avformat PkgConfig::swscale)
+    PkgConfig::swresample PkgConfig::avutil PkgConfig::avcodec PkgConfig::avformat PkgConfig::swscale PkgConfig::pipewire)
 
 target_compile_definitions(tst_mainwindow PRIVATE OPENLIVE_FFPROBE="${OPENLIVE_FFPROBE}")
 qt_add_resources(tst_mainwindow "mainwindow_shaders"

@@ -13,6 +13,7 @@ struct AudioDevice
     AudioSourceType type = AudioSourceType::Microphone;
 };
 
+QString defaultAudioDeviceId(AudioSourceType type);
 QList<AudioDevice> audioDevices(QString *error);
 
 class AudioCaptureWorker : public QThread
@@ -42,6 +43,7 @@ protected:
 private:
     void setStatus(const QString &state, const QString &error = {});
     QString m_deviceId;
+    AudioSourceType m_type;
     std::shared_ptr<AudioPacketQueue> m_queue;
     mutable std::mutex m_mutex;
     Status m_status;

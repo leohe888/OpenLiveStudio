@@ -338,6 +338,9 @@ QDialog *createAudioSourceAddDialog(QWidget *parent, AudioSourceManager *manager
     deviceRow->addWidget(refresh);
     form->addRow(QObject::tr("设备"), deviceRow);
 
+    auto *hint = plainLabel(dialog);
+    layout->addWidget(hint);
+
     auto *error = plainLabel(dialog);
     error->setObjectName("soundSourceError");
     error->setProperty("uiError", true);
@@ -354,6 +357,9 @@ QDialog *createAudioSourceAddDialog(QWidget *parent, AudioSourceManager *manager
     buttons->button(QDialogButtonBox::Cancel)->setObjectName("cancelSoundSourceButton");
 
     const auto update = [=] {
+        hint->setText(type->currentData().value<AudioSourceType>() == AudioSourceType::SystemAudio
+            ? QObject::tr("采集所选输出设备播放的全部声音；默认选项会跟随系统切换。")
+            : QObject::tr("采集所选输入设备的声音；默认选项会跟随系统切换。"));
         const auto previous = devices->currentData().toString();
         QSignalBlocker block(devices);
         devices->clear();
