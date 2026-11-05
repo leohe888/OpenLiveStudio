@@ -6,6 +6,9 @@
 #include <QThread>
 #include <QString>
 
+// 在界面线程管理生命周期；共享会话与采集在 run() 线程创建和释放。
+// stop() 请求停止并清除待取帧，析构等待退出；takeLatest()/lastError() 可跨线程读取。
+// 返回帧的共享所有权独立于 worker，消费者只读。
 class DisplayCaptureWorker : public QThread
 {
 public:

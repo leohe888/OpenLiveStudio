@@ -228,7 +228,7 @@ inline void run(MainWindow &window)
     auto *recordButton = window.findChild<QPushButton *>("recordButton");
     QVERIFY(recordButton);
     recordButton->click();
-    QTRY_COMPARE_WITH_TIMEOUT(recorder->state(), QString("recording"), 10000);
+    QTRY_COMPARE_WITH_TIMEOUT(recorder->state(), RecordingState::Recording, 10000);
     window.showMinimized();
     QElapsedTimer elapsed;
     elapsed.start();
@@ -241,7 +241,7 @@ inline void run(MainWindow &window)
     event("minimized");
     while (elapsed.elapsed() < seconds * 1000LL) {
         QTest::qWait(20);
-        QVERIFY2(recorder->state() == "recording", qPrintable(recorder->lastError()));
+        QVERIFY2(recorder->state() == RecordingState::Recording, qPrintable(recorder->lastError()));
         const qint64 now = elapsed.elapsed();
         const int percent = int(now * 100 / (seconds * 1000LL));
         if (percent >= 10 && !done[0]) {
@@ -329,7 +329,7 @@ inline void run(MainWindow &window)
                      {{"phase", "recording"},
                       {"elapsedMs", now},
                       {"targetSeconds", seconds},
-                      {"recordingState", recorder->state()},
+                      {"recordingState", outputStateName(recorder->state())},
                       {"file", recorder->filePath()},
                       {"maximumUiGapMs", maximumUiGapMs},
                       {"events", events},

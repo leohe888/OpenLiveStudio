@@ -175,7 +175,7 @@ private slots:
         const auto path = directory.filePath("session.mp4");
         QVERIFY(recording.startRecording(path));
         QVERIFY(!recording.startRecording(directory.filePath("duplicate.mp4")));
-        QTRY_COMPARE_WITH_TIMEOUT(recording.state(), QString("recording"), 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(recording.state(), RecordingState::Recording, 5000);
         QTest::qWait(600);
         image.fill(Qt::green);
         compositor.setSources({{"image", image, true, {{960, 540}, {1920, 1080}, 15}}});
@@ -194,10 +194,10 @@ private slots:
         QVERIFY(mixer.takeOutput().empty());
         QVERIFY(!recording.startRecording(directory.filePath("invalid.mp4"), 0));
         QTest::qWait(150);
-        QCOMPARE(recording.state(), QString("error"));
+        QCOMPARE(recording.state(), RecordingState::Error);
         QVERIFY(!recording.lastError().isEmpty());
         QVERIFY(recording.startRecording(directory.filePath("again.mp4")));
-        QTRY_COMPARE_WITH_TIMEOUT(recording.state(), QString("recording"), 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(recording.state(), RecordingState::Recording, 5000);
         QTest::qWait(200);
         recording.stopRecording();
         QTRY_VERIFY_WITH_TIMEOUT(!recording.busy(), 10000);
@@ -224,7 +224,7 @@ private slots:
         sentinel.close();
         QVERIFY(recording.startRecording(path));
         QTRY_VERIFY_WITH_TIMEOUT(!recording.busy(), 5000);
-        QCOMPARE(recording.state(), QString("error"));
+        QCOMPARE(recording.state(), RecordingState::Error);
         QVERIFY(!recording.lastError().isEmpty());
         QVERIFY(sentinel.open(QIODevice::ReadOnly));
         QCOMPARE(sentinel.readAll(), QByteArray("preserve"));
@@ -257,9 +257,9 @@ private slots:
             qunsetenv("OPENLIVE_RECORDING_PAUSE_ONCE_MS");
         });
         QVERIFY(recording.startRecording(directory.filePath("pause.mp4")));
-        QTRY_COMPARE_WITH_TIMEOUT(recording.state(), QString("recording"), 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(recording.state(), RecordingState::Recording, 5000);
         QTest::qWait(2000);
-        QCOMPARE(recording.state(), QString("recording"));
+        QCOMPARE(recording.state(), RecordingState::Recording);
         QCOMPARE(overloaded.count(), 0);
         QVERIFY(recording.status().lagMs < 400);
         recording.stopRecording();
@@ -282,13 +282,13 @@ private slots:
             qunsetenv("OPENLIVE_RECORDING_ENCODER_DELAY_MS");
         });
         QVERIFY(recording.startRecording(directory.filePath("overload.mp4")));
-        QTRY_COMPARE_WITH_TIMEOUT(recording.state(), QString("error"), 10000);
+        QTRY_COMPARE_WITH_TIMEOUT(recording.state(), RecordingState::Error, 10000);
         QVERIFY(!recording.lastError().isEmpty());
         QVERIFY(recording.fileComplete());
         verifyFile(recording.filePath(), .1);
         qunsetenv("OPENLIVE_RECORDING_ENCODER_DELAY_MS");
         QVERIFY(recording.startRecording(directory.filePath("recovered.mp4")));
-        QTRY_COMPARE_WITH_TIMEOUT(recording.state(), QString("recording"), 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(recording.state(), RecordingState::Recording, 5000);
         QTest::qWait(250);
         recording.stopRecording();
         QTRY_VERIFY_WITH_TIMEOUT(!recording.busy(), 5000);

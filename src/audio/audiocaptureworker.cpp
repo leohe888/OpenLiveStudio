@@ -47,23 +47,29 @@ public:
             return false;
         }
         const auto deadline = audioClockNs() + 3000000000LL;
-        while (pa_context_get_state(context) != PA_CONTEXT_READY &&
-               audioClockNs() < deadline && iterate()) {}
+        while (pa_context_get_state(context) != PA_CONTEXT_READY && audioClockNs() < deadline &&
+               iterate()) {
+        }
         if (pa_context_get_state(context) != PA_CONTEXT_READY) {
             if (error.isEmpty())
                 error = QStringLiteral("连接 PulseAudio 音频服务超时，请检查桌面音频服务。");
             return false;
         }
-        pa_context_set_subscribe_callback(context,
+        pa_context_set_subscribe_callback(
+            context,
             [](pa_context *, pa_subscription_event_type_t, uint32_t, void *data) {
                 static_cast<AudioSession *>(data)->catalogDirty = true;
-            }, this);
-        auto *operation = pa_context_subscribe(context, pa_subscription_mask_t(
-            PA_SUBSCRIPTION_MASK_SERVER | PA_SUBSCRIPTION_MASK_SOURCE | PA_SUBSCRIPTION_MASK_SINK),
+            },
+            this);
+        auto *operation = pa_context_subscribe(
+            context,
+            pa_subscription_mask_t(PA_SUBSCRIPTION_MASK_SERVER | PA_SUBSCRIPTION_MASK_SOURCE |
+                                   PA_SUBSCRIPTION_MASK_SINK),
             [](pa_context *, int success, void *data) {
                 if (!success)
                     static_cast<AudioSession *>(data)->fail(QStringLiteral("无法监听音频设备变化"));
-            }, this);
+            },
+            this);
         releaseOperation(operation);
         return error.isEmpty() && refresh();
     }
@@ -88,7 +94,8 @@ public:
         catalogDirty = false;
         pendingDevices.clear();
         remainingQueries = 3;
-        releaseOperation(pa_context_get_server_info(context,
+        releaseOperation(pa_context_get_server_info(
+            context,
             [](pa_context *, const pa_server_info *info, void *data) {
                 auto &self = *static_cast<AudioSession *>(data);
                 if (info) {
@@ -97,8 +104,10 @@ public:
                 } else
                     self.fail(QStringLiteral("无法读取默认音频设备"));
                 --self.remainingQueries;
-            }, this));
-        releaseOperation(pa_context_get_source_info_list(context,
+            },
+            this));
+        releaseOperation(pa_context_get_source_info_list(
+            context,
             [](pa_context *, const pa_source_info *info, int end, void *data) {
                 auto &self = *static_cast<AudioSession *>(data);
                 if (end) {
@@ -107,12 +116,17 @@ public:
                     --self.remainingQueries;
                 } else if (info && info->name && info->monitor_of_sink == PA_INVALID_INDEX) {
                     const auto name = QString::fromUtf8(info->name);
-                    self.pendingDevices.append({{deviceId(AudioSourceType::Microphone, name),
-                        QString::fromUtf8(info->description ? info->description : info->name),
-                        AudioSourceType::Microphone}, name, info->index});
+                    self.pendingDevices.append(
+                        {{deviceId(AudioSourceType::Microphone, name),
+                          QString::fromUtf8(info->description ? info->description : info->name),
+                          AudioSourceType::Microphone},
+                         name,
+                         info->index});
                 }
-            }, this));
-        releaseOperation(pa_context_get_sink_info_list(context,
+            },
+            this));
+        releaseOperation(pa_context_get_sink_info_list(
+            context,
             [](pa_context *, const pa_sink_info *info, int end, void *data) {
                 auto &self = *static_cast<AudioSession *>(data);
                 if (end) {
@@ -122,14 +136,18 @@ public:
                 } else if (info && info->name && info->monitor_source_name &&
                            info->monitor_source != PA_INVALID_INDEX) {
                     const auto name = QString::fromUtf8(info->name);
-                    self.pendingDevices.append({{deviceId(AudioSourceType::SystemAudio, name),
-                        QString::fromUtf8(info->description ? info->description : info->name),
-                        AudioSourceType::SystemAudio}, QString::fromUtf8(info->monitor_source_name),
-                        info->monitor_source});
+                    self.pendingDevices.append(
+                        {{deviceId(AudioSourceType::SystemAudio, name),
+                          QString::fromUtf8(info->description ? info->description : info->name),
+                          AudioSourceType::SystemAudio},
+                         QString::fromUtf8(info->monitor_source_name),
+                         info->monitor_source});
                 }
-            }, this));
+            },
+            this));
         const auto deadline = audioClockNs() + 2000000000LL;
-        while (remainingQueries && error.isEmpty() && audioClockNs() < deadline && iterate()) {}
+        while (remainingQueries && error.isEmpty() && audioClockNs() < deadline && iterate()) {
+        }
         if (remainingQueries && error.isEmpty())
             error = QStringLiteral("查询 PulseAudio 音频设备超时。");
         if (!error.isEmpty())
@@ -141,8 +159,10 @@ public:
     CaptureDevice target(const QString &id, AudioSourceType type) const
     {
         const bool followDefault = id == defaultAudioDeviceId(type);
-        const auto desiredId = followDefault
-            ? deviceId(type, type == AudioSourceType::Microphone ? defaultSource : defaultSink) : id;
+        const auto desiredId =
+            followDefault
+                ? deviceId(type, type == AudioSourceType::Microphone ? defaultSource : defaultSink)
+                : id;
         for (const auto &entry : devices)
             if (entry.device.type == type && entry.device.id == desiredId)
                 return entry;
@@ -161,27 +181,37 @@ public:
             streamError = message(QStringLiteral("无法创建音频采集流"));
             return;
         }
-        pa_stream_set_state_callback(stream, [](pa_stream *stream, void *data) {
-            auto &self = *static_cast<AudioSession *>(data);
-            const auto state = pa_stream_get_state(stream);
-            if (state == PA_STREAM_FAILED || state == PA_STREAM_TERMINATED)
-                self.streamError = self.message(QStringLiteral("音频设备采集已断开"));
-        }, this);
-        pa_stream_set_read_callback(stream, [](pa_stream *, size_t, void *data) {
-            static_cast<AudioSession *>(data)->read();
-        }, this);
-        pa_stream_set_overflow_callback(stream, [](pa_stream *, void *data) {
-            auto &self = *static_cast<AudioSession *>(data);
-            self.queue->clear();
-            self.nextTimestamp = 0;
-        }, this);
+        pa_stream_set_state_callback(
+            stream,
+            [](pa_stream *stream, void *data) {
+                auto &self = *static_cast<AudioSession *>(data);
+                const auto state = pa_stream_get_state(stream);
+                if (state == PA_STREAM_FAILED || state == PA_STREAM_TERMINATED)
+                    self.streamError = self.message(QStringLiteral("音频设备采集已断开"));
+            },
+            this);
+        pa_stream_set_read_callback(
+            stream,
+            [](pa_stream *, size_t, void *data) {
+                static_cast<AudioSession *>(data)->read();
+            },
+            this);
+        pa_stream_set_overflow_callback(
+            stream,
+            [](pa_stream *, void *data) {
+                auto &self = *static_cast<AudioSession *>(data);
+                self.queue->clear();
+                self.nextTimestamp = 0;
+            },
+            this);
         pa_buffer_attr buffer{};
         buffer.maxlength = uint32_t(pa_usec_to_bytes(100000, &format));
         buffer.fragsize = uint32_t(pa_usec_to_bytes(10000, &format));
         buffer.tlength = buffer.prebuf = buffer.minreq = uint32_t(-1);
         const auto sourceName = device.sourceName.toUtf8();
         // Resolve defaults ourselves; fixed devices must never follow server fallback policy.
-        if (pa_stream_connect_record(stream, sourceName.constData(), &buffer,
+        if (pa_stream_connect_record(
+                stream, sourceName.constData(), &buffer,
                 pa_stream_flags_t(PA_STREAM_ADJUST_LATENCY | PA_STREAM_AUTO_TIMING_UPDATE |
                                   PA_STREAM_INTERPOLATE_TIMING | PA_STREAM_DONT_MOVE)) < 0)
             streamError = message(QStringLiteral("无法启动音频采集"));
@@ -212,10 +242,13 @@ private:
     QString message(const QString &operation) const
     {
         return operation + QStringLiteral("：%1").arg(
-            QString::fromUtf8(pa_strerror(pa_context_errno(context))));
+                               QString::fromUtf8(pa_strerror(pa_context_errno(context))));
     }
 
-    void fail(const QString &operation) { error = message(operation); }
+    void fail(const QString &operation)
+    {
+        error = message(operation);
+    }
 
     void releaseOperation(pa_operation *operation)
     {
@@ -302,14 +335,17 @@ QList<AudioDevice> audioDevices(QString *error)
         if (std::any_of(session.devices.cbegin(), session.devices.cend(), [=](const auto &entry) {
                 return entry.device.type == type;
             }))
-            result.append({defaultAudioDeviceId(type), type == AudioSourceType::Microphone
-                ? QStringLiteral("跟随系统默认输入设备") : QStringLiteral("跟随系统默认输出设备"), type});
+            result.append({defaultAudioDeviceId(type),
+                           type == AudioSourceType::Microphone
+                               ? QStringLiteral("跟随系统默认输入设备")
+                               : QStringLiteral("跟随系统默认输出设备"),
+                           type});
     }
     for (const auto &entry : session.devices)
         result.append(entry.device);
     if (error)
         *error = result.isEmpty() ? QStringLiteral("PulseAudio 未发现可用的音频输入或输出设备。")
-                                 : QString();
+                                  : QString();
     return result;
 }
 
@@ -326,7 +362,10 @@ AudioCaptureWorker::~AudioCaptureWorker()
     wait();
 }
 
-void AudioCaptureWorker::stop() { requestInterruption(); }
+void AudioCaptureWorker::stop()
+{
+    requestInterruption();
+}
 
 AudioCaptureWorker::Status AudioCaptureWorker::status() const
 {
@@ -364,8 +403,12 @@ void AudioCaptureWorker::run()
                         activeIndex = target.sourceIndex;
                         activeName = target.sourceName;
                         if (target.sourceIndex == PA_INVALID_INDEX || forcedFailure) {
-                            setStatus("error", forcedFailure ? QStringLiteral("音频设备测试故障。")
-                                : QStringLiteral("PulseAudio 中未找到所选音频设备，正在等待设备恢复。"));
+                            setStatus(
+                                "error",
+                                forcedFailure
+                                    ? QStringLiteral("音频设备测试故障。")
+                                    : QStringLiteral(
+                                          "PulseAudio 中未找到所选音频设备，正在等待设备恢复。"));
                             continue;
                         }
                         setStatus("starting");

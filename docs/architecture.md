@@ -50,32 +50,30 @@
 
 回答时结合上述实现与对应测试说明边界，不把尚未验证的硬件编码、设备兼容性或长时间稳定性当成已有保证。
 
-## Linux 摄像头采集与 YUV 渲染
+## 接口与生命周期约定
 
-摄像头使用 V4L2 单平面 streaming 接口，不依赖 libv4l。`v4l2camera.cpp` 负责设备、原生模式查询、格式协商、mmap 缓冲和输入数据；`CameraCaptureWorker` 负责软件解码、像素帧发布；`CameraSourceController` 负责显隐、来源状态及恢复。采集帧统一通过 CPU 像素数据上传 OpenGL，不包含其他平台的采集或纹理互操作后端。
+| 对象 | 调用线程与数据归属 | 停止与释放 |
+| --- | --- | --- |
+| 来源管理器 / 控制器 | 界面线程维护状态，向媒体消费者发布快照 | 控制器管理采集 worker，迟到结果用 generation 隔离 |
+| 采集 worker | 设备会话属于工作线程，帧与状态通过受锁保护的接口传递 | stop 只请求停止，析构等待退出 |
+| Compositor / CanvasRenderer | GL 操作属于渲染线程和对应上下文；预览持有纹理租约 | 先释放租约，再停止合成；GL 资源在所属上下文清理 |
+| OutputTimeline / MediaEncoder | 每个输出线程独占实例；时间线不自行加锁 | 先停止输出，再释放合成器和混音器；录制结束须完成文件封装 |
+| OutputBus / OutputTap | 总线由生产者持锁访问；每个订阅队列自行加锁 | 消费者释放订阅即可退出，不影响其他消费者 |
 
-设备目录仅展示同时支持 VIDEO_CAPTURE 和 STREAMING 的节点，过滤 metadata 节点。优先使用 `/dev/v4l/by-path` 保存设备位置，无序列号摄像头只按原端口重连；更换端口应重新选择，不按同型号名称匹配。没有位置别名的设备使用实际节点路径，该回退不提供跨重新枚举的身份保证。首版面向离散模式的 USB UVC 摄像头，多平面、连续/步进模式的 ISP 设备不在首版范围。
+画布尺寸与帧率由 `graphics/videoformat.h` 定义，音频格式沿用 `AudioFormat`，
+每个视频帧对应的音频帧数在 `output/outputformat.h` 推导。
+录制和直播分别使用 `RecordingState`、`StreamingState`；`outputStateName()` 仅用于稳定的诊断名称。
+停止请求发出后仍处于 Stopping，必须等 worker 释放资源并退出后才对外报告结束。
 
-自动模式以 1080p30 为目标，同时比较宽高比、帧率和像素数，避免把 2560×720 超宽模式误选为普通高清模式。SPCA2100 的预期默认模式为 1280×720 MJPEG 30fps；实际输出模式在来源状态中显示。显式格式、尺寸、帧率必须完全匹配，驱动替换模式时报告错误，不静默降级。
+## 构建与测试边界
 
-支持 MJPEG/H.264 软件解码，以及 YUYV、UYVY、NV12、YUV420/YVU420、RGB24/BGR24 原始帧。原始帧按实际行步长和 bytesused 检查缓冲边界，YVU420 调整为 Y/U/V 顺序；像素颜色转换仍在 OpenGL 着色器执行。压缩包顺序送入 FFmpeg，不覆盖未解码的依赖数据，仅在完整解码后保留最新画面。独立 MJPEG 坏帧会丢弃并在来源状态显示计数；连续没有完整帧仍触发超时恢复。H.264 依赖设备提供流内参数与可解码关键帧；本机摄像头没有 H.264 模式，不能以 MJPEG 测试代替 H.264 硬件验收。
+`openlive_core` 编译媒体、来源管理与输出实现，`openlive_ui` 编译窗口、面板和弹窗。
+应用与测试链接同一实现；图标、样式与着色器随所属库链接到消费者，不在测试中重复维护。
+图片控制器当前包含文件选择操作，因此 core 仍依赖 Qt Widgets。
 
-帧时间戳使用接收时项目统一的单调时钟；不直接使用驱动 timeval，避免时钟域混用。这不等同于精确的传感器曝光时间，驱动排队和传输延迟仍需真实音画同步验收。
+`VideoSourcePanel` 负责来源列表；添加与移除弹窗位于 `sourceadddialog.cpp`，
+滤镜编辑位于 `sourcefiltersdialog.cpp`。通用小控件构造放在 `sourcewidgets.h`。
 
-输入 poll 每 100ms 检查停止请求，超过三秒无有效采集帧或五秒无完整解码帧时报告异常。驱动调用仍依赖驱动本身正常响应。停止时先 STREAMOFF，再解除 mmap 并关闭设备；缓冲归还失败也报告异常。
-
-可见来源异常后保留最后有效帧，约两秒后重试原配置，录制与推流继续。隐藏时停止采集并取消重试；重新显示时启动。配置变化、隐藏、删除时清除旧帧，generation 隔离旧会话的迟到结果。恢复时新建解码上下文，不复用断线前的压缩帧。
-
-验证入口：
-
-```bash
-source ~/.local/ffmpeg-7.1/env.sh
-ctest --test-dir build/linux-check -R 'capture.camera|video.sourceaggregator|core.videosource' --output-on-failure
-OPENLIVE_CAMERA_HARDWARE=1 ctest --test-dir build/linux-check -R '^capture.camera$' --output-on-failure
-```
-
-摄像头测试覆盖自动模式选择、显式模式约束、原始缓冲行填充和边界、平面顺序、像素元数据、来源生命周期和自动重试。硬件测试需要 `/dev/video*` 访问权限，覆盖目录、模式、实际帧、显隐启停和模式切换。真实 GPU 预览、录制/推流和物理拔插需要桌面及设备单独验收，不能以构建通过或跳过项替代。
-
-2026-11-04 的实机检查：VMware 中的 SunplusIT SPCA2100（USB 15aa:1955）枚举出 58 个模式，metadata 节点被过滤。自动选择 1280×720 MJPEG 30fps；MJPEG 640×480 模式切换、显隐启停、最后画面保留和注入异常后的新会话恢复已验证。Wayland 下真实摄像头预览、灰度滤镜、移动/缩放/旋转，以及 1080p30 H.264 MP4 与本机 RTMP 接收和独立启停已验证。
-
-该虚拟机的 MJPEG 传输存在损坏帧，FFmpeg 自带 V4L2 输入同样报错；丢弃坏帧并不代表已经满足持续 30fps 的有效采集。YUYV 640×480@30 的模式协商成功但无有效帧，独立 FFmpeg 对照也无法完成两秒采集并在硬超时后退出。因此真实硬件测试仍在 YUYV 项失败，不能宣称所有设备模式均可用。未验证真实 H.264 摄像头、长时间运行和物理拔插；注入来源故障不等同于物理拔插验收。
+主窗口测试分为离屏 UI、GPU 集成与显式硬件验收三个套件。
+运行方法和格式检查见 [维护与验证](maintenance.md)。
+设备能力、实现范围和实机记录见 [Linux 摄像头采集与验收](capture-validation.md)。

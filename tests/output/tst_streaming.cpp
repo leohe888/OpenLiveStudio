@@ -105,25 +105,25 @@ private slots:
         StreamingController streaming(video, audio);
         QTemporaryDir directory;
         QVERIFY(!streaming.startStreaming("rtmps://127.0.0.1/live", "secret"));
-        QCOMPARE(streaming.state(), QString("error"));
+        QCOMPARE(streaming.state(), StreamingState::Error);
         QVERIFY(recording.startRecording(directory.filePath("independent.mp4")));
-        QTRY_COMPARE_WITH_TIMEOUT(recording.state(), QString("recording"), 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(recording.state(), RecordingState::Recording, 5000);
         const auto endpoint = QString("rtmp://127.0.0.1:%1/live").arg(server.serverPort());
         QVERIFY(streaming.startStreaming(endpoint, "secret"));
         QVERIFY(!streaming.startStreaming(endpoint, "duplicate"));
         QTRY_VERIFY_WITH_TIMEOUT(!peers.empty(), 2000);
         QTRY_VERIFY_WITH_TIMEOUT(streaming.status().reconnects >= 1, 5000);
-        QCOMPARE(streaming.state(), QString("reconnecting"));
-        QCOMPARE(recording.state(), QString("recording"));
+        QCOMPARE(streaming.state(), StreamingState::Reconnecting);
+        QCOMPARE(recording.state(), RecordingState::Recording);
         QElapsedTimer elapsed;
         elapsed.start();
         streaming.stopStreaming();
         QTRY_VERIFY_WITH_TIMEOUT(!streaming.busy(), 1500);
         QVERIFY(elapsed.elapsed() < 1500);
-        QCOMPARE(streaming.state(), QString("idle"));
-        QCOMPARE(recording.state(), QString("recording"));
+        QCOMPARE(streaming.state(), StreamingState::Idle);
+        QCOMPARE(recording.state(), RecordingState::Recording);
         QVERIFY(streaming.startStreaming(endpoint, "secret"));
-        QTRY_COMPARE_WITH_TIMEOUT(streaming.state(), QString("connecting"), 1000);
+        QTRY_COMPARE_WITH_TIMEOUT(streaming.state(), StreamingState::Connecting, 1000);
         QTest::qWait(100);
         elapsed.restart();
         streaming.stopStreaming();
@@ -137,7 +137,7 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(!streaming.busy(), 1500);
         QVERIFY(!streaming.startStreaming("rtmps://127.0.0.1/live", "secret"));
         QTest::qWait(150);
-        QCOMPARE(streaming.state(), QString("error"));
+        QCOMPARE(streaming.state(), StreamingState::Error);
         QVERIFY(!streaming.lastError().isEmpty());
     }
 
@@ -165,34 +165,34 @@ private slots:
         for (bool recordFirst : {true, false}) {
             if (recordFirst) {
                 QVERIFY(recording.startRecording(directory.filePath("first.mp4")));
-                QTRY_COMPARE_WITH_TIMEOUT(recording.state(), QString("recording"), 5000);
+                QTRY_COMPARE_WITH_TIMEOUT(recording.state(), RecordingState::Recording, 5000);
             }
             QVERIFY(streaming.startStreaming(server, key));
-            QTRY_COMPARE_WITH_TIMEOUT(streaming.state(), QString("live"), 6000);
+            QTRY_COMPARE_WITH_TIMEOUT(streaming.state(), StreamingState::Live, 6000);
             if (!recordFirst) {
                 QVERIFY(recording.startRecording(directory.filePath("second.mp4")));
-                QTRY_COMPARE_WITH_TIMEOUT(recording.state(), QString("recording"), 5000);
+                QTRY_COMPARE_WITH_TIMEOUT(recording.state(), RecordingState::Recording, 5000);
             }
             QTest::qWait(1200);
-            QCOMPARE(streaming.state(), QString("live"));
-            QCOMPARE(recording.state(), QString("recording"));
+            QCOMPARE(streaming.state(), StreamingState::Live);
+            QCOMPARE(recording.state(), RecordingState::Recording);
             if (recordFirst) {
                 recording.stopRecording();
                 QTRY_VERIFY_WITH_TIMEOUT(!recording.busy(), 5000);
                 QVERIFY(recording.fileComplete());
-                QCOMPARE(streaming.state(), QString("live"));
+                QCOMPARE(streaming.state(), StreamingState::Live);
                 // 本地录制失败不应中断独立的直播输出。
                 QVERIFY(recording.startRecording(directory.filePath("first.mp4")));
-                QTRY_COMPARE_WITH_TIMEOUT(recording.state(), QString("error"), 3000);
-                QCOMPARE(streaming.state(), QString("live"));
+                QTRY_COMPARE_WITH_TIMEOUT(recording.state(), RecordingState::Error, 3000);
+                QCOMPARE(streaming.state(), StreamingState::Live);
                 streaming.stopStreaming();
                 QTRY_VERIFY_WITH_TIMEOUT(!streaming.busy(), 3000);
             } else {
                 streaming.stopStreaming();
                 QTRY_VERIFY_WITH_TIMEOUT(!streaming.busy(), 3000);
-                QCOMPARE(recording.state(), QString("recording"));
+                QCOMPARE(recording.state(), RecordingState::Recording);
                 QVERIFY(streaming.startStreaming(server, key));
-                QTRY_COMPARE_WITH_TIMEOUT(streaming.state(), QString("live"), 6000);
+                QTRY_COMPARE_WITH_TIMEOUT(streaming.state(), StreamingState::Live, 6000);
                 recording.stopRecording();
                 QTRY_VERIFY_WITH_TIMEOUT(!recording.busy(), 5000);
                 QVERIFY(recording.fileComplete());
@@ -203,13 +203,13 @@ private slots:
         // 此 SRS 版本未明确区分重复发布拒绝与断线；按可重试故障处理，同时验证原直播不受影响。
         StreamingController duplicate(video, audio);
         QVERIFY(streaming.startStreaming(server, key));
-        QTRY_COMPARE_WITH_TIMEOUT(streaming.state(), QString("live"), 6000);
+        QTRY_COMPARE_WITH_TIMEOUT(streaming.state(), StreamingState::Live, 6000);
         QVERIFY(duplicate.startStreaming(server, key));
         QTRY_VERIFY_WITH_TIMEOUT(duplicate.status().reconnects > 0, 6000);
         QVERIFY(!duplicate.lastError().contains(key));
         duplicate.stopStreaming();
         QTRY_VERIFY_WITH_TIMEOUT(!duplicate.busy(), 2000);
-        QCOMPARE(streaming.state(), QString("live"));
+        QCOMPARE(streaming.state(), StreamingState::Live);
         streaming.stopStreaming();
         QTRY_VERIFY_WITH_TIMEOUT(!streaming.busy(), 3000);
         qputenv("OPENLIVE_STREAMING_ENCODER_DELAY_MS", "100");
@@ -217,7 +217,7 @@ private slots:
             qunsetenv("OPENLIVE_STREAMING_ENCODER_DELAY_MS");
         });
         QVERIFY(streaming.startStreaming(server, key));
-        QTRY_COMPARE_WITH_TIMEOUT(streaming.state(), QString("error"), 10000);
+        QTRY_COMPARE_WITH_TIMEOUT(streaming.state(), StreamingState::Error, 10000);
         QCOMPARE(streaming.status().reconnects, quint64(0));
     }
 
@@ -244,9 +244,9 @@ private slots:
             qunsetenv("OPENLIVE_STREAMING_PAUSE_ONCE_MS");
         });
         QVERIFY(recording.startRecording(directory.filePath("continuous.mp4")));
-        QTRY_COMPARE_WITH_TIMEOUT(recording.state(), QString("recording"), 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(recording.state(), RecordingState::Recording, 5000);
         QVERIFY(streaming.startStreaming(server, "transient-recovery"));
-        QTRY_COMPARE_WITH_TIMEOUT(streaming.state(), QString("live"), 6000);
+        QTRY_COMPARE_WITH_TIMEOUT(streaming.state(), StreamingState::Live, 6000);
         const auto ffmpeg =
             QDir(QFileInfo(QStringLiteral(OPENLIVE_FFPROBE)).absolutePath()).filePath("ffmpeg");
         QUrl playback(server);
@@ -261,10 +261,10 @@ private slots:
         QVERIFY(capture.waitForFinished(15000));
         QCOMPARE(capture.exitCode(), 0);
         QCoreApplication::processEvents();
-        QCOMPARE(streaming.state(), QString("live"));
+        QCOMPARE(streaming.state(), StreamingState::Live);
         QCOMPARE(streaming.status().reconnects, quint64(0));
         QVERIFY(streaming.status().droppedFrames >= 20);
-        QCOMPARE(recording.state(), QString("recording"));
+        QCOMPARE(recording.state(), RecordingState::Recording);
         QProcess probe;
         probe.start(QStringLiteral(OPENLIVE_FFPROBE),
                     {"-v", "error", "-show_packets", "-of", "json", sample});
@@ -353,21 +353,21 @@ private slots:
         StreamingController streaming(video, audio);
         QTemporaryDir directory;
         QVERIFY(recording.startRecording(directory.filePath("network.mp4")));
-        QTRY_COMPARE_WITH_TIMEOUT(recording.state(), QString("recording"), 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(recording.state(), RecordingState::Recording, 5000);
         const auto server = QString("rtmp://127.0.0.1:%1%2").arg(port).arg(destination.path());
         QVERIFY(streaming.startStreaming(server, "network-test"));
-        QTRY_COMPARE_WITH_TIMEOUT(streaming.state(), QString("live"), 6000);
+        QTRY_COMPARE_WITH_TIMEOUT(streaming.state(), StreamingState::Live, 6000);
         QTest::qWait(500);
         const auto frames = recording.status().videoFrames;
         relay.close();
         for (auto *peer : peers)
             peer->abort();
         QTRY_VERIFY_WITH_TIMEOUT(streaming.status().reconnects >= 2, 8000);
-        QCOMPARE(recording.state(), QString("recording"));
+        QCOMPARE(recording.state(), RecordingState::Recording);
         QVERIFY(recording.status().videoFrames > frames + 30);
         QVERIFY(relay.listen(QHostAddress::LocalHost, port));
-        QTRY_COMPARE_WITH_TIMEOUT(streaming.state(), QString("live"), 15000);
-        QCOMPARE(recording.state(), QString("recording"));
+        QTRY_COMPARE_WITH_TIMEOUT(streaming.state(), StreamingState::Live, 15000);
+        QCOMPARE(recording.state(), RecordingState::Recording);
         const auto reconnects = streaming.status().reconnects;
         // 暂停读取已连接的 TCP 流，验证写入超时和新会话恢复，覆盖连接建立后的网络阻塞。
         paused = true;
@@ -376,8 +376,8 @@ private slots:
         for (auto *peer : peers)
             peer->abort();
         QTRY_VERIFY_WITH_TIMEOUT(streaming.status().reconnects > reconnects, 6000);
-        QTRY_COMPARE_WITH_TIMEOUT(streaming.state(), QString("live"), 20000);
-        QCOMPARE(recording.state(), QString("recording"));
+        QTRY_COMPARE_WITH_TIMEOUT(streaming.state(), StreamingState::Live, 20000);
+        QCOMPARE(recording.state(), RecordingState::Recording);
         streaming.stopStreaming();
         QTRY_VERIFY_WITH_TIMEOUT(!streaming.busy(), 3000);
         recording.stopRecording();
@@ -476,10 +476,10 @@ private slots:
                 &StreamingController::stopForOverload);
         const auto path = QDir(directory).filePath("endurance.mp4");
         QVERIFY(recording.startRecording(path));
-        QTRY_COMPARE_WITH_TIMEOUT(recording.state(), QString("recording"), 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(recording.state(), RecordingState::Recording, 5000);
         const auto key = qEnvironmentVariable("OPENLIVE_SRS_KEY", "openlive-endurance");
         QVERIFY(streaming.startStreaming(server, key));
-        QTRY_COMPARE_WITH_TIMEOUT(streaming.state(), QString("live"), 6000);
+        QTRY_COMPARE_WITH_TIMEOUT(streaming.state(), StreamingState::Live, 6000);
         QProcess decoder;
         const auto http = qEnvironmentVariable("OPENLIVE_SRS_HTTP");
         QVERIFY(!http.isEmpty());
@@ -522,13 +522,14 @@ private slots:
         QByteArray decoded;
         while (elapsed.elapsed() < qint64(seconds) * 1000) {
             QTest::qWait(20);
-            QVERIFY2(recording.state() == "recording", qPrintable(recording.lastError()));
+            QVERIFY2(recording.state() == RecordingState::Recording,
+                     qPrintable(recording.lastError()));
             QVERIFY2(
-                streaming.busy() && streaming.state() != "stopping",
+                streaming.busy() && streaming.state() != StreamingState::Stopping,
                 qPrintable(
                     QString(
                         "state=%1 error=%2 recordingFrames=%3 duration=%4 pressured=%5 encodeMs=%6 lagMs=%7")
-                        .arg(streaming.state(), streaming.lastError())
+                        .arg(outputStateName(streaming.state()), streaming.lastError())
                         .arg(recording.status().videoFrames)
                         .arg(recording.durationMs())
                         .arg(recording.status().pressured)
@@ -551,7 +552,7 @@ private slots:
                 const auto status = streaming.status();
                 save("progress.json", {{"elapsedMs", elapsed.elapsed()},
                                        {"targetSeconds", seconds},
-                                       {"recording", recording.state()},
+                                       {"recording", outputStateName(recording.state())},
                                        {"encodeMs", status.lastEncodeMs},
                                        {"lagMs", status.lagMs},
                                        {"recordLagMs", recording.status().lagMs},
@@ -561,7 +562,7 @@ private slots:
                                        {"recordAudioMs", recording.status().audioEncodeMs},
                                        {"conversionMs", recording.status().conversionMs},
                                        {"imageFormat", recording.status().imageFormat},
-                                       {"streaming", status.state},
+                                       {"streaming", outputStateName(status.state)},
                                        {"reconnects", qint64(status.reconnects)},
                                        {"bitrateKbps", status.bitrateKbps},
                                        {"droppedFrames", qint64(status.droppedFrames)},

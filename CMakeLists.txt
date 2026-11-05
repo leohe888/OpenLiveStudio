@@ -18,18 +18,9 @@ pkg_check_modules(pipewire REQUIRED IMPORTED_TARGET libpipewire-0.3>=0.3.48)
 
 qt_standard_project_setup()
 
-qt_add_executable(OpenLiveStudio
-    src/main.cpp
-    src/ui/mainwindow.cpp
-    src/ui/outputwidgets.cpp
-    src/ui/videosourcepanel.cpp
-    src/ui/audiosourcepanel.cpp
-    src/ui/audiosourcepanel.h
-    src/ui/videosourcepanel.h
-    src/ui/outputwidgets.h
-    src/ui/mainwindow.h
-    src/ui/previewwidget.cpp
-    src/ui/previewwidget.h
+add_library(openlive_core STATIC
+    src/graphics/videoformat.h
+    src/output/outputformat.h
     src/graphics/rendersourcesnapshot.h
     src/video/videosource.cpp
     src/video/videosource.h
@@ -81,7 +72,29 @@ qt_add_executable(OpenLiveStudio
     src/util/mediaclock.h
     src/util/outputtap.h
     src/util/outputbus.h
+    src/video/display/waylanddisplaycapture.cpp
+    src/video/display/waylanddisplaycapture.h
 )
+
+add_library(openlive_ui STATIC
+    src/ui/sourceadddialog.cpp
+    src/ui/sourcefiltersdialog.cpp
+    src/ui/sourcedialogs.h
+    src/ui/sourcewidgets.h
+    src/ui/mainwindow.cpp
+    src/ui/outputwidgets.cpp
+    src/ui/videosourcepanel.cpp
+    src/ui/audiosourcepanel.cpp
+    src/ui/audiosourcepanel.h
+    src/ui/videosourcepanel.h
+    src/ui/outputwidgets.h
+    src/ui/mainwindow.h
+    src/ui/previewwidget.cpp
+    src/ui/previewwidget.h
+)
+
+qt_add_executable(OpenLiveStudio src/main.cpp)
+target_link_libraries(OpenLiveStudio PRIVATE openlive_ui)
 
 set(OPENLIVE_STUDIO_ICON_FILES
     "${PROJECT_SOURCE_DIR}/assets/icons/plus.svg"
@@ -99,7 +112,7 @@ set(OPENLIVE_STUDIO_ICON_FILES
     "${PROJECT_SOURCE_DIR}/assets/icons/circle.svg"
     "${PROJECT_SOURCE_DIR}/assets/icons/radio.svg"
 )
-qt_add_resources(OpenLiveStudio "icons"
+qt_add_resources(openlive_ui "icons"
     PREFIX "/"
     BASE "${PROJECT_SOURCE_DIR}"
     FILES ${OPENLIVE_STUDIO_ICON_FILES}
@@ -111,36 +124,21 @@ set(OPENLIVE_STUDIO_SHADER_FILES
     "${PROJECT_SOURCE_DIR}/assets/shaders/video_convert.vert"
     "${PROJECT_SOURCE_DIR}/assets/shaders/video_convert.frag"
 )
-qt_add_resources(OpenLiveStudio "shaders"
+qt_add_resources(openlive_core "shaders"
     PREFIX "/"
     BASE "${PROJECT_SOURCE_DIR}"
     FILES ${OPENLIVE_STUDIO_SHADER_FILES}
 )
 
-target_include_directories(OpenLiveStudio PRIVATE
-    "${PROJECT_SOURCE_DIR}/src"
+target_include_directories(openlive_core PUBLIC "${PROJECT_SOURCE_DIR}/src")
+target_link_libraries(openlive_core PUBLIC
+    Qt6::Core Qt6::Gui Qt6::Widgets Qt6::OpenGL Qt6::Network Qt6::DBus
+    PkgConfig::avformat PkgConfig::avcodec PkgConfig::avutil
+    PkgConfig::swresample PkgConfig::swscale PkgConfig::pulse PkgConfig::pipewire
 )
-
-target_link_libraries(OpenLiveStudio
-    PRIVATE
-        Qt::Core
-        Qt::Widgets
-        Qt::Svg
-        Qt::OpenGL
-        Qt::OpenGLWidgets
-        Qt::Network
-        PkgConfig::avformat
-        PkgConfig::avcodec
-        PkgConfig::avutil
-        PkgConfig::swresample
-        PkgConfig::pulse
-        PkgConfig::swscale
+target_link_libraries(openlive_ui PUBLIC
+    openlive_core Qt6::Widgets Qt6::Svg Qt6::OpenGLWidgets
 )
-
-target_sources(OpenLiveStudio PRIVATE src/video/display/waylanddisplaycapture.cpp
-    src/video/display/waylanddisplaycapture.h)
-target_link_libraries(OpenLiveStudio PRIVATE Qt6::DBus PkgConfig::pipewire)
-
 
 install(TARGETS OpenLiveStudio
     BUNDLE  DESTINATION .
@@ -165,7 +163,7 @@ if(BUILD_TESTING)
     add_subdirectory(tests)
 endif()
 
-qt_add_resources(OpenLiveStudio "style"
+qt_add_resources(openlive_ui "style"
     PREFIX "/"
     BASE "${PROJECT_SOURCE_DIR}"
     FILES "${PROJECT_SOURCE_DIR}/assets/styles/style.qss"

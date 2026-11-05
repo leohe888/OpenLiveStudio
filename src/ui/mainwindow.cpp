@@ -1,6 +1,7 @@
 #include "ui/mainwindow.h"
 #include "ui/outputwidgets.h"
 #include "ui/videosourcepanel.h"
+#include "ui/sourcedialogs.h"
 #include "ui/audiosourcepanel.h"
 #include "video/videosourcemanager.h"
 #include "video/videosourceaggregator.h"

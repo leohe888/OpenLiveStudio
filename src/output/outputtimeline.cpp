@@ -1,3 +1,4 @@
+#include "output/outputformat.h"
 #include "output/outputtimeline.h"
 #include <QThread>
 
@@ -35,7 +36,7 @@ bool OutputTimeline::read(qint64 frameIndex, QImage &image, QVector<float> &samp
     collectPendingMedia();
     const auto nowNs = MediaClock::nowNs();
     checkProducerHealth(nowNs);
-    const auto targetTimeNs = m_originNs + frameIndex * 1000000000LL / outputFramesPerSecond;
+    const auto targetTimeNs = m_originNs + frameIndex * 1000000000LL / VideoFormat::framesPerSecond;
     if (nowNs < targetTimeNs + synchronizationDelayNs)
         return false;
     selectVideoFrame(targetTimeNs, image);
@@ -88,12 +89,10 @@ void OutputTimeline::selectVideoFrame(qint64 targetTimeNs, QImage &image)
 
 void OutputTimeline::assembleAudioFrame(qint64 frameIndex, QVector<float> &samples)
 {
-    constexpr int audioFramesPerVideoFrame = AudioFormat::rate / outputFramesPerSecond;
-    static_assert(AudioFormat::rate % outputFramesPerSecond == 0);
     // 缺失区间保留静音，不压缩音频时间线，否则会逐渐与视频失步。
-    const qint64 outputStartFrame = frameIndex * audioFramesPerVideoFrame;
-    const qint64 outputEndFrame = outputStartFrame + audioFramesPerVideoFrame;
-    samples.fill(0, audioFramesPerVideoFrame * AudioFormat::channels);
+    const qint64 outputStartFrame = frameIndex * OutputFormat::audioFramesPerVideoFrame;
+    const qint64 outputEndFrame = outputStartFrame + OutputFormat::audioFramesPerVideoFrame;
+    samples.fill(0, OutputFormat::audioFramesPerVideoFrame * AudioFormat::channels);
     qint64 suppliedAudioFrames = 0;
     while (!m_audioBlocks.empty()) {
         const auto &block = *m_audioBlocks.front();
@@ -116,7 +115,8 @@ void OutputTimeline::assembleAudioFrame(qint64 frameIndex, QVector<float> &sampl
         else
             break;
     }
-    m_missingAudioFrames += std::max<qint64>(0, audioFramesPerVideoFrame - suppliedAudioFrames);
+    m_missingAudioFrames +=
+        std::max<qint64>(0, OutputFormat::audioFramesPerVideoFrame - suppliedAudioFrames);
 }
 
 void OutputTimeline::recover()

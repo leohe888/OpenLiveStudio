@@ -1,3 +1,4 @@
+#include "graphics/videoformat.h"
 #include "ui/previewwidget.h"
 
 #include <QDebug>
@@ -31,8 +32,9 @@ QRectF PreviewWidget::canvasRect() const
     const QSizeF widgetSize = size();
     if (widgetSize.isEmpty())
         return {};
-    const qreal scale = qMin(widgetSize.width() / 1920, widgetSize.height() / 1080);
-    const QSizeF size(1920 * scale, 1080 * scale);
+    const qreal scale =
+        qMin(widgetSize.width() / VideoFormat::width, widgetSize.height() / VideoFormat::height);
+    const QSizeF size(VideoFormat::width * scale, VideoFormat::height * scale);
     return QRectF(
         QPointF((widgetSize.width() - size.width()) / 2, (widgetSize.height() - size.height()) / 2),
         size);
@@ -43,7 +45,7 @@ QTransform PreviewWidget::canvasToWidget() const
     const QRectF rect = canvasRect();
     QTransform matrix;
     matrix.translate(rect.x(), rect.y());
-    matrix.scale(rect.width() / 1920, rect.height() / 1080);
+    matrix.scale(rect.width() / VideoFormat::width, rect.height() / VideoFormat::height);
     return matrix;
 }
 

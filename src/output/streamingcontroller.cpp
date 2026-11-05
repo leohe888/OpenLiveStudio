@@ -1,3 +1,4 @@
+#include "output/outputformat.h"
 #include "output/streamingcontroller.h"
 #include "output/outputsettings.h"
 #include "output/outputtimeline.h"
@@ -16,7 +17,7 @@ public:
         : m_video(video), m_audio(audio), m_server(std::move(server)), m_key(std::move(key)),
           m_bitrateKbps(bitrateKbps)
     {
-        m_status.state = "connecting";
+        m_status.state = StreamingState::Connecting;
     }
 
     ~StreamingWorker() override
@@ -47,7 +48,8 @@ protected:
         try {
             while (!m_stop) {
                 try {
-                    status.state = attempt ? "reconnecting" : "connecting";
+                    status.state =
+                        attempt ? StreamingState::Reconnecting : StreamingState::Connecting;
                     status.retryInSeconds = 0;
                     status.bitrateKbps = 0;
                     publish(status, firstConnectedNs);
@@ -70,7 +72,7 @@ protected:
                         break;
                     if (!firstConnectedNs)
                         firstConnectedNs = MediaClock::nowNs();
-                    status.state = "live";
+                    status.state = StreamingState::Live;
                     status.error.clear();
                     publish(status, firstConnectedNs);
                     qint64 frameIndex = 0, bitrateWindowStartNs = MediaClock::nowNs(),
@@ -97,7 +99,7 @@ protected:
                             const auto freshFrameIndex =
                                 std::max(frameIndex + 1,
                                          (MediaClock::nowNs() - timeline.originNs() - 200000000LL) *
-                                             30 / 1000000000LL);
+                                             VideoFormat::framesPerSecond / 1000000000LL);
                             skippedVideoFrames += freshFrameIndex - frameIndex;
                             frameIndex = freshFrameIndex;
                             encoder.skipTo(frameIndex);
@@ -136,7 +138,8 @@ protected:
                         }
                         if (processedAtNs - performanceStartNs > 3000000000LL &&
                             recentEncodeDurations.size() >= 15 &&
-                            processingTotalNs / qint64(recentEncodeDurations.size()) > 33333333LL) {
+                            processingTotalNs / qint64(recentEncodeDurations.size()) >
+                                VideoFormat::frameDurationNs) {
                             if (!slowSinceNs)
                                 slowSinceNs = processedAtNs;
                             if (processedAtNs - slowSinceNs > 2000000000LL)
@@ -165,7 +168,7 @@ protected:
                     if (!failure.retryable)
                         throw failure.message;
                     status.error = failure.message;
-                    status.state = "reconnecting";
+                    status.state = StreamingState::Reconnecting;
                     status.bitrateKbps = 0;
                     const int retryDelaysSeconds[]{1, 2, 5, 10};
                     const int retryDelaySeconds = retryDelaysSeconds[std::min(attempt, 3)];
@@ -181,22 +184,22 @@ protected:
                     }
                 }
             }
-            status.state = "idle";
+            status.state = StreamingState::Idle;
             status.bitrateKbps = 0;
             status.retryInSeconds = 0;
             if (m_overload) {
-                status.state = "error";
+                status.state = StreamingState::Error;
                 status.error = QStringLiteral("系统输出过载，已优先停止直播以保留录制资源。");
             }
         } catch (const QString &error) {
-            status.state = "error";
+            status.state = StreamingState::Error;
             status.error = error;
         } catch (const std::exception &) {
-            status.state = "error";
+            status.state = StreamingState::Error;
             status.error = QStringLiteral("直播输出发生内部错误。");
         }
         if (m_stop && !m_overload) {
-            status.state = "idle";
+            status.state = StreamingState::Idle;
             status.error.clear();
         }
         status.bitrateKbps = 0;
@@ -296,7 +299,7 @@ bool StreamingController::startStreaming(const QString &server, const QString &k
     const auto error = OutputSettings::validateStream(server, key, bitrateKbps, false);
     if (!ready() || !error.isEmpty()) {
         m_status = {};
-        m_status.state = "error";
+        m_status.state = StreamingState::Error;
         m_status.error = error.isEmpty() ? tr("合成或混音尚未就绪。") : error;
         emit statusChanged();
         return false;
@@ -317,7 +320,7 @@ void StreamingController::stopStreaming()
 {
     if (busy() && m_worker) {
         m_worker->stop();
-        m_status.state = "stopping";
+        m_status.state = StreamingState::Stopping;
         emit statusChanged();
     }
 }
@@ -326,7 +329,7 @@ void StreamingController::stopForOverload()
 {
     if (busy() && m_worker) {
         m_worker->stop(true);
-        m_status.state = "stopping";
+        m_status.state = StreamingState::Stopping;
         m_status.error = tr("系统输出过载，正在优先停止直播。");
         emit statusChanged();
     }
@@ -337,10 +340,11 @@ void StreamingController::refreshWorkerStatus()
     if (!m_worker)
         return;
     const bool wasBusy = busy();
-    const bool stopping = state() == "stopping";
+    const bool stopping = state() == StreamingState::Stopping;
     m_status = m_worker->snapshot();
-    if (!m_worker->isFinished() && (stopping || state() == "idle" || state() == "error"))
-        m_status.state = "stopping";
+    if (!m_worker->isFinished() &&
+        (stopping || state() == StreamingState::Idle || state() == StreamingState::Error))
+        m_status.state = StreamingState::Stopping;
     emit statusChanged();
     if (wasBusy && !busy())
         emit finished();

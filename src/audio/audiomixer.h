@@ -30,6 +30,8 @@ private:
     std::map<QString, Track> m_tracks;
 };
 
+// 生命周期由界面线程管理；stop() 请求退出，析构等待混音线程结束。
+// 输入、快照、电平与订阅接口均受锁保护；返回数据按值或共享所有权传递。
 class AudioMixer : public QThread
 {
     Q_OBJECT

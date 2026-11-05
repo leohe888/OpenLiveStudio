@@ -1,3 +1,4 @@
+#include "output/outputformat.h"
 #include "output/recordingcontroller.h"
 #include "output/mediaencoder.h"
 #include "output/outputtimeline.h"
@@ -13,7 +14,7 @@ public:
     RecordingWorker(Compositor &video, AudioMixer &audio, QString path, int bitrateKbps)
         : m_video(video), m_audio(audio), m_bitrateKbps(bitrateKbps)
     {
-        m_status.state = "starting";
+        m_status.state = RecordingState::Starting;
         m_status.path = std::move(path);
     }
 
@@ -47,7 +48,7 @@ protected:
             std::clamp(qEnvironmentVariableIntValue("OPENLIVE_RECORDING_PAUSE_ONCE_MS"), 0, 800);
         try {
             if (m_stopAtNs.load()) {
-                result.state = "idle";
+                result.state = RecordingState::Idle;
                 publish(result);
                 return;
             }
@@ -56,22 +57,24 @@ protected:
             if (!timeline.initialize([&] {
                     return m_stopAtNs.load() != 0;
                 })) {
-                result.state = "idle";
+                result.state = RecordingState::Idle;
                 publish(result);
                 return;
             }
             const auto originNs = timeline.originNs();
-            result.state = "recording";
+            result.state = RecordingState::Recording;
             publish(result);
             qint64 pressureSinceNs = 0, pressureBaselineNs = 0;
             while (true) {
                 const auto stopTimeNs = m_stopAtNs.load();
                 const qint64 finalFrames =
-                    stopTimeNs ? std::max<qint64>(1, ((stopTimeNs - originNs) * 30 + 999999999LL) /
-                                                         1000000000LL)
+                    stopTimeNs ? std::max<qint64>(
+                                     1, ((stopTimeNs - originNs) * VideoFormat::framesPerSecond +
+                                         999999999LL) /
+                                            1000000000LL)
                                : 0;
                 if (stopTimeNs)
-                    result.state = "stopping";
+                    result.state = RecordingState::Stopping;
                 if (stopTimeNs && result.videoFrames >= finalFrames)
                     break;
                 QImage image;
@@ -126,10 +129,10 @@ protected:
             }
             encoder.finish();
             result.fileComplete = true;
-            result.state = "idle";
+            result.state = RecordingState::Idle;
         } catch (const QString &message) {
             result.error = message;
-            result.state = "error";
+            result.state = RecordingState::Error;
             if (result.videoFrames) {
                 try {
                     encoder.finish();
@@ -139,11 +142,11 @@ protected:
                 }
             }
         } catch (const std::exception &exception) {
-            result.state = "error";
+            result.state = RecordingState::Error;
             result.error = QStringLiteral("录制失败：%1").arg(QString::fromUtf8(exception.what()));
         }
         if (result.videoFrames)
-            result.durationMs = result.videoFrames * 1000 / 30;
+            result.durationMs = result.videoFrames * 1000 / VideoFormat::framesPerSecond;
         publish(result);
     }
 
@@ -205,7 +208,7 @@ bool RecordingController::startRecording(const QString &path, int bitrateKbps)
         QFileInfo(path).suffix().compare("mp4", Qt::CaseInsensitive) || bitrateKbps < 500 ||
         bitrateKbps > 50000) {
         m_status = {};
-        m_status.state = "error";
+        m_status.state = RecordingState::Error;
         m_status.error = tr("合成或混音尚未就绪，或录制路径/码率无效。");
         emit statusChanged();
         return false;
@@ -224,7 +227,7 @@ void RecordingController::stopRecording()
     if (!busy() || !m_worker)
         return;
     m_worker->requestStop();
-    m_status.state = "stopping";
+    m_status.state = RecordingState::Stopping;
     emit statusChanged();
 }
 
@@ -233,12 +236,12 @@ void RecordingController::refreshWorkerStatus()
     if (!m_worker)
         return;
     const bool wasBusy = busy();
-    const bool stopping = state() == "stopping";
+    const bool stopping = state() == RecordingState::Stopping;
     m_status = m_worker->snapshot();
     // 只有线程退出、输出订阅和编码资源全部释放后，才能对外报告结束。
-    if (!m_worker->isFinished() &&
-        (stopping || m_status.state == "idle" || m_status.state == "error"))
-        m_status.state = "stopping";
+    if (!m_worker->isFinished() && (stopping || m_status.state == RecordingState::Idle ||
+                                    m_status.state == RecordingState::Error))
+        m_status.state = RecordingState::Stopping;
     if (m_status.pressured && busy())
         emit overloaded();
     emit statusChanged();

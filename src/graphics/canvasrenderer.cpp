@@ -1,3 +1,4 @@
+#include "graphics/videoformat.h"
 #include "graphics/canvasrenderer.h"
 #include <QOpenGLBuffer>
 #include <QOpenGLContext>
@@ -85,7 +86,7 @@ bool CanvasRenderer::initialize()
     canvasFormat.setInternalTextureFormat(GL_RGBA8);
     canvasFormat.setAttachment(QOpenGLFramebufferObject::NoAttachment);
     canvasFormat.setSamples(0);
-    m_canvasFbo = std::make_unique<QOpenGLFramebufferObject>(QSize(1920, 1080), canvasFormat);
+    m_canvasFbo = std::make_unique<QOpenGLFramebufferObject>(VideoFormat::size, canvasFormat);
     const bool canvasValid = m_canvasFbo->isValid();
     if (!canvasValid)
         m_canvasFbo.reset();

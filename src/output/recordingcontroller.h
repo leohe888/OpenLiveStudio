@@ -7,9 +7,36 @@ class Compositor;
 class AudioMixer;
 class RecordingWorker;
 
+enum class RecordingState {
+    Idle,
+    Starting,
+    Recording,
+    Stopping,
+    Error,
+};
+
+// Stable diagnostic names; UI text is translated separately.
+inline QString outputStateName(RecordingState state)
+{
+    switch (state) {
+    case RecordingState::Idle:
+        return QStringLiteral("idle");
+    case RecordingState::Starting:
+        return QStringLiteral("starting");
+    case RecordingState::Recording:
+        return QStringLiteral("recording");
+    case RecordingState::Stopping:
+        return QStringLiteral("stopping");
+    case RecordingState::Error:
+        return QStringLiteral("error");
+    }
+    Q_UNREACHABLE();
+}
+
 struct RecordingStatus
 {
-    QString state = QStringLiteral("idle"), path, error;
+    RecordingState state = RecordingState::Idle;
+    QString path, error;
     qint64 durationMs = 0, videoFrames = 0, missingAudioFrames = 0;
     qint64 lagMs = 0, lastEncodeMs = 0, lastOutputMs = 0;
     qint64 videoEncodeMs = 0, audioEncodeMs = 0, conversionMs = 0;
@@ -18,6 +45,8 @@ struct RecordingStatus
     bool fileComplete = false, pressured = false;
 };
 
+// 控制与状态接口只在所属（界面）线程调用；内部 worker 发布受锁保护的状态副本。
+// video/audio 必须比控制器存活更久；析构请求停止并等待文件封装与资源释放。
 class RecordingController : public QObject
 {
     Q_OBJECT
@@ -25,14 +54,15 @@ public:
     RecordingController(Compositor &video, AudioMixer &audio, QObject *parent = nullptr);
     ~RecordingController() override;
 
-    QString state() const
+    RecordingState state() const
     {
         return m_status.state;
     }
 
     bool busy() const
     {
-        return state() == "starting" || state() == "recording" || state() == "stopping";
+        return state() == RecordingState::Starting || state() == RecordingState::Recording ||
+               state() == RecordingState::Stopping;
     }
 
     bool ready() const;

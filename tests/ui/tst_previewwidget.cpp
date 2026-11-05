@@ -309,11 +309,12 @@ private slots:
         QVERIFY(QTest::qWaitForWindowExposed(&widget));
         QImage image(16, 16, QImage::Format_RGBA8888);
         image.fill(Qt::red);
-        widget.setSources({{"image", image, true}});
+        // Fill the canvas: a 16x16 source otherwise covers less than one preview pixel.
+        widget.setSources({{"image", image, true, {{960, 540}, {1920, 1080}, 0}}});
         QCOMPARE(sample(grabPreview(widget), .5, .5), QColor(Qt::red));
         QCOMPARE(sample(readCanvas(widget), .5, .5), QColor(Qt::red));
         image.fill(QColor(0, 255, 0, 128));
-        widget.setSources({{"image", image, true}});
+        widget.setSources({{"image", image, true, {{960, 540}, {1920, 1080}, 0}}});
         const QColor blended = sample(grabPreview(widget), .5, .5);
         QCOMPARE(blended.red(), 0);
         QVERIFY(qAbs(blended.green() - 128) <= 1);
@@ -388,7 +389,8 @@ private slots:
         widget.resize(100, 100);
         QImage image(16, 16, QImage::Format_RGBA8888);
         image.fill(Qt::red);
-        widget.setSources({{"image", image, true}});
+        // Fill the canvas: a 16x16 source otherwise covers less than one preview pixel.
+        widget.setSources({{"image", image, true, {{960, 540}, {1920, 1080}, 0}}});
         widget.show();
         QVERIFY(QTest::qWaitForWindowExposed(&widget));
         QCOMPARE(sample(grabPreview(widget), .5, .5), QColor(Qt::red));
@@ -420,7 +422,7 @@ private slots:
         widget.doneCurrent();
         QCOMPARE(sample(readCanvas(widget), .5, .5), QColor(Qt::black));
         QCOMPARE(sample(grabPreview(widget), .5, .5), QColor(Qt::black));
-        widget.setSources({{"image", image, true}});
+        widget.setSources({{"image", image, true, {{960, 540}, {1920, 1080}, 0}}});
         QCOMPARE(sample(grabPreview(widget), .5, .5), QColor(Qt::red));
         QVERIFY(widget.lastError().isEmpty());
     }

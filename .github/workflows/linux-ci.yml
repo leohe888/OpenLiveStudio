@@ -14,6 +14,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  format:
+    name: Format changed C++ lines
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install formatter
+        run: |
+          python3 -m venv "$RUNNER_TEMP/format-venv"
+          "$RUNNER_TEMP/format-venv/bin/python" -m pip install clang-format==22.1.8
+          echo "$RUNNER_TEMP/format-venv/bin" >> "$GITHUB_PATH"
+      - name: Check formatting
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          base="$BASE_SHA"
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            base="$(git merge-base "$base" HEAD)"
+          elif [[ -z "$base" || "$base" =~ ^0+$ ]]; then
+            base=HEAD
+          fi
+          python3 scripts/format-changes.py --base "$base"
+
   build-and-test:
     name: Linux GCC Debug
     runs-on: ubuntu-24.04

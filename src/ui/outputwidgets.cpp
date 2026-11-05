@@ -45,21 +45,21 @@ QWidget *createOutputControls(QWidget *parent, OutputSettings *settings,
     options->setEnabled(settings);
 
     const auto refresh = [record, stream, recorder, streamer] {
-        const auto recordingState = recorder ? recorder->state() : QString();
-        record->setText(recordingState == "recording"  ? QObject::tr("停止录制")
-                        : recordingState == "starting" ? QObject::tr("取消启动")
-                        : recordingState == "stopping" ? QObject::tr("正在停止…")
-                                            : QObject::tr("开始录制"));
-        record->setEnabled(recorder && recordingState != "stopping" &&
+        const auto recordingState = recorder ? recorder->state() : RecordingState::Idle;
+        record->setText(recordingState == RecordingState::Recording  ? QObject::tr("停止录制")
+                        : recordingState == RecordingState::Starting ? QObject::tr("取消启动")
+                        : recordingState == RecordingState::Stopping ? QObject::tr("正在停止…")
+                                                                     : QObject::tr("开始录制"));
+        record->setEnabled(recorder && recordingState != RecordingState::Stopping &&
                            (recorder->busy() || recorder->ready()));
 
-        const auto live = streamer ? streamer->state() : QString();
-        stream->setText(live == "live"           ? QObject::tr("停止直播")
-                        : live == "connecting"   ? QObject::tr("取消连接")
-                        : live == "reconnecting" ? QObject::tr("停止重连")
-                        : live == "stopping"     ? QObject::tr("正在停止…")
-                                                 : QObject::tr("开始直播"));
-        stream->setEnabled(streamer && live != "stopping" &&
+        const auto live = streamer ? streamer->state() : StreamingState::Idle;
+        stream->setText(live == StreamingState::Live           ? QObject::tr("停止直播")
+                        : live == StreamingState::Connecting   ? QObject::tr("取消连接")
+                        : live == StreamingState::Reconnecting ? QObject::tr("停止重连")
+                        : live == StreamingState::Stopping     ? QObject::tr("正在停止…")
+                                                               : QObject::tr("开始直播"));
+        stream->setEnabled(streamer && live != StreamingState::Stopping &&
                            (streamer->busy() || streamer->ready()));
     };
     if (recorder) {

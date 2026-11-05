@@ -1,5 +1,7 @@
 #ifndef OUTPUTTIMELINE_H
 #define OUTPUTTIMELINE_H
+
+#include "output/outputformat.h"
 #include "graphics/compositor.h"
 #include "audio/audiomixer.h"
 #include "util/mediaclock.h"
@@ -8,6 +10,8 @@
 
 // 将带时间戳的音视频对齐到编码器的固定输出节奏。
 // 各输出线程独占订阅、历史缓冲和时间原点，录制与直播不会争抢数据或相互重置。
+// 实例仅在一个输出线程使用，无内部锁；video/audio 必须比实例存活更久。
+// 析构释放订阅；停止生产者前，应先停止输出线程并销毁时间线。
 class OutputTimeline
 {
 public:
@@ -46,11 +50,10 @@ public:
     qint64 lagNs(qint64 frameIndex) const
     {
         return MediaClock::nowNs() -
-               (m_originNs + frameIndex * 1000000000LL / outputFramesPerSecond);
+               (m_originNs + frameIndex * 1000000000LL / VideoFormat::framesPerSecond);
     }
 
 private:
-    static constexpr int outputFramesPerSecond = 30;
     void collectPendingMedia();
     void checkProducerHealth(qint64 nowNs);
     void selectVideoFrame(qint64 targetTimeNs, QImage &image);

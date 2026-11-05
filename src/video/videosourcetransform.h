@@ -1,6 +1,8 @@
 #ifndef VIDEOSOURCETRANSFORM_H
 #define VIDEOSOURCETRANSFORM_H
 
+#include "graphics/videoformat.h"
+
 #include <QMetaType>
 #include <QPointF>
 #include <QSizeF>
@@ -30,7 +32,7 @@ public:
     bool operator!=(const VideoSourceTransform &other) const;
 
 private:
-    QPointF m_center{960, 540};
+    QPointF m_center{VideoFormat::width / 2.0, VideoFormat::height / 2.0};
     QSizeF m_size;
     qreal m_rotationDegrees = 0;
 };

@@ -1,3 +1,4 @@
+#include "graphics/videoformat.h"
 #include "graphics/compositor.h"
 #include "util/mediaclock.h"
 
@@ -175,7 +176,7 @@ void Compositor::run()
         QOpenGLFramebufferObjectFormat format;
         format.setInternalTextureFormat(GL_RGBA8);
         for (auto &slot : outputSlots) {
-            slot.fbo = std::make_unique<QOpenGLFramebufferObject>(QSize(1920, 1080), format);
+            slot.fbo = std::make_unique<QOpenGLFramebufferObject>(VideoFormat::size, format);
             if (!slot.fbo->isValid()) {
                 fail(tr("无法创建合成输出缓冲。"));
                 return;
@@ -188,7 +189,7 @@ void Compositor::run()
             gl->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         }
         using Clock = std::chrono::steady_clock;
-        const auto period = std::chrono::nanoseconds(1000000000 / 30);
+        const auto period = std::chrono::nanoseconds(VideoFormat::frameDurationNs);
         auto deadline = Clock::now();
         quint64 sequence = 0;
         while (true) {

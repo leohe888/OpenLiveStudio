@@ -52,6 +52,7 @@ signals:
 
 private:
     friend class MainWindowTest;
+    friend class MainWindowHardwareTest;
 
     struct Entry
     {

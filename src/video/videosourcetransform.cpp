@@ -1,3 +1,4 @@
+#include "graphics/videoformat.h"
 #include "video/videosourcetransform.h"
 
 #include <QRectF>
@@ -9,7 +10,8 @@ VideoSourceTransform::VideoSourceTransform(const QSizeF &pixelSize)
 {
     if (pixelSize.isEmpty())
         return;
-    const qreal scale = qMin(1.0, qMin(1920.0 / pixelSize.width(), 1080.0 / pixelSize.height()));
+    const qreal scale = qMin(1.0, qMin(qreal(VideoFormat::width) / pixelSize.width(),
+                                       qreal(VideoFormat::height) / pixelSize.height()));
     m_size = pixelSize * scale;
 }
 

@@ -66,6 +66,9 @@ std::shared_ptr<const PixelFrame> cameraPixels(const AVFrame *frame, bool &infer
 QList<CameraDevice> cameraDevices(QString *error = nullptr);
 QList<CameraMode> cameraModes(const QString &deviceId, QString *error = nullptr);
 
+// 在界面线程管理生命周期；V4L2 设备和解码器仅由 run() 线程持有。
+// stop() 只请求停止；析构等待退出。takeLatest()/lastError() 受锁保护，
+// 返回的帧由共享所有权保持存活，读取后不应修改。
 class CameraCaptureWorker : public QThread
 {
 public:

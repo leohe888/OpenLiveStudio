@@ -2,191 +2,53 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
 find_program(OPENLIVE_DBUS_RUN_SESSION dbus-run-session REQUIRED)
 
 find_program(OPENLIVE_FFPROBE NAMES ffprobe HINTS "${OPENLIVE_FFMPEG_PREFIX}/bin" REQUIRED)
-qt_add_executable(tst_streaming output/tst_streaming.cpp
-    ../src/video/videosourcetransform.cpp
-    ../src/video/videosourcefilter.cpp
-    ../src/graphics/captureframe.h
-    ../src/graphics/canvasrenderer.h
-    ../src/graphics/canvasrenderer.cpp
-    ../src/graphics/compositor.h
-    ../src/graphics/compositor.cpp
-    ../src/graphics/rendersourcesnapshot.h
-    ../src/audio/audiobuffer.h
-    ../src/audio/audioresampler.h
-    ../src/audio/audioresampler.cpp
-    ../src/audio/audiocaptureworker.h
-    ../src/audio/audiocaptureworker.cpp
-    ../src/audio/audiomixer.h
-    ../src/audio/audiomixer.cpp
-    ../src/audio/audiosourcemanager.h
-    ../src/audio/audiosourcemanager.cpp
-    ../src/output/outputtimeline.h
-    ../src/output/outputtimeline.cpp
-    ../src/output/streamingcontroller.h
-    ../src/output/streamingcontroller.cpp
-    ../src/output/mediaencoder.h
-    ../src/output/mediaencoder.cpp
-    ../src/output/recordingcontroller.h
-    ../src/output/recordingcontroller.cpp
-    ../src/output/outputsettings.h
-    ../src/output/outputsettings.cpp
-    ../src/util/mediaclock.h
-)
-target_include_directories(tst_streaming PRIVATE "${PROJECT_SOURCE_DIR}/src")
-target_link_libraries(tst_streaming PRIVATE
-    Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::Network Qt6::Test
-    PkgConfig::swresample PkgConfig::avutil PkgConfig::avcodec PkgConfig::avformat PkgConfig::swscale PkgConfig::pulse)
+qt_add_executable(tst_streaming output/tst_streaming.cpp)
 
 target_compile_definitions(tst_streaming PRIVATE OPENLIVE_FFPROBE="${OPENLIVE_FFPROBE}")
-qt_add_resources(tst_streaming "streaming_shaders" PREFIX "/" BASE "${PROJECT_SOURCE_DIR}"
-    FILES ${OPENLIVE_STUDIO_SHADER_FILES})
 add_test(NAME output.streaming COMMAND
     "$<TARGET_FILE:tst_streaming>" -o "${CMAKE_CURRENT_BINARY_DIR}/streaming-results.txt,txt")
 set_tests_properties(output.streaming PROPERTIES LABELS "output;gpu;network" TIMEOUT 60)
 
-qt_add_executable(tst_recording output/tst_recording.cpp
-    ../src/video/videosourcetransform.cpp
-    ../src/video/videosourcefilter.cpp
-    ../src/graphics/captureframe.h
-    ../src/graphics/canvasrenderer.h
-    ../src/graphics/canvasrenderer.cpp
-    ../src/graphics/compositor.h
-    ../src/graphics/compositor.cpp
-    ../src/graphics/rendersourcesnapshot.h
-    ../src/audio/audiobuffer.h
-    ../src/audio/audioresampler.h
-    ../src/audio/audioresampler.cpp
-    ../src/audio/audiocaptureworker.h
-    ../src/audio/audiocaptureworker.cpp
-    ../src/audio/audiomixer.h
-    ../src/audio/audiomixer.cpp
-    ../src/audio/audiosourcemanager.h
-    ../src/audio/audiosourcemanager.cpp
-    ../src/output/outputtimeline.h
-    ../src/output/outputtimeline.cpp
-    ../src/output/streamingcontroller.h
-    ../src/output/streamingcontroller.cpp
-    ../src/output/mediaencoder.h
-    ../src/output/mediaencoder.cpp
-    ../src/output/recordingcontroller.h
-    ../src/output/recordingcontroller.cpp
-    ../src/output/outputsettings.h
-    ../src/output/outputsettings.cpp
-    ../src/util/mediaclock.h
-)
-target_include_directories(tst_recording PRIVATE "${PROJECT_SOURCE_DIR}/src")
-target_link_libraries(tst_recording PRIVATE
-    Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::Network Qt6::Test
-    PkgConfig::swresample PkgConfig::avutil PkgConfig::avcodec PkgConfig::avformat PkgConfig::swscale PkgConfig::pulse)
+qt_add_executable(tst_recording output/tst_recording.cpp)
 
 target_compile_definitions(tst_recording PRIVATE OPENLIVE_FFPROBE="${OPENLIVE_FFPROBE}")
-qt_add_resources(tst_recording "recording_shaders" PREFIX "/" BASE "${PROJECT_SOURCE_DIR}"
-    FILES ${OPENLIVE_STUDIO_SHADER_FILES})
 add_test(NAME output.recording COMMAND
     "$<TARGET_FILE:tst_recording>" -o "${CMAKE_CURRENT_BINARY_DIR}/recording-results.txt,txt")
 set_tests_properties(output.recording PROPERTIES LABELS "output;gpu" TIMEOUT 60)
 
-qt_add_executable(tst_audio audio/tst_audio.cpp
-    ../src/audio/audiobuffer.h
-    ../src/audio/audioresampler.h
-    ../src/audio/audioresampler.cpp
-    ../src/audio/audiocaptureworker.h
-    ../src/audio/audiocaptureworker.cpp
-    ../src/audio/audiomixer.h
-    ../src/audio/audiomixer.cpp
-    ../src/audio/audiosourcemanager.h
-    ../src/audio/audiosourcemanager.cpp
-)
-target_include_directories(tst_audio PRIVATE "${PROJECT_SOURCE_DIR}/src")
-target_link_libraries(tst_audio PRIVATE
-    Qt6::Core Qt6::Gui Qt6::Test
-    PkgConfig::swresample PkgConfig::avutil PkgConfig::pulse)
+qt_add_executable(tst_audio audio/tst_audio.cpp)
 
 add_test(NAME audio.sources COMMAND
     "$<TARGET_FILE:tst_audio>" -o "${CMAKE_CURRENT_BINARY_DIR}/audio-results.txt,txt")
 set_tests_properties(audio.sources PROPERTIES LABELS "audio" TIMEOUT 30)
 
-qt_add_executable(tst_pulseaudio audio/tst_pulseaudio.cpp
-    ../src/audio/audiocaptureworker.cpp
-    ../src/audio/audiocaptureworker.h
-    ../src/audio/audiomixer.cpp
-    ../src/audio/audiosourcemanager.cpp
-    ../src/audio/audiosourcemanager.h
-    ../src/output/mediaencoder.cpp)
-target_include_directories(tst_pulseaudio PRIVATE "${PROJECT_SOURCE_DIR}/src")
-target_link_libraries(tst_pulseaudio PRIVATE Qt6::Core Qt6::Gui Qt6::Network Qt6::Test
-    PkgConfig::pulse PkgConfig::avformat PkgConfig::avcodec PkgConfig::avutil
-    PkgConfig::swresample PkgConfig::swscale)
+qt_add_executable(tst_pulseaudio audio/tst_pulseaudio.cpp)
 target_compile_definitions(tst_pulseaudio PRIVATE OPENLIVE_FFPROBE="${OPENLIVE_FFPROBE}")
 add_test(NAME audio.pulseaudio COMMAND "${OPENLIVE_DBUS_RUN_SESSION}" -- "$<TARGET_FILE:tst_pulseaudio>")
 set_tests_properties(audio.pulseaudio PROPERTIES LABELS "audio;integration" TIMEOUT 60)
 
-qt_add_executable(tst_canvasrenderer graphics/tst_canvasrenderer.cpp
-    ../src/video/videosourcetransform.cpp
-    ../src/video/videosourcefilter.cpp
-    ../src/graphics/captureframe.h
-    ../src/graphics/canvasrenderer.h
-    ../src/graphics/canvasrenderer.cpp
-    ../src/graphics/compositor.h
-    ../src/graphics/compositor.cpp
-    ../src/graphics/rendersourcesnapshot.h
-)
-target_include_directories(tst_canvasrenderer PRIVATE "${PROJECT_SOURCE_DIR}/src")
-target_link_libraries(tst_canvasrenderer PRIVATE
-    Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::Test)
+qt_add_executable(tst_canvasrenderer graphics/tst_canvasrenderer.cpp)
 
-qt_add_resources(tst_canvasrenderer "compositor_shaders" PREFIX "/" BASE "${PROJECT_SOURCE_DIR}"
-    FILES ${OPENLIVE_STUDIO_SHADER_FILES})
 add_test(NAME gpu.compositor COMMAND
     "$<TARGET_FILE:tst_canvasrenderer>" -o "${CMAKE_CURRENT_BINARY_DIR}/compositor-results.txt,txt")
 set_tests_properties(gpu.compositor PROPERTIES LABELS "gpu" TIMEOUT 30)
 
-qt_add_executable(tst_captureframe graphics/tst_captureframe.cpp
-    ../src/video/videosourcetransform.cpp)
-target_include_directories(tst_captureframe PRIVATE "${PROJECT_SOURCE_DIR}/src")
-target_link_libraries(tst_captureframe PRIVATE Qt6::Gui Qt6::Test)
+qt_add_executable(tst_captureframe graphics/tst_captureframe.cpp)
 add_test(NAME capture.frames COMMAND "$<TARGET_FILE:tst_captureframe>")
 set_tests_properties(capture.frames PROPERTIES LABELS "capture;smoke" TIMEOUT 10)
 
-qt_add_executable(tst_videosource
-    ../src/video/videosourcetransform.cpp
-    ../src/video/videosourcefilter.cpp
-    video/tst_videosource.cpp
-    ../src/video/videosource.cpp
-    ../src/video/videosource.h
-)
-target_include_directories(tst_videosource PRIVATE "${PROJECT_SOURCE_DIR}/src")
-target_link_libraries(tst_videosource PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+qt_add_executable(tst_videosource video/tst_videosource.cpp)
 add_test(NAME core.videosource COMMAND
     "$<TARGET_FILE:tst_videosource>" -o "-,txt")
 set_tests_properties(core.videosource PROPERTIES LABELS "core;smoke" TIMEOUT 10)
 
-qt_add_executable(tst_videosourcefilter
-    video/tst_videosourcefilter.cpp
-    ../src/video/videosourcefilter.cpp
-    ../src/video/videosourcefilter.h
-)
+qt_add_executable(tst_videosourcefilter video/tst_videosourcefilter.cpp)
 
-target_include_directories(tst_videosourcefilter PRIVATE "${PROJECT_SOURCE_DIR}/src")
-target_link_libraries(tst_videosourcefilter PRIVATE Qt6::Core Qt6::Test)
 add_test(NAME core.videosourcefilter COMMAND
     "$<TARGET_FILE:tst_videosourcefilter>" -o "-,txt")
 set_tests_properties(core.videosourcefilter PROPERTIES LABELS "core;smoke" TIMEOUT 10)
 
-qt_add_executable(tst_videosourcemanager
-    ../src/video/videosourcetransform.cpp
-    ../src/video/videosourcefilter.cpp
-    video/tst_videosourcemanager.cpp
-    ../src/video/videosource.cpp
-    ../src/video/videosource.h
-    ../src/video/videosourcetransform.h
-    ../src/video/videosourcemanager.cpp
-    ../src/video/videosourcemanager.h
-)
-target_include_directories(tst_videosourcemanager PRIVATE
-    "${PROJECT_SOURCE_DIR}/src"
-)
-target_link_libraries(tst_videosourcemanager PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+qt_add_executable(tst_videosourcemanager video/tst_videosourcemanager.cpp)
 add_test(NAME core.videosourcemanager
     COMMAND
                 "$<TARGET_FILE:tst_videosourcemanager>"
@@ -194,102 +56,25 @@ add_test(NAME core.videosourcemanager
 )
 set_tests_properties(core.videosourcemanager PROPERTIES LABELS "core;smoke" TIMEOUT 10)
 
-qt_add_executable(tst_videosourceaggregator
-    ../src/video/videosourcetransform.cpp
-    ../src/video/videosourcefilter.cpp
-    video/tst_videosourceaggregator.cpp
-    ../src/video/videosource.cpp
-    ../src/video/videosourcemanager.cpp
-    ../src/video/videosourcemanager.h
-    ../src/video/videosourceaggregator.cpp
-    ../src/video/videosourceaggregator.h
-)
-target_include_directories(tst_videosourceaggregator PRIVATE "${PROJECT_SOURCE_DIR}/src")
-target_link_libraries(tst_videosourceaggregator PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+qt_add_executable(tst_videosourceaggregator video/tst_videosourceaggregator.cpp)
 add_test(NAME video.sourceaggregator COMMAND
     "$<TARGET_FILE:tst_videosourceaggregator>" -o "-,txt")
 set_tests_properties(video.sourceaggregator PROPERTIES LABELS "video;smoke" TIMEOUT 10)
 
-qt_add_executable(tst_mainwindow
-    ../src/video/videosourcetransform.cpp
-    ../src/video/videosourcefilter.cpp
-    ui/tst_mainwindow.cpp
-    support/recordingacceptance.h
-    ../src/ui/mainwindow.cpp
-    ../src/ui/outputwidgets.cpp
-    ../src/ui/videosourcepanel.cpp
-    ../src/ui/audiosourcepanel.cpp
-    ../src/ui/audiosourcepanel.h
-    ../src/ui/videosourcepanel.h
-    ../src/ui/outputwidgets.h
-    ../src/ui/mainwindow.h
-    ../src/ui/previewwidget.cpp
-    ../src/ui/previewwidget.h
-    ../src/graphics/rendersourcesnapshot.h
-    ../src/video/videosource.cpp
-    ../src/video/videosource.h
-    ../src/video/videosourcetransform.h
-    ../src/video/videosourcemanager.cpp
-    ../src/video/videosourcemanager.h
-    ../src/video/image/imagesourcecontroller.cpp
-    ../src/video/image/imagesourcecontroller.h
-    ../src/video/videosourceaggregator.cpp
-    ../src/video/videosourceaggregator.h
-    ../src/video/camera/cameracaptureworker.h
-    ../src/video/camera/cameracaptureworker.cpp
-    ../src/video/camera/v4l2camera.cpp
-    ../src/video/camera/v4l2camera.h
-    ../src/video/camera/camerasourcecontroller.h
-    ../src/video/camera/camerasourcecontroller.cpp
-    ../src/graphics/captureframe.h
-    ../src/video/display/displaycaptureworker.h
-    ../src/video/display/displaycaptureworker.cpp
-    ../src/video/display/displaysourcecontroller.h
-    ../src/video/display/displaysourcecontroller.cpp
-    ../src/graphics/canvasrenderer.h
-    ../src/graphics/canvasrenderer.cpp
-    ../src/graphics/compositor.h
-    ../src/graphics/compositor.cpp
-    ../src/audio/audiobuffer.h
-    ../src/audio/audioresampler.h
-    ../src/audio/audioresampler.cpp
-    ../src/audio/audiocaptureworker.h
-    ../src/audio/audiocaptureworker.cpp
-    ../src/audio/audiomixer.h
-    ../src/audio/audiomixer.cpp
-    ../src/audio/audiosourcemanager.h
-    ../src/audio/audiosourcemanager.cpp
-    ../src/output/outputtimeline.h
-    ../src/output/outputtimeline.cpp
-    ../src/output/streamingcontroller.h
-    ../src/output/streamingcontroller.cpp
-    ../src/output/mediaencoder.h
-    ../src/output/mediaencoder.cpp
-    ../src/output/recordingcontroller.h
-    ../src/output/recordingcontroller.cpp
-    ../src/output/outputsettings.h
-    ../src/output/outputsettings.cpp
-    ../src/util/mediaclock.h
-)
-target_include_directories(tst_mainwindow PRIVATE "${PROJECT_SOURCE_DIR}/src" "${PROJECT_SOURCE_DIR}/tests")
-target_link_libraries(tst_mainwindow PRIVATE
-    Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::Network Qt6::Widgets Qt6::Test Qt6::Svg Qt6::OpenGLWidgets
-    PkgConfig::swresample PkgConfig::avutil PkgConfig::avcodec PkgConfig::avformat PkgConfig::swscale PkgConfig::pulse)
+qt_add_executable(tst_mainwindow ui/tst_mainwindow.cpp)
+qt_add_executable(tst_mainwindow_gpu ui/tst_mainwindow_gpu.cpp)
+qt_add_executable(tst_mainwindow_hardware ui/tst_mainwindow_hardware.cpp)
+foreach(test_target IN ITEMS tst_mainwindow tst_mainwindow_gpu tst_mainwindow_hardware)
+    target_include_directories(${test_target} PRIVATE "${PROJECT_SOURCE_DIR}/tests")
+    target_compile_definitions(${test_target} PRIVATE OPENLIVE_FFPROBE="${OPENLIVE_FFPROBE}")
+endforeach()
+add_test(NAME ui.mainwindow.gpu COMMAND "$<TARGET_FILE:tst_mainwindow_gpu>")
+set_tests_properties(ui.mainwindow.gpu PROPERTIES LABELS "ui;gpu;output" TIMEOUT 120)
+add_test(NAME ui.mainwindow.hardware COMMAND "$<TARGET_FILE:tst_mainwindow_hardware>")
+# Hardware and soak tests retain their explicit environment opt-ins.
+set_tests_properties(ui.mainwindow.hardware PROPERTIES LABELS "ui;gpu;hardware;acceptance" TIMEOUT 4200)
 
-target_compile_definitions(tst_mainwindow PRIVATE OPENLIVE_FFPROBE="${OPENLIVE_FFPROBE}")
-qt_add_resources(tst_mainwindow "mainwindow_shaders"
-    PREFIX "/"
-    BASE "${PROJECT_SOURCE_DIR}"
-    FILES ${OPENLIVE_STUDIO_SHADER_FILES}
-)
-
-qt_add_resources(tst_mainwindow "test_icons"
-    PREFIX "/"
-    BASE "${PROJECT_SOURCE_DIR}"
-    FILES ${OPENLIVE_STUDIO_ICON_FILES}
-)
-
-# 此测试以离屏平台验证界面结构；需要原生 GL 的子项会按条件跳过。
+# 界面结构与配置逻辑在离屏平台验证；GPU 和硬件验收使用独立套件。
 add_test(NAME ui.mainwindow
     COMMAND "${CMAKE_COMMAND}" -E env
         "QT_QPA_PLATFORM=offscreen"
@@ -302,29 +87,7 @@ set_tests_properties(ui.mainwindow PROPERTIES
     TIMEOUT 120
 )
 
-qt_add_executable(tst_previewwidget
-    ../src/video/videosourcetransform.cpp
-    ../src/video/videosourcefilter.cpp
-    ui/tst_previewwidget.cpp
-    ../src/ui/previewwidget.cpp
-    ../src/ui/previewwidget.h
-    ../src/graphics/rendersourcesnapshot.h
-    ../src/video/videosourcetransform.h
-    ../src/graphics/captureframe.h
-    ../src/graphics/canvasrenderer.h
-    ../src/graphics/canvasrenderer.cpp
-    ../src/graphics/compositor.h
-    ../src/graphics/compositor.cpp
-)
-target_include_directories(tst_previewwidget PRIVATE "${PROJECT_SOURCE_DIR}/src")
-target_link_libraries(tst_previewwidget PRIVATE
-    Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Test)
-
-qt_add_resources(tst_previewwidget "preview_shaders"
-    PREFIX "/"
-    BASE "${PROJECT_SOURCE_DIR}"
-    FILES ${OPENLIVE_STUDIO_SHADER_FILES}
-)
+qt_add_executable(tst_previewwidget ui/tst_previewwidget.cpp)
 
 # 依赖桌面 OpenGL 上下文；平台无法创建时明确跳过，避免误报逻辑失败。
 add_test(NAME ui.previewwidget
@@ -336,76 +99,30 @@ set_tests_properties(ui.previewwidget PROPERTIES
     TIMEOUT 30
 )
 
-qt_add_executable(tst_imagesourcecontroller
-    ../src/video/videosourcetransform.cpp
-    ../src/video/videosourcefilter.cpp
-    video/tst_imagesourcecontroller.cpp
-    ../src/video/videosource.cpp
-    ../src/video/videosourcemanager.cpp
-    ../src/video/image/imagesourcecontroller.cpp
-    ../src/video/image/imagesourcecontroller.h
-    ../src/graphics/rendersourcesnapshot.h
-    ../src/video/videosourcetransform.h
-)
-target_include_directories(tst_imagesourcecontroller PRIVATE
-    "${PROJECT_SOURCE_DIR}/src")
-target_link_libraries(tst_imagesourcecontroller PRIVATE Qt6::Widgets Qt6::Test)
+qt_add_executable(tst_imagesourcecontroller video/tst_imagesourcecontroller.cpp)
 add_test(NAME core.imagesourcecontroller
     COMMAND "${CMAKE_COMMAND}" -E env
         "QT_QPA_PLATFORM=offscreen"
         "$<TARGET_FILE:tst_imagesourcecontroller>" -o "-,txt")
 set_tests_properties(core.imagesourcecontroller PROPERTIES LABELS "core;smoke" TIMEOUT 30)
 
-qt_add_executable(tst_cameracapture video/tst_cameracapture.cpp
-    ../src/video/videosourcetransform.cpp
-    ../src/video/videosourcefilter.cpp
-    ../src/video/videosource.cpp
-    ../src/video/videosourcemanager.cpp
-    ../src/video/videosourcemanager.h
-    ../src/video/camera/cameracaptureworker.h
-    ../src/video/camera/cameracaptureworker.cpp
-    ../src/video/camera/v4l2camera.cpp
-    ../src/video/camera/v4l2camera.h
-    ../src/video/camera/camerasourcecontroller.h
-    ../src/video/camera/camerasourcecontroller.cpp
-    ../src/graphics/captureframe.h
-)
-target_include_directories(tst_cameracapture PRIVATE "${PROJECT_SOURCE_DIR}/src")
-target_link_libraries(tst_cameracapture PRIVATE
-    Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::Test)
-
+qt_add_executable(tst_cameracapture video/tst_cameracapture.cpp)
 
 add_test(NAME capture.camera COMMAND
     "$<TARGET_FILE:tst_cameracapture>" -o "-,txt")
 set_tests_properties(capture.camera PROPERTIES LABELS "capture;camera" TIMEOUT 60)
 
-qt_add_resources(tst_mainwindow "style"
-    PREFIX "/"
-    BASE "${PROJECT_SOURCE_DIR}"
-    FILES "${PROJECT_SOURCE_DIR}/assets/styles/style.qss"
-)
-
-foreach(camera_target tst_cameracapture tst_mainwindow)
-    target_link_libraries(${camera_target} PRIVATE PkgConfig::avcodec PkgConfig::avutil)
-endforeach()
-
-target_sources(tst_mainwindow PRIVATE
-    ../src/video/display/waylanddisplaycapture.cpp
-    ../src/video/display/waylanddisplaycapture.h)
-target_link_libraries(tst_mainwindow PRIVATE Qt6::DBus PkgConfig::pipewire)
-
-qt_add_executable(tst_portaldisplay video/tst_portaldisplay.cpp
-    ../src/video/display/waylanddisplaycapture.cpp
-    ../src/video/display/waylanddisplaycapture.h
-    ../src/video/display/displaycaptureworker.cpp
-    ../src/video/display/displaysourcecontroller.cpp
-    ../src/video/display/displaysourcecontroller.h
-    ../src/video/videosource.cpp
-    ../src/video/videosourcemanager.cpp
-    ../src/video/videosourcemanager.h
-    ../src/video/videosourcefilter.cpp
-    ../src/video/videosourcetransform.cpp)
-target_include_directories(tst_portaldisplay PRIVATE "${PROJECT_SOURCE_DIR}/src")
-target_link_libraries(tst_portaldisplay PRIVATE Qt6::Gui Qt6::Test Qt6::DBus PkgConfig::pipewire)
+qt_add_executable(tst_portaldisplay video/tst_portaldisplay.cpp)
 add_test(NAME capture.portal COMMAND "${OPENLIVE_DBUS_RUN_SESSION}" -- "$<TARGET_FILE:tst_portaldisplay>")
 set_tests_properties(capture.portal PROPERTIES LABELS "capture;smoke" TIMEOUT 20)
+
+# Link the same production implementation used by the application.
+foreach(test_target IN ITEMS tst_streaming tst_recording tst_audio tst_pulseaudio
+        tst_canvasrenderer tst_captureframe tst_videosource tst_videosourcefilter
+        tst_videosourcemanager tst_videosourceaggregator tst_imagesourcecontroller
+        tst_cameracapture tst_portaldisplay)
+    target_link_libraries(${test_target} PRIVATE openlive_core Qt6::Test)
+endforeach()
+foreach(test_target IN ITEMS tst_mainwindow tst_mainwindow_gpu tst_mainwindow_hardware tst_previewwidget)
+    target_link_libraries(${test_target} PRIVATE openlive_ui Qt6::Test)
+endforeach()
