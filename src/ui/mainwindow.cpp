@@ -261,7 +261,7 @@ void MainWindow::showSourceRemovalDialog(const QString &sourceId)
 
 void MainWindow::showSourceFiltersDialog(const QString &sourceId)
 {
-    if (!m_videoSourceManager->canFilterSource(sourceId))
+    if (!m_videoSourceManager->source(sourceId))
         return;
     for (auto *dialog : findChildren<QDialog *>()) {
         if (dialog->property("filterSourceId").toString() == sourceId) {

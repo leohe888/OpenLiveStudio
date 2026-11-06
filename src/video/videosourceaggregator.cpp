@@ -62,13 +62,12 @@ void VideoSourceAggregator::publishRenderSources()
         if (!item)
             continue;
         retainedSourceIds.insert(id);
-        const auto type = item->type();
         const Snapshot *snapshot = nullptr;
-        if (type == VideoSourceType::Image)
+        if (dynamic_cast<const ImageSource *>(item))
             snapshot = &m_imageSources;
-        else if (type == VideoSourceType::DisplayCapture)
+        else if (dynamic_cast<const DisplaySource *>(item))
             snapshot = &m_displaySources;
-        else if (type == VideoSourceType::Camera)
+        else if (dynamic_cast<const CameraSource *>(item))
             snapshot = &m_cameraSources;
         if (!snapshot)
             continue;

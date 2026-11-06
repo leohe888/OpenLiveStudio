@@ -225,7 +225,7 @@ bool VideoSourceManager::setSourceFilters(const QString &sourceId,
                                           const QList<VideoSourceFilter> &filters)
 {
     const int row = sourceRow(sourceId);
-    if (row < 0 || !canFilterSource(sourceId))
+    if (row < 0)
         return false;
     QSet<QString> ids;
     for (const auto &filter : filters) {
@@ -275,19 +275,11 @@ bool VideoSourceManager::selectFilter(const QString &sourceId, const QString &fi
     return true;
 }
 
-bool VideoSourceManager::canFilterSource(const QString &sourceId) const
-{
-    const int row = sourceRow(sourceId);
-    return row >= 0 && (m_sources[row]->type() == VideoSourceType::Image ||
-                        m_sources[row]->type() == VideoSourceType::DisplayCapture ||
-                        m_sources[row]->type() == VideoSourceType::Camera);
-}
-
 QString VideoSourceManager::addFilter(const QString &sourceId, VideoSourceFilterType type)
 {
-    if (!canFilterSource(sourceId))
-        return {};
     const int row = sourceRow(sourceId);
+    if (row < 0)
+        return {};
     VideoSourceFilter filter;
     switch (type) {
     case VideoSourceFilterType::ColorCorrection:
@@ -416,15 +408,7 @@ void VideoSourceManager::notifySourceStatusChanged(const QString &sourceId,
         return;
     const auto size = m_sources[row]->pixelSize();
     if (previousPixelSize != size) {
-        auto geometry = m_sources[row]->transform();
-        if (geometry.size().isEmpty() && !size.isEmpty()) {
-            m_sources[row]->setTransform(VideoSourceTransform(size));
-        } else if (m_sources[row]->type() == VideoSourceType::Camera && !size.isEmpty() &&
-                   !geometry.size().isEmpty()) {
-            geometry.setSize(QSizeF(geometry.size().width(),
-                                    geometry.size().width() * size.height() / size.width()));
-            m_sources[row]->setTransform(geometry);
-        }
+        m_sources[row]->adaptTransformToPixelSize();
         const QString id = sourceId;
         emit sourceChanged(id);
     }

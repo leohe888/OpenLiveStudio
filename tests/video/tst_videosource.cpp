@@ -26,14 +26,13 @@ void VideoSourceTest::concreteTypesOwnTheirConfig()
     CameraSource camera{"camera", "Camera", "device"};
     ImageSource image{"image", "Image", "image.png"};
     const VideoSource *sources[]{&display, &camera, &image};
-    QCOMPARE(sources[0]->type(), VideoSourceType::DisplayCapture);
-    QCOMPARE(sources[1]->type(), VideoSourceType::Camera);
-    QCOMPARE(sources[2]->type(), VideoSourceType::Image);
+    QVERIFY(dynamic_cast<const DisplaySource *>(sources[0]));
+    QVERIFY(dynamic_cast<const CameraSource *>(sources[1]));
+    QVERIFY(dynamic_cast<const ImageSource *>(sources[2]));
     QVERIFY(!display.captureCursor());
     QCOMPARE(camera.deviceId(), QString("device"));
     QCOMPARE(image.filePath(), QString("image.png"));
     camera.setDeviceId("another-device");
-    QCOMPARE(camera.type(), VideoSourceType::Camera);
     QCOMPARE(camera.deviceId(), QString("another-device"));
     camera.updateCapture({1280, 720}, 30000, 1001, "MJPEG");
     QCOMPARE(sources[1]->pixelSize(), QSize(1280, 720));
@@ -176,10 +175,8 @@ void VideoSourceTest::captureSettingEditsAndSourceCopiesAreIndependent()
     copy.setVisible(false);
     copy.setLocked(true);
     copy.setTransform(VideoSourceTransform(QSizeF(640, 360)));
-    QCOMPARE(copy.type(), VideoSourceType::Camera);
     QCOMPARE(original.deviceId(), QString("camera"));
     QCOMPARE(original.captureDescription(), QString("MJPEG"));
-    QCOMPARE(original.type(), VideoSourceType::Camera);
     QCOMPARE(original.id(), QString("source"));
     QCOMPARE(original.name(), QString("Original"));
     QCOMPARE(original.state(), VideoSourceState::Capturing);
@@ -209,14 +206,12 @@ void VideoSourceTest::shortConstructorsPreserveMemberDefaults()
     const DisplaySource source{"source", "Source"};
     QCOMPARE(source.id(), QString("source"));
     QCOMPARE(source.name(), QString("Source"));
-    QCOMPARE(source.type(), VideoSourceType::DisplayCapture);
     QVERIFY(source.visible());
     QVERIFY(!source.locked());
     QVERIFY(source.transform().size().isEmpty());
     QVERIFY(source.filters().isEmpty());
     QVERIFY(source.pixelSize().isEmpty());
     const ImageSource image{"image", "Image", "image.png"};
-    QCOMPARE(image.type(), VideoSourceType::Image);
     QVERIFY(image.visible());
     QVERIFY(!image.locked());
 }

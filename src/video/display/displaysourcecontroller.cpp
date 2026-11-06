@@ -102,15 +102,12 @@ void DisplaySourceController::synchronizeSources()
     QSet<QString> retainedSourceIds;
     const auto sourceIds = m_sourceManager.sourceIds();
     for (const auto &id : sourceIds) {
-        const auto *item = m_sourceManager.source(id);
+        const auto *item = dynamic_cast<const DisplaySource *>(m_sourceManager.source(id));
         if (!item)
             continue;
-        if (item->type() != VideoSourceType::DisplayCapture)
-            continue;
-        const auto *display = static_cast<const DisplaySource *>(item);
         retainedSourceIds.insert(id);
         auto &entry = m_entries[id];
-        const bool captureCursor = display->captureCursor();
+        const bool captureCursor = item->captureCursor();
         if (entry.captureCursor != captureCursor) {
             retireWorker(entry);
             entry.captureCursor = captureCursor;
@@ -238,10 +235,8 @@ void DisplaySourceController::publishRenderSources()
     QList<RenderSourceSnapshot> result;
     const auto sourceIds = m_sourceManager.sourceIds();
     for (const auto &id : sourceIds) {
-        const auto *item = m_sourceManager.source(id);
+        const auto *item = dynamic_cast<const DisplaySource *>(m_sourceManager.source(id));
         if (!item)
-            continue;
-        if (item->type() != VideoSourceType::DisplayCapture)
             continue;
         RenderSourceSnapshot source;
         source.id = id;

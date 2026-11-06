@@ -1,5 +1,7 @@
 #include "video/videosource.h"
 
+VideoSource::~VideoSource() = default;
+
 VideoSource::VideoSource(const QString &id, const QString &name) : m_id(id), m_name(name)
 {
 }
@@ -81,14 +83,15 @@ void VideoSource::updateStatus(const QSize &pixelSize, VideoSourceState state, c
     m_error = error;
 }
 
+void VideoSource::adaptTransformToPixelSize()
+{
+    if (m_transform.size().isEmpty() && !m_pixelSize.isEmpty())
+        m_transform = VideoSourceTransform(m_pixelSize);
+}
+
 DisplaySource::DisplaySource(const QString &id, const QString &name, bool captureCursor)
     : VideoSource(id, name), m_captureCursor(captureCursor)
 {
-}
-
-VideoSourceType DisplaySource::type() const
-{
-    return VideoSourceType::DisplayCapture;
 }
 
 bool DisplaySource::captureCursor() const
@@ -107,11 +110,6 @@ CameraSource::CameraSource(const QString &id, const QString &name, const QString
     : VideoSource(id, name), m_deviceId(deviceId), m_pixelFormat(pixelFormat),
       m_resolution(resolution), m_frameRateNumerator(numerator), m_frameRateDenominator(denominator)
 {
-}
-
-VideoSourceType CameraSource::type() const
-{
-    return VideoSourceType::Camera;
 }
 
 const QString &CameraSource::deviceId() const
@@ -212,14 +210,24 @@ void CameraSource::updateCapture(const QSize &pixelSize, int numerator, int deno
     updateStatus(pixelSize, VideoSourceState::Capturing);
 }
 
+void CameraSource::adaptTransformToPixelSize()
+{
+    if (transform().size().isEmpty()) {
+        VideoSource::adaptTransformToPixelSize();
+        return;
+    }
+    const auto size = pixelSize();
+    if (size.isEmpty())
+        return;
+    auto geometry = transform();
+    geometry.setSize(
+        QSizeF(geometry.size().width(), geometry.size().width() * size.height() / size.width()));
+    setTransform(geometry);
+}
+
 ImageSource::ImageSource(const QString &id, const QString &name, const QString &filePath)
     : VideoSource(id, name), m_filePath(filePath)
 {
-}
-
-VideoSourceType ImageSource::type() const
-{
-    return VideoSourceType::Image;
 }
 
 const QString &ImageSource::filePath() const

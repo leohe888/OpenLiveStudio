@@ -151,10 +151,14 @@ void MainWindowTest::sourceActionsAndSelection()
     auto *panel = window.findChild<VideoSourcePanel *>();
     auto *list = panel->findChild<QListWidget *>("sourceList");
     QVERIFY(!panel->findChild<QToolButton *>("removeSourceButton")->isEnabled());
+    auto *filters = panel->findChild<QToolButton *>("sourceFiltersButton");
+    QVERIFY(filters);
+    QVERIFY(!filters->isEnabled());
     QVERIFY(addSource(*model, {"one", "One"}));
     QVERIFY(addSource(*model, {"two", "Two"}));
     QCOMPARE(list->count(), 2);
     QVERIFY(model->selectSource("one"));
+    QVERIFY(filters->isEnabled());
     QCOMPARE(list->currentItem()->data(Qt::UserRole).toString(), QString("one"));
     list->setCurrentRow(0);
     QCOMPARE(model->currentSourceId(), list->currentItem()->data(Qt::UserRole).toString());
@@ -179,6 +183,7 @@ void MainWindowTest::sourceActionsAndSelection()
     QCOMPARE(list->currentRow(), 1);
     QVERIFY(model->removeSource(id));
     QCOMPARE(list->count(), 1);
+    QVERIFY(!filters->isEnabled());
     QVERIFY(!panel->findChild<QLabel *>("emptySourcesLabel")->isVisibleTo(panel));
 }
 

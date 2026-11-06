@@ -106,9 +106,9 @@ void VideoSourceManagerTest::supportsAllSourceTypes()
     VideoSourceManager manager;
     QVERIFY(addSources(manager, entries));
     setSourcePixelSize(manager, "image", {64, 32});
-    QCOMPARE(findSource(manager, "display")->type(), VideoSourceType::DisplayCapture);
-    QCOMPARE(findSource(manager, "camera")->type(), VideoSourceType::Camera);
-    QCOMPARE(findSource(manager, "image")->type(), VideoSourceType::Image);
+    QVERIFY(dynamic_cast<const DisplaySource *>(findSource(manager, "display")));
+    QVERIFY(dynamic_cast<const CameraSource *>(findSource(manager, "camera")));
+    QVERIFY(dynamic_cast<const ImageSource *>(findSource(manager, "image")));
     QCOMPARE(manager.sourcePixelSize("image"), QSize(64, 32));
     for (const auto &entry : entries) {
         QVERIFY(manager.selectSource(entry.id()));
@@ -116,7 +116,7 @@ void VideoSourceManagerTest::supportsAllSourceTypes()
         QVERIFY(manager.setSourceLocked(entry.id(), true));
     }
     entries[0] = SourceFixture{"display", "Replacement", "replacement.png"};
-    QCOMPARE(findSource(manager, "display")->type(), VideoSourceType::DisplayCapture);
+    QVERIFY(dynamic_cast<const DisplaySource *>(findSource(manager, "display")));
     QVERIFY(manager.moveSource("image", -1));
     QCOMPARE(manager.sources().at(1)->id(), QString("image"));
     for (const auto &source : manager.sources()) {
@@ -124,7 +124,7 @@ void VideoSourceManagerTest::supportsAllSourceTypes()
         QVERIFY(source->locked());
     }
     QVERIFY(manager.removeSource("image"));
-    QCOMPARE(manager.sources().at(1)->type(), VideoSourceType::Camera);
+    QVERIFY(dynamic_cast<const CameraSource *>(manager.sources().at(1)));
 }
 
 void VideoSourceManagerTest::statusDetailsFollowSourceType()
@@ -566,10 +566,7 @@ void VideoSourceManagerTest::filtersAreOrderedValidatedAndIndependent()
                                                    {"camera", "Camera", cameraRequest("device")}}));
     QSignalSpy changed(&model, &VideoSourceManager::sourceFiltersChanged);
     QSignalSpy data(&model, &VideoSourceManager::sourceChanged);
-    QVERIFY(!model.canFilterCurrentSource());
     QVERIFY(model.selectSource("a"));
-    QVERIFY(model.canFilterCurrentSource());
-    QVERIFY(model.canFilterSource("camera"));
     QVERIFY(model.addFilter("missing").isEmpty());
     QVERIFY(model.addFilter("a", static_cast<VideoSourceFilterType>(-1)).isEmpty());
     QVERIFY(model.sourceFilters("a").isEmpty());
@@ -638,7 +635,6 @@ void VideoSourceManagerTest::captureSettingUpdatesPreserveSourceState()
     QSignalSpy changed(&model, &VideoSourceManager::sourceChanged);
     QSignalSpy status(&model, &VideoSourceManager::sourceStatusChanged);
     QVERIFY(model.selectSource("screen"));
-    QVERIFY(model.canFilterCurrentSource());
     QVERIFY(setSourcePixelSize(model, "screen", QSize(1920, 1080)));
     QCOMPARE(status.count(), 1);
     status.clear();
@@ -665,9 +661,7 @@ void VideoSourceManagerTest::captureSettingUpdatesPreserveSourceState()
     QVERIFY(setSourceStatus(model, "screen", VideoSourceState::Starting, {}));
     QVERIFY(model.sourceError("screen").isEmpty());
     QVERIFY(model.selectSource("image"));
-    QVERIFY(model.canFilterCurrentSource());
     QVERIFY(model.selectSource("camera"));
-    QVERIFY(model.canFilterCurrentSource());
     QVERIFY(model.removeSource("screen"));
     QVERIFY(!displaySource(model, "screen"));
     QVERIFY(!setSourceStatus(model, "screen", VideoSourceState::Error, "Removed"));
@@ -763,11 +757,6 @@ void VideoSourceManagerTest::ownsSourcesAndKeepsPointersStable()
         ~TrackedSource() override
         {
             destroyed = true;
-        }
-
-        VideoSourceType type() const override
-        {
-            return VideoSourceType::Image;
         }
 
         bool &destroyed;

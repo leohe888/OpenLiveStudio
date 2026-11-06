@@ -167,7 +167,6 @@ void CameraCaptureTest::captureSettingUpdatesPreserveTransformAndAspectRatio()
     QVERIFY(!id.isEmpty());
     QVERIFY(addCamera(controller, "Duplicate", cameraRequest("missing-device")).isEmpty());
     QCOMPARE(cameraSource(model, id)->frameRateDenominator(), 1001);
-    QVERIFY(model.canFilterCurrentSource());
     setCameraActualMode(model, id, {1280, 720}, 30000, 1001);
     const VideoSourceTransform transform{{440, 330}, {600, 337.5}, 35};
     QVERIFY(model.setSourceTransform(id, transform));

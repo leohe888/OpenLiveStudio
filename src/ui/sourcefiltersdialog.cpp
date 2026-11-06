@@ -124,7 +124,7 @@ QDialog *createSourceFiltersDialog(QWidget *parent, VideoSourceManager *manager,
     };
 
     const auto refresh = [=] {
-        if (!manager->canFilterSource(sourceId)) {
+        if (!manager->source(sourceId)) {
             dialog->close();
             return;
         }

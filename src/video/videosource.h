@@ -7,12 +7,6 @@
 #include <QSize>
 #include <QString>
 
-enum class VideoSourceType {
-    DisplayCapture,
-    Camera,
-    Image
-};
-
 enum class VideoSourceState {
     Idle,
     Loading,
@@ -27,8 +21,7 @@ enum class VideoSourceState {
 class VideoSource
 {
 public:
-    virtual ~VideoSource() = default;
-    virtual VideoSourceType type() const = 0;
+    virtual ~VideoSource() = 0;
 
     const QString &id() const;
     const QString &name() const;
@@ -47,6 +40,8 @@ public:
     const QString &error() const;
     // 状态及错误作为同一次更新发布，不暴露独立的状态/错误 setter。
     void updateStatus(const QSize &pixelSize, VideoSourceState state, const QString &error = {});
+    // 管理器在尺寸变化后调用，具体来源决定如何适配已有画布变换。
+    virtual void adaptTransformToPixelSize();
 
 protected:
     VideoSource(const QString &id, const QString &name);
@@ -67,7 +62,6 @@ class DisplaySource final : public VideoSource
 {
 public:
     DisplaySource(const QString &id, const QString &name, bool captureCursor = true);
-    VideoSourceType type() const override;
     bool captureCursor() const;
     void setCaptureCursor(bool captureCursor);
 
@@ -81,7 +75,6 @@ public:
     CameraSource(const QString &id, const QString &name, const QString &deviceId,
                  const QSize &resolution = {}, int frameRateNumerator = 0,
                  int frameRateDenominator = 1, const QString &pixelFormat = {});
-    VideoSourceType type() const override;
 
     const QString &deviceId() const;
     void setDeviceId(const QString &deviceId);
@@ -103,6 +96,7 @@ public:
     const QString &captureDescription() const;
     void updateCapture(const QSize &pixelSize, int numerator, int denominator,
                        const QString &description = {});
+    void adaptTransformToPixelSize() override;
 
 private:
     QString m_deviceId;
@@ -119,7 +113,6 @@ class ImageSource final : public VideoSource
 {
 public:
     ImageSource(const QString &id, const QString &name, const QString &filePath);
-    VideoSourceType type() const override;
     const QString &filePath() const;
     void setFilePath(const QString &filePath);
 

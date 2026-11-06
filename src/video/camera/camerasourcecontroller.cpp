@@ -150,14 +150,12 @@ void CameraSourceController::synchronizeSources()
     QSet<QString> retainedSourceIds;
     const auto sourceIds = m_sourceManager.sourceIds();
     for (const auto &id : sourceIds) {
-        const auto *item = m_sourceManager.source(id);
+        const auto *item = dynamic_cast<const CameraSource *>(m_sourceManager.source(id));
         if (!item)
-            continue;
-        if (item->type() != VideoSourceType::Camera)
             continue;
         retainedSourceIds.insert(id);
         auto &entry = m_entries[id];
-        const auto &requested = *static_cast<const CameraSource *>(item);
+        const auto &requested = *item;
         if (!entry.source.hasSameCaptureSettings(requested)) {
             retireWorker(entry);
             entry.source.copyCaptureSettings(requested);
@@ -255,10 +253,8 @@ void CameraSourceController::publishRenderSources()
     QList<RenderSourceSnapshot> result;
     const auto sourceIds = m_sourceManager.sourceIds();
     for (const auto &id : sourceIds) {
-        const auto *item = m_sourceManager.source(id);
+        const auto *item = dynamic_cast<const CameraSource *>(m_sourceManager.source(id));
         if (!item)
-            continue;
-        if (item->type() != VideoSourceType::Camera)
             continue;
         RenderSourceSnapshot source;
         source.id = id;

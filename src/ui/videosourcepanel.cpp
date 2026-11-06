@@ -65,7 +65,7 @@ VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent)
         remove->setEnabled(selected >= 0);
         up->setEnabled(manager->canMoveCurrentSourceUp());
         down->setEnabled(manager->canMoveCurrentSourceDown());
-        filters->setEnabled(manager->canFilterCurrentSource());
+        filters->setEnabled(selected >= 0);
     };
 
     const auto updateRow = [=](const QString &sourceId) {
@@ -73,7 +73,7 @@ VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent)
         if (name.isNull())
             return;
         const auto *source = manager->source(sourceId);
-        const bool image = source && source->type() == VideoSourceType::Image;
+        const bool image = dynamic_cast<const ImageSource *>(source) != nullptr;
         QListWidgetItem *item = nullptr;
         for (int row = 0; row < list->count(); ++row) {
             if (list->item(row)->data(Qt::UserRole).toString() == sourceId) {
@@ -102,7 +102,7 @@ VideoSourcePanel::VideoSourcePanel(VideoSourceManager *manager, QWidget *parent)
                                                                    : ":/assets/icons/eye-off.svg"));
         auto *retry = widget->findChild<QPushButton *>("retryDisplayButton");
         if (retry)
-            retry->setVisible(source && source->type() == VideoSourceType::DisplayCapture &&
+            retry->setVisible(dynamic_cast<const DisplaySource *>(source) &&
                               state == VideoSourceState::Error);
         auto *lock = widget->findChild<QToolButton *>("sourceLockButton");
         lock->setChecked(manager->sourceLocked(sourceId));

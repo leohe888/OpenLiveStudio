@@ -56,11 +56,6 @@ public:
     QString currentFilterId(const QString &sourceId) const;
     // 空滤镜 ID 表示清除选择；非空 ID 必须属于指定来源。
     bool selectFilter(const QString &sourceId, const QString &filterId);
-    bool canFilterCurrentSource() const
-    {
-        return canFilterSource(m_currentSourceId);
-    }
-    bool canFilterSource(const QString &sourceId) const;
     QString addFilter(const QString &sourceId,
                       VideoSourceFilterType type = VideoSourceFilterType::ColorCorrection);
     bool removeFilter(const QString &sourceId, const QString &filterId);

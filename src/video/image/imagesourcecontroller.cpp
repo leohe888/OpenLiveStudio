@@ -115,12 +115,10 @@ void ImageSourceController::synchronizeSources()
     QList<RenderSourceSnapshot> sources;
     const auto sourceIds = m_sourceManager.sourceIds();
     for (const auto &id : sourceIds) {
-        const auto *item = m_sourceManager.source(id);
+        const auto *item = dynamic_cast<const ImageSource *>(m_sourceManager.source(id));
         if (!item)
             continue;
-        if (item->type() != VideoSourceType::Image)
-            continue;
-        const QString path = static_cast<const ImageSource *>(item)->filePath();
+        const QString path = item->filePath();
         RenderSourceSnapshot snapshot{
             id, {}, item->visible(), item->transform(), item->locked(), item->filters()};
         retainedSourceIds.insert(id);
